@@ -232,6 +232,26 @@ export function createApp(store: Store, engine: RoundEngine, adminKey: string): 
     }),
   );
 
+  // Auditability (spec §6/§13): during the queue only aggregates are visible
+  // (no late-information gaming); after settlement the full intent list is
+  // public so anyone can recompute the clearing price and audit hash.
+  app.get(
+    "/api/rounds/:id/intents",
+    wrap((req, res) => {
+      const round = store.rounds.get(req.params.id!);
+      if (!round) throw new Err(404, "round not found");
+      const intents = store.intents.get(round.id) ?? [];
+      if (round.state === "lobby" || round.state === "queue_open" || round.state === "scheduled") {
+        res.json({
+          count: intents.length,
+          totalEth: intents.reduce((s, i) => s + i.ethAmount, 0),
+        });
+        return;
+      }
+      res.json({ intents });
+    }),
+  );
+
   app.get(
     "/api/rounds/:id/auction",
     wrap((req, res) => {

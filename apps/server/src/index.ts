@@ -27,7 +27,7 @@ setInterval(() => {
   }
 }, 1000);
 
-server.listen(PORT, () => {
+server.listen(PORT, process.env.HOST ?? "0.0.0.0", () => {
   console.log(`The Cookout server listening on :${PORT} (ws at /ws)`);
   if (ADMIN_KEY === "dev-admin")
     console.log("warning: using default ADMIN_KEY — set ADMIN_KEY in production");
