@@ -1,0 +1,16 @@
+{
+  "name": "cookout",
+  "private": true,
+  "version": "0.1.0",
+  "description": "The Cookout — live multiplayer trading arena + token launchpad (Phase 1: paper money MVP)",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "test": "npm run test -w @cookout/shared && npm run test -w @cookout/server",
+    "build": "npm run build -w @cookout/shared && npm run build -w @cookout/server && npm run build -w @cookout/web",
+    "dev:server": "npm run dev -w @cookout/server",
+    "dev:web": "npm run dev -w @cookout/web"
+  }
+}

@@ -1,0 +1,284 @@
+/** Shared domain types for The Cookout (Phase 1: paper money). */
+
+export type Address = string;
+
+export type RiskTier = "rookie" | "standard" | "degen";
+
+/** Round lifecycle. Linear except ENDED can be reached from any live-ish state. */
+export type RoundState =
+  | "scheduled" // on the match calendar, teaser visible
+  | "lobby" // pre-round lobby open, countdown running
+  | "queue_open" // batch auction intents accepted
+  | "settling" // queue closed, computing clearing price
+  | "live" // continuous trading
+  | "ended" // end trigger fired, resolving
+  | "results"; // results published, archived
+
+export type RoundEndReason =
+  | "timer"
+  | "rug_detected"
+  | "liquidity_removed"
+  | "mcap_target"
+  | "low_volume"
+  | "admin";
+
+export interface PoolState {
+  /** Paper-ETH reserve of the simulated AMM pool. */
+  ethReserve: number;
+  /** Token reserve. */
+  tokenReserve: number;
+  /** Fixed total supply of the round token. */
+  totalSupply: number;
+}
+
+export interface TokenConcept {
+  id: string;
+  creatorAddress: Address;
+  name: string;
+  symbol: string;
+  theme: string;
+  pitch?: string;
+  artworkUrl?: string;
+  status: "submitted" | "shortlisted" | "scheduled" | "launched" | "rejected";
+  votes: number;
+  createdAt: number;
+}
+
+export interface RoundConfig {
+  tier: RiskTier;
+  /** Seconds the lobby is open before the queue opens. */
+  lobbySeconds: number;
+  /** Seconds the intent queue stays open. */
+  queueSeconds: number;
+  /** Max round duration in seconds once live. */
+  maxDurationSeconds: number;
+  /** Cap on total paper-ETH the batch auction will accept. */
+  auctionMaxRaise: number;
+  /** Initial pool liquidity (paper ETH). */
+  initialEthLiquidity: number;
+  initialTokenLiquidity: number;
+  totalSupply: number;
+  /** Trading fee in basis points, applied on continuous trades. */
+  tradeFeeBps: number;
+  /** Settlement fee in basis points, applied on auction fills. */
+  auctionFeeBps: number;
+  /** Round ends when market cap exceeds this (0 = disabled). */
+  mcapTarget: number;
+  /** Graduation threshold: market cap at round end. */
+  graduationMcap: number;
+  graduationMinHolders: number;
+  graduationMinVolume: number;
+  /** Round ends if volume stays below this for lowVolumeWindow seconds. */
+  lowVolumeThreshold: number;
+  lowVolumeWindowSeconds: number;
+  /** Max position per player in paper ETH (0 = uncapped). */
+  maxPositionEth: number;
+}
+
+export interface Round {
+  id: string;
+  conceptId: string;
+  token: { name: string; symbol: string; artworkUrl?: string };
+  creatorAddress: Address;
+  tier: RiskTier;
+  state: RoundState;
+  config: RoundConfig;
+  /** Epoch ms for the scheduled open (lobby start). */
+  scheduledAt: number;
+  queueOpensAt?: number;
+  queueClosesAt?: number;
+  liveAt?: number;
+  endsAt?: number;
+  endedAt?: number;
+  endReason?: RoundEndReason;
+  clearingPrice?: number;
+  graduated?: boolean;
+  pool?: PoolState;
+}
+
+export interface AuctionIntent {
+  id: string;
+  roundId: string;
+  userAddress: Address;
+  ethAmount: number;
+  /** Optional limit: max uniform clearing price the player accepts. */
+  maxPrice?: number;
+  submittedAt: number;
+}
+
+export interface AuctionFill {
+  intentId: string;
+  userAddress: Address;
+  ethIn: number;
+  ethFilled: number;
+  tokensOut: number;
+  refund: number;
+}
+
+export interface AuctionResult {
+  roundId: string;
+  clearingPrice: number;
+  totalDemand: number;
+  totalRaised: number;
+  fillRatio: number;
+  fills: AuctionFill[];
+  poolAfter: PoolState;
+  settledAt: number;
+  /** Deterministic hash of inputs+outputs so the settlement is auditable. */
+  auditHash: string;
+}
+
+export interface Trade {
+  id: string;
+  roundId: string;
+  userAddress: Address;
+  side: "buy" | "sell";
+  ethAmount: number;
+  tokenAmount: number;
+  price: number;
+  fee: number;
+  at: number;
+  /** True when the trader is the round's creator (rendered as "Developer"). */
+  isCreator: boolean;
+}
+
+export interface Candle {
+  /** Epoch seconds, 1-second buckets. */
+  t: number;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+  v: number;
+}
+
+export interface Position {
+  userAddress: Address;
+  roundId: string;
+  tokens: number;
+  costBasisEth: number;
+  realizedPnl: number;
+  firstBuyAt?: number;
+  lastExitAt?: number;
+}
+
+export type KillFeedKind =
+  | "big_buy"
+  | "big_sell"
+  | "whale_entered"
+  | "dev_buy"
+  | "dev_sell"
+  | "rug_detected"
+  | "mcap_milestone"
+  | "new_leader"
+  | "graduated";
+
+export interface KillFeedEvent {
+  id: string;
+  roundId: string;
+  kind: KillFeedKind;
+  text: string;
+  at: number;
+  meta?: Record<string, string | number>;
+}
+
+export interface ChatMessage {
+  id: string;
+  roundId: string;
+  userAddress: Address;
+  displayName?: string;
+  text: string;
+  at: number;
+}
+
+export interface Prediction {
+  roundId: string;
+  userAddress: Address;
+  call: "moon" | "rug";
+  at: number;
+}
+
+export interface UserProfile {
+  address: Address;
+  displayName?: string;
+  avatarUrl?: string;
+  xp: number;
+  level: number;
+  title: string;
+  paperBalance: number;
+  achievements: string[];
+  referralCode: string;
+  referredBy?: Address;
+  createdAt: number;
+  creatorReputation: number;
+  stats: UserStats;
+}
+
+export interface UserStats {
+  roundsPlayed: number;
+  trades: number;
+  wins: number;
+  losses: number;
+  totalPnl: number;
+  bestTradePnl: number;
+  rugsSurvived: number;
+  predictionsCorrect: number;
+  predictionsMade: number;
+  currentWinStreak: number;
+  bestWinStreak: number;
+}
+
+export interface RoundSummary {
+  roundId: string;
+  endReason: RoundEndReason;
+  graduated: boolean;
+  durationSeconds: number;
+  totalVolume: number;
+  peakMcap: number;
+  finalMcap: number;
+  holderCount: number;
+  averageReturnPct: number;
+  winner?: { address: Address; pnl: number };
+  topProfit?: { address: Address; pnl: number };
+  bestTrade?: { address: Address; pnl: number };
+  biggestWhale?: { address: Address; ethIn: number };
+  diamondHands?: { address: Address; holdSeconds: number };
+  fastestExit?: { address: Address; seconds: number };
+}
+
+/** WebSocket messages: server → client. */
+export type ServerEvent =
+  | { type: "round_state"; round: Round }
+  | {
+      type: "lobby_update";
+      roundId: string;
+      players: number;
+      spectators: number;
+      committedEth: number;
+      avgEntry: number;
+      queueDepth: number;
+    }
+  | { type: "auction_settled"; result: AuctionResult }
+  | { type: "trade"; trade: Trade }
+  | { type: "candle"; roundId: string; candle: Candle }
+  | {
+      type: "ticker";
+      roundId: string;
+      price: number;
+      mcap: number;
+      liquidity: number;
+      volume: number;
+      holders: number;
+      ageSeconds: number;
+    }
+  | { type: "killfeed"; event: KillFeedEvent }
+  | { type: "chat"; message: ChatMessage }
+  | { type: "round_end"; roundId: string; summary: RoundSummary }
+  | { type: "prediction_update"; roundId: string; moon: number; rug: number }
+  | { type: "error"; message: string };
+
+/** WebSocket messages: client → server. */
+export type ClientEvent =
+  | { type: "subscribe"; roundId: string }
+  | { type: "unsubscribe"; roundId: string }
+  | { type: "chat"; roundId: string; text: string };
