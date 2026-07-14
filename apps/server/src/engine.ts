@@ -73,7 +73,12 @@ export class RoundEngine {
     const round: Round = {
       id: this.store.id(),
       conceptId: concept.id,
-      token: { name: concept.name, symbol: concept.symbol, artworkUrl: concept.artworkUrl },
+      token: {
+        name: concept.name,
+        symbol: concept.symbol,
+        theme: concept.theme,
+        artworkUrl: concept.artworkUrl,
+      },
       creatorAddress: concept.creatorAddress,
       tier,
       state: "scheduled",

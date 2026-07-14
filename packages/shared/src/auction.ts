@@ -1,5 +1,5 @@
-import { createHash } from "node:crypto";
 import { tokensOutForEth } from "./amm.js";
+import { sha256Hex } from "./sha256.js";
 import type { AuctionFill, AuctionIntent, AuctionResult, PoolState } from "./types.js";
 
 /**
@@ -89,9 +89,8 @@ export function settleAuction(params: {
     tokenReserve: pool.tokenReserve - totalTokens,
   };
 
-  const auditHash = createHash("sha256")
-    .update(
-      JSON.stringify({
+  const auditHash = sha256Hex(
+    JSON.stringify({
         roundId,
         pool,
         maxRaise,
@@ -104,9 +103,8 @@ export function settleAuction(params: {
         fills: [...fills]
           .sort((a, b) => a.intentId.localeCompare(b.intentId))
           .map((f) => [f.intentId, f.ethFilled, f.tokensOut]),
-      }),
-    )
-    .digest("hex");
+    }),
+  );
 
   return {
     roundId,

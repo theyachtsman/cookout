@@ -364,8 +364,13 @@ export function createApp(store: Store, engine: RoundEngine, adminKey: string): 
     wrap((req, res) => {
       const concept = store.concepts.get(req.params.id!);
       if (!concept) throw new Err(404, "concept not found");
-      const { tier = "rookie", inSeconds = 30 } = req.body as { tier?: RiskTier; inSeconds?: number };
+      const { tier = "rookie", inSeconds = 30, config } = req.body as {
+        tier?: RiskTier;
+        inSeconds?: number;
+        config?: Record<string, number>;
+      };
       const round = engine.scheduleRound(concept, tier, Date.now() + Number(inSeconds) * 1000);
+      if (config) Object.assign(round.config, config);
       store.logAdmin("schedule", `round ${round.id} (${concept.symbol}, ${tier})`);
       res.json(round);
     }),

@@ -78,7 +78,7 @@ export interface RoundConfig {
 export interface Round {
   id: string;
   conceptId: string;
-  token: { name: string; symbol: string; artworkUrl?: string };
+  token: { name: string; symbol: string; theme: string; artworkUrl?: string };
   creatorAddress: Address;
   tier: RiskTier;
   state: RoundState;
