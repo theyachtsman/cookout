@@ -2,18 +2,37 @@
 
 import type { RoundConfig } from "@cookout/shared";
 
-/** Live bonding progress: the three graduation criteria, updated per tick. */
+const usd = (n: number) =>
+  `$${n >= 1000 ? (n / 1000).toFixed(n >= 10_000 ? 0 : 1) + "k" : n.toFixed(0)}`;
+
+/** Live bonding progress toward the $40k serve-up — USD-first display. */
 export function GraduationProgress({
   config,
   ticker,
 }: {
   config: RoundConfig;
-  ticker: { mcap: number; volume: number; holders: number };
+  ticker: { mcap: number; volume: number; holders: number; ethUsd?: number };
 }) {
+  const ethUsd = ticker.ethUsd ?? 1925;
   const bars = [
-    { label: "Market cap", now: ticker.mcap, goal: config.graduationMcap, unit: "pETH" },
-    { label: "Volume", now: ticker.volume, goal: config.graduationMinVolume, unit: "pETH" },
-    { label: "Holders", now: ticker.holders, goal: config.graduationMinHolders, unit: "" },
+    {
+      label: "Market cap",
+      now: ticker.mcap,
+      goal: config.graduationMcap,
+      fmt: (v: number) => usd(v * ethUsd),
+    },
+    {
+      label: "Volume",
+      now: ticker.volume,
+      goal: config.graduationMinVolume,
+      fmt: (v: number) => usd(v * ethUsd),
+    },
+    {
+      label: "Holders",
+      now: ticker.holders,
+      goal: config.graduationMinHolders,
+      fmt: (v: number) => String(Math.round(v)),
+    },
   ];
   const overall = Math.min(...bars.map((b) => b.now / b.goal));
   const graduating = overall >= 1;
@@ -28,7 +47,10 @@ export function GraduationProgress({
         <span className="font-bold text-zinc-300">
           🍽️ Bonding progress {graduating && "— targets met, serving up!"}
         </span>
-        <span className="font-mono text-zinc-400">{Math.min(100, overall * 100).toFixed(0)}%</span>
+        <span className="font-mono text-zinc-400">
+          {usd(bars[0]!.now * ethUsd)} / {usd(bars[0]!.goal * ethUsd)} ·{" "}
+          {Math.min(100, overall * 100).toFixed(0)}%
+        </span>
       </div>
       <div className="grid grid-cols-3 gap-3">
         {bars.map((b) => {
@@ -44,9 +66,7 @@ export function GraduationProgress({
               <div className="mt-1 flex justify-between text-[10px] text-zinc-500">
                 <span>{b.label}</span>
                 <span className="font-mono">
-                  {b.unit ? (b.now >= 100 ? b.now.toFixed(0) : b.now.toFixed(1)) : Math.round(b.now)}/
-                  {b.goal}
-                  {b.unit && ` ${b.unit}`}
+                  {b.fmt(b.now)}/{b.fmt(b.goal)}
                 </span>
               </div>
             </div>

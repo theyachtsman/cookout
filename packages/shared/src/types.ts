@@ -295,6 +295,8 @@ export type ServerEvent =
       /** Flavor flag: round is running hot (high recent volume). Shown
        *  alongside real numbers, never replacing them (spec §1 "Cooking"). */
       cooking: boolean;
+      /** Live ETH/USD used to render USD figures (bond is $-pegged). */
+      ethUsd: number;
     }
   | { type: "killfeed"; event: KillFeedEvent }
   | { type: "chat"; message: ChatMessage }

@@ -92,11 +92,11 @@ const waitState = async (states, timeoutMs = 30000) => {
 
 await waitState(["queue_open"]);
 const spot = round.config.initialEthLiquidity / round.config.initialTokenLiquidity;
-await j(`/api/rounds/${round.id}/intents`, { token: alice.token, body: { ethAmount: 2 } });
-await j(`/api/rounds/${round.id}/intents`, { token: bob.token, body: { ethAmount: 1 } });
+await j(`/api/rounds/${round.id}/intents`, { token: alice.token, body: { ethAmount: 0.2 } });
+await j(`/api/rounds/${round.id}/intents`, { token: bob.token, body: { ethAmount: 0.1 } });
 await j(`/api/rounds/${round.id}/intents`, {
   token: carol.token,
-  body: { ethAmount: 1, maxPrice: spot * 1.000001 },
+  body: { ethAmount: 0.1, maxPrice: spot * 1.000001 },
 });
 const agg = await j(`/api/rounds/${round.id}/intents`);
 check(
@@ -115,7 +115,7 @@ await waitState(["live"]);
 const auction = await j(`/api/rounds/${round.id}/auction`);
 check(auction.fills.length === 3, "auction settled all 3 intents");
 const carolFill = auction.fills.find((f) => f.userAddress === carol.address);
-check(carolFill.ethFilled === 0 && carolFill.refund === 1, "limit below clearing → full refund");
+check(carolFill.ethFilled === 0 && Math.abs(carolFill.refund - 0.1) < 1e-9, "limit below clearing → full refund");
 const aliceFill = auction.fills.find((f) => f.userAddress === alice.address);
 const bobFill = auction.fills.find((f) => f.userAddress === bob.address);
 check(
@@ -139,7 +139,7 @@ const recomputed = settleAuction({
 check(recomputed.auditHash === auction.auditHash, "audit hash recomputed independently — settlement verified");
 
 // Live trading.
-await j(`/api/rounds/${round.id}/trade`, { token: bob.token, body: { side: "buy", eth: 2 } });
+await j(`/api/rounds/${round.id}/trade`, { token: bob.token, body: { side: "buy", eth: 0.15 } });
 await j(`/api/rounds/${round.id}/trade`, { token: alice.token, body: { side: "sell", pct: 50 } });
 await j(`/api/rounds/${round.id}/trade`, { token: alice.token, body: { side: "sell", pct: 100 } });
 const me = await j(`/api/rounds/${round.id}/me`, { token: alice.token });

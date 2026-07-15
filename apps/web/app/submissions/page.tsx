@@ -153,7 +153,7 @@ export default function Submissions() {
             ["Seed liquidity (rookie)", `${TIER_CONFIGS.rookie.initialEthLiquidity} pETH`],
             ["Trade fee", `${TIER_CONFIGS.rookie.tradeFeeBps / 100}% (creator gets ${CREATOR_FEE_SHARE * 100}% of fees)`],
             ["Auction fee", `${TIER_CONFIGS.rookie.auctionFeeBps / 100}%`],
-            ["Graduation", `${TIER_CONFIGS.rookie.graduationMcap} pETH mcap · ${TIER_CONFIGS.rookie.graduationMinHolders} holders · ${TIER_CONFIGS.rookie.graduationMinVolume} vol`],
+            ["Serves up at", `$40,000 mcap · ${TIER_CONFIGS.rookie.graduationMinHolders} holders · ${TIER_CONFIGS.rookie.graduationMinVolume} pETH vol`],
           ].map(([k, v]) => (
             <div key={k as string} className="rounded-lg bg-zinc-900 p-3">
               <div className="text-[10px] uppercase tracking-wide text-zinc-500">{k}</div>

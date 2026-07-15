@@ -35,6 +35,37 @@ hub.attach(server);
 if (SEED && store.concepts.size === 0) seedDemo(store, engine);
 if (!snapshot?.settings && !SEED) store.settings.autoSchedule = false;
 
+// Live ETH/USD feed: pegs the $40k bond target. Coinbase spot with a
+// CoinGecko fallback; keeps the last good price if both fail.
+async function refreshEthPrice(): Promise<void> {
+  try {
+    const r = await fetch("https://api.coinbase.com/v2/prices/ETH-USD/spot", {
+      signal: AbortSignal.timeout(8000),
+    });
+    const j = (await r.json()) as { data?: { amount?: string } };
+    const p = Number(j.data?.amount);
+    if (p > 0) {
+      store.ethUsd = p;
+      return;
+    }
+    throw new Error("bad coinbase payload");
+  } catch {
+    try {
+      const r = await fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=ethereum&vs_currencies=usd",
+        { signal: AbortSignal.timeout(8000) },
+      );
+      const j = (await r.json()) as { ethereum?: { usd?: number } };
+      if (j.ethereum?.usd && j.ethereum.usd > 0) store.ethUsd = j.ethereum.usd;
+    } catch {
+      console.warn(`eth price feed unreachable — keeping $${store.ethUsd}`);
+    }
+  }
+}
+await refreshEthPrice();
+console.log(`ETH/USD: $${store.ethUsd} — bond target ≈ ${(40_000 / store.ethUsd).toFixed(2)} pETH mcap`);
+setInterval(() => void refreshEthPrice(), 10 * 60_000);
+
 setInterval(() => {
   try {
     engine.tick(Date.now());

@@ -14,7 +14,7 @@ export function TradePanel({
   onTraded: () => void;
 }) {
   const { profile, signIn } = useSession();
-  const [custom, setCustom] = useState("0.5");
+  const [custom, setCustom] = useState("0.1");
   const [error, setError] = useState("");
 
   const trade = async (side: "buy" | "sell", body: Record<string, number>) => {
@@ -53,7 +53,7 @@ export function TradePanel({
         >
           Buy
         </button>
-        {[0.1, 0.5, 1].map((v) => (
+        {[0.02, 0.05, 0.1].map((v) => (
           <button
             key={v}
             onClick={() => void trade("buy", { eth: v })}

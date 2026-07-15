@@ -34,7 +34,7 @@ export function QueuePanel({
   onChanged: () => void;
 }) {
   const { profile, signIn } = useSession();
-  const [amount, setAmount] = useState("1");
+  const [amount, setAmount] = useState("0.1");
   const [maxPrice, setMaxPrice] = useState("");
   const [intents, setIntents] = useState<AuctionIntent[]>([]);
   const [bids, setBids] = useState<Bid[]>([]);
@@ -277,7 +277,7 @@ export function QueuePanel({
             <Row k="Seed liquidity" v={`${round.config.initialEthLiquidity} pETH`} />
             <Row k="Trade fee" v={`${round.config.tradeFeeBps / 100}%`} />
             <Row k="Auction fee" v={`${round.config.auctionFeeBps / 100}%`} />
-            <Row k="Serves up at" v={`${round.config.graduationMcap} pETH mcap`} />
+            <Row k="Serves up at" v={`$40,000 mcap (≈${round.config.graduationMcap.toFixed(1)} pETH)`} />
             <Row
               k="Dev sell lock"
               v={round.config.devSellLockSeconds > 0 ? `${round.config.devSellLockSeconds}s after open` : "none — degen rules"}

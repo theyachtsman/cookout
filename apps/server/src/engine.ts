@@ -1,4 +1,5 @@
 import {
+  BOND_TARGET_USD,
   DEV_DUMP_FRACTION,
   MCAP_MILESTONES,
   RUG_DRAIN_FRACTION,
@@ -70,6 +71,8 @@ export class RoundEngine {
 
   scheduleRound(concept: TokenConcept, tier: RiskTier, scheduledAt: number): Round {
     const config = { ...TIER_CONFIGS[tier] };
+    // Bond pegged to $40k mcap at the live ETH price, frozen per round.
+    config.graduationMcap = BOND_TARGET_USD / this.store.ethUsd;
     if (concept.totalSupply) {
       // Creator tokenomics: keep the tier's pool-share ratio at the new supply.
       const poolShare = config.initialTokenLiquidity / config.totalSupply;
@@ -518,7 +521,7 @@ export class RoundEngine {
     // depth. Shown alongside real numbers, never replacing them (spec §1).
     let recent30 = 0;
     for (let t = sec - 30; t <= sec; t++) recent30 += s.volumeBySecond.get(t) ?? 0;
-    const cooking = recent30 >= Math.max(2, pool.ethReserve * 0.1);
+    const cooking = recent30 >= Math.max(0.1, pool.ethReserve * 0.1);
 
     this.broadcast(round.id, {
       type: "ticker",
@@ -530,6 +533,7 @@ export class RoundEngine {
       holders,
       ageSeconds: Math.floor((now - round.liveAt!) / 1000),
       cooking,
+      ethUsd: this.store.ethUsd,
     });
 
     // Bonding complete mid-battle ends the round on the spot: Served Up.
@@ -583,7 +587,8 @@ export class RoundEngine {
       volume: s.totalVolume,
       holders,
       ageSeconds: Math.floor((now - round.liveAt!) / 1000),
-      cooking: recent30 >= Math.max(2, pool.ethReserve * 0.1),
+      cooking: recent30 >= Math.max(0.1, pool.ethReserve * 0.1),
+      ethUsd: this.store.ethUsd,
     });
   }
 

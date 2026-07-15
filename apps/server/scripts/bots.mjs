@@ -16,10 +16,10 @@ const API = process.argv[2] ?? "http://127.0.0.1:4000";
 const COUNT = Number(process.argv[3] ?? 20);
 
 const PERSONAS = [
-  { name: "scalper", tradeEveryMs: [1200, 4000], buyEth: [0.05, 0.4], sellPct: [20, 60], exitEarly: 0.5 },
-  { name: "holder", tradeEveryMs: [6000, 15000], buyEth: [0.2, 1.0], sellPct: [0, 25], exitEarly: 0.05 },
-  { name: "whale", tradeEveryMs: [5000, 12000], buyEth: [1.0, 3.5], sellPct: [40, 100], exitEarly: 0.2 },
-  { name: "degen", tradeEveryMs: [800, 2500], buyEth: [0.1, 0.8], sellPct: [50, 100], exitEarly: 0.35 },
+  { name: "scalper", tradeEveryMs: [1200, 4000], buyEth: [0.005, 0.04], sellPct: [20, 60], exitEarly: 0.5 },
+  { name: "holder", tradeEveryMs: [6000, 15000], buyEth: [0.02, 0.1], sellPct: [0, 25], exitEarly: 0.05 },
+  { name: "whale", tradeEveryMs: [5000, 12000], buyEth: [0.08, 0.3], sellPct: [40, 100], exitEarly: 0.2 },
+  { name: "degen", tradeEveryMs: [800, 2500], buyEth: [0.01, 0.08], sellPct: [50, 100], exitEarly: 0.35 },
 ];
 
 const CHATS = [
@@ -94,8 +94,8 @@ async function runBot(i) {
 
       if (active.state === "queue_open" && intentRound !== active.id) {
         const me = await j("/api/me", { token });
-        const amount = Math.min(me.paperBalance * 0.5, rand(...persona.buyEth) * 2);
-        if (amount > 0.05) {
+        const amount = Math.min(0.25, me.paperBalance * 0.5, rand(...persona.buyEth) * 2);
+        if (amount > 0.005) {
           await j(`/api/rounds/${active.id}/intents`, {
             token,
             body: { ethAmount: Number(amount.toFixed(3)) },
@@ -114,9 +114,9 @@ async function runBot(i) {
             token,
             body: { side: "sell", pct: Math.round(rand(...persona.sellPct)) || 25 },
           }).catch(() => {});
-        } else if (mine.balance > 0.1) {
+        } else if (mine.balance > 0.02) {
           const eth = Math.min(mine.balance * 0.4, rand(...persona.buyEth));
-          if (eth > 0.02)
+          if (eth > 0.004)
             await j(`/api/rounds/${active.id}/trade`, {
               token,
               body: { side: "buy", eth: Number(eth.toFixed(3)) },

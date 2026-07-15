@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import {
+  DEFAULT_ETH_USD,
   MISSIONS,
   type Candle,
   STARTING_PAPER_BALANCE,
@@ -96,6 +97,8 @@ export class Store {
   feedback: FeedbackEntry[] = [];
   /** Live-ops settings, adjustable from the admin dashboard. */
   settings: OpsSettings = { autoSchedule: true, tier: "rookie", leadSeconds: 15 };
+  /** Live ETH/USD, refreshed by the price feed; used to peg the $40k bond. */
+  ethUsd = DEFAULT_ETH_USD;
 
   id(): string {
     return randomUUID();

@@ -32,6 +32,7 @@ interface Ticker {
   holders: number;
   ageSeconds: number;
   cooking?: boolean;
+  ethUsd?: number;
 }
 
 interface Lobby {
@@ -209,7 +210,10 @@ export default function RoundPage() {
                 🔥 Cooking
               </span>
             )}
-            <Stat label="Market Cap" value={`${ticker.mcap.toFixed(1)} pETH`} />
+            <Stat
+              label="Market Cap"
+              value={`$${((ticker.mcap * (ticker.ethUsd ?? 1925)) / 1000).toFixed(1)}k`}
+            />
             <Stat label="Liquidity" value={`${ticker.liquidity.toFixed(1)} pETH`} />
             <Stat label="Volume" value={`${ticker.volume.toFixed(2)} pETH`} />
             <Stat label="Age" value={`${ticker.ageSeconds}s`} />
@@ -252,7 +256,7 @@ export default function RoundPage() {
               livePrice={ticker?.price}
               openPrice={round.clearingPrice}
               supply={round.config.totalSupply}
-              bigTradeEth={Math.max(0.5, (ticker?.liquidity ?? round.config.initialEthLiquidity) * 0.03)}
+              bigTradeEth={Math.max(0.05, (ticker?.liquidity ?? round.config.initialEthLiquidity) * 0.05)}
               cooking={ticker?.cooking}
               // Served-up coins keep trading — no end overlay, live chart stays.
               endReason={round.graduated ? undefined : round.endReason}

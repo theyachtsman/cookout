@@ -13,26 +13,38 @@ export const DEV_DUMP_FRACTION = 0.5;
 export const RUG_DRAIN_FRACTION = 0.6;
 export const RUG_WINDOW_SECONDS = 30;
 
-/** Default round configs per risk tier (spec §7: deep/gentle → thin/steep). */
+/** Bonding target in USD — pump.fun-style. The pETH equivalent is computed
+ *  per round at scheduling time from the live ETH/USD price. */
+export const BOND_TARGET_USD = 40_000;
+/** Fallback ETH/USD when the live feed is unreachable. */
+export const DEFAULT_ETH_USD = 1925;
+
+/**
+ * Default round configs per risk tier (spec §7: deep/gentle → thin/steep),
+ * scaled to realistic launch economics: rounds open at ~$3k–6k market cap
+ * and bond at $40k, so serving up takes roughly $4–5k of net buying.
+ * graduationMcap values here are fallbacks — the engine recomputes them from
+ * BOND_TARGET_USD and the live ETH price when each round is scheduled.
+ */
 export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
   rookie: {
     tier: "rookie",
     lobbySeconds: 120,
     queueSeconds: 90,
     maxDurationSeconds: 600,
-    auctionMaxRaise: 50,
-    initialEthLiquidity: 100,
+    auctionMaxRaise: 0.75,
+    initialEthLiquidity: 1.5, // opens ≈ $5.8k mcap
     initialTokenLiquidity: 1_000_000,
     totalSupply: 2_000_000,
     tradeFeeBps: 100,
     auctionFeeBps: 50,
     mcapTarget: 0,
-    graduationMcap: 2400,
-    graduationMinHolders: 20,
-    graduationMinVolume: 500,
-    lowVolumeThreshold: 0.5,
+    graduationMcap: BOND_TARGET_USD / DEFAULT_ETH_USD,
+    graduationMinHolders: 8,
+    graduationMinVolume: 5,
+    lowVolumeThreshold: 0.02,
     lowVolumeWindowSeconds: 120,
-    maxPositionEth: 5,
+    maxPositionEth: 0.3,
     devSellLockSeconds: 60,
   },
   standard: {
@@ -40,19 +52,19 @@ export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
     lobbySeconds: 90,
     queueSeconds: 60,
     maxDurationSeconds: 480,
-    auctionMaxRaise: 40,
-    initialEthLiquidity: 40,
+    auctionMaxRaise: 0.6,
+    initialEthLiquidity: 1.0, // opens ≈ $3.8k mcap
     initialTokenLiquidity: 1_000_000,
     totalSupply: 2_000_000,
     tradeFeeBps: 100,
     auctionFeeBps: 50,
     mcapTarget: 0,
-    graduationMcap: 1000,
-    graduationMinHolders: 15,
-    graduationMinVolume: 300,
-    lowVolumeThreshold: 0.5,
+    graduationMcap: BOND_TARGET_USD / DEFAULT_ETH_USD,
+    graduationMinHolders: 6,
+    graduationMinVolume: 4,
+    lowVolumeThreshold: 0.015,
     lowVolumeWindowSeconds: 90,
-    maxPositionEth: 8,
+    maxPositionEth: 0.5,
     devSellLockSeconds: 30,
   },
   degen: {
@@ -60,25 +72,25 @@ export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
     lobbySeconds: 60,
     queueSeconds: 45,
     maxDurationSeconds: 360,
-    auctionMaxRaise: 30,
-    initialEthLiquidity: 10,
+    auctionMaxRaise: 0.4,
+    initialEthLiquidity: 0.4, // opens ≈ $1.5k mcap — violent by design
     initialTokenLiquidity: 1_000_000,
     totalSupply: 2_000_000,
     tradeFeeBps: 100,
     auctionFeeBps: 50,
     mcapTarget: 0,
-    graduationMcap: 250,
-    graduationMinHolders: 10,
-    graduationMinVolume: 150,
-    lowVolumeThreshold: 0.25,
+    graduationMcap: BOND_TARGET_USD / DEFAULT_ETH_USD,
+    graduationMinHolders: 5,
+    graduationMinVolume: 2.5,
+    lowVolumeThreshold: 0.01,
     lowVolumeWindowSeconds: 60,
     maxPositionEth: 0,
     devSellLockSeconds: 0,
   },
 };
 
-/** Market-cap milestones announced in the kill feed (paper ETH). */
-export const MCAP_MILESTONES = [150, 250, 400, 600, 1000, 1600, 2400];
+/** Market-cap milestones announced in the kill feed (paper ETH ≈ $10k/$19k/$29k/$40k/$58k). */
+export const MCAP_MILESTONES = [5, 10, 15, 21, 30];
 
 /** Creator revenue share of round trading fees (capped — spec §5.3). */
 export const CREATOR_FEE_SHARE = 0.3;
