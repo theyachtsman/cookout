@@ -33,12 +33,13 @@ const server = createServer(app);
 hub.attach(server);
 
 if (SEED && store.concepts.size === 0) seedDemo(store, engine);
+if (!snapshot?.settings && !SEED) store.settings.autoSchedule = false;
 
 setInterval(() => {
   try {
     engine.tick(Date.now());
     evaluateVoting(store);
-    if (SEED) autoScheduler(store, engine);
+    autoScheduler(store, engine); // gated by store.settings.autoSchedule
   } catch (e) {
     console.error("tick error", e);
   }

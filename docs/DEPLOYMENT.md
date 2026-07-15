@@ -1,109 +1,142 @@
-# Deploying The Cookout
+# Deploying The Cookout — single VPS (Hetzner) + Cloudflare
 
-## Architecture
+Everything runs on one box (a Hetzner CX32 — 8GB / 4 vCPU / 80GB NVMe — is plenty
+for a 100-player beta): the Next.js web app, the API + WebSocket server, and
+PostgreSQL. Cloudflare fronts both hostnames via a tunnel — no open ports.
 
 ```
-Browser ──▶ Vercel (Next.js web app, static + SSR)
-   │
-   └──HTTPS/WSS──▶ Cloudflare ──▶ your server: API + WebSocket (:4000)
-                                        └── PostgreSQL (docker compose)
+Browser ──▶ Cloudflare ──▶ cloudflared tunnel ──▶ VPS
+                                 ├─ yourdomain.com      → next start   (:3000)
+                                 └─ api.yourdomain.com  → API + WS     (:4000)
+                                                             └─ PostgreSQL (docker, 127.0.0.1:5434)
 ```
 
-**Vercel can only host the web app.** The API is a long-running WebSocket server
-with an in-memory game engine — it must run on your own server. The web app never
-talks to Postgres directly; it only talks to the API.
-
-## 1. Vercel (web app)
-
-Project settings:
-
-| Setting | Value |
-| --- | --- |
-| Root Directory | **empty** (repo root) — required so npm installs the whole workspace and `@cookout/shared` gets linked |
-| Framework / commands | taken from `vercel.json` at the repo root (installs workspaces, builds shared then web, serves `apps/web/.next`) |
-| Env var `NEXT_PUBLIC_API_URL` | `https://api.<your-domain>` (your Cloudflare hostname for the API) |
-
-"Module not found: @cookout/shared" means the Root Directory is set to `apps/web` —
-npm then installs only that package and the workspace link never exists. Clear the
-Root Directory setting and redeploy; `vercel.json` handles the rest.
-
-Every push to `main` redeploys automatically once GitHub is connected.
-
-## 2. Your server (API + Postgres)
+## 1. One-time VPS setup
 
 ```bash
+# as root: create a user, install node 20 + docker + git
+adduser cookout && usermod -aG docker cookout
+curl -fsSL https://deb.nodesource.com/setup_20.x | bash - && apt-get install -y nodejs git
+curl -fsSL https://get.docker.com | sh
+
+su - cookout
 git clone https://github.com/theyachtsman/cookout && cd cookout
 npm install
 npm run build -w @cookout/shared
-docker compose up -d          # PostgreSQL on 127.0.0.1:5434
-
-ADMIN_KEY=<long-random-string> \
-DATABASE_URL=postgres://cookout:cookout@127.0.0.1:5434/cookout \
-CORS_ORIGIN=https://<your-vercel-domain> \
-SEED=1 \
-node --import tsx apps/server/src/index.ts
+npm run build -w @cookout/web        # production bundle for next start
+docker compose up -d                 # PostgreSQL on 127.0.0.1:5434
 ```
 
-Environment variables:
+## 2. Environment
 
-| Var | Purpose |
-| --- | --- |
-| `ADMIN_KEY` | **Set a strong one.** Default `dev-admin` is dev-only. |
-| `DATABASE_URL` | Postgres; omit to fall back to a JSON file snapshot. |
-| `CORS_ORIGIN` | Lock the API to your web origin (default `*`). |
-| `SEED` | `1` keeps the demo auto-scheduler filling the calendar. |
-| `PORT` / `HOST` | Default `4000` / `0.0.0.0`. |
+Create `/home/cookout/cookout.env`:
 
-Run it under systemd so it survives reboots:
+```bash
+ADMIN_KEY=<openssl rand -hex 24>
+DATABASE_URL=postgres://cookout:cookout@127.0.0.1:5434/cookout
+CORS_ORIGIN=https://yourdomain.com
+SEED=1                # demo auto-scheduler on; flip auto-schedule in /admin Live Ops
+# BETA_WHITELIST=1    # uncomment when the beta window opens, restart the API
+NEXT_PUBLIC_API_URL=https://api.yourdomain.com
+```
+
+`NEXT_PUBLIC_API_URL` is baked into the web bundle — **rebuild the web app after
+changing it**: `NEXT_PUBLIC_API_URL=https://api.yourdomain.com npm run build -w @cookout/web`.
+
+## 3. systemd units
+
+`/etc/systemd/system/cookout-api.service`:
 
 ```ini
-# /etc/systemd/system/cookout.service
 [Unit]
-Description=The Cookout API
+Description=Cookout API
 After=network.target docker.service
-
 [Service]
-WorkingDirectory=/opt/cookout
-Environment=ADMIN_KEY=... DATABASE_URL=... CORS_ORIGIN=... SEED=1
-ExecStart=/usr/bin/node --import tsx apps/server/src/index.ts
+User=cookout
+WorkingDirectory=/home/cookout/cookout/apps/server
+EnvironmentFile=/home/cookout/cookout.env
+ExecStart=/usr/bin/node --import tsx src/index.ts
 Restart=always
-
 [Install]
 WantedBy=multi-user.target
 ```
 
-Note: sessions are in-memory — an API restart signs everyone out (they just
-reconnect their wallet). Game state persists via Postgres.
+`/etc/systemd/system/cookout-web.service`:
 
-## 3. Cloudflare (expose the API)
+```ini
+[Unit]
+Description=Cookout Web
+After=network.target
+[Service]
+User=cookout
+WorkingDirectory=/home/cookout/cookout/apps/web
+EnvironmentFile=/home/cookout/cookout.env
+ExecStart=/usr/bin/node ../../node_modules/next/dist/bin/next start -p 3000
+Restart=always
+[Install]
+WantedBy=multi-user.target
+```
 
-Recommended: a **cloudflared tunnel** — no open ports on your server:
+```bash
+systemctl enable --now cookout-api cookout-web
+```
+
+Sessions survive restarts (persisted with the store), so deploys don't sign
+anyone out.
+
+## 4. Cloudflare tunnel (both hostnames)
 
 ```bash
 cloudflared tunnel create cookout
-cloudflared tunnel route dns cookout api.<your-domain>
-# config: ingress api.<your-domain> → http://localhost:4000
-cloudflared tunnel run cookout
+cloudflared tunnel route dns cookout yourdomain.com
+cloudflared tunnel route dns cookout api.yourdomain.com
 ```
 
-WebSockets pass through Cloudflare by default (`wss://api.<your-domain>/ws`);
-the web app derives the WS URL from `NEXT_PUBLIC_API_URL` automatically.
+`~/.cloudflared/config.yml`:
 
-## LAN testing (no deployment)
+```yaml
+tunnel: cookout
+credentials-file: /home/cookout/.cloudflared/<tunnel-id>.json
+ingress:
+  - hostname: api.yourdomain.com
+    service: http://localhost:4000
+  - hostname: yourdomain.com
+    service: http://localhost:3000
+  - service: http_status:404
+```
 
-Run `npm run dev:server` and `npm run dev:web`, then open
-`http://<machine-lan-ip>:3000` from any device on your network. When
-`NEXT_PUBLIC_API_URL` is unset the page targets the same host on port 4000,
-so LAN devices work without configuration. Allow ports 3000/4000 through the
-machine's firewall if needed.
+Run it as a service: `cloudflared service install`. WebSockets pass through by
+default (`wss://api.yourdomain.com/ws`).
 
-## Crowd testing with the bot swarm
+## 5. Deploying updates
 
 ```bash
-node apps/server/scripts/bots.mjs http://127.0.0.1:4000 25
+cd ~/cookout && git pull
+npm install
+npm run build -w @cookout/shared
+NEXT_PUBLIC_API_URL=https://api.yourdomain.com npm run build -w @cookout/web
+sudo systemctl restart cookout-api cookout-web
 ```
 
-Spawns 25 bots with mixed personas (scalpers, holders, whales, degens) that
-sign in with their own wallets, vote, queue auction intents, trade live, chat,
-cheer, and predict — watch the chart and feeds under load from the browser.
-They're ordinary users; run it against staging too.
+## 6. Backups
+
+Postgres holds everything durable. Nightly dump via cron:
+
+```bash
+0 4 * * * docker exec cookout-postgres pg_dump -U cookout cookout | gzip > /home/cookout/backups/cookout-$(date +\%F).sql.gz
+```
+
+## Rate limits (built in, per IP, Cloudflare-aware)
+
+Global 300 req/10s · auth 20/min · beta signup 6/hour · concept submissions
+6/hour · trades 40/10s · feedback 4/min · chat 1 msg/800ms per connection.
+
+## Crowd testing
+
+```bash
+node apps/server/scripts/bots.mjs https://api.yourdomain.com 50
+```
+
+Run the swarm against the real domain before announcing — it exercises the
+tunnel, TLS, WS, and Postgres exactly like the crowd will. See
+[BETA-RUNBOOK.md](BETA-RUNBOOK.md) for the beta-day playbook.

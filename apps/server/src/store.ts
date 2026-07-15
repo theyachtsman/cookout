@@ -19,6 +19,7 @@ import {
   type KillFeedEvent,
   type Position,
   type Prediction,
+  type RiskTier,
   type Round,
   type RoundSummary,
   type TokenConcept,
@@ -91,6 +92,10 @@ export class Store {
   muted = new Map<Address, number>();
   /** Pre-launch beta signups: wallet → signup record (whitelist source). */
   betaSignups = new Map<Address, BetaSignup>();
+  /** Tester feedback, wallet-attached (beta instrumentation). */
+  feedback: FeedbackEntry[] = [];
+  /** Live-ops settings, adjustable from the admin dashboard. */
+  settings: OpsSettings = { autoSchedule: true, tier: "rookie", leadSeconds: 15 };
 
   id(): string {
     return randomUUID();
@@ -237,6 +242,10 @@ export class Store {
       summaries: [...this.summaries.values()],
       adminLog: this.adminLog.slice(-1000),
       betaSignups: [...this.betaSignups.values()],
+      // Sessions persist so a deploy/restart never signs the beta out.
+      sessions: [...this.sessions.entries()].slice(-5000),
+      feedback: this.feedback.slice(-2000),
+      settings: this.settings,
     };
   }
 
@@ -257,9 +266,30 @@ export class Store {
     for (const [roundId, candles] of snap.candles ?? []) this.candles.set(roundId, candles);
     for (const a of snap.auctionResults) this.auctionResults.set(a.roundId, a);
     for (const s of snap.summaries) this.summaries.set(s.roundId, s);
+    for (const b of snap.betaSignups ?? []) this.betaSignups.set(b.address, b);
+    for (const [token, address] of snap.sessions ?? []) this.sessions.set(token, address);
+    this.feedback = snap.feedback ?? [];
+    if (snap.settings) this.settings = { ...this.settings, ...snap.settings };
     this.adminLog = snap.adminLog;
     for (const b of snap.betaSignups ?? []) this.betaSignups.set(b.address, b);
   }
+}
+
+export interface FeedbackEntry {
+  id: string;
+  address: Address;
+  displayName?: string;
+  text: string;
+  page?: string;
+  at: number;
+}
+
+export interface OpsSettings {
+  /** Keep the match calendar auto-filling from top-voted submissions. */
+  autoSchedule: boolean;
+  tier: RiskTier;
+  /** Seconds between a slot being scheduled and the lobby opening. */
+  leadSeconds: number;
 }
 
 export interface Snapshot {
@@ -273,4 +303,7 @@ export interface Snapshot {
   summaries: RoundSummary[];
   adminLog: AdminLogEntry[];
   betaSignups?: BetaSignup[];
+  sessions?: Array<[string, Address]>;
+  feedback?: FeedbackEntry[];
+  settings?: OpsSettings;
 }

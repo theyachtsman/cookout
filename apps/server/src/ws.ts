@@ -9,6 +9,7 @@ interface Client {
   address?: string;
   rooms: Set<string>;
   lastReactionAt?: number;
+  lastChatAt?: number;
 }
 
 /**
@@ -73,6 +74,10 @@ export class Hub {
             client.ws.send(JSON.stringify({ type: "error", message: "sign in to chat" }));
           return;
         }
+        // Throttle: one message per 800ms per connection.
+        const nowMs = Date.now();
+        if (client.lastChatAt && nowMs - client.lastChatAt < 800) return;
+        client.lastChatAt = nowMs;
         const mutedUntil = this.store.muted.get(client.address);
         if (mutedUntil && mutedUntil > Date.now()) {
           if (client.ws.readyState === WebSocket.OPEN)

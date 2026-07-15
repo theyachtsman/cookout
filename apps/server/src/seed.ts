@@ -60,6 +60,7 @@ export function seedDemo(store: Store, engine: RoundEngine): void {
  * running, promote the top-voted submission and schedule it shortly.
  */
 export function autoScheduler(store: Store, engine: RoundEngine): void {
+  if (!store.settings.autoSchedule) return;
   const active = [...store.rounds.values()].some((r) =>
     ["scheduled", "lobby", "queue_open", "settling", "live", "ended"].includes(r.state),
   );
@@ -69,6 +70,10 @@ export function autoScheduler(store: Store, engine: RoundEngine): void {
     .sort((a, b) => b.votes - a.votes)[0];
   if (!next) return;
   next.status = "shortlisted";
-  const round = engine.scheduleRound(next, "rookie", Date.now() + 15_000);
-  store.logAdmin("auto_schedule", `round ${round.id} (${next.symbol}) via demo auto-scheduler`);
+  const round = engine.scheduleRound(
+    next,
+    store.settings.tier,
+    Date.now() + store.settings.leadSeconds * 1000,
+  );
+  store.logAdmin("auto_schedule", `round ${round.id} (${next.symbol}, ${store.settings.tier})`);
 }

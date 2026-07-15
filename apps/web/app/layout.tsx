@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { SessionProvider } from "../lib/session";
 import { BrandLogo } from "../components/BrandLogo";
+import { FeedbackWidget } from "../components/FeedbackWidget";
 import { WalletButton } from "../components/WalletButton";
 import "./globals.css";
 
@@ -40,6 +41,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <WalletButton />
           </nav>
           <main className="mx-auto max-w-6xl px-3 py-6 sm:px-4">{children}</main>
+          <FeedbackWidget />
         </SessionProvider>
       </body>
     </html>

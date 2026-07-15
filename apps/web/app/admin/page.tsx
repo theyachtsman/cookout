@@ -10,7 +10,20 @@ interface Overview {
   rounds: number;
   liveRounds: number;
   totalFees: number;
+  betaSignups: number;
+  whitelistOn: boolean;
+  feedbackCount: number;
+  settings: { autoSchedule: boolean; tier: string; leadSeconds: number };
   log: { id: string; at: number; action: string; detail: string }[];
+}
+
+interface Feedback {
+  id: string;
+  address: string;
+  displayName?: string;
+  text: string;
+  page?: string;
+  at: number;
 }
 
 function FlagClearer({ act }: { act: (path: string, body?: unknown, method?: string) => Promise<void> }) {
@@ -74,6 +87,37 @@ function BetaList({ adminKey }: { adminKey: string }) {
       <p className="mt-2 text-[11px] text-zinc-600">
         Start the API with BETA_WHITELIST=1 to restrict sign-ins to this list during the beta.
       </p>
+    </div>
+  );
+}
+
+function FeedbackList({ adminKey }: { adminKey: string }) {
+  const [items, setItems] = useState<Feedback[]>([]);
+  useEffect(() => {
+    api<Feedback[]>("/api/admin/feedback", { admin: adminKey })
+      .then(setItems)
+      .catch(() => {});
+    const t = setInterval(
+      () => void api<Feedback[]>("/api/admin/feedback", { admin: adminKey }).then(setItems).catch(() => {}),
+      15000,
+    );
+    return () => clearInterval(t);
+  }, [adminKey]);
+  return (
+    <div className="max-h-72 space-y-1 overflow-y-auto rounded-lg border border-zinc-800 p-2 text-sm">
+      {items.map((f) => (
+        <div key={f.id} className="rounded bg-zinc-900 px-3 py-2">
+          <div className="flex items-center gap-2 text-xs text-zinc-500">
+            <a href={`/profile/${f.address}`} className="font-bold text-lime-300 hover:underline">
+              {f.displayName ?? `${f.address.slice(0, 6)}…${f.address.slice(-4)}`}
+            </a>
+            {f.page && <span className="font-mono">{f.page}</span>}
+            <span className="ml-auto">{new Date(f.at).toLocaleString()}</span>
+          </div>
+          <div className="mt-1 text-zinc-200">{f.text}</div>
+        </div>
+      ))}
+      {items.length === 0 && <div className="px-3 py-4 text-zinc-600">No feedback yet.</div>}
     </div>
   );
 }
@@ -187,13 +231,16 @@ export default function AdminPage() {
       {error && <div className="rounded bg-red-500/10 px-3 py-2 text-sm text-red-400">{error}</div>}
 
       {overview && (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4 lg:grid-cols-8">
           {[
             ["Users", overview.users],
             ["Concepts", overview.concepts],
             ["Rounds", overview.rounds],
             ["Live now", overview.liveRounds],
             ["Fees (pETH)", overview.totalFees.toFixed(3)],
+            ["Beta signups", overview.betaSignups],
+            ["Whitelist", overview.whitelistOn ? "🔒 ON" : "open"],
+            ["Feedback", overview.feedbackCount],
           ].map(([k, v]) => (
             <div key={k as string} className="rounded-lg border border-zinc-800 p-3">
               <div className="text-[10px] uppercase text-zinc-500">{k}</div>
@@ -201,6 +248,47 @@ export default function AdminPage() {
             </div>
           ))}
         </div>
+      )}
+
+      {overview && (
+        <section>
+          <h2 className="mb-2 font-bold">Live Ops</h2>
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border border-zinc-800 p-3 text-sm">
+            <button
+              onClick={() => void act("/api/admin/settings", { autoSchedule: !overview.settings.autoSchedule })}
+              className={`rounded px-3 py-1.5 text-sm font-bold ${
+                overview.settings.autoSchedule
+                  ? "bg-emerald-900/60 text-emerald-300"
+                  : "bg-zinc-800 text-zinc-400"
+              }`}
+            >
+              Auto-schedule: {overview.settings.autoSchedule ? "ON" : "OFF"}
+            </button>
+            <label className="flex items-center gap-2">
+              <span className="text-xs text-zinc-500">tier</span>
+              <select
+                value={overview.settings.tier}
+                onChange={(e) => void act("/api/admin/settings", { tier: e.target.value })}
+                className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1"
+              >
+                <option value="rookie">rookie</option>
+                <option value="standard">standard</option>
+                <option value="degen">degen</option>
+              </select>
+            </label>
+            <label className="flex items-center gap-2">
+              <span className="text-xs text-zinc-500">lead seconds</span>
+              <input
+                defaultValue={overview.settings.leadSeconds}
+                onBlur={(e) => void act("/api/admin/settings", { leadSeconds: Number(e.target.value) })}
+                className="w-20 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono"
+              />
+            </label>
+            <span className="text-xs text-zinc-600">
+              Whitelist gating is the BETA_WHITELIST=1 env var (restart to flip).
+            </span>
+          </div>
+        </section>
       )}
 
       <section>
@@ -310,6 +398,11 @@ export default function AdminPage() {
       <section>
         <h2 className="mb-2 font-bold">Beta Signups</h2>
         <BetaList adminKey={key} />
+      </section>
+
+      <section>
+        <h2 className="mb-2 font-bold">Tester Feedback</h2>
+        <FeedbackList adminKey={key} />
       </section>
 
       {overview && (

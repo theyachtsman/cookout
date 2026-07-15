@@ -18,6 +18,7 @@ import {
   type AuthedRequest,
 } from "./auth.js";
 import { Err, type Broadcast, type RoundEngine } from "./engine.js";
+import { rateLimit } from "./ratelimit.js";
 import type { Store, StoredUser } from "./store.js";
 import { spotPrice } from "@cookout/shared";
 
@@ -47,6 +48,17 @@ export function createApp(
 
   const auth = requireAuth(store);
   const admin = requireAdmin(adminKey);
+
+  // Baseline abuse protection (per IP; Cloudflare-aware). Reads are generous,
+  // identity and writes are tight.
+  app.use("/api/", rateLimit("global", 300, 10_000));
+  app.use("/api/auth/", rateLimit("auth", 20, 60_000));
+  app.use("/api/beta/signup", rateLimit("signup", 6, 3_600_000));
+  app.use("/api/concepts", (req, res, next) =>
+    req.method === "POST" ? rateLimit("submit", 6, 3_600_000)(req, res, next) : next(),
+  );
+  app.use(/^\/api\/rounds\/[^/]+\/trade$/, rateLimit("trade", 40, 10_000));
+  app.use("/api/feedback", rateLimit("feedback", 4, 60_000));
 
   const wrap =
     (fn: (req: AuthedRequest, res: Response) => unknown | Promise<unknown>) =>
@@ -204,6 +216,53 @@ export function createApp(
           totalVolume: launched.reduce((s, r) => s + (r.summary?.totalVolume ?? 0), 0),
         },
       });
+    }),
+  );
+
+  // ---- tester feedback (beta instrumentation) ----
+  app.post(
+    "/api/feedback",
+    auth,
+    wrap((req, res) => {
+      const { text, page } = req.body as { text?: string; page?: string };
+      const trimmed = String(text ?? "").trim();
+      if (!trimmed) throw new Err(400, "feedback text required");
+      const u = store.getOrCreateUser(req.userAddress!);
+      store.feedback.push({
+        id: store.id(),
+        address: u.address,
+        displayName: u.displayName,
+        text: trimmed.slice(0, 1000),
+        page: page ? String(page).slice(0, 120) : undefined,
+        at: Date.now(),
+      });
+      if (store.feedback.length > 2000) store.feedback.splice(0, store.feedback.length - 2000);
+      res.json({ ok: true });
+    }),
+  );
+
+  app.get(
+    "/api/admin/feedback",
+    admin,
+    wrap((_req, res) => res.json([...store.feedback].reverse().slice(0, 500))),
+  );
+
+  // ---- live-ops settings (round cadence etc.) ----
+  app.post(
+    "/api/admin/settings",
+    admin,
+    wrap((req, res) => {
+      const { autoSchedule, tier, leadSeconds } = req.body as {
+        autoSchedule?: boolean;
+        tier?: RiskTier;
+        leadSeconds?: number;
+      };
+      if (autoSchedule !== undefined) store.settings.autoSchedule = !!autoSchedule;
+      if (tier && ["rookie", "standard", "degen"].includes(tier)) store.settings.tier = tier;
+      if (leadSeconds !== undefined)
+        store.settings.leadSeconds = Math.max(5, Math.min(3600, Number(leadSeconds) || 15));
+      store.logAdmin("settings", JSON.stringify(store.settings));
+      res.json(store.settings);
     }),
   );
 
@@ -574,6 +633,10 @@ export function createApp(
         rounds: rounds.length,
         liveRounds: rounds.filter((r) => r.state === "live").length,
         totalFees: fees,
+        betaSignups: store.betaSignups.size,
+        whitelistOn: process.env.BETA_WHITELIST === "1",
+        feedbackCount: store.feedback.length,
+        settings: store.settings,
         log: store.adminLog.slice(-50),
       });
     }),
