@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
+import { useBrandAsset } from "../lib/useBrandAsset";
 
 /**
  * Pre-launch landing funnel: animated arena hero → what it is → how a round
@@ -28,6 +29,7 @@ export default function Landing() {
 
 function Hero() {
   const ref = useRef<HTMLCanvasElement>(null);
+  const mascotSrc = useBrandAsset("/brand/mascot.png", "/brand/mascot.svg");
 
   useEffect(() => {
     const canvas = ref.current;
@@ -153,13 +155,12 @@ function Hero() {
       <canvas ref={ref} className="absolute inset-0 h-full w-full" />
       <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/70 via-zinc-950/40 to-zinc-950" />
       <div className="relative mx-auto max-w-4xl px-6 pb-24 pt-20 text-center">
-        {/* Mascot (drop file at apps/web/public/brand/mascot.png) */}
+        {/* Mascot (real art: drop file at apps/web/public/brand/mascot.png) */}
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/brand/mascot.png"
+          src={mascotSrc}
           alt=""
           className="mx-auto mb-4 h-36 w-36 object-contain drop-shadow-[0_0_35px_rgba(163,230,53,0.45)] md:h-44 md:w-44"
-          onError={(e) => ((e.target as HTMLImageElement).style.display = "none")}
         />
         <div className="mb-4 inline-block rounded-full border border-lime-400/40 bg-lime-400/10 px-4 py-1 text-xs font-bold tracking-widest text-lime-300">
           PAPER BETA — NOW TAKING SIGNUPS

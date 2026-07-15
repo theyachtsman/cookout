@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 160" role="img" aria-label="THE COOKOUT">
+  <style>
+    .the { font: 900 44px "Arial Black", Arial, sans-serif; fill: #a3e635; letter-spacing: 6px; }
+    .cook { font: 900 92px "Arial Black", Arial, sans-serif; fill: #ffffff; stroke: #a3e635; stroke-width: 3.5; letter-spacing: 2px; paint-order: stroke fill; }
+  </style>
+  <text x="8" y="44" class="the">THE</text>
+  <text x="4" y="136" class="cook">COOKOUT</text>
+</svg>
