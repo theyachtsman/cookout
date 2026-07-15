@@ -5,7 +5,8 @@
   "description": "The Cookout — live multiplayer trading arena + token launchpad (Phase 1: paper money MVP)",
   "workspaces": [
     "packages/*",
-    "apps/*"
+    "apps/*",
+    "contracts"
   ],
   "scripts": {
     "test": "npm run test -w @cookout/shared && npm run test -w @cookout/server",

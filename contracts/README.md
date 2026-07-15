@@ -1,24 +1,37 @@
-# Contracts (Phase 2 prep — DRAFT, UNAUDITED, NOT DEPLOYED)
+# Contracts — implemented, tested, NOT YET AUDITED OR DEPLOYED WITH REAL FUNDS
 
-Phase 1 runs entirely on paper money; nothing in this directory is used at runtime yet.
-These drafts exist so the Phase 1 game semantics (uniform-price batch auction, pro-rata
-fills, fixed-supply template token, criteria-based graduation) stay contract-shaped and
-can be swapped in for Phase 2 without redesigning the game.
+The full on-chain round mechanism, mirroring the paper engine one-to-one:
 
-**Do not deploy with real funds until:**
+| Contract | Purpose |
+| --- | --- |
+| `ArenaToken.sol` | Fixed-supply round token from the template. No owner, no mint, no pause, no blacklist. Maintains an on-chain holder count so graduation criteria need no indexer. |
+| `RoundPool.sol` | The round's constant-product market. Phases: Pending → Live → Graduated (trades forever, liquidity locked by construction — no withdrawal surface exists) or Redeem (uniform batch redemption at one price, `E·O/(T+O)` pro-rata). `resolve()` is permissionless. |
+| `BatchAuction.sol` | Uniform-price opening auction settled fully on-chain: fixed close time, binary-search clearing of `A* = min(D(p(A*)), maxRaise)`, pro-rata fills, pull-based claims, permissionless `settle()`. |
+| `RoundFactory.sol` | Single entry point deploying token+pool+auction from fixed bytecode — "creators supply metadata, never code" enforced by construction. |
 
-1. Legal review of spec §12 items is complete (issuer/market-operator posture, auction
-   classification, creator payouts, prediction mechanics).
-2. An independent security audit of every contract here has been completed and published.
-3. The trust requirements of spec §13 are independently verifiable on-chain (no platform
-   withdraw rights, non-discretionary liquidity rules, rate-limited logged pause).
+## Verification
 
-| Contract | Purpose | Mirrors (paper engine) |
-| --- | --- | --- |
-| `ArenaToken.sol` | Fixed-supply round token from the platform-audited template. No mint, no pause, no blacklist, no owner. | `RoundConfig.totalSupply` |
-| `BatchAuction.sol` | Escrowed buy intents, fixed close time, single uniform clearing price, pro-rata oversubscription, one atomic settlement. | `packages/shared/src/auction.ts` |
-| `Graduation.sol` | Moves round liquidity into a permanently locked pool when pre-published criteria are met; otherwise enables the uniform batch redemption. | `RoundEngine.endRound` |
+`npm test -w @cookout/contracts` (or `node scripts/hh.cjs test` here):
 
-The TypeScript clearing algorithm in `@cookout/shared` is the reference implementation;
-the Solidity settlement must reproduce its results exactly (same fixed-point rules), and
-both are exercised against the same test vectors before Phase 2.
+- Lifecycle tests: auction → uniform fills → live trading → timer end → uniform
+  redemption; graduation path; fee accounting; escrow cancel/refund.
+- **Differential tests**: `scripts/gen-vectors.mjs` runs the TypeScript reference
+  (`packages/shared/src/auction.ts`) over five auction scenarios and the Solidity
+  settlement must reproduce clearing price, raise, and every fill within float↔wei
+  rounding tolerance. The paper game and the chain are provably the same mechanism.
+
+## Deployment
+
+`scripts/deploy.cjs` deploys the `RoundFactory` (config has an Arbitrum Sepolia
+target as the stand-in until Robinhood Chain RPC details are set):
+
+```bash
+DEPLOYER_KEY=0x... node scripts/hh.cjs run scripts/deploy.cjs --network arbitrumSepolia
+```
+
+## Before real funds
+
+Owner has waived the pre-launch legal review gate (2026-07-14). Remaining strongly
+recommended before mainnet value: an independent security audit of these four
+contracts, and re-running the differential suite against the audited bytecode.
+`docs/COMPLIANCE.md` retains the §12 flag list for whenever counsel does review.

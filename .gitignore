@@ -1,6 +1,9 @@
 node_modules/
 dist/
 apps/server/data/
+contracts/artifacts/
+contracts/cache/
+contracts/test/vectors.json
 .next/
 *.tsbuildinfo
 .env
