@@ -65,14 +65,27 @@ export function Chart(props: Props) {
         return;
       }
 
-      // --- time domain: scrolling window anchored on server candle time ---
+      // --- time domain ---
+      // Live: scrolling window anchored on server candle time.
+      // Ended: full-round snapshot fitted to the canvas.
+      const snapshot = !!endReason;
       const { serverT, localMs } = clockRef.current;
-      const nowT = serverT + Math.min(2, (Date.now() - localMs) / 1000);
-      const t0 = nowT - WINDOW_SEC;
-      const x = (t: number) => ((t - t0) / WINDOW_SEC) * (w - 74); // reserve right gutter
+      let nowT: number;
+      let t0: number;
+      let span: number;
+      if (snapshot) {
+        t0 = candles[0]!.t;
+        nowT = candles[candles.length - 1]!.t;
+        span = Math.max(10, nowT - t0);
+      } else {
+        nowT = serverT + Math.min(2, (Date.now() - localMs) / 1000);
+        span = WINDOW_SEC;
+        t0 = nowT - span;
+      }
+      const x = (t: number) => ((t - t0) / span) * (w - 74); // reserve right gutter
 
       // --- price series in window ---
-      const visible = candles.filter((c) => c.t >= t0 - 2);
+      const visible = snapshot ? candles : candles.filter((c) => c.t >= t0 - 2);
       let lo = Infinity;
       let hi = -Infinity;
       for (const c of visible) {
@@ -91,7 +104,7 @@ export function Chart(props: Props) {
       const pad = (hi - lo) * 0.15;
       // animated autoscale: ease displayed bounds toward targets
       const s = scaleRef.current;
-      if (s.lo === 0 && s.hi === 0) {
+      if (snapshot || (s.lo === 0 && s.hi === 0)) {
         s.lo = lo - pad;
         s.hi = hi + pad;
       } else {
@@ -101,9 +114,11 @@ export function Chart(props: Props) {
       const y = (p: number) => h - ((p - s.lo) / (s.hi - s.lo)) * h;
 
       // eased live price for a smooth dot between 1s updates
-      const targetPrice = livePrice ?? visible[visible.length - 1]!.c;
-      if (priceRef.current === 0) priceRef.current = targetPrice;
-      priceRef.current += (targetPrice - priceRef.current) * 0.15;
+      const targetPrice = snapshot
+        ? visible[visible.length - 1]!.c
+        : (livePrice ?? visible[visible.length - 1]!.c);
+      if (priceRef.current === 0 || snapshot) priceRef.current = targetPrice;
+      else priceRef.current += (targetPrice - priceRef.current) * 0.15;
       const dispPrice = priceRef.current;
 
       const up = !openPrice || dispPrice >= openPrice;
@@ -219,15 +234,17 @@ export function Chart(props: Props) {
       // --- live price dot + right-edge price pill ---
       const lx = x(nowT);
       const ly = y(dispPrice);
-      const pulse = 3 + Math.sin(nowMs / 220) * 1.4;
-      ctx.beginPath();
-      ctx.arc(lx, ly, pulse + 4, 0, Math.PI * 2);
-      ctx.fillStyle = lineColor + "2e";
-      ctx.fill();
-      ctx.beginPath();
-      ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
-      ctx.fillStyle = lineColor;
-      ctx.fill();
+      if (!snapshot) {
+        const pulse = 3 + Math.sin(nowMs / 220) * 1.4;
+        ctx.beginPath();
+        ctx.arc(lx, ly, pulse + 4, 0, Math.PI * 2);
+        ctx.fillStyle = lineColor + "2e";
+        ctx.fill();
+        ctx.beginPath();
+        ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
+        ctx.fillStyle = lineColor;
+        ctx.fill();
+      }
 
       ctx.font = "bold 11px ui-monospace, monospace";
       const priceLabel = dispPrice.toExponential(3);

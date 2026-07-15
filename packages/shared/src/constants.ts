@@ -82,3 +82,12 @@ export const CREATOR_FEE_SHARE = 0.3;
 
 /** Referral revenue share — single tier only, no downlines (spec §11/§12). */
 export const REFERRAL_FEE_SHARE = 0.1;
+
+/** Community voting lifecycle: a submission is auto-shortlisted at the vote
+ *  threshold; if the window closes below it, the submission is rejected. */
+export const VOTE_THRESHOLD = 10;
+export const VOTING_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/** Creator-chosen token supply bounds (paper units). */
+export const MIN_TOKEN_SUPPLY = 100_000;
+export const MAX_TOKEN_SUPPLY = 1_000_000_000;

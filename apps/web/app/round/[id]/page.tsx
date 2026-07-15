@@ -63,6 +63,7 @@ export default function RoundPage() {
       killfeed: KillFeedEvent[];
       chat: ChatMessage[];
       trades: Trade[];
+      candles: Candle[];
       predictions: { moon: number; rug: number };
       auction: AuctionResult | null;
       summary: RoundSummary | null;
@@ -71,6 +72,7 @@ export default function RoundPage() {
     setKillfeed(data.killfeed);
     setChat(data.chat);
     setTrades(data.trades);
+    setCandles(data.candles);
     setPreds(data.predictions);
     setAuction(data.auction);
     setSummary(data.summary);
@@ -132,6 +134,9 @@ export default function RoundPage() {
         break;
       case "reaction":
         setReactions((prev) => [...prev.slice(-15), { id: Date.now() + Math.random(), emoji: e.emoji as string }]);
+        break;
+      case "prediction_update":
+        setPreds({ moon: e.moon as number, rug: e.rug as number });
         break;
       case "trade":
         // seenAt drives the on-chart tooltip fade for fresh trades.

@@ -2,7 +2,7 @@ import { createServer } from "node:http";
 import { RoundEngine } from "./engine.js";
 import { FilePersistence, PgPersistence, type Persistence } from "./persistence.js";
 import { createApp } from "./routes.js";
-import { autoScheduler, seedDemo } from "./seed.js";
+import { autoScheduler, evaluateVoting, seedDemo } from "./seed.js";
 import { Store } from "./store.js";
 import { Hub } from "./ws.js";
 
@@ -37,6 +37,7 @@ if (SEED && store.concepts.size === 0) seedDemo(store, engine);
 setInterval(() => {
   try {
     engine.tick(Date.now());
+    evaluateVoting(store);
     if (SEED) autoScheduler(store, engine);
   } catch (e) {
     console.error("tick error", e);

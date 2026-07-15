@@ -29,12 +29,17 @@ export function QueuePanel({
   const [maxPrice, setMaxPrice] = useState("");
   const [intents, setIntents] = useState<AuctionIntent[]>([]);
   const [error, setError] = useState("");
-  const [predicted, setPredicted] = useState(false);
+  const [myCall, setMyCall] = useState<"moon" | "rug" | null>(null);
 
   const loadIntents = () => {
     if (!profile) return;
-    api<{ intents: AuctionIntent[] }>(`/api/rounds/${round.id}/me`)
-      .then((d) => setIntents(d.intents))
+    api<{ intents: AuctionIntent[]; prediction: "moon" | "rug" | null }>(
+      `/api/rounds/${round.id}/me`,
+    )
+      .then((d) => {
+        setIntents(d.intents);
+        setMyCall(d.prediction);
+      })
       .catch(() => {});
   };
   useEffect(loadIntents, [round.id, round.state, profile]);
@@ -68,7 +73,7 @@ export function QueuePanel({
   const predict = async (call: "moon" | "rug") => {
     try {
       await api(`/api/rounds/${round.id}/predict`, { body: { call } });
-      setPredicted(true);
+      setMyCall(call);
     } catch (e) {
       setError((e as Error).message);
     }
@@ -171,20 +176,44 @@ export function QueuePanel({
           <p className="mb-2 text-xs text-zinc-500">Call it before the open. Correct calls earn XP.</p>
           <div className="flex gap-2">
             <button
-              disabled={predicted || !profile}
+              disabled={!!myCall || !profile}
               onClick={() => void predict("moon")}
-              className="flex-1 rounded bg-emerald-600/20 px-3 py-1.5 text-sm font-bold text-emerald-300 hover:bg-emerald-600/40 disabled:opacity-40"
+              className={`flex-1 rounded px-3 py-1.5 text-sm font-bold text-emerald-300 disabled:opacity-40 ${
+                myCall === "moon"
+                  ? "bg-emerald-600/50 ring-1 ring-emerald-400 !opacity-100"
+                  : "bg-emerald-600/20 hover:bg-emerald-600/40"
+              }`}
             >
               🌕 Moon ({preds.moon})
             </button>
             <button
-              disabled={predicted || !profile}
+              disabled={!!myCall || !profile}
               onClick={() => void predict("rug")}
-              className="flex-1 rounded bg-red-600/20 px-3 py-1.5 text-sm font-bold text-red-300 hover:bg-red-600/40 disabled:opacity-40"
+              className={`flex-1 rounded px-3 py-1.5 text-sm font-bold text-red-300 disabled:opacity-40 ${
+                myCall === "rug"
+                  ? "bg-red-600/50 ring-1 ring-red-400 !opacity-100"
+                  : "bg-red-600/20 hover:bg-red-600/40"
+              }`}
             >
               🧨 Rug ({preds.rug})
             </button>
           </div>
+          {myCall && (
+            <p className="mt-2 text-xs font-bold text-zinc-300">
+              You called {myCall === "moon" ? "🌕 Moon" : "🧨 Rug"} — locked in.
+            </p>
+          )}
+        </div>
+        <div className="rounded-xl border border-zinc-800 p-5">
+          <h4 className="mb-2 text-sm font-bold text-zinc-300">Tokenomics</h4>
+          <dl className="space-y-1 text-sm">
+            <Row k="Total supply" v={round.config.totalSupply.toLocaleString()} />
+            <Row k="Pool at open" v={round.config.initialTokenLiquidity.toLocaleString()} />
+            <Row k="Seed liquidity" v={`${round.config.initialEthLiquidity} pETH`} />
+            <Row k="Trade fee" v={`${round.config.tradeFeeBps / 100}%`} />
+            <Row k="Auction fee" v={`${round.config.auctionFeeBps / 100}%`} />
+            <Row k="Graduates at" v={`${round.config.graduationMcap} pETH mcap`} />
+          </dl>
         </div>
       </div>
     </div>

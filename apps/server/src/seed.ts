@@ -1,5 +1,28 @@
+import { VOTE_THRESHOLD, VOTING_WINDOW_MS } from "@cookout/shared";
 import type { RoundEngine } from "./engine.js";
 import type { Store } from "./store.js";
+
+/**
+ * Community voting lifecycle (runs every tick): a submission that reaches
+ * the vote threshold is auto-shortlisted for the Arena Committee; one whose
+ * voting window closes below the threshold is rejected. Both transitions
+ * are written to the public audit log.
+ */
+export function evaluateVoting(store: Store, now = Date.now()): void {
+  for (const c of store.concepts.values()) {
+    if (c.status !== "submitted") continue;
+    if (c.votes >= VOTE_THRESHOLD) {
+      c.status = "shortlisted";
+      store.logAdmin("auto_shortlist", `concept ${c.id} (${c.symbol}) hit ${VOTE_THRESHOLD} votes`);
+    } else if (now - c.createdAt > VOTING_WINDOW_MS) {
+      c.status = "rejected";
+      store.logAdmin(
+        "vote_expired",
+        `concept ${c.id} (${c.symbol}) closed at ${c.votes}/${VOTE_THRESHOLD} votes`,
+      );
+    }
+  }
+}
 
 /**
  * Demo seeding for local development: a few community submissions and a

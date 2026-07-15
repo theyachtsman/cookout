@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   MISSIONS,
+  type Candle,
   STARTING_PAPER_BALANCE,
   XP_AWARDS,
   dayKey,
@@ -70,6 +71,7 @@ export class Store {
   intents = new Map<string, AuctionIntent[]>(); // roundId → intents
   auctionResults = new Map<string, AuctionResult>();
   trades = new Map<string, Trade[]>(); // roundId → trades
+  candles = new Map<string, Candle[]>(); // roundId → closed 1s candles
   positions = new Map<string, Map<Address, Position>>(); // roundId → address → position
   chat = new Map<string, ChatMessage[]>();
   killfeed = new Map<string, KillFeedEvent[]>();
@@ -219,6 +221,9 @@ export class Store {
       concepts: [...this.concepts.values()],
       conceptVoters: [...this.conceptVoters.entries()].map(([id, set]) => [id, [...set]]),
       archivedRounds: [...this.rounds.values()].filter((r) => r.state === "results"),
+      candles: [...this.candles.entries()].filter(
+        ([roundId]) => this.rounds.get(roundId)?.state === "results",
+      ),
       auctionResults: [...this.auctionResults.values()],
       summaries: [...this.summaries.values()],
       adminLog: this.adminLog.slice(-1000),
@@ -239,6 +244,7 @@ export class Store {
     for (const c of snap.concepts) this.concepts.set(c.id, c);
     for (const [id, voters] of snap.conceptVoters) this.conceptVoters.set(id, new Set(voters));
     for (const r of snap.archivedRounds) this.rounds.set(r.id, r);
+    for (const [roundId, candles] of snap.candles ?? []) this.candles.set(roundId, candles);
     for (const a of snap.auctionResults) this.auctionResults.set(a.roundId, a);
     for (const s of snap.summaries) this.summaries.set(s.roundId, s);
     this.adminLog = snap.adminLog;
@@ -251,6 +257,7 @@ export interface Snapshot {
   concepts: TokenConcept[];
   conceptVoters: Array<[string, Address[]]>;
   archivedRounds: Round[];
+  candles?: Array<[string, Candle[]]>;
   auctionResults: AuctionResult[];
   summaries: RoundSummary[];
   adminLog: AdminLogEntry[];

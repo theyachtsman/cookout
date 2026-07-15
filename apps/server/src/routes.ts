@@ -1,6 +1,8 @@
 import express, { type Express, type Request, type Response } from "express";
 import {
   COSMETICS,
+  MAX_TOKEN_SUPPLY,
+  MIN_TOKEN_SUPPLY,
   TIER_UNLOCK_LEVEL,
   unlockedCosmetics,
   type CosmeticType,
@@ -210,7 +212,17 @@ export function createApp(
     auth,
     wrap((req, res) => {
       const { name, symbol, theme, pitch, artworkUrl } = req.body as Record<string, string>;
+      const rawSupply = (req.body as { totalSupply?: number }).totalSupply;
       if (!name || !symbol || !theme) throw new Err(400, "name, symbol, theme required");
+      let totalSupply: number | undefined;
+      if (rawSupply !== undefined && rawSupply !== null && rawSupply !== ("" as unknown)) {
+        totalSupply = Math.floor(Number(rawSupply));
+        if (!Number.isFinite(totalSupply) || totalSupply < MIN_TOKEN_SUPPLY || totalSupply > MAX_TOKEN_SUPPLY)
+          throw new Err(
+            400,
+            `totalSupply must be between ${MIN_TOKEN_SUPPLY.toLocaleString()} and ${MAX_TOKEN_SUPPLY.toLocaleString()}`,
+          );
+      }
       const creator = store.getOrCreateUser(req.userAddress!);
       // Creator vetting (spec §5.2): cooldown + rug-flag screen, audit-trailed.
       const flagged = creator.creatorReputation < 0;
@@ -227,6 +239,7 @@ export function createApp(
         theme: String(theme).slice(0, 140),
         pitch: pitch ? String(pitch).slice(0, 1000) : undefined,
         artworkUrl: artworkUrl ? sanitizeImageUrl(artworkUrl) : undefined,
+        totalSupply,
         status: "submitted",
         votes: 0,
         createdAt: Date.now(),
@@ -291,6 +304,7 @@ export function createApp(
         killfeed: (store.killfeed.get(round.id) ?? []).slice(-50),
         chat: (store.chat.get(round.id) ?? []).slice(-50),
         trades: trades.slice(-100),
+        candles: store.candles.get(round.id) ?? [],
         predictions: engine.predictionCounts(round.id),
         auction: store.auctionResults.get(round.id) ?? null,
         summary: store.summaries.get(round.id) ?? null,
@@ -308,7 +322,12 @@ export function createApp(
       const intents = (store.intents.get(round.id) ?? []).filter(
         (i) => i.userAddress === req.userAddress,
       );
-      res.json({ position: pos, intents, balance: store.getOrCreateUser(req.userAddress!).paperBalance });
+      res.json({
+        position: pos,
+        intents,
+        balance: store.getOrCreateUser(req.userAddress!).paperBalance,
+        prediction: store.predictions.get(round.id)?.get(req.userAddress!)?.call ?? null,
+      });
     }),
   );
 
@@ -422,7 +441,9 @@ export function createApp(
         at: Date.now(),
       });
       store.trackActivity(req.userAddress!, "predictions");
-      res.json({ ok: true, counts: engine.predictionCounts(round.id) });
+      const counts = engine.predictionCounts(round.id);
+      broadcast(round.id, { type: "prediction_update", roundId: round.id, ...counts });
+      res.json({ ok: true, counts });
     }),
   );
 

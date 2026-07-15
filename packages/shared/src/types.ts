@@ -39,6 +39,8 @@ export interface TokenConcept {
   theme: string;
   pitch?: string;
   artworkUrl?: string;
+  /** Creator-chosen total supply (tokenomics); tier default when unset. */
+  totalSupply?: number;
   status: "submitted" | "shortlisted" | "scheduled" | "launched" | "rejected";
   votes: number;
   createdAt: number;

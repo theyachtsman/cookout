@@ -70,6 +70,12 @@ export class RoundEngine {
 
   scheduleRound(concept: TokenConcept, tier: RiskTier, scheduledAt: number): Round {
     const config = { ...TIER_CONFIGS[tier] };
+    if (concept.totalSupply) {
+      // Creator tokenomics: keep the tier's pool-share ratio at the new supply.
+      const poolShare = config.initialTokenLiquidity / config.totalSupply;
+      config.totalSupply = concept.totalSupply;
+      config.initialTokenLiquidity = Math.floor(concept.totalSupply * poolShare);
+    }
     const round: Round = {
       id: this.store.id(),
       conceptId: concept.id,
@@ -394,7 +400,7 @@ export class RoundEngine {
       c.c = price;
       c.v += ethAmount;
     } else {
-      if (c) this.broadcast(round.id, { type: "candle", roundId: round.id, candle: c });
+      if (c) this.closeCandle(round.id, c);
       s.candle = { t: sec, o: c?.c ?? price, h: price, l: price, c: price, v: ethAmount };
     }
     this.broadcast(round.id, { type: "trade", trade });
@@ -472,7 +478,7 @@ export class RoundEngine {
 
     // Close out the previous candle and keep the chart continuous.
     if (s.candle && s.candle.t < sec) {
-      this.broadcast(round.id, { type: "candle", roundId: round.id, candle: s.candle });
+      this.closeCandle(round.id, s.candle);
       s.candle = { t: sec, o: s.candle.c, h: price, l: price, c: price, v: 0 };
     } else if (!s.candle) {
       s.candle = { t: sec, o: price, h: price, l: price, c: price, v: 0 };
@@ -560,7 +566,14 @@ export class RoundEngine {
       this.kill(round, "rug_detected", "Rug detected — liquidity drained", now);
     this.emitState(round);
 
-    const s = this.liveState(round.id);
+    // Flush the in-progress candle so the chart snapshot includes the end.
+    const sLive = this.liveState(round.id);
+    if (sLive.candle) {
+      this.closeCandle(round.id, sLive.candle);
+      sLive.candle = undefined;
+    }
+
+    const s = sLive;
     const pool = round.pool!;
     const positions = this.store.positions.get(round.id) ?? new Map();
     const holdersAtEnd = [...positions.values()].filter((p) => p.tokens > 0);
@@ -627,6 +640,18 @@ export class RoundEngine {
     let rug = 0;
     if (preds) for (const p of preds.values()) p.call === "moon" ? moon++ : rug++;
     return { moon, rug };
+  }
+
+  /** Persist a closed candle (chart history/snapshots) and broadcast it. */
+  private closeCandle(roundId: string, candle: Candle): void {
+    let list = this.store.candles.get(roundId);
+    if (!list) {
+      list = [];
+      this.store.candles.set(roundId, list);
+    }
+    list.push(candle);
+    if (list.length > 900) list.splice(0, list.length - 900);
+    this.broadcast(roundId, { type: "candle", roundId, candle });
   }
 
   private kill(round: Round, kind: KillFeedKind, text: string, now: number): void {
