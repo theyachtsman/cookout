@@ -28,7 +28,7 @@ export function Chat({
   };
 
   return (
-    <div className="rounded-xl border border-zinc-800 p-4">
+    <div className="flex h-full flex-col rounded-xl border border-zinc-800 p-4">
       <div className="mb-2 flex items-center">
         <h4 className="text-sm font-bold text-zinc-300">Chat</h4>
         <div className="ml-auto flex h-6 items-center gap-1 overflow-hidden">
@@ -39,7 +39,7 @@ export function Chat({
           ))}
         </div>
       </div>
-      <div className="flex h-48 flex-col-reverse gap-1 overflow-y-auto text-sm">
+      <div className="flex min-h-40 flex-1 flex-col-reverse gap-1 overflow-y-auto text-sm">
         {[...messages].reverse().map((m) => (
           <div key={m.id} className="rounded px-1 py-0.5">
             {m.badge && <span className="mr-1">{m.badge}</span>}

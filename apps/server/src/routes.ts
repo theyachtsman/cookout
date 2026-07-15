@@ -488,6 +488,33 @@ export function createApp(
     }),
   );
 
+  /** Live top holders: biggest bags right now (live or alumni market). */
+  app.get(
+    "/api/rounds/:id/holders",
+    wrap((req, res) => {
+      const round = store.rounds.get(req.params.id!);
+      if (!round) throw new Err(404, "round not found");
+      const price = round.pool ? spotPrice(round.pool) : 0;
+      const holders = [...(store.positions.get(round.id)?.values() ?? [])]
+        .filter((p) => p.tokens > 0)
+        .sort((a, b) => b.tokens - a.tokens)
+        .slice(0, 10)
+        .map((p) => {
+          const u = store.users.get(p.userAddress);
+          return {
+            address: p.userAddress,
+            displayName: u?.displayName,
+            avatarUrl: u?.avatarUrl,
+            badge: COSMETICS.find((c) => c.id === u?.equipped.badge)?.value,
+            tokens: p.tokens,
+            pctOfSupply: (p.tokens / round.config.totalSupply) * 100,
+            valueEth: p.tokens * price,
+          };
+        });
+      res.json({ holders, totalSupply: round.config.totalSupply });
+    }),
+  );
+
   app.get(
     "/api/rounds/:id/auction",
     wrap((req, res) => {

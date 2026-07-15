@@ -14,8 +14,10 @@ import type {
 import { api } from "../../../lib/api";
 import { useSession } from "../../../lib/session";
 import { useRoundSocket } from "../../../lib/useRoundSocket";
+import { FloatingReactions, KillFeedTicker } from "../../../components/ArcadeOverlays";
 import { Chart } from "../../../components/Chart";
 import { Chat } from "../../../components/Chat";
+import { TopHolders } from "../../../components/TopHolders";
 import { Countdown } from "../../../components/Countdown";
 import { Feeds } from "../../../components/Feeds";
 import { GraduationProgress } from "../../../components/GraduationProgress";
@@ -179,8 +181,10 @@ export default function RoundPage() {
   const spectating = round.state === "live" && (!position || position.tokens === 0);
 
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-3">
+      <FloatingReactions reactions={reactions} />
       <PhaseBanner round={round} />
+      <KillFeedTicker killfeed={killfeed} />
       {/* Top bar */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-zinc-800 bg-zinc-900/50 px-5 py-3">
         <div className="flex items-center gap-3">
@@ -232,16 +236,49 @@ export default function RoundPage() {
         )}
       </div>
 
+      {/* ---- pre-launch arcade: everything on one screen ---- */}
       {(round.state === "lobby" || round.state === "queue_open" || round.state === "settling") && (
-        <QueuePanel
-          round={round}
-          lobby={lobby}
-          preds={preds}
-          onChanged={() => {
-            void loadMe();
-            void refresh();
-          }}
-        />
+        <div className="grid gap-3 lg:h-[calc(100dvh-16rem)] lg:min-h-[34rem] lg:grid-cols-[1fr_340px]">
+          <div className={`min-h-0 overflow-y-auto rounded-xl ${round.state === "queue_open" ? "neon" : ""}`}>
+            <QueuePanel
+              round={round}
+              lobby={lobby}
+              preds={preds}
+              onChanged={() => {
+                void loadMe();
+                void refresh();
+              }}
+            />
+          </div>
+          <div className="flex min-h-0 flex-col gap-3">
+            <div className="scanlines flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3">
+              {round.token.artworkUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={round.token.artworkUrl}
+                  alt=""
+                  className="h-12 w-12 rounded-xl border border-zinc-700 object-cover"
+                />
+              ) : (
+                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900 text-xl">
+                  🪙
+                </div>
+              )}
+              <div className="min-w-0">
+                <div className="truncate font-black">
+                  {round.token.name} <span className="text-zinc-500">${round.token.symbol}</span>
+                </div>
+                <div className="truncate text-xs text-zinc-400">{round.token.theme}</div>
+              </div>
+              <span className="ml-auto rounded bg-zinc-800 px-1.5 py-0.5 text-xs uppercase">
+                {round.tier}
+              </span>
+            </div>
+            <div className="min-h-0 flex-1">
+              <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
+            </div>
+          </div>
+        </div>
       )}
 
       {(round.state === "live" || round.state === "ended" || round.state === "results") && (
@@ -276,6 +313,16 @@ export default function RoundPage() {
             {summary && <Results round={round} summary={summary} auction={auction} />}
           </div>
           <div className="space-y-4">
+            {(round.state === "live" || round.graduated) && position && ticker && (
+              <YourBag
+                position={position}
+                price={ticker.price}
+                ethUsd={ticker.ethUsd ?? 1925}
+                symbol={round.token.symbol}
+                balance={profile?.paperBalance}
+              />
+            )}
+            <TopHolders roundId={round.id} ethUsd={ticker?.ethUsd} />
             {round.state === "live" && leaders.length > 0 && (
               <div className="rounded-xl border border-zinc-800 p-4">
                 <h4 className="mb-2 text-sm font-bold text-zinc-300">Round Leaders</h4>
@@ -305,13 +352,6 @@ export default function RoundPage() {
         </div>
       )}
 
-      {(round.state === "lobby" || round.state === "queue_open" || round.state === "settling") && (
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Feeds killfeed={killfeed} trades={trades} />
-          <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
-        </div>
-      )}
-
       {auction && round.state !== "results" && (
         <div className="rounded-lg border border-zinc-800 px-4 py-2 text-xs text-zinc-500">
           Auction settled at {auction.clearingPrice.toExponential(4)} — raised{" "}
@@ -319,6 +359,64 @@ export default function RoundPage() {
           {(auction.fillRatio * 100).toFixed(0)}%) · audit {auction.auditHash.slice(0, 16)}…
         </div>
       )}
+    </div>
+  );
+}
+
+/** The player's running bag: coin balance + ETH/USD value + cash left. */
+function YourBag({
+  position,
+  price,
+  ethUsd,
+  symbol,
+  balance,
+}: {
+  position: { tokens: number; costBasisEth: number; realizedPnl: number };
+  price: number;
+  ethUsd: number;
+  symbol: string;
+  balance?: number;
+}) {
+  const valueEth = position.tokens * price;
+  const pnl = position.realizedPnl + valueEth - position.costBasisEth;
+  return (
+    <div className="neon scanlines rounded-xl border border-lime-400/40 bg-zinc-900/60 p-4">
+      <h4 className="mb-2 text-sm font-black tracking-wide text-lime-300">💰 YOUR BAG</h4>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-zinc-500">${symbol} held</div>
+          <div className="font-mono font-bold">
+            {position.tokens >= 1000
+              ? `${(position.tokens / 1000).toFixed(1)}k`
+              : position.tokens.toFixed(0)}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-zinc-500">Bag value</div>
+          <div className="font-mono font-bold">
+            ${(valueEth * ethUsd).toFixed(2)}
+            <span className="ml-1 text-[10px] text-zinc-500">{valueEth.toFixed(4)} pETH</span>
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-zinc-500">Round PnL</div>
+          <div className={`font-mono font-bold ${pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+            {pnl >= 0 ? "+" : ""}${(pnl * ethUsd).toFixed(2)}
+          </div>
+        </div>
+        <div>
+          <div className="text-[10px] uppercase tracking-wide text-zinc-500">Cash left</div>
+          <div className="font-mono font-bold">
+            {balance !== undefined ? (
+              <>
+                {balance.toFixed(3)} <span className="text-[10px] text-zinc-500">pETH</span>
+              </>
+            ) : (
+              "—"
+            )}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
