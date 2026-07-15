@@ -20,7 +20,7 @@ export function Feeds({ killfeed, trades }: { killfeed: KillFeedEvent[]; trades:
     <div className="space-y-4">
       <div className="rounded-xl border border-zinc-800 p-4">
         <h4 className="mb-2 text-sm font-bold text-zinc-300">Kill Feed</h4>
-        <div className="flex max-h-44 flex-col-reverse gap-1 overflow-y-auto">
+        <div className="flex h-40 flex-col-reverse gap-1 overflow-y-auto">
           {[...killfeed].reverse().map((e) => (
             <div key={e.id} className="killfeed-item rounded bg-zinc-900 px-2 py-1 text-sm">
               <span className="mr-1.5">{KILL_ICONS[e.kind] ?? "•"}</span>
@@ -36,7 +36,7 @@ export function Feeds({ killfeed, trades }: { killfeed: KillFeedEvent[]; trades:
       </div>
       <div className="rounded-xl border border-zinc-800 p-4">
         <h4 className="mb-2 text-sm font-bold text-zinc-300">Live Activity</h4>
-        <div className="flex max-h-44 flex-col-reverse gap-1 overflow-y-auto font-mono text-xs">
+        <div className="flex h-40 flex-col-reverse gap-1 overflow-y-auto font-mono text-xs">
           {[...trades].reverse().map((t) => (
             <div key={t.id} className="flex justify-between rounded bg-zinc-900 px-2 py-1">
               <span className={t.side === "buy" ? "text-emerald-400" : "text-red-400"}>

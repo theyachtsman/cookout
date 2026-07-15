@@ -5,6 +5,7 @@ import { ACHIEVEMENTS, xpForLevel } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { CosmeticsLocker } from "../../components/CosmeticsLocker";
+import { ImagePicker } from "../../components/ImagePicker";
 import { Missions } from "../../components/Missions";
 
 export default function ProfilePage() {
@@ -42,6 +43,14 @@ export default function ProfilePage() {
     <div className="space-y-6">
       <div className="rounded-xl border border-zinc-800 p-6">
         <div className="flex flex-wrap items-center gap-4">
+          <ImagePicker
+            label="Profile picture"
+            round
+            value={(profile as unknown as { avatarUrl?: string }).avatarUrl}
+            onChange={(dataUrl) =>
+              void api("/api/me", { method: "PATCH", body: { avatarUrl: dataUrl } }).then(refresh)
+            }
+          />
           <div>
             <h1 className="text-2xl font-black">
               {profile.displayName ?? `${profile.address.slice(0, 8)}…`}

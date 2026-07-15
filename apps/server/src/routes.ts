@@ -29,7 +29,8 @@ export function createApp(
   broadcast: Broadcast = () => {},
 ): Express {
   const app = express();
-  app.use(express.json());
+  // Body limit covers client-downscaled data-URL images (coin art, avatars).
+  app.use(express.json({ limit: "2mb" }));
   app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Key");
@@ -93,7 +94,7 @@ export function createApp(
       const u = store.getOrCreateUser(req.userAddress!);
       const { displayName, avatarUrl } = req.body as { displayName?: string; avatarUrl?: string };
       if (displayName !== undefined) u.displayName = String(displayName).slice(0, 24);
-      if (avatarUrl !== undefined) u.avatarUrl = String(avatarUrl).slice(0, 500);
+      if (avatarUrl !== undefined) u.avatarUrl = sanitizeImageUrl(avatarUrl);
       res.json(publicProfile(u));
     }),
   );
@@ -225,7 +226,7 @@ export function createApp(
         symbol: String(symbol).toUpperCase().slice(0, 8),
         theme: String(theme).slice(0, 140),
         pitch: pitch ? String(pitch).slice(0, 1000) : undefined,
-        artworkUrl: artworkUrl ? String(artworkUrl).slice(0, 500) : undefined,
+        artworkUrl: artworkUrl ? sanitizeImageUrl(artworkUrl) : undefined,
         status: "submitted",
         votes: 0,
         createdAt: Date.now(),
@@ -632,6 +633,16 @@ export function createApp(
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
 
   return app;
+}
+
+/** Accept https URLs or client-downscaled data-URL images (≤ ~600KB). */
+function sanitizeImageUrl(value: unknown): string | undefined {
+  const s = String(value ?? "");
+  if (!s) return undefined;
+  if (/^https?:\/\//.test(s) && s.length <= 500) return s;
+  if (/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(s) && s.length <= 800_000)
+    return s;
+  throw new Err(400, "image must be an https URL or a small png/jpg/webp/gif upload");
 }
 
 function publicProfile(u: StoredUser) {

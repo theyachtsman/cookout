@@ -9,6 +9,7 @@ import { api } from "../../../lib/api";
 interface PublicProfile {
   address: string;
   displayName?: string;
+  avatarUrl?: string;
   xp: number;
   level: number;
   title: string;
@@ -41,9 +42,19 @@ export default function PublicProfilePage() {
   return (
     <div className="space-y-6">
       <div className="rounded-xl border border-zinc-800 p-6">
-        <h1 className="text-2xl font-black">
-          {profile.displayName ?? `${profile.address.slice(0, 8)}…${profile.address.slice(-6)}`}
-        </h1>
+        <div className="flex items-center gap-4">
+          {profile.avatarUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={profile.avatarUrl}
+              alt=""
+              className="h-16 w-16 rounded-full border-2 border-zinc-700 object-cover"
+            />
+          )}
+          <h1 className="text-2xl font-black">
+            {profile.displayName ?? `${profile.address.slice(0, 8)}…${profile.address.slice(-6)}`}
+          </h1>
+        </div>
         <div className="mt-1 text-sm text-zinc-400">
           Level {profile.level} · {profile.title} · {profile.xp} XP
           {profile.creatorReputation !== 0 && (

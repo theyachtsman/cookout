@@ -18,6 +18,7 @@ import { Chart } from "../../../components/Chart";
 import { Chat } from "../../../components/Chat";
 import { Countdown } from "../../../components/Countdown";
 import { Feeds } from "../../../components/Feeds";
+import { PhaseBanner } from "../../../components/PhaseBanner";
 import { QueuePanel } from "../../../components/QueuePanel";
 import { Results } from "../../../components/Results";
 import { TradePanel } from "../../../components/TradePanel";
@@ -133,7 +134,11 @@ export default function RoundPage() {
         setReactions((prev) => [...prev.slice(-15), { id: Date.now() + Math.random(), emoji: e.emoji as string }]);
         break;
       case "trade":
-        setTrades((prev) => [...prev.slice(-199), e.trade as Trade]);
+        // seenAt drives the on-chart tooltip fade for fresh trades.
+        setTrades((prev) => [
+          ...prev.slice(-199),
+          { ...(e.trade as Trade), seenAt: Date.now() } as Trade,
+        ]);
         break;
       case "ticker":
         setTicker(e as unknown as Ticker);
@@ -168,9 +173,18 @@ export default function RoundPage() {
 
   return (
     <div className="space-y-4">
+      <PhaseBanner round={round} />
       {/* Top bar */}
       <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-zinc-800 bg-zinc-900/50 px-5 py-3">
-        <div>
+        <div className="flex items-center gap-3">
+          {round.token.artworkUrl && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={round.token.artworkUrl}
+              alt=""
+              className={`h-10 w-10 rounded-lg border border-zinc-700 object-cover ${teaser ? "blur-md" : ""}`}
+            />
+          )}
           <span className="text-xl font-black">{teaser ? "???" : round.token.name}</span>{" "}
           {!teaser && <span className="text-zinc-500">${round.token.symbol}</span>}
           <span className="ml-3 rounded bg-zinc-800 px-1.5 py-0.5 text-xs uppercase text-zinc-300">
@@ -201,14 +215,9 @@ export default function RoundPage() {
             />
           </>
         )}
-        {round.state === "queue_open" && round.queueClosesAt && (
+        {round.state === "live" && round.endsAt && (
           <div className="text-sm text-zinc-400">
-            Queue closes in <Countdown to={round.queueClosesAt} /> — all fills settle at one price
-          </div>
-        )}
-        {round.state === "lobby" && round.queueOpensAt && (
-          <div className="text-sm text-zinc-400">
-            Position queue opens in <Countdown to={round.queueOpensAt} />
+            max timer <Countdown to={round.endsAt} />
           </div>
         )}
       </div>
@@ -228,7 +237,15 @@ export default function RoundPage() {
       {(round.state === "live" || round.state === "ended" || round.state === "results") && (
         <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
           <div className="space-y-4">
-            <Chart candles={candles} />
+            <Chart
+              candles={candles}
+              trades={trades}
+              livePrice={ticker?.price}
+              openPrice={round.clearingPrice}
+              cooking={ticker?.cooking}
+              endReason={round.endReason}
+              graduated={round.graduated}
+            />
             {round.state === "live" && (
               <TradePanel
                 roundId={round.id}

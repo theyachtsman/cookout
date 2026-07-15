@@ -39,7 +39,7 @@ export function Chat({
           ))}
         </div>
       </div>
-      <div className="flex max-h-56 flex-col-reverse gap-1 overflow-y-auto text-sm">
+      <div className="flex h-48 flex-col-reverse gap-1 overflow-y-auto text-sm">
         {[...messages].reverse().map((m) => (
           <div key={m.id} className="rounded px-1 py-0.5">
             {m.badge && <span className="mr-1">{m.badge}</span>}

@@ -4,11 +4,12 @@ import { useCallback, useEffect, useState } from "react";
 import type { TokenConcept } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
+import { ImagePicker } from "../../components/ImagePicker";
 
 export default function Submissions() {
   const { profile, signIn } = useSession();
   const [concepts, setConcepts] = useState<TokenConcept[]>([]);
-  const [form, setForm] = useState({ name: "", symbol: "", theme: "", pitch: "" });
+  const [form, setForm] = useState({ name: "", symbol: "", theme: "", pitch: "", artworkUrl: "" });
   const [error, setError] = useState("");
 
   const load = useCallback(() => {
@@ -21,8 +22,8 @@ export default function Submissions() {
   const submit = async () => {
     setError("");
     try {
-      await api("/api/concepts", { body: form });
-      setForm({ name: "", symbol: "", theme: "", pitch: "" });
+      await api("/api/concepts", { body: { ...form, artworkUrl: form.artworkUrl || undefined } });
+      setForm({ name: "", symbol: "", theme: "", pitch: "", artworkUrl: "" });
       load();
     } catch (e) {
       setError((e as Error).message);
@@ -90,6 +91,13 @@ export default function Submissions() {
               className="rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm md:col-span-2"
               rows={2}
             />
+            <div className="md:col-span-2">
+              <ImagePicker
+                label="Coin image"
+                value={form.artworkUrl || undefined}
+                onChange={(dataUrl) => setForm({ ...form, artworkUrl: dataUrl })}
+              />
+            </div>
             <button
               onClick={() => void submit()}
               className="w-fit rounded-lg bg-amber-500 px-5 py-2 font-black text-zinc-950 hover:bg-amber-400"
@@ -107,7 +115,16 @@ export default function Submissions() {
           {concepts.map((c) => (
             <div key={c.id} className="rounded-xl border border-zinc-800 p-4">
               <div className="flex items-start justify-between">
-                <div>
+                <div className="flex gap-3">
+                  {c.artworkUrl && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={c.artworkUrl}
+                      alt=""
+                      className="h-12 w-12 rounded-lg border border-zinc-700 object-cover"
+                    />
+                  )}
+                  <div>
                   <div className="font-black">
                     {c.name} <span className="text-zinc-500">${c.symbol}</span>
                   </div>
@@ -118,6 +135,7 @@ export default function Submissions() {
                     <a href={`/creator/${c.creatorAddress}`} className="hover:underline">
                       {c.creatorAddress.slice(0, 6)}…{c.creatorAddress.slice(-4)}
                     </a>
+                  </div>
                   </div>
                 </div>
                 <span className={`rounded px-2 py-0.5 text-xs ${statusStyle[c.status]}`}>
