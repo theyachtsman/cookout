@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { WS_URL, getToken } from "./api";
+import { getToken, wsUrl } from "./api";
 
 type Handler = (event: Record<string, unknown> & { type: string }) => void;
 
@@ -18,7 +18,8 @@ export function useRoundSocket(roundId: string | null, onEvent: Handler) {
 
     const connect = () => {
       const token = getToken();
-      ws = new WebSocket(token ? `${WS_URL}?token=${token}` : WS_URL);
+      const base = wsUrl();
+      ws = new WebSocket(token ? `${base}?token=${token}` : base);
       wsRef.current = ws;
       ws.onopen = () => ws.send(JSON.stringify({ type: "subscribe", roundId }));
       ws.onmessage = (e) => {

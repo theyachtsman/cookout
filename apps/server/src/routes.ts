@@ -34,7 +34,8 @@ export function createApp(
   // Body limit covers client-downscaled data-URL images (coin art, avatars).
   app.use(express.json({ limit: "2mb" }));
   app.use((req, res, next) => {
-    res.setHeader("Access-Control-Allow-Origin", "*");
+    // Set CORS_ORIGIN to your web origin in production (e.g. https://cookout.vercel.app).
+    res.setHeader("Access-Control-Allow-Origin", process.env.CORS_ORIGIN ?? "*");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Key");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
     if (req.method === "OPTIONS") {
@@ -79,14 +80,14 @@ export function createApp(
       };
       if (!address || !signature) throw new Err(400, "address and signature required");
       const { token } = await verifyAndCreateSession(store, address, signature, referralCode);
-      res.json({ token, profile: publicProfile(store.getOrCreateUser(address)) });
+      res.json({ token, profile: publicProfile(store.getOrCreateUser(address), true) });
     }),
   );
 
   app.get(
     "/api/me",
     auth,
-    wrap((req, res) => res.json(publicProfile(store.getOrCreateUser(req.userAddress!)))),
+    wrap((req, res) => res.json(publicProfile(store.getOrCreateUser(req.userAddress!), true))),
   );
 
   app.patch(
@@ -97,7 +98,7 @@ export function createApp(
       const { displayName, avatarUrl } = req.body as { displayName?: string; avatarUrl?: string };
       if (displayName !== undefined) u.displayName = String(displayName).slice(0, 24);
       if (avatarUrl !== undefined) u.avatarUrl = sanitizeImageUrl(avatarUrl);
-      res.json(publicProfile(u));
+      res.json(publicProfile(u, true));
     }),
   );
 
@@ -656,7 +657,13 @@ export function createApp(
   return app;
 }
 
-/** Accept https URLs or client-downscaled data-URL images (≤ ~600KB). */
+/**
+ * Wallet isolation: profiles are public per spec §11 (history, PnL, stats,
+ * achievements, level), but session-internal fields — paper balance, referral
+ * code/earnings, who referred you — are only ever returned to the wallet that
+ * owns them (`self`). Positions, intents, missions, and cosmetics-equip are
+ * separately auth-scoped per session token.
+ */
 function sanitizeImageUrl(value: unknown): string | undefined {
   const s = String(value ?? "");
   if (!s) return undefined;
@@ -666,11 +673,25 @@ function sanitizeImageUrl(value: unknown): string | undefined {
   throw new Err(400, "image must be an https URL or a small png/jpg/webp/gif upload");
 }
 
-function publicProfile(u: StoredUser) {
-  const { seasons, activity, missionsDone, ...rest } = u;
+function publicProfile(u: StoredUser, self = false) {
+  const {
+    seasons,
+    activity,
+    missionsDone,
+    history,
+    paperBalance,
+    referralCode,
+    referredBy,
+    referralCount,
+    referralEarnings,
+    ...rest
+  } = u;
   void activity;
   void missionsDone;
+  void history; // served via /api/profile/:address/history
   const d = new Date();
   const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-  return { ...rest, season: seasons[key] ?? { pnl: 0, xp: 0, wins: 0, trades: 0 } };
+  const base = { ...rest, season: seasons[key] ?? { pnl: 0, xp: 0, wins: 0, trades: 0 } };
+  if (!self) return base;
+  return { ...base, paperBalance, referralCode, referredBy, referralCount, referralEarnings };
 }
