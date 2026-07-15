@@ -28,7 +28,7 @@ export function Results({
                 : "bg-zinc-800 text-zinc-300"
           }`}
         >
-          {summary.graduated ? "🎓 GRADUATED — Arena Alumni" : summary.endReason.replace("_", " ")}
+          {summary.graduated ? "🍽️ SERVED UP — Arena Alumni" : summary.endReason.replace("_", " ")}
         </span>
       </div>
       <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm md:grid-cols-3">

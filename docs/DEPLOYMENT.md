@@ -19,14 +19,13 @@ Project settings:
 
 | Setting | Value |
 | --- | --- |
-| Root Directory | `apps/web` |
-| Framework | Next.js (auto-detected) |
-| Install / Build command | defaults (`npm install`, `npm run build`) |
+| Root Directory | **empty** (repo root) — required so npm installs the whole workspace and `@cookout/shared` gets linked |
+| Framework / commands | taken from `vercel.json` at the repo root (installs workspaces, builds shared then web, serves `apps/web/.next`) |
 | Env var `NEXT_PUBLIC_API_URL` | `https://api.<your-domain>` (your Cloudflare hostname for the API) |
 
-The `prebuild` hook in `apps/web/package.json` compiles `@cookout/shared` first —
-this is what fixes the "module not found @cookout/shared" build error (its `dist/`
-is gitignored, so it must be built during deploy).
+"Module not found: @cookout/shared" means the Root Directory is set to `apps/web` —
+npm then installs only that package and the workspace link never exists. Clear the
+Root Directory setting and redeploy; `vercel.json` handles the rest.
 
 Every push to `main` redeploys automatically once GitHub is connected.
 

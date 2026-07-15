@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SessionProvider } from "../lib/session";
+import { BrandLogo } from "../components/BrandLogo";
 import { WalletButton } from "../components/WalletButton";
 import "./globals.css";
 
@@ -14,32 +15,31 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="min-h-screen">
         <SessionProvider>
-          <nav className="sticky top-0 z-20 flex items-center gap-6 border-b border-zinc-800 bg-zinc-950/90 px-6 py-3 backdrop-blur">
-            <Link href="/" className="text-lg font-black tracking-tight text-amber-400">
-              THE COOKOUT
-            </Link>
-            <span className="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400">
-              paper money
+          <nav className="sticky top-0 z-20 flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-zinc-800 bg-zinc-950/90 px-3 py-2.5 backdrop-blur sm:gap-x-6 sm:px-6">
+            <BrandLogo />
+            <span className="hidden rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400 sm:inline">
+              paper beta
             </span>
             <div className="flex-1" />
-            <Link href="/" className="text-sm text-zinc-400 hover:text-zinc-100">
+            <Link href="/matches" className="text-sm text-zinc-400 hover:text-lime-300">
               Matches
             </Link>
-            <Link href="/submissions" className="text-sm text-zinc-400 hover:text-zinc-100">
+            <Link href="/submissions" className="text-sm text-zinc-400 hover:text-lime-300">
               Launchpad
             </Link>
-            <Link href="/leaderboard" className="text-sm text-zinc-400 hover:text-zinc-100">
-              Leaderboard
+            <Link href="/docs" className="text-sm text-zinc-400 hover:text-lime-300">
+              Docs
             </Link>
-            <Link href="/profile" className="text-sm text-zinc-400 hover:text-zinc-100">
+            <Link href="/leaderboard" className="text-sm text-zinc-400 hover:text-lime-300">
+              Board
+            </Link>
+            <Link href="/profile" className="text-sm text-zinc-400 hover:text-lime-300">
               Profile
             </Link>
-            <Link href="/admin" className="text-sm text-zinc-600 hover:text-zinc-300">
-              Admin
-            </Link>
+            {/* /admin is reachable by URL only — no nav link by design */}
             <WalletButton />
           </nav>
-          <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
+          <main className="mx-auto max-w-6xl px-3 py-6 sm:px-4">{children}</main>
         </SessionProvider>
       </body>
     </html>

@@ -60,7 +60,7 @@ export default function PublicProfilePage() {
           {profile.creatorReputation !== 0 && (
             <>
               {" · "}
-              <Link href={`/creator/${profile.address}`} className="text-amber-400 hover:underline">
+              <Link href={`/creator/${profile.address}`} className="text-lime-400 hover:underline">
                 creator profile →
               </Link>
             </>
@@ -91,7 +91,7 @@ export default function PublicProfilePage() {
           <h2 className="mb-2 text-lg font-bold">Achievements ({unlocked.length})</h2>
           <div className="flex flex-wrap gap-2">
             {unlocked.map((a) => (
-              <span key={a.id} className="rounded-lg border border-amber-500/50 bg-amber-500/5 px-3 py-1 text-sm" title={a.description}>
+              <span key={a.id} className="rounded-lg border border-lime-400/50 bg-lime-400/5 px-3 py-1 text-sm" title={a.description}>
                 🏅 {a.name}
               </span>
             ))}
@@ -122,7 +122,7 @@ export default function PublicProfilePage() {
                   </td>
                   <td className="px-4 py-2 text-xs uppercase text-zinc-400">{h.tier}</td>
                   <td className="px-4 py-2 text-xs">
-                    {h.graduated ? "🎓 graduated" : h.endReason.replace("_", " ")}
+                    {h.graduated ? "🍽️ served up" : h.endReason.replace(/_/g, " ")}
                   </td>
                   <td className="px-4 py-2 text-right font-mono">{h.invested.toFixed(2)}</td>
                   <td className={`px-4 py-2 text-right font-mono ${h.pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>

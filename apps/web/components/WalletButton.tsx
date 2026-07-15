@@ -24,7 +24,7 @@ export function WalletButton() {
     <button
       onClick={() => void signIn()}
       disabled={busy}
-      className="rounded bg-amber-500 px-3 py-1 text-sm font-semibold text-zinc-950 hover:bg-amber-400 disabled:opacity-50"
+      className="rounded bg-lime-400 px-3 py-1 text-sm font-semibold text-zinc-950 hover:bg-lime-300 disabled:opacity-50"
     >
       {busy ? "Signing…" : "Connect Wallet"}
     </button>

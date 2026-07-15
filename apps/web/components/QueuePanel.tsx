@@ -109,7 +109,7 @@ export function QueuePanel({
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      <div className="rounded-xl border border-zinc-800 p-5 md:col-span-2">
+      <div className="flex flex-col rounded-xl border border-zinc-800 p-5 md:col-span-2">
         <h3 className="mb-1 font-black">
           {queueOpen ? "Position Queue — open" : round.state === "settling" ? "Settling…" : "Lobby"}
         </h3>
@@ -120,7 +120,7 @@ export function QueuePanel({
         {!profile ? (
           <button
             onClick={() => void signIn()}
-            className="rounded-lg bg-amber-500 px-5 py-2 font-black text-zinc-950 hover:bg-amber-400"
+            className="rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300"
           >
             Connect Wallet to Pull Up
           </button>
@@ -145,7 +145,7 @@ export function QueuePanel({
             </label>
             <button
               onClick={() => void submit()}
-              className="rounded-lg bg-amber-500 px-6 py-2 font-black text-zinc-950 hover:bg-amber-400"
+              className="rounded-lg bg-lime-400 px-6 py-2 font-black text-zinc-950 hover:bg-lime-300"
             >
               Pull Up
             </button>
@@ -185,14 +185,14 @@ export function QueuePanel({
           </div>
         )}
 
-        <div className="mt-4 border-t border-zinc-800 pt-3">
+        <div className="mt-4 flex flex-1 flex-col border-t border-zinc-800 pt-3">
           <div className="mb-2 flex items-center justify-between text-xs">
             <span className="font-bold text-zinc-300">Live pre-positions</span>
             <span className="font-mono text-zinc-500">
               {bids.length} bids · {bids.reduce((s, b) => s + b.ethAmount, 0).toFixed(2)} pETH
             </span>
           </div>
-          <div className="flex h-40 flex-col-reverse gap-1 overflow-y-auto">
+          <div className="flex min-h-56 flex-1 flex-col-reverse gap-1 overflow-y-auto">
             {[...bids]
               .sort((a, b) => a.at - b.at)
               .reverse()
@@ -212,7 +212,7 @@ export function QueuePanel({
                   <a href={`/profile/${b.userAddress}`} className="truncate hover:underline">
                     {b.displayName ?? `${b.userAddress.slice(0, 6)}…${b.userAddress.slice(-4)}`}
                   </a>
-                  <span className="ml-auto font-mono text-amber-300">
+                  <span className="ml-auto font-mono text-lime-300">
                     {b.ethAmount.toFixed(2)} pETH
                   </span>
                   {b.limit && <span className="text-[10px] text-zinc-500">limit</span>}
@@ -277,7 +277,7 @@ export function QueuePanel({
             <Row k="Seed liquidity" v={`${round.config.initialEthLiquidity} pETH`} />
             <Row k="Trade fee" v={`${round.config.tradeFeeBps / 100}%`} />
             <Row k="Auction fee" v={`${round.config.auctionFeeBps / 100}%`} />
-            <Row k="Graduates at" v={`${round.config.graduationMcap} pETH mcap`} />
+            <Row k="Serves up at" v={`${round.config.graduationMcap} pETH mcap`} />
             <Row
               k="Dev sell lock"
               v={round.config.devSellLockSeconds > 0 ? `${round.config.devSellLockSeconds}s after open` : "none — degen rules"}

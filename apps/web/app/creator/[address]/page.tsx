@@ -81,7 +81,7 @@ export default function CreatorPage() {
         {[
           ["Submissions", a.submissions],
           ["Launched", a.roundsLaunched],
-          ["Graduations", a.graduations],
+          ["Served up", a.graduations],
           ["Rugs", a.rugs],
           ["Community votes", a.totalVotes],
           ["Volume launched", `${a.totalVolume.toFixed(1)}`],
@@ -110,8 +110,8 @@ export default function CreatorPage() {
                 {round.state === "live"
                   ? "LIVE"
                   : round.graduated
-                    ? "🎓 graduated"
-                    : (round.endReason ?? "").replace("_", " ")}
+                    ? "🍽️ served up"
+                    : (round.endReason ?? "").replace(/_/g, " ")}
               </span>
               {summary && (
                 <span className="ml-auto font-mono text-xs text-zinc-500">

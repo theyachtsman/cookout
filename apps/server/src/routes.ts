@@ -207,6 +207,41 @@ export function createApp(
     }),
   );
 
+  // ---- pre-launch beta signups ----
+  app.post(
+    "/api/beta/signup",
+    wrap((req, res) => {
+      const { address, xHandle } = req.body as { address?: string; xHandle?: string };
+      if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address))
+        throw new Err(400, "a valid wallet address is required (0x…)");
+      const key = address.toLowerCase();
+      if (store.betaSignups.has(key)) {
+        res.json({ ok: true, already: true, count: store.betaSignups.size });
+        return;
+      }
+      store.betaSignups.set(key, {
+        address: key,
+        xHandle: xHandle ? String(xHandle).replace(/^@/, "").slice(0, 32) : undefined,
+        at: Date.now(),
+        approved: true, // beta period gating is flipped via BETA_WHITELIST env
+      });
+      res.json({ ok: true, count: store.betaSignups.size });
+    }),
+  );
+
+  app.get(
+    "/api/beta/count",
+    wrap((_req, res) => res.json({ count: store.betaSignups.size })),
+  );
+
+  app.get(
+    "/api/admin/beta",
+    admin,
+    wrap((_req, res) =>
+      res.json([...store.betaSignups.values()].sort((a, b) => a.at - b.at)),
+    ),
+  );
+
   // ---- creator submissions & community voting ----
   app.post(
     "/api/concepts",

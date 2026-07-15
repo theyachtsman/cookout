@@ -26,7 +26,7 @@ export function GraduationProgress({
     >
       <div className="mb-2 flex items-center justify-between text-xs">
         <span className="font-bold text-zinc-300">
-          🎓 Graduation progress {graduating && "— criteria met, hold to the bell"}
+          🍽️ Bonding progress {graduating && "— targets met, serving up!"}
         </span>
         <span className="font-mono text-zinc-400">{Math.min(100, overall * 100).toFixed(0)}%</span>
       </div>
@@ -37,7 +37,7 @@ export function GraduationProgress({
             <div key={b.label}>
               <div className="h-1.5 overflow-hidden rounded bg-zinc-800">
                 <div
-                  className={`h-full transition-[width] duration-700 ${pct >= 100 ? "bg-emerald-400" : "bg-amber-500"}`}
+                  className={`h-full transition-[width] duration-700 ${pct >= 100 ? "bg-emerald-400" : "bg-lime-400"}`}
                   style={{ width: `${pct}%` }}
                 />
               </div>

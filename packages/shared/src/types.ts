@@ -20,6 +20,8 @@ export type RoundEndReason =
   | "liquidity_removed"
   | "mcap_target"
   | "low_volume"
+  /** All bonding criteria met mid-round — rendered as "Served Up". */
+  | "graduated"
   | "admin";
 
 export interface PoolState {

@@ -27,9 +27,9 @@ export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
     tradeFeeBps: 100,
     auctionFeeBps: 50,
     mcapTarget: 0,
-    graduationMcap: 400,
-    graduationMinHolders: 10,
-    graduationMinVolume: 200,
+    graduationMcap: 2400,
+    graduationMinHolders: 20,
+    graduationMinVolume: 500,
     lowVolumeThreshold: 0.5,
     lowVolumeWindowSeconds: 120,
     maxPositionEth: 5,
@@ -47,9 +47,9 @@ export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
     tradeFeeBps: 100,
     auctionFeeBps: 50,
     mcapTarget: 0,
-    graduationMcap: 250,
-    graduationMinHolders: 8,
-    graduationMinVolume: 150,
+    graduationMcap: 1000,
+    graduationMinHolders: 15,
+    graduationMinVolume: 300,
     lowVolumeThreshold: 0.5,
     lowVolumeWindowSeconds: 90,
     maxPositionEth: 8,
@@ -67,9 +67,9 @@ export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
     tradeFeeBps: 100,
     auctionFeeBps: 50,
     mcapTarget: 0,
-    graduationMcap: 150,
-    graduationMinHolders: 5,
-    graduationMinVolume: 100,
+    graduationMcap: 250,
+    graduationMinHolders: 10,
+    graduationMinVolume: 150,
     lowVolumeThreshold: 0.25,
     lowVolumeWindowSeconds: 60,
     maxPositionEth: 0,
@@ -78,7 +78,7 @@ export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
 };
 
 /** Market-cap milestones announced in the kill feed (paper ETH). */
-export const MCAP_MILESTONES = [150, 250, 400, 600, 1000];
+export const MCAP_MILESTONES = [150, 250, 400, 600, 1000, 1600, 2400];
 
 /** Creator revenue share of round trading fees (capped — spec §5.3). */
 export const CREATOR_FEE_SHARE = 0.3;

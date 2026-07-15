@@ -79,7 +79,7 @@ export function CosmeticsLocker() {
                       title={isUnlocked ? (isEquipped ? "click to unequip" : "click to equip") : `unlocks at ${unlockText(c)}`}
                       className={`rounded-lg border px-3 py-1.5 text-sm ${
                         isEquipped
-                          ? "border-amber-500 bg-amber-500/15 font-bold"
+                          ? "border-lime-400 bg-lime-400/15 font-bold"
                           : isUnlocked
                             ? "border-zinc-700 hover:border-zinc-500"
                             : "border-zinc-800 opacity-40"

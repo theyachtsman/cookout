@@ -48,12 +48,12 @@ export function Missions() {
                       {m.completed ? "✓ " : ""}
                       {m.name}
                     </span>
-                    <span className="text-xs text-amber-400">+{m.xp} XP</span>
+                    <span className="text-xs text-lime-400">+{m.xp} XP</span>
                   </div>
                   <div className="mt-0.5 text-xs text-zinc-500">{m.description}</div>
                   <div className="mt-2 h-1.5 overflow-hidden rounded bg-zinc-800">
                     <div
-                      className={`h-full ${m.completed ? "bg-emerald-500" : "bg-amber-500"}`}
+                      className={`h-full ${m.completed ? "bg-emerald-500" : "bg-lime-400"}`}
                       style={{ width: `${(m.progress / m.target) * 100}%` }}
                     />
                   </div>

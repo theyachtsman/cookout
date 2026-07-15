@@ -34,6 +34,18 @@ export async function verifyAndCreateSession(
   });
   if (!valid) throw Object.assign(new Error("invalid signature"), { status: 401 });
   store.nonces.delete(key);
+  // Beta-period gate: with BETA_WHITELIST=1, only signed-up wallets (or
+  // wallets that already have profiles) may create sessions.
+  if (
+    process.env.BETA_WHITELIST === "1" &&
+    !store.users.has(key) &&
+    !store.betaSignups.get(key)?.approved
+  ) {
+    throw Object.assign(
+      new Error("this wallet is not on the beta whitelist — sign up on the landing page"),
+      { status: 403 },
+    );
+  }
   const referrer = referralCode ? store.userByReferralCode(referralCode) : undefined;
   const isNew = !store.users.has(key);
   store.getOrCreateUser(key, isNew ? referrer?.address : undefined);

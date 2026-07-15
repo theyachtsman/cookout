@@ -45,7 +45,7 @@ export function PhaseBanner({ round }: { round: Round }) {
             "Submit buy intents now. Everyone settles at ONE clearing price — order and speed don't matter",
           from: round.queueOpensAt,
           until: round.queueClosesAt,
-          tone: "border-amber-500/60 bg-amber-500/10",
+          tone: "border-lime-400/60 bg-lime-400/10",
         };
       case "settling":
         return {
@@ -69,9 +69,9 @@ export function PhaseBanner({ round }: { round: Round }) {
         };
       default:
         return {
-          label: round.graduated ? "🎓 GRADUATED — ARENA ALUMNI" : "ROUND OVER",
+          label: round.graduated ? "🍽️ SERVED UP — OUT IN THE WILD" : "ROUND OVER",
           detail: round.graduated
-            ? "Criteria met: this token is a permanent Arena Alumni"
+            ? "Bonding targets hit — the battle is over and this market now trades in the wild (paper-simulated). Position caps are off."
             : `Ended: ${(round.endReason ?? "").replace(/_/g, " ")} — positions resolved at one uniform redemption price`,
           tone: round.graduated
             ? "border-emerald-500/60 bg-emerald-500/10"

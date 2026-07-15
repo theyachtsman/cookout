@@ -43,7 +43,11 @@ export function evaluateRoundEnd(ctx: {
     const addr = pos.userAddress as Address;
     const m = meta.get(addr);
     const user = store.getOrCreateUser(addr);
-    const pnl = pos.realizedPnl;
+    // Served-up rounds don't mutate positions (the market stays open), so
+    // battle PnL marks open tokens to the serve-up price.
+    const pnl =
+      pos.realizedPnl +
+      (round.graduated ? pos.tokens * ctx.finalPrice - pos.costBasisEth : 0);
 
     // Aggregate summary candidates.
     if (!winner || pnl > winner.pnl) winner = { address: addr, pnl };

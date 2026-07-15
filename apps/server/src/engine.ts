@@ -166,6 +166,11 @@ export class RoundEngine {
         case "live":
           this.tickLive(round, now);
           break;
+        case "results":
+          // Served-up coins keep trading "in the wild" (paper-simulated):
+          // the market stays open forever with candles + ticker, no end checks.
+          if (round.graduated && round.pool) this.alumniTick(round, now);
+          break;
         default:
           break;
       }
@@ -279,7 +284,8 @@ export class RoundEngine {
   ): Trade {
     const round = this.mustRound(roundId);
     const s = this.liveState(roundId);
-    if (round.state !== "live") throw new Err(409, "round is not live");
+    const alumni = round.state === "results" && !!round.graduated;
+    if (round.state !== "live" && !alumni) throw new Err(409, "round is not live");
     if (s.paused) throw new Err(423, "round is paused");
     const user = this.store.getOrCreateUser(address);
     const pos = this.store.position(roundId, user.address);
@@ -292,7 +298,8 @@ export class RoundEngine {
       const ethIn = amount.eth ?? 0;
       if (!(ethIn > 0)) throw new Err(400, "eth amount required");
       if (user.paperBalance < ethIn) throw new Err(400, "insufficient paper balance");
-      const cap = round.config.maxPositionEth;
+      // Position caps apply to the arena battle only — wild trading is open.
+      const cap = alumni ? 0 : round.config.maxPositionEth;
       if (cap > 0 && pos.costBasisEth + ethIn > cap)
         throw new Err(400, `position cap is ${cap} paper ETH for this tier`);
       const r = buy(pool, ethIn, round.config.tradeFeeBps);
@@ -525,6 +532,16 @@ export class RoundEngine {
       cooking,
     });
 
+    // Bonding complete mid-battle ends the round on the spot: Served Up.
+    if (
+      marketCap(pool) >= round.config.graduationMcap &&
+      s.totalVolume >= round.config.graduationMinVolume &&
+      holders >= round.config.graduationMinHolders
+    ) {
+      this.endRound(round, "graduated", now);
+      return;
+    }
+
     if (now >= round.endsAt!) {
       this.endRound(round, "timer", now);
       return;
@@ -538,6 +555,36 @@ export class RoundEngine {
         this.endRound(round, "low_volume", now);
       }
     }
+  }
+
+  /** Post-serve-up market keep-alive: candles + ticker, no end conditions. */
+  private alumniTick(round: Round, now: number): void {
+    const s = this.liveState(round.id);
+    const sec = Math.floor(now / 1000);
+    const pool = round.pool!;
+    const price = spotPrice(pool);
+    if (s.candle && s.candle.t < sec) {
+      this.closeCandle(round.id, s.candle);
+      s.candle = { t: sec, o: s.candle.c, h: price, l: price, c: price, v: 0 };
+    } else if (!s.candle) {
+      s.candle = { t: sec, o: price, h: price, l: price, c: price, v: 0 };
+    }
+    const positions = this.store.positions.get(round.id);
+    let holders = 0;
+    if (positions) for (const p of positions.values()) if (p.tokens > 0) holders++;
+    let recent30 = 0;
+    for (let t = sec - 30; t <= sec; t++) recent30 += s.volumeBySecond.get(t) ?? 0;
+    this.broadcast(round.id, {
+      type: "ticker",
+      roundId: round.id,
+      price,
+      mcap: marketCap(pool),
+      liquidity: pool.ethReserve,
+      volume: s.totalVolume,
+      holders,
+      ageSeconds: Math.floor((now - round.liveAt!) / 1000),
+      cooking: recent30 >= Math.max(2, pool.ethReserve * 0.1),
+    });
   }
 
   /** Admin: simulate a liquidity pull (paper-mode test tool; always logged). */
@@ -592,21 +639,19 @@ export class RoundEngine {
 
     const cfg = round.config;
     const graduated =
-      reason !== "rug_detected" &&
-      reason !== "liquidity_removed" &&
-      finalMcap >= cfg.graduationMcap &&
-      holdersAtEnd.length >= cfg.graduationMinHolders &&
-      s.totalVolume >= cfg.graduationMinVolume;
+      reason === "graduated" ||
+      (reason !== "rug_detected" &&
+        reason !== "liquidity_removed" &&
+        finalMcap >= cfg.graduationMcap &&
+        holdersAtEnd.length >= cfg.graduationMinHolders &&
+        s.totalVolume >= cfg.graduationMinVolume);
     round.graduated = graduated;
 
     if (graduated) {
-      // Liquidity locks in a permanent pool; holders keep their tokens and
-      // positions are marked to the final price (paper equivalent of the
-      // spec's migrate-to-locked-DEX-pool mechanic).
-      for (const p of holdersAtEnd) {
-        p.realizedPnl += p.tokens * finalPrice - p.costBasisEth;
-      }
-      this.kill(round, "graduated", `${round.token.symbol} graduated — Arena Alumni`, now);
+      // Served Up: liquidity locks in a permanent pool, holders keep their
+      // tokens, and the market keeps trading "in the wild" (alumniTick).
+      // Positions are left untouched so wild trading stays consistent.
+      this.kill(round, "graduated", `${round.token.symbol} SERVED UP — out in the wild`, now);
       const concept = this.store.concepts.get(round.conceptId);
       if (concept) concept.status = "launched";
     } else {

@@ -26,6 +26,13 @@ import {
   type UserProfile,
 } from "@cookout/shared";
 
+export interface BetaSignup {
+  address: Address;
+  xHandle?: string;
+  at: number;
+  approved: boolean;
+}
+
 export interface AdminLogEntry {
   id: string;
   at: number;
@@ -82,6 +89,8 @@ export class Store {
   feesByRound = new Map<string, number>();
   /** Chat mutes: address → muted-until epoch ms (ephemeral moderation state). */
   muted = new Map<Address, number>();
+  /** Pre-launch beta signups: wallet → signup record (whitelist source). */
+  betaSignups = new Map<Address, BetaSignup>();
 
   id(): string {
     return randomUUID();
@@ -227,6 +236,7 @@ export class Store {
       auctionResults: [...this.auctionResults.values()],
       summaries: [...this.summaries.values()],
       adminLog: this.adminLog.slice(-1000),
+      betaSignups: [...this.betaSignups.values()],
     };
   }
 
@@ -248,6 +258,7 @@ export class Store {
     for (const a of snap.auctionResults) this.auctionResults.set(a.roundId, a);
     for (const s of snap.summaries) this.summaries.set(s.roundId, s);
     this.adminLog = snap.adminLog;
+    for (const b of snap.betaSignups ?? []) this.betaSignups.set(b.address, b);
   }
 }
 
@@ -261,4 +272,5 @@ export interface Snapshot {
   auctionResults: AuctionResult[];
   summaries: RoundSummary[];
   adminLog: AdminLogEntry[];
+  betaSignups?: BetaSignup[];
 }

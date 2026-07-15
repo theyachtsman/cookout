@@ -331,7 +331,7 @@ export function Chart(props: Props) {
         ctx.font = "bold 34px ui-sans-serif, system-ui";
         if (graduated) {
           ctx.fillStyle = UP;
-          ctx.fillText("🎓 GRADUATED", w / 2, h / 2 - 6);
+          ctx.fillText("🍽️ SERVED UP", w / 2, h / 2 - 6);
         } else if (rug) {
           ctx.fillStyle = DOWN;
           ctx.fillText("🔥 BURNT", w / 2, h / 2 - 6);
@@ -355,13 +355,13 @@ export function Chart(props: Props) {
       <div className="absolute right-2 top-2 flex overflow-hidden rounded-md border border-zinc-700 text-[11px] font-bold">
         <button
           onClick={() => setMode("mcap")}
-          className={`px-2 py-1 ${mode === "mcap" ? "bg-amber-500 text-zinc-950" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"}`}
+          className={`px-2 py-1 ${mode === "mcap" ? "bg-lime-400 text-zinc-950" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"}`}
         >
           MCAP
         </button>
         <button
           onClick={() => setMode("price")}
-          className={`px-2 py-1 ${mode === "price" ? "bg-amber-500 text-zinc-950" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"}`}
+          className={`px-2 py-1 ${mode === "price" ? "bg-lime-400 text-zinc-950" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"}`}
         >
           PRICE
         </button>

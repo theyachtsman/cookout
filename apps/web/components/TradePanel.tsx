@@ -32,7 +32,7 @@ export function TradePanel({
       <div className="rounded-xl border border-zinc-800 p-4">
         <button
           onClick={() => void signIn()}
-          className="rounded-lg bg-amber-500 px-5 py-2 font-black text-zinc-950 hover:bg-amber-400"
+          className="rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300"
         >
           Connect Wallet to Trade
         </button>

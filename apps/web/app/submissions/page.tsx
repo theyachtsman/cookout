@@ -62,7 +62,7 @@ export default function Submissions() {
   const statusStyle: Record<string, string> = {
     submitted: "bg-zinc-800 text-zinc-300",
     shortlisted: "bg-sky-500/20 text-sky-300",
-    scheduled: "bg-amber-500/20 text-amber-300",
+    scheduled: "bg-lime-400/20 text-lime-300",
     launched: "bg-emerald-500/20 text-emerald-300",
     rejected: "bg-red-500/20 text-red-300",
   };
@@ -79,7 +79,7 @@ export default function Submissions() {
         {!profile ? (
           <button
             onClick={() => void signIn()}
-            className="rounded-lg bg-amber-500 px-4 py-2 font-black text-zinc-950"
+            className="rounded-lg bg-lime-400 px-4 py-2 font-black text-zinc-950"
           >
             Connect Wallet to Submit
           </button>
@@ -132,7 +132,7 @@ export default function Submissions() {
             </div>
             <button
               onClick={() => void submit()}
-              className="w-fit rounded-lg bg-amber-500 px-5 py-2 font-black text-zinc-950 hover:bg-amber-400"
+              className="w-fit rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300"
             >
               Submit Concept
             </button>
@@ -210,7 +210,7 @@ export default function Submissions() {
                 <>
                   <div className="mt-2 h-1.5 overflow-hidden rounded bg-zinc-800">
                     <div
-                      className="h-full bg-amber-500"
+                      className="h-full bg-lime-400"
                       style={{ width: `${Math.min(100, (c.votes / VOTE_THRESHOLD) * 100)}%` }}
                     />
                   </div>

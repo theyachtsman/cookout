@@ -46,7 +46,7 @@ export default function Leaderboard() {
           <button
             key={s}
             onClick={() => setScope(s)}
-            className={`rounded px-3 py-1 text-sm ${scope === s ? "bg-amber-500 font-bold text-zinc-950" : "bg-zinc-800"}`}
+            className={`rounded px-3 py-1 text-sm ${scope === s ? "bg-lime-400 font-bold text-zinc-950" : "bg-zinc-800"}`}
           >
             {label}
           </button>

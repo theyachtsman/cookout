@@ -254,10 +254,11 @@ export default function RoundPage() {
               supply={round.config.totalSupply}
               bigTradeEth={Math.max(0.5, (ticker?.liquidity ?? round.config.initialEthLiquidity) * 0.03)}
               cooking={ticker?.cooking}
-              endReason={round.endReason}
+              // Served-up coins keep trading — no end overlay, live chart stays.
+              endReason={round.graduated ? undefined : round.endReason}
               graduated={round.graduated}
             />
-            {round.state === "live" && (
+            {(round.state === "live" || round.graduated) && (
               <TradePanel
                 roundId={round.id}
                 position={position}
@@ -267,6 +268,7 @@ export default function RoundPage() {
                 }}
               />
             )}
+            <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
             {summary && <Results round={round} summary={summary} auction={auction} />}
           </div>
           <div className="space-y-4">
@@ -295,7 +297,6 @@ export default function RoundPage() {
               </div>
             )}
             <Feeds killfeed={killfeed} trades={trades} />
-            <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
           </div>
         </div>
       )}

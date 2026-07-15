@@ -17,7 +17,7 @@ export default function ProfilePage() {
       <div className="py-16 text-center">
         <button
           onClick={() => void signIn()}
-          className="rounded-lg bg-amber-500 px-6 py-3 font-black text-zinc-950"
+          className="rounded-lg bg-lime-400 px-6 py-3 font-black text-zinc-950"
         >
           Connect Wallet
         </button>
@@ -60,14 +60,14 @@ export default function ProfilePage() {
             </div>
           </div>
           <div className="ml-auto text-right">
-            <div className="text-2xl font-black text-amber-400">
+            <div className="text-2xl font-black text-lime-400">
               {profile.paperBalance.toFixed(3)} pETH
             </div>
             <div className="text-xs text-zinc-500">paper balance</div>
           </div>
         </div>
         <div className="mt-3 h-2 overflow-hidden rounded bg-zinc-800">
-          <div className="h-full bg-amber-500" style={{ width: `${progress}%` }} />
+          <div className="h-full bg-lime-400" style={{ width: `${progress}%` }} />
         </div>
         <div className="mt-1 text-xs text-zinc-500">
           {profile.xp - currLevelXp}/{nextLevelXp - currLevelXp} XP to level {profile.level + 1}
@@ -139,7 +139,7 @@ export default function ProfilePage() {
               <div
                 key={a.id}
                 className={`rounded-lg border p-3 ${
-                  unlocked ? "border-amber-500/50 bg-amber-500/5" : "border-zinc-800 opacity-50"
+                  unlocked ? "border-lime-400/50 bg-lime-400/5" : "border-zinc-800 opacity-50"
                 }`}
               >
                 <div className="text-sm font-bold">

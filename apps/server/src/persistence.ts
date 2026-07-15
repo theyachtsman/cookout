@@ -67,12 +67,13 @@ export class PgPersistence implements Persistence {
       CREATE TABLE IF NOT EXISTS auction_results (round_id TEXT PRIMARY KEY, data JSONB NOT NULL);
       CREATE TABLE IF NOT EXISTS summaries (round_id TEXT PRIMARY KEY, data JSONB NOT NULL);
       CREATE TABLE IF NOT EXISTS admin_log (id TEXT PRIMARY KEY, at BIGINT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS beta_signups (address TEXT PRIMARY KEY, data JSONB NOT NULL);
     `);
   }
 
   async load(): Promise<Snapshot | null> {
     await this.ready;
-    const [users, concepts, voters, rounds, auctions, summaries, log] = await Promise.all([
+    const [users, concepts, voters, rounds, auctions, summaries, log, beta] = await Promise.all([
       this.pool.query("SELECT data FROM users"),
       this.pool.query("SELECT data FROM concepts"),
       this.pool.query("SELECT concept_id, voters FROM concept_voters"),
@@ -80,6 +81,7 @@ export class PgPersistence implements Persistence {
       this.pool.query("SELECT data FROM auction_results"),
       this.pool.query("SELECT data FROM summaries"),
       this.pool.query("SELECT id, at, action, detail FROM admin_log ORDER BY at ASC"),
+      this.pool.query("SELECT data FROM beta_signups"),
     ]);
     if (users.rowCount === 0 && concepts.rowCount === 0) return null;
     return {
@@ -91,6 +93,7 @@ export class PgPersistence implements Persistence {
       auctionResults: auctions.rows.map((r) => r.data),
       summaries: summaries.rows.map((r) => r.data),
       adminLog: log.rows.map((r) => ({ ...r, at: Number(r.at) })),
+      betaSignups: beta.rows.map((r) => r.data),
     };
   }
 
@@ -126,6 +129,10 @@ export class PgPersistence implements Persistence {
       await upsert(
         "INSERT INTO summaries (round_id, data) VALUES ($1, $2) ON CONFLICT (round_id) DO UPDATE SET data = $2",
         s.summaries.map((x) => [x.roundId, x]),
+      );
+      await upsert(
+        "INSERT INTO beta_signups (address, data) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET data = $2",
+        (s.betaSignups ?? []).map((b) => [b.address, b]),
       );
       for (const e of s.adminLog)
         await client.query(
