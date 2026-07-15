@@ -362,9 +362,10 @@ export function createApp(
     }),
   );
 
-  // Auditability (spec §6/§13): during the queue only aggregates are visible
-  // (no late-information gaming); after settlement the full intent list is
-  // public so anyone can recompute the clearing price and audit hash.
+  // During the queue the live bid board is public (who + size — the same
+  // information everyone gets at one uniform price anyway); after settlement
+  // the full intent list including limits is public so anyone can recompute
+  // the clearing price and audit hash (spec §6/§13).
   app.get(
     "/api/rounds/:id/intents",
     wrap((req, res) => {
@@ -375,6 +376,17 @@ export function createApp(
         res.json({
           count: intents.length,
           totalEth: intents.reduce((s, i) => s + i.ethAmount, 0),
+          bids: intents.map((i) => {
+            const u = store.users.get(i.userAddress);
+            return {
+              userAddress: i.userAddress,
+              displayName: u?.displayName,
+              avatarUrl: u?.avatarUrl,
+              ethAmount: i.ethAmount,
+              limit: i.maxPrice !== undefined,
+              at: i.submittedAt,
+            };
+          }),
         });
         return;
       }
@@ -621,6 +633,21 @@ export function createApp(
       store.muted.set(address, Date.now() + minutes * 60_000);
       store.logAdmin("mute", `${address} for ${minutes}m`);
       res.json({ ok: true, until: store.muted.get(address) });
+    }),
+  );
+
+  // Creator vetting override: clears a rug flag (negative reputation) so the
+  // wallet can submit again. Logged like every admin action.
+  app.post(
+    "/api/admin/users/:address/clear-flags",
+    admin,
+    wrap((req, res) => {
+      const u = store.users.get(req.params.address!.toLowerCase());
+      if (!u) throw new Err(404, "user not found");
+      const before = u.creatorReputation;
+      if (u.creatorReputation < 0) u.creatorReputation = 0;
+      store.logAdmin("clear_flags", `${u.address} reputation ${before} → ${u.creatorReputation}`);
+      res.json({ ok: true, creatorReputation: u.creatorReputation });
     }),
   );
 

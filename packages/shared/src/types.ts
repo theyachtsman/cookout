@@ -75,6 +75,8 @@ export interface RoundConfig {
   lowVolumeWindowSeconds: number;
   /** Max position per player in paper ETH (0 = uncapped). */
   maxPositionEth: number;
+  /** Creator cannot sell for this many seconds after open (0 = no lock). */
+  devSellLockSeconds: number;
 }
 
 export interface Round {

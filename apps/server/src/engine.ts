@@ -315,6 +315,16 @@ export class RoundEngine {
       if (user.address === round.creatorAddress)
         this.kill(round, "dev_buy", `Developer bought ${fmt(ethIn)} ETH`, now);
     } else {
+      // Tiered anti-instarug: the creator's sells are locked briefly after
+      // the open on lower tiers (degen keeps the anything-can-happen charm).
+      if (user.address === round.creatorAddress && round.config.devSellLockSeconds > 0) {
+        const unlockAt = round.liveAt! + round.config.devSellLockSeconds * 1000;
+        if (now < unlockAt)
+          throw new Err(
+            403,
+            `creator sells unlock ${Math.ceil((unlockAt - now) / 1000)}s from now on this tier`,
+          );
+      }
       let tokens = amount.tokens ?? (amount.pct ? pos.tokens * Math.min(1, amount.pct / 100) : 0);
       tokens = Math.min(tokens, pos.tokens);
       if (!(tokens > 0)) throw new Err(400, "nothing to sell");

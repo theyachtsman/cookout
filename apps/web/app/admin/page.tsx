@@ -13,6 +13,29 @@ interface Overview {
   log: { id: string; at: number; action: string; detail: string }[];
 }
 
+function FlagClearer({ act }: { act: (path: string, body?: unknown, method?: string) => Promise<void> }) {
+  const [addr, setAddr] = useState("");
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-lg border border-zinc-800 p-3">
+      <input
+        placeholder="0x wallet address"
+        value={addr}
+        onChange={(e) => setAddr(e.target.value.trim())}
+        className="w-96 rounded border border-zinc-700 bg-zinc-900 px-3 py-1.5 font-mono text-sm"
+      />
+      <button
+        onClick={() => addr && void act(`/api/admin/users/${addr}/clear-flags`).then(() => setAddr(""))}
+        className="rounded bg-emerald-900/50 px-3 py-1.5 text-sm text-emerald-300 hover:bg-emerald-900"
+      >
+        Clear rug flag
+      </button>
+      <span className="text-xs text-zinc-500">
+        Resets negative creator reputation to 0 so the wallet can submit again (logged).
+      </span>
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const [key, setKey] = useState("");
   const [saved, setSaved] = useState(false);
@@ -235,6 +258,11 @@ export default function AdminPage() {
               </div>
             ))}
         </div>
+      </section>
+
+      <section>
+        <h2 className="mb-2 font-bold">Creator Flags</h2>
+        <FlagClearer act={act} />
       </section>
 
       {overview && (

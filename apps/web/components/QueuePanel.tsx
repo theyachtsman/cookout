@@ -12,6 +12,15 @@ interface Lobby {
   avgEntry: number;
 }
 
+interface Bid {
+  userAddress: string;
+  displayName?: string;
+  avatarUrl?: string;
+  ethAmount: number;
+  limit: boolean;
+  at: number;
+}
+
 /** Lobby + batch-auction queue: submit buy intents before the queue closes. */
 export function QueuePanel({
   round,
@@ -28,8 +37,25 @@ export function QueuePanel({
   const [amount, setAmount] = useState("1");
   const [maxPrice, setMaxPrice] = useState("");
   const [intents, setIntents] = useState<AuctionIntent[]>([]);
+  const [bids, setBids] = useState<Bid[]>([]);
   const [error, setError] = useState("");
   const [myCall, setMyCall] = useState<"moon" | "rug" | null>(null);
+
+  // Live pre-position board: everyone's bids, refreshed while the queue runs.
+  useEffect(() => {
+    if (round.state !== "queue_open" && round.state !== "lobby") return;
+    let alive = true;
+    const poll = () =>
+      api<{ bids?: Bid[] }>(`/api/rounds/${round.id}/intents`)
+        .then((d) => alive && d.bids && setBids(d.bids))
+        .catch(() => {});
+    void poll();
+    const t = setInterval(poll, 2000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [round.id, round.state]);
 
   const loadIntents = () => {
     if (!profile) return;
@@ -158,6 +184,45 @@ export function QueuePanel({
             ))}
           </div>
         )}
+
+        <div className="mt-4 border-t border-zinc-800 pt-3">
+          <div className="mb-2 flex items-center justify-between text-xs">
+            <span className="font-bold text-zinc-300">Live pre-positions</span>
+            <span className="font-mono text-zinc-500">
+              {bids.length} bids · {bids.reduce((s, b) => s + b.ethAmount, 0).toFixed(2)} pETH
+            </span>
+          </div>
+          <div className="flex h-40 flex-col-reverse gap-1 overflow-y-auto">
+            {[...bids]
+              .sort((a, b) => a.at - b.at)
+              .reverse()
+              .map((b, i) => (
+                <div
+                  key={`${b.userAddress}-${b.at}-${i}`}
+                  className="killfeed-item flex items-center gap-2 rounded bg-zinc-900 px-2 py-1 text-sm"
+                >
+                  {b.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={b.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
+                  ) : (
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-[10px]">
+                      {(b.displayName ?? b.userAddress.slice(2, 4)).slice(0, 2)}
+                    </span>
+                  )}
+                  <a href={`/profile/${b.userAddress}`} className="truncate hover:underline">
+                    {b.displayName ?? `${b.userAddress.slice(0, 6)}…${b.userAddress.slice(-4)}`}
+                  </a>
+                  <span className="ml-auto font-mono text-amber-300">
+                    {b.ethAmount.toFixed(2)} pETH
+                  </span>
+                  {b.limit && <span className="text-[10px] text-zinc-500">limit</span>}
+                </div>
+              ))}
+            {bids.length === 0 && (
+              <div className="text-xs text-zinc-600">no bids yet — be first in</div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -213,6 +278,10 @@ export function QueuePanel({
             <Row k="Trade fee" v={`${round.config.tradeFeeBps / 100}%`} />
             <Row k="Auction fee" v={`${round.config.auctionFeeBps / 100}%`} />
             <Row k="Graduates at" v={`${round.config.graduationMcap} pETH mcap`} />
+            <Row
+              k="Dev sell lock"
+              v={round.config.devSellLockSeconds > 0 ? `${round.config.devSellLockSeconds}s after open` : "none — degen rules"}
+            />
           </dl>
         </div>
       </div>

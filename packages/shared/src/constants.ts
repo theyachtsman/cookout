@@ -33,6 +33,7 @@ export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
     lowVolumeThreshold: 0.5,
     lowVolumeWindowSeconds: 120,
     maxPositionEth: 5,
+    devSellLockSeconds: 60,
   },
   standard: {
     tier: "standard",
@@ -52,6 +53,7 @@ export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
     lowVolumeThreshold: 0.5,
     lowVolumeWindowSeconds: 90,
     maxPositionEth: 8,
+    devSellLockSeconds: 30,
   },
   degen: {
     tier: "degen",
@@ -71,6 +73,7 @@ export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
     lowVolumeThreshold: 0.25,
     lowVolumeWindowSeconds: 60,
     maxPositionEth: 0,
+    devSellLockSeconds: 0,
   },
 };
 

@@ -99,7 +99,14 @@ await j(`/api/rounds/${round.id}/intents`, {
   body: { ethAmount: 1, maxPrice: spot * 1.000001 },
 });
 const agg = await j(`/api/rounds/${round.id}/intents`);
-check(agg.count === 3 && agg.intents === undefined, "queue shows aggregates only while open");
+check(
+  agg.count === 3 && agg.bids?.length === 3 && agg.intents === undefined,
+  "queue shows live bid board (no limit prices) while open",
+);
+check(
+  agg.bids.every((b) => b.ethAmount > 0 && b.userAddress && b.maxPrice === undefined),
+  "bid board hides limit prices until settlement",
+);
 await j(`/api/rounds/${round.id}/predict`, { token: alice.token, body: { call: "moon" } });
 await j(`/api/rounds/${round.id}/predict`, { token: carol.token, body: { call: "rug" } });
 

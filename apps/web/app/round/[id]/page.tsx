@@ -18,6 +18,7 @@ import { Chart } from "../../../components/Chart";
 import { Chat } from "../../../components/Chat";
 import { Countdown } from "../../../components/Countdown";
 import { Feeds } from "../../../components/Feeds";
+import { GraduationProgress } from "../../../components/GraduationProgress";
 import { PhaseBanner } from "../../../components/PhaseBanner";
 import { QueuePanel } from "../../../components/QueuePanel";
 import { Results } from "../../../components/Results";
@@ -242,11 +243,16 @@ export default function RoundPage() {
       {(round.state === "live" || round.state === "ended" || round.state === "results") && (
         <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
           <div className="space-y-4">
+            {round.state === "live" && ticker && (
+              <GraduationProgress config={round.config} ticker={ticker} />
+            )}
             <Chart
               candles={candles}
               trades={trades}
               livePrice={ticker?.price}
               openPrice={round.clearingPrice}
+              supply={round.config.totalSupply}
+              bigTradeEth={Math.max(0.5, (ticker?.liquidity ?? round.config.initialEthLiquidity) * 0.03)}
               cooking={ticker?.cooking}
               endReason={round.endReason}
               graduated={round.graduated}
