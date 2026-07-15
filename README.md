@@ -49,7 +49,18 @@ npm run dev:web                    # UI on :3000 (NEXT_PUBLIC_API_URL=http://loc
 ```
 
 Open http://localhost:3000. With seeding on, a demo round auto-schedules whenever the
-calendar is empty. Connect Wallet uses the injected wallet if present, otherwise a
+calendar is empty.
+
+**Persistence:** durable state (users, concepts, votes, archived rounds, settlements,
+admin log) snapshots to `apps/server/data/state.json` by default. For PostgreSQL:
+
+```bash
+docker compose up -d   # cookout-postgres on 127.0.0.1:5434
+DATABASE_URL=postgres://cookout:cookout@127.0.0.1:5434/cookout npm run dev:server
+```
+
+Live-round state is deliberately ephemeral either way — an in-flight round does not
+survive a restart, archived results and player progression do. Connect Wallet uses the injected wallet if present, otherwise a
 local burner key — either way auth is address + signature only (no deposits; Phase 1
 balances are paper).
 
@@ -71,8 +82,12 @@ rug, graduation, low-volume end, pause).
 - [x] Results screen, XP, achievements, leaderboard updates
 - [x] Admin dashboard: manage a live round, pause it (logged, rate-limited)
 
-Known Phase-1 scope notes: durable storage is in-memory behind a store interface
-(PostgreSQL/Redis adapters are the next infrastructure step); WalletConnect proper and
+Also implemented: daily missions + weekly challenges (XP-only rewards), a cosmetics
+locker (badges/titles/chat colors/frames — unlocked by play, never purchasable,
+rendered in chat and leaderboards), the "Cooking" hot-round flavor chip, and durable
+persistence (PostgreSQL via `DATABASE_URL`, atomic file snapshot otherwise).
+
+Known Phase-1 scope notes: WalletConnect proper, Redis-backed horizontal scaling, and
 graduated-token post-round trading are Phase 2 items.
 
 > Toolchain note: workspace scripts invoke local binaries via `node <path>` instead of

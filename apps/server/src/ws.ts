@@ -1,7 +1,7 @@
 import type { IncomingMessage } from "node:http";
 import type { Server } from "node:http";
 import { WebSocket, WebSocketServer } from "ws";
-import type { ChatMessage, ClientEvent, ServerEvent } from "@cookout/shared";
+import { COSMETICS, type ChatMessage, type ClientEvent, type ServerEvent } from "@cookout/shared";
 import type { Store } from "./store.js";
 
 interface Client {
@@ -60,6 +60,8 @@ export class Hub {
         const text = msg.text.trim().slice(0, 280);
         if (!text) return;
         const user = this.store.users.get(client.address);
+        const badge = COSMETICS.find((c) => c.id === user?.equipped.badge)?.value;
+        const color = COSMETICS.find((c) => c.id === user?.equipped.chatColor)?.value;
         const message: ChatMessage = {
           id: this.store.id(),
           roundId: msg.roundId,
@@ -67,6 +69,8 @@ export class Hub {
           displayName: user?.displayName,
           text,
           at: Date.now(),
+          badge,
+          color,
         };
         let list = this.store.chat.get(msg.roundId);
         if (!list) {

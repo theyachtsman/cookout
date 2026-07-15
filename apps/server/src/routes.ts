@@ -1,5 +1,12 @@
 import express, { type Express, type Request, type Response } from "express";
-import { TIER_UNLOCK_LEVEL, type RiskTier, type TokenConcept } from "@cookout/shared";
+import {
+  COSMETICS,
+  TIER_UNLOCK_LEVEL,
+  unlockedCosmetics,
+  type CosmeticType,
+  type RiskTier,
+  type TokenConcept,
+} from "@cookout/shared";
 import {
   issueNonce,
   nonceMessage,
@@ -82,6 +89,50 @@ export function createApp(store: Store, engine: RoundEngine, adminKey: string): 
       if (displayName !== undefined) u.displayName = String(displayName).slice(0, 24);
       if (avatarUrl !== undefined) u.avatarUrl = String(avatarUrl).slice(0, 500);
       res.json(publicProfile(u));
+    }),
+  );
+
+  app.get(
+    "/api/missions",
+    auth,
+    wrap((req, res) => res.json(store.missionStatus(req.userAddress!))),
+  );
+
+  app.get(
+    "/api/me/cosmetics",
+    auth,
+    wrap((req, res) => {
+      const u = store.getOrCreateUser(req.userAddress!);
+      res.json({ unlocked: unlockedCosmetics(u), equipped: u.equipped, all: COSMETICS });
+    }),
+  );
+
+  app.patch(
+    "/api/me/cosmetics",
+    auth,
+    wrap((req, res) => {
+      const u = store.getOrCreateUser(req.userAddress!);
+      const unlockedIds = new Set(unlockedCosmetics(u).map((c) => c.id));
+      const body = req.body as Partial<Record<"title" | "badge" | "chatColor" | "frame", string | null>>;
+      const slots: Array<["title" | "badge" | "chatColor" | "frame", CosmeticType]> = [
+        ["title", "title"],
+        ["badge", "badge"],
+        ["chatColor", "chat_color"],
+        ["frame", "frame"],
+      ];
+      for (const [slot, type] of slots) {
+        if (!(slot in body)) continue;
+        const id = body[slot];
+        if (id === null) {
+          delete u.equipped[slot];
+          continue;
+        }
+        const def = COSMETICS.find((c) => c.id === id);
+        if (!def || def.type !== type) throw new Err(400, `invalid ${slot} cosmetic`);
+        if (!unlockedIds.has(def.id)) throw new Err(403, `${def.name} is not unlocked`);
+        u.equipped[slot] = def.id;
+      }
+      res.json({ equipped: u.equipped });
     }),
   );
 
@@ -311,6 +362,7 @@ export function createApp(store: Store, engine: RoundEngine, adminKey: string): 
         call,
         at: Date.now(),
       });
+      store.trackActivity(req.userAddress!, "predictions");
       res.json({ ok: true, counts: engine.predictionCounts(round.id) });
     }),
   );
@@ -338,6 +390,7 @@ export function createApp(store: Store, engine: RoundEngine, adminKey: string): 
             displayName: u.displayName,
             level: u.level,
             title: u.title,
+            badge: COSMETICS.find((c) => c.id === u.equipped.badge)?.value,
             value,
           };
         })
@@ -451,7 +504,9 @@ export function createApp(store: Store, engine: RoundEngine, adminKey: string): 
 }
 
 function publicProfile(u: StoredUser) {
-  const { seasons, ...rest } = u;
+  const { seasons, activity, missionsDone, ...rest } = u;
+  void activity;
+  void missionsDone;
   const d = new Date();
   const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
   return { ...rest, season: seasons[key] ?? { pnl: 0, xp: 0, wins: 0, trades: 0 } };

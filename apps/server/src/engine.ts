@@ -185,6 +185,7 @@ export class RoundEngine {
       throw new Err(400, `position cap is ${cap} paper ETH for this tier`);
     if (user.paperBalance < ethAmount) throw new Err(400, "insufficient paper balance");
     user.paperBalance -= ethAmount; // escrow until settlement
+    if (mine.length === 0) this.store.trackActivity(user.address, "auctions_entered", 1, now);
     const intent = {
       id: this.store.id(),
       roundId,
@@ -348,6 +349,7 @@ export class RoundEngine {
     user.stats.trades += 1;
     const season = (user.seasons[this.store.seasonKey(now)] ??= { pnl: 0, xp: 0, wins: 0, trades: 0 });
     season.trades += 1;
+    this.store.trackActivity(user.address, "trades", 1, now);
     this.afterTrade(round, now);
     return trade;
   }
@@ -489,6 +491,12 @@ export class RoundEngine {
         }
       }
 
+    // "Cooking" flavor flag: notable volume in the last 30s relative to pool
+    // depth. Shown alongside real numbers, never replacing them (spec §1).
+    let recent30 = 0;
+    for (let t = sec - 30; t <= sec; t++) recent30 += s.volumeBySecond.get(t) ?? 0;
+    const cooking = recent30 >= Math.max(2, pool.ethReserve * 0.1);
+
     this.broadcast(round.id, {
       type: "ticker",
       roundId: round.id,
@@ -498,6 +506,7 @@ export class RoundEngine {
       volume: s.totalVolume,
       holders,
       ageSeconds: Math.floor((now - round.liveAt!) / 1000),
+      cooking,
     });
 
     if (now >= round.endsAt!) {

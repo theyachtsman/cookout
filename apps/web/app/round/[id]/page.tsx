@@ -29,6 +29,7 @@ interface Ticker {
   volume: number;
   holders: number;
   ageSeconds: number;
+  cooking?: boolean;
 }
 
 interface Lobby {
@@ -159,6 +160,11 @@ export default function RoundPage() {
         </div>
         {ticker && round.state === "live" && (
           <>
+            {ticker.cooking && (
+              <span className="animate-pulse rounded bg-orange-500/20 px-2 py-1 text-xs font-black text-orange-300">
+                🔥 Cooking
+              </span>
+            )}
             <Stat label="Market Cap" value={`${ticker.mcap.toFixed(1)} pETH`} />
             <Stat label="Liquidity" value={`${ticker.liquidity.toFixed(1)} pETH`} />
             <Stat label="Volume" value={`${ticker.volume.toFixed(2)} pETH`} />

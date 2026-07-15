@@ -8,6 +8,7 @@ interface Row {
   displayName?: string;
   level: number;
   title: string;
+  badge?: string;
   value: number;
 }
 
@@ -61,6 +62,7 @@ export default function Leaderboard() {
               <tr key={r.address} className="border-t border-zinc-800/60">
                 <td className="px-4 py-2 font-mono text-zinc-500">{i + 1}</td>
                 <td className="px-4 py-2">
+                  {r.badge && <span className="mr-1.5">{r.badge}</span>}
                   {r.displayName ?? `${r.address.slice(0, 6)}…${r.address.slice(-4)}`}
                   {i < 3 && <span className="ml-2">{["🥇", "🥈", "🥉"][i]}</span>}
                 </td>

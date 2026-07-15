@@ -189,6 +189,9 @@ export interface ChatMessage {
   displayName?: string;
   text: string;
   at: number;
+  /** Equipped cosmetics resolved at send time (emoji badge, hex color). */
+  badge?: string;
+  color?: string;
 }
 
 export interface Prediction {
@@ -270,6 +273,9 @@ export type ServerEvent =
       volume: number;
       holders: number;
       ageSeconds: number;
+      /** Flavor flag: round is running hot (high recent volume). Shown
+       *  alongside real numbers, never replacing them (spec §1 "Cooking"). */
+      cooking: boolean;
     }
   | { type: "killfeed"; event: KillFeedEvent }
   | { type: "chat"; message: ChatMessage }

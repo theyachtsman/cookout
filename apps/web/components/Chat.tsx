@@ -27,7 +27,8 @@ export function Chat({
       <div className="flex max-h-56 flex-col-reverse gap-1 overflow-y-auto text-sm">
         {[...messages].reverse().map((m) => (
           <div key={m.id} className="rounded px-1 py-0.5">
-            <span className="mr-1.5 font-bold text-amber-400">
+            {m.badge && <span className="mr-1">{m.badge}</span>}
+            <span className="mr-1.5 font-bold" style={{ color: m.color ?? "#f59e0b" }}>
               {m.displayName ?? `${m.userAddress.slice(0, 6)}…`}
             </span>
             <span className="text-zinc-300">{m.text}</span>

@@ -39,7 +39,7 @@ and there are no deposits in Phase 1.
 
 | Simplification | Where the seam is |
 | --- | --- |
-| In-memory store, no persistence across restarts | `Store` class boundary |
+| Hot state in memory; durable subset persisted via `Persistence` (PostgreSQL JSONB-per-entity, or atomic file snapshot) | `persistence.ts` + `Store.snapshot()/hydrate()` |
 | Simulated AMM instead of on-chain pool | `packages/shared/src/amm.ts` mirrors x·y=k exactly |
 | Burner-key fallback instead of WalletConnect | `lib/session.tsx` `signIn()` |
 | Graduated tokens freeze post-round | Phase 3 permanent-pool trading |

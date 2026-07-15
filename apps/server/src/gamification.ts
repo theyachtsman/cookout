@@ -74,6 +74,7 @@ export function evaluateRoundEnd(ctx: {
     award("participation");
     if (m?.firstBuyAt) award("first_buy");
     user.stats.roundsPlayed++;
+    store.trackActivity(addr, "rounds_played", 1, now);
     user.stats.totalPnl += pnl;
     if (m && m.bestSellPnl > user.stats.bestTradePnl) user.stats.bestTradePnl = m.bestSellPnl;
     const seasonStats = (user.seasons[season] ??= { pnl: 0, xp: 0, wins: 0, trades: 0 });
@@ -81,6 +82,7 @@ export function evaluateRoundEnd(ctx: {
 
     const won = pnl > 0;
     if (won) {
+      store.trackActivity(addr, "profitable_rounds", 1, now);
       award("win_trade");
       user.stats.wins++;
       seasonStats.wins++;

@@ -1,8 +1,15 @@
 import { randomUUID } from "node:crypto";
 import {
+  MISSIONS,
   STARTING_PAPER_BALANCE,
+  XP_AWARDS,
+  dayKey,
   levelForXp,
+  periodKey,
   titleForLevel,
+  weekKey,
+  type EquippedCosmetics,
+  type MissionMetric,
   type Address,
   type AuctionIntent,
   type AuctionResult,
@@ -35,6 +42,12 @@ export interface StoredUser extends UserProfile {
   /** Per-season (YYYY-MM) aggregates for seasonal leaderboards. */
   seasons: Record<string, SeasonStats>;
   feesEarned: number;
+  /** Activity counters keyed by period ("2026-07-14" and "2026-W29"). */
+  activity: Record<string, Partial<Record<MissionMetric, number>>>;
+  /** Completed missions keyed "<periodKey>:<missionId>". */
+  missionsDone: Record<string, true>;
+  equipped: EquippedCosmetics;
+  bestSeasonRank?: number;
 }
 
 /**
@@ -87,6 +100,9 @@ export class Store {
         creatorReputation: 0,
         seasons: {},
         feesEarned: 0,
+        activity: {},
+        missionsDone: {},
+        equipped: {},
         stats: {
           roundsPlayed: 0,
           trades: 0,
@@ -145,4 +161,84 @@ export class Store {
   logAdmin(action: string, detail: string): void {
     this.adminLog.push({ id: this.id(), at: Date.now(), action, detail });
   }
+
+  /**
+   * Record mission-relevant activity for both the current day and ISO week,
+   * then award XP for any missions that just completed.
+   */
+  trackActivity(address: Address, metric: MissionMetric, amount = 1, now = Date.now()): void {
+    const u = this.getOrCreateUser(address);
+    for (const key of [dayKey(now), weekKey(now)]) {
+      const bucket = (u.activity[key] ??= {});
+      bucket[metric] = (bucket[metric] ?? 0) + amount;
+    }
+    // Prune stale periods so the record stays small.
+    const keys = Object.keys(u.activity);
+    if (keys.length > 20) {
+      for (const k of keys.sort().slice(0, keys.length - 12)) delete u.activity[k];
+    }
+    for (const m of MISSIONS) {
+      if (m.metric !== metric) continue;
+      const pk = periodKey(m.period, now);
+      const doneKey = `${pk}:${m.id}`;
+      if (u.missionsDone[doneKey]) continue;
+      if ((u.activity[pk]?.[m.metric] ?? 0) >= m.target) {
+        u.missionsDone[doneKey] = true;
+        this.addXp(address, m.xp);
+      }
+    }
+  }
+
+  missionStatus(address: Address, now = Date.now()) {
+    const u = this.getOrCreateUser(address);
+    return MISSIONS.map((m) => {
+      const pk = periodKey(m.period, now);
+      return {
+        ...m,
+        progress: Math.min(m.target, u.activity[pk]?.[m.metric] ?? 0),
+        completed: !!u.missionsDone[`${pk}:${m.id}`],
+      };
+    });
+  }
+
+  /** Serializable snapshot of durable state (live rounds stay ephemeral). */
+  snapshot(): Snapshot {
+    return {
+      version: 1,
+      users: [...this.users.values()],
+      concepts: [...this.concepts.values()],
+      conceptVoters: [...this.conceptVoters.entries()].map(([id, set]) => [id, [...set]]),
+      archivedRounds: [...this.rounds.values()].filter((r) => r.state === "results"),
+      auctionResults: [...this.auctionResults.values()],
+      summaries: [...this.summaries.values()],
+      adminLog: this.adminLog.slice(-1000),
+    };
+  }
+
+  hydrate(snap: Snapshot): void {
+    for (const u of snap.users) {
+      // Older snapshots may predate newer fields; fill defaults.
+      u.activity ??= {};
+      u.missionsDone ??= {};
+      u.equipped ??= {};
+      this.users.set(u.address, u);
+    }
+    for (const c of snap.concepts) this.concepts.set(c.id, c);
+    for (const [id, voters] of snap.conceptVoters) this.conceptVoters.set(id, new Set(voters));
+    for (const r of snap.archivedRounds) this.rounds.set(r.id, r);
+    for (const a of snap.auctionResults) this.auctionResults.set(a.roundId, a);
+    for (const s of snap.summaries) this.summaries.set(s.roundId, s);
+    this.adminLog = snap.adminLog;
+  }
+}
+
+export interface Snapshot {
+  version: number;
+  users: StoredUser[];
+  concepts: TokenConcept[];
+  conceptVoters: Array<[string, Address[]]>;
+  archivedRounds: Round[];
+  auctionResults: AuctionResult[];
+  summaries: RoundSummary[];
+  adminLog: AdminLogEntry[];
 }

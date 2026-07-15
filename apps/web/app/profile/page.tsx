@@ -4,6 +4,8 @@ import { useState } from "react";
 import { ACHIEVEMENTS, xpForLevel } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
+import { CosmeticsLocker } from "../../components/CosmeticsLocker";
+import { Missions } from "../../components/Missions";
 
 export default function ProfilePage() {
   const { profile, signIn, refresh } = useSession();
@@ -94,6 +96,10 @@ export default function ProfilePage() {
           </div>
         ))}
       </div>
+
+      <Missions />
+
+      <CosmeticsLocker />
 
       <div>
         <h2 className="mb-3 text-lg font-bold">Achievements</h2>
