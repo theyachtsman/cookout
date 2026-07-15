@@ -52,6 +52,8 @@ export default function RoundPage() {
   const [auction, setAuction] = useState<AuctionResult | null>(null);
   const [summary, setSummary] = useState<RoundSummary | null>(null);
   const [preds, setPreds] = useState<{ moon: number; rug: number }>({ moon: 0, rug: 0 });
+  const [reactions, setReactions] = useState<Array<{ id: number; emoji: string }>>([]);
+  const [leaders, setLeaders] = useState<Array<{ address: string; displayName?: string; badge?: string; value: number }>>([]);
   const [position, setPosition] = useState<{ tokens: number; costBasisEth: number; realizedPnl: number } | null>(null);
 
   const load = useCallback(async () => {
@@ -93,7 +95,23 @@ export default function RoundPage() {
     void loadMe();
   }, [loadMe]);
 
-  const { sendChat } = useRoundSocket(id, (e) => {
+  // Live per-round leaderboard while trading is open.
+  useEffect(() => {
+    if (round?.state !== "live") return;
+    let alive = true;
+    const poll = () =>
+      api<{ rows: typeof leaders }>(`/api/leaderboard?scope=round&roundId=${id}`)
+        .then((d) => alive && setLeaders(d.rows.slice(0, 5)))
+        .catch(() => {});
+    void poll();
+    const t = setInterval(poll, 5000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [id, round?.state]);
+
+  const { sendChat, sendReact } = useRoundSocket(id, (e) => {
     switch (e.type) {
       case "round_state":
         setRound(e.round as Round);
@@ -107,6 +125,12 @@ export default function RoundPage() {
         break;
       case "chat":
         setChat((prev) => [...prev.slice(-199), e.message as ChatMessage]);
+        break;
+      case "chat_delete":
+        setChat((prev) => prev.filter((m) => m.id !== (e.messageId as string)));
+        break;
+      case "reaction":
+        setReactions((prev) => [...prev.slice(-15), { id: Date.now() + Math.random(), emoji: e.emoji as string }]);
         break;
       case "trade":
         setTrades((prev) => [...prev.slice(-199), e.trade as Trade]);
@@ -218,8 +242,32 @@ export default function RoundPage() {
             {summary && <Results round={round} summary={summary} auction={auction} />}
           </div>
           <div className="space-y-4">
+            {round.state === "live" && leaders.length > 0 && (
+              <div className="rounded-xl border border-zinc-800 p-4">
+                <h4 className="mb-2 text-sm font-bold text-zinc-300">Round Leaders</h4>
+                <div className="space-y-1 text-sm">
+                  {leaders.map((l, i) => (
+                    <a
+                      key={l.address}
+                      href={`/profile/${l.address}`}
+                      className="flex justify-between rounded bg-zinc-900 px-2 py-1 hover:bg-zinc-800"
+                    >
+                      <span>
+                        <span className="mr-1.5 font-mono text-zinc-500">{i + 1}</span>
+                        {l.badge && <span className="mr-1">{l.badge}</span>}
+                        {l.displayName ?? `${l.address.slice(0, 6)}…${l.address.slice(-4)}`}
+                      </span>
+                      <span className={`font-mono ${l.value >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                        {l.value >= 0 ? "+" : ""}
+                        {l.value.toFixed(3)}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
             <Feeds killfeed={killfeed} trades={trades} />
-            <Chat messages={chat} onSend={sendChat} />
+            <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
           </div>
         </div>
       )}
@@ -227,7 +275,7 @@ export default function RoundPage() {
       {(round.state === "lobby" || round.state === "queue_open" || round.state === "settling") && (
         <div className="grid gap-4 lg:grid-cols-2">
           <Feeds killfeed={killfeed} trades={trades} />
-          <Chat messages={chat} onSend={sendChat} />
+          <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
         </div>
       )}
 

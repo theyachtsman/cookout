@@ -15,13 +15,19 @@ import {
   verifyAndCreateSession,
   type AuthedRequest,
 } from "./auth.js";
-import { Err, type RoundEngine } from "./engine.js";
+import { Err, type Broadcast, type RoundEngine } from "./engine.js";
 import type { Store, StoredUser } from "./store.js";
+import { spotPrice } from "@cookout/shared";
 
 const PAUSE_LIMIT = 3;
 const PAUSE_WINDOW_MS = 60 * 60 * 1000;
 
-export function createApp(store: Store, engine: RoundEngine, adminKey: string): Express {
+export function createApp(
+  store: Store,
+  engine: RoundEngine,
+  adminKey: string,
+  broadcast: Broadcast = () => {},
+): Express {
   const app = express();
   app.use(express.json());
   app.use((req, res, next) => {
@@ -142,6 +148,58 @@ export function createApp(store: Store, engine: RoundEngine, adminKey: string): 
       const u = store.users.get(req.params.address!.toLowerCase());
       if (!u) throw new Err(404, "profile not found");
       res.json(publicProfile(u));
+    }),
+  );
+
+  app.get(
+    "/api/profile/:address/history",
+    wrap((req, res) => {
+      const u = store.users.get(req.params.address!.toLowerCase());
+      if (!u) throw new Err(404, "profile not found");
+      res.json([...u.history].reverse());
+    }),
+  );
+
+  /** Creator profile view (spec §5.4): submissions, rounds, aggregates. */
+  app.get(
+    "/api/creator/:address",
+    wrap((req, res) => {
+      const address = req.params.address!.toLowerCase();
+      const u = store.users.get(address);
+      if (!u) throw new Err(404, "creator not found");
+      const concepts = [...store.concepts.values()]
+        .filter((c) => c.creatorAddress === address)
+        .sort((a, b) => b.createdAt - a.createdAt);
+      const rounds = [...store.rounds.values()]
+        .filter((r) => r.creatorAddress === address && (r.state === "results" || r.state === "live"))
+        .sort((a, b) => b.scheduledAt - a.scheduledAt)
+        .map((r) => ({
+          round: r,
+          summary: store.summaries.get(r.id) ?? null,
+        }));
+      const launched = rounds.filter((r) => r.round.state === "results");
+      const totalVotes = concepts.reduce((s, c) => s + c.votes, 0);
+      res.json({
+        address,
+        displayName: u.displayName,
+        level: u.level,
+        title: u.title,
+        creatorReputation: u.creatorReputation,
+        feesEarned: u.feesEarned,
+        concepts,
+        rounds,
+        aggregates: {
+          submissions: concepts.length,
+          roundsLaunched: launched.length,
+          graduations: launched.filter((r) => r.round.graduated).length,
+          rugs: launched.filter(
+            (r) =>
+              r.round.endReason === "rug_detected" || r.round.endReason === "liquidity_removed",
+          ).length,
+          totalVotes,
+          totalVolume: launched.reduce((s, r) => s + (r.summary?.totalVolume ?? 0), 0),
+        },
+      });
     }),
   );
 
@@ -371,28 +429,60 @@ export function createApp(store: Store, engine: RoundEngine, adminKey: string): 
   app.get(
     "/api/leaderboard",
     wrap((req, res) => {
-      const scope = (req.query.scope as string) ?? "alltime"; // alltime | season
-      const metric = (req.query.metric as string) ?? "pnl"; // pnl | xp | wins
+      const scope = (req.query.scope as string) ?? "alltime"; // alltime | season | today | week | round
+      const metric = (req.query.metric as string) ?? "pnl"; // pnl | xp | wins (today/week: pnl|wins only)
       const season = store.seasonKey();
+      const row = (u: StoredUser, value: number) => ({
+        address: u.address,
+        displayName: u.displayName,
+        level: u.level,
+        title: u.title,
+        badge: COSMETICS.find((c) => c.id === u.equipped.badge)?.value,
+        value,
+      });
+
+      // Current-match leaderboard: live unrealized+realized PnL per position.
+      if (scope === "round") {
+        const round = store.rounds.get(String(req.query.roundId ?? ""));
+        if (!round?.pool) {
+          res.json({ scope, metric: "pnl", rows: [] });
+          return;
+        }
+        const price = spotPrice(round.pool);
+        const rows = [...(store.positions.get(round.id)?.values() ?? [])]
+          .map((p) => {
+            const u = store.getOrCreateUser(p.userAddress);
+            return row(u, p.realizedPnl + p.tokens * price - p.costBasisEth);
+          })
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 100);
+        res.json({ scope, metric: "pnl", rows });
+        return;
+      }
+
+      // today/week: computed from each player's round history timestamps.
+      const windowStart =
+        scope === "today"
+          ? new Date().setUTCHours(0, 0, 0, 0)
+          : scope === "week"
+            ? Date.now() - 7 * 86_400_000
+            : 0;
       const rows = [...store.users.values()]
         .map((u) => {
-          const s = scope === "season" ? (u.seasons[season] ?? { pnl: 0, xp: 0, wins: 0, trades: 0 }) : null;
-          const value =
-            scope === "season"
-              ? ((s as unknown as Record<string, number>)?.[metric] ?? 0)
-              : metric === "xp"
-                ? u.xp
-                : metric === "wins"
-                  ? u.stats.wins
-                  : u.stats.totalPnl;
-          return {
-            address: u.address,
-            displayName: u.displayName,
-            level: u.level,
-            title: u.title,
-            badge: COSMETICS.find((c) => c.id === u.equipped.badge)?.value,
-            value,
-          };
+          let value: number;
+          if (scope === "today" || scope === "week") {
+            const slice = u.history.filter((h) => h.at >= windowStart);
+            value =
+              metric === "wins"
+                ? slice.filter((h) => h.pnl > 0).length
+                : slice.reduce((s, h) => s + h.pnl, 0);
+          } else if (scope === "season") {
+            const s = u.seasons[season];
+            value = (s as unknown as Record<string, number> | undefined)?.[metric] ?? 0;
+          } else {
+            value = metric === "xp" ? u.xp : metric === "wins" ? u.stats.wins : u.stats.totalPnl;
+          }
+          return row(u, value);
         })
         .sort((a, b) => b.value - a.value)
         .slice(0, 100);
@@ -494,6 +584,47 @@ export function createApp(store: Store, engine: RoundEngine, adminKey: string): 
     wrap((req, res) => {
       engine.simulateLiquidityPull(req.params.id!, Date.now());
       store.logAdmin("simulate_rug", `round ${req.params.id} (paper-mode test tool)`);
+      res.json({ ok: true });
+    }),
+  );
+
+  // ---- chat moderation (spec §9) — every action is audit-logged ----
+  app.post(
+    "/api/admin/users/:address/mute",
+    admin,
+    wrap((req, res) => {
+      const address = req.params.address!.toLowerCase();
+      const minutes = Math.min(24 * 60, Math.max(1, Number((req.body as { minutes?: number }).minutes ?? 15)));
+      store.muted.set(address, Date.now() + minutes * 60_000);
+      store.logAdmin("mute", `${address} for ${minutes}m`);
+      res.json({ ok: true, until: store.muted.get(address) });
+    }),
+  );
+
+  app.post(
+    "/api/admin/users/:address/unmute",
+    admin,
+    wrap((req, res) => {
+      store.muted.delete(req.params.address!.toLowerCase());
+      store.logAdmin("unmute", req.params.address!);
+      res.json({ ok: true });
+    }),
+  );
+
+  app.delete(
+    "/api/admin/chat/:roundId/:messageId",
+    admin,
+    wrap((req, res) => {
+      const list = store.chat.get(req.params.roundId!);
+      const idx = list?.findIndex((m) => m.id === req.params.messageId) ?? -1;
+      if (!list || idx === -1) throw new Err(404, "message not found");
+      const [removed] = list.splice(idx, 1);
+      broadcast(req.params.roundId!, {
+        type: "chat_delete",
+        roundId: req.params.roundId!,
+        messageId: req.params.messageId!,
+      });
+      store.logAdmin("chat_delete", `${removed!.userAddress}: "${removed!.text.slice(0, 60)}"`);
       res.json({ ok: true });
     }),
   );

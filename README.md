@@ -84,8 +84,12 @@ rug, graduation, low-volume end, pause).
 
 Also implemented: daily missions + weekly challenges (XP-only rewards), a cosmetics
 locker (badges/titles/chat colors/frames — unlocked by play, never purchasable,
-rendered in chat and leaderboards), the "Cooking" hot-round flavor chip, and durable
-persistence (PostgreSQL via `DATABASE_URL`, atomic file snapshot otherwise).
+rendered in chat and leaderboards), the "Cooking" hot-round flavor chip, durable
+persistence (PostgreSQL via `DATABASE_URL`, atomic file snapshot otherwise), creator
+profile pages (spec §5.4: submissions, rounds launched, graduation/rug record,
+reputation tier, fees earned), public player profiles with per-round trading history,
+spectator cheers + chat moderation (audit-logged mute/delete), leaderboard scopes for
+today / this week / current match, and shareable referral links (single-tier).
 
 Known Phase-1 scope notes: WalletConnect proper, Redis-backed horizontal scaling, and
 graduated-token post-round trading are Phase 2 items.

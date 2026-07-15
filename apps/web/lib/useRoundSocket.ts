@@ -44,5 +44,9 @@ export function useRoundSocket(roundId: string | null, onEvent: Handler) {
       if (roundId && wsRef.current?.readyState === WebSocket.OPEN)
         wsRef.current.send(JSON.stringify({ type: "chat", roundId, text }));
     },
+    sendReact: (emoji: string) => {
+      if (roundId && wsRef.current?.readyState === WebSocket.OPEN)
+        wsRef.current.send(JSON.stringify({ type: "react", roundId, emoji }));
+    },
   };
 }

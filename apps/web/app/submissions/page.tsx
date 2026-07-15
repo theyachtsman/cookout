@@ -114,7 +114,10 @@ export default function Submissions() {
                   <div className="text-sm text-zinc-400">{c.theme}</div>
                   {c.pitch && <div className="mt-1 text-xs text-zinc-500">{c.pitch}</div>}
                   <div className="mt-1 text-xs text-zinc-600">
-                    Launched by {c.creatorAddress.slice(0, 6)}…{c.creatorAddress.slice(-4)}
+                    Launched by{" "}
+                    <a href={`/creator/${c.creatorAddress}`} className="hover:underline">
+                      {c.creatorAddress.slice(0, 6)}…{c.creatorAddress.slice(-4)}
+                    </a>
                   </div>
                 </div>
                 <span className={`rounded px-2 py-0.5 text-xs ${statusStyle[c.status]}`}>

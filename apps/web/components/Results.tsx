@@ -51,7 +51,10 @@ export function Results({
         </p>
       )}
       <p className="mt-2 text-xs text-zinc-600">
-        Launched by {`${round.creatorAddress.slice(0, 6)}…${round.creatorAddress.slice(-4)}`}
+        Launched by{" "}
+        <a href={`/creator/${round.creatorAddress}`} className="text-zinc-400 hover:underline">
+          {`${round.creatorAddress.slice(0, 6)}…${round.creatorAddress.slice(-4)}`}
+        </a>
       </p>
     </div>
   );

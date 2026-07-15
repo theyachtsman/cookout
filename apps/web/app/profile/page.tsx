@@ -74,7 +74,27 @@ export default function ProfilePage() {
             Save
           </button>
           <span className="ml-auto self-center text-xs text-zinc-500">
-            referral code: <span className="font-mono text-zinc-300">{profile.referralCode}</span>
+            <a href={`/profile/${profile.address}`} className="hover:text-zinc-300">
+              public profile →
+            </a>
+          </span>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-zinc-900 px-3 py-2 text-xs">
+          <span className="text-zinc-500">Referral link</span>
+          <code className="text-zinc-300">
+            {typeof window !== "undefined" ? `${window.location.origin}/?ref=${profile.referralCode}` : ""}
+          </code>
+          <button
+            onClick={() =>
+              void navigator.clipboard.writeText(`${window.location.origin}/?ref=${profile.referralCode}`)
+            }
+            className="rounded bg-zinc-800 px-2 py-1 hover:bg-zinc-700"
+          >
+            copy
+          </button>
+          <span className="ml-auto text-zinc-500">
+            {(profile as unknown as { referralCount?: number }).referralCount ?? 0} referred ·{" "}
+            {((profile as unknown as { referralEarnings?: number }).referralEarnings ?? 0).toFixed(3)} pETH earned
           </span>
         </div>
       </div>

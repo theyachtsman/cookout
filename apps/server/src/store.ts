@@ -10,6 +10,7 @@ import {
   weekKey,
   type EquippedCosmetics,
   type MissionMetric,
+  type RoundHistoryEntry,
   type Address,
   type AuctionIntent,
   type AuctionResult,
@@ -48,6 +49,10 @@ export interface StoredUser extends UserProfile {
   missionsDone: Record<string, true>;
   equipped: EquippedCosmetics;
   bestSeasonRank?: number;
+  /** Recent round results, newest last (public trading history). */
+  history: RoundHistoryEntry[];
+  referralCount: number;
+  referralEarnings: number;
 }
 
 /**
@@ -73,6 +78,8 @@ export class Store {
   adminLog: AdminLogEntry[] = [];
   /** Platform fee revenue collected per round (paper ETH). */
   feesByRound = new Map<string, number>();
+  /** Chat mutes: address → muted-until epoch ms (ephemeral moderation state). */
+  muted = new Map<Address, number>();
 
   id(): string {
     return randomUUID();
@@ -103,6 +110,9 @@ export class Store {
         activity: {},
         missionsDone: {},
         equipped: {},
+        history: [],
+        referralCount: 0,
+        referralEarnings: 0,
         stats: {
           roundsPlayed: 0,
           trades: 0,
@@ -221,6 +231,9 @@ export class Store {
       u.activity ??= {};
       u.missionsDone ??= {};
       u.equipped ??= {};
+      u.history ??= [];
+      u.referralCount ??= 0;
+      u.referralEarnings ??= 0;
       this.users.set(u.address, u);
     }
     for (const c of snap.concepts) this.concepts.set(c.id, c);

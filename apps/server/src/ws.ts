@@ -8,6 +8,7 @@ interface Client {
   ws: WebSocket;
   address?: string;
   rooms: Set<string>;
+  lastReactionAt?: number;
 }
 
 /**
@@ -51,10 +52,33 @@ export class Hub {
       case "unsubscribe":
         client.rooms.delete(msg.roundId);
         break;
+      case "react": {
+        // Spectator cheers: authenticated, whitelisted emoji, ≤1/second.
+        if (!client.address || !client.rooms.has(msg.roundId)) return;
+        const now = Date.now();
+        if (client.lastReactionAt && now - client.lastReactionAt < 1000) return;
+        if (!["🔥", "🚀", "😂", "💀", "🧊", "📉"].includes(msg.emoji)) return;
+        client.lastReactionAt = now;
+        this.broadcast(msg.roundId, {
+          type: "reaction",
+          roundId: msg.roundId,
+          emoji: msg.emoji,
+          from: client.address,
+        });
+        break;
+      }
       case "chat": {
         if (!client.address) {
           if (client.ws.readyState === WebSocket.OPEN)
             client.ws.send(JSON.stringify({ type: "error", message: "sign in to chat" }));
+          return;
+        }
+        const mutedUntil = this.store.muted.get(client.address);
+        if (mutedUntil && mutedUntil > Date.now()) {
+          if (client.ws.readyState === WebSocket.OPEN)
+            client.ws.send(
+              JSON.stringify({ type: "error", message: "you are muted by a moderator" }),
+            );
           return;
         }
         const text = msg.text.trim().slice(0, 280);

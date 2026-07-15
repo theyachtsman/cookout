@@ -217,6 +217,19 @@ export interface UserProfile {
   stats: UserStats;
 }
 
+/** One row of a player's public trading history, written at round end. */
+export interface RoundHistoryEntry {
+  roundId: string;
+  name: string;
+  symbol: string;
+  tier: RiskTier;
+  pnl: number;
+  invested: number;
+  endReason: RoundEndReason;
+  graduated: boolean;
+  at: number;
+}
+
 export interface UserStats {
   roundsPlayed: number;
   trades: number;
@@ -281,10 +294,14 @@ export type ServerEvent =
   | { type: "chat"; message: ChatMessage }
   | { type: "round_end"; roundId: string; summary: RoundSummary }
   | { type: "prediction_update"; roundId: string; moon: number; rug: number }
+  | { type: "reaction"; roundId: string; emoji: string; from: string }
+  | { type: "chat_delete"; roundId: string; messageId: string }
   | { type: "error"; message: string };
 
 /** WebSocket messages: client → server. */
 export type ClientEvent =
   | { type: "subscribe"; roundId: string }
   | { type: "unsubscribe"; roundId: string }
-  | { type: "chat"; roundId: string; text: string };
+  | { type: "chat"; roundId: string; text: string }
+  /** Spectator cheer / emoji reaction — ephemeral, not stored. */
+  | { type: "react"; roundId: string; emoji: string };

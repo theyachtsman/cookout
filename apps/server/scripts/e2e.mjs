@@ -138,6 +138,32 @@ await j(`/api/rounds/${round.id}/trade`, { token: alice.token, body: { side: "se
 const me = await j(`/api/rounds/${round.id}/me`, { token: alice.token });
 check(me.position.tokens === 0, "alice fully exited (spectator)");
 
+// Chat, cheers, and moderation over WS.
+const aliceWs = new WebSocket(API.replace("http", "ws") + `/ws?token=${alice.token}`);
+await new Promise((r) => aliceWs.on("open", r));
+aliceWs.send(JSON.stringify({ type: "subscribe", roundId: round.id }));
+await sleep(200);
+aliceWs.send(JSON.stringify({ type: "chat", roundId: round.id, text: "lets cook" }));
+aliceWs.send(JSON.stringify({ type: "react", roundId: round.id, emoji: "🔥" }));
+await sleep(400);
+check((seen.get("chat") ?? 0) >= 1, "chat message delivered");
+check((seen.get("reaction") ?? 0) >= 1, "cheer reaction delivered");
+const { chat: chatLog } = await j(`/api/rounds/${round.id}`);
+const msg = chatLog.find((m) => m.text === "lets cook");
+await j(`/api/admin/chat/${round.id}/${msg.id}`, { admin: true, method: "DELETE" });
+const { chat: chatAfter } = await j(`/api/rounds/${round.id}`);
+check(!chatAfter.some((m) => m.id === msg.id), "moderator deleted message");
+await j(`/api/admin/users/${alice.address}/mute`, { admin: true, body: { minutes: 5 } });
+aliceWs.send(JSON.stringify({ type: "chat", roundId: round.id, text: "muted?" }));
+await sleep(400);
+const { chat: chatMuted } = await j(`/api/rounds/${round.id}`);
+check(!chatMuted.some((m) => m.text === "muted?"), "muted player cannot chat");
+aliceWs.close();
+
+// Current-match leaderboard while live.
+const liveLb = await j(`/api/leaderboard?scope=round&roundId=${round.id}`);
+check(liveLb.rows.length >= 2, "current-match leaderboard has positions");
+
 // Round end on timer + results.
 const ended = await waitState(["results"], 40000);
 check(ended.endReason === "timer", `round ended by timer`);
@@ -148,6 +174,17 @@ check(aliceProfile.xp > 0, `XP awarded (alice: ${aliceProfile.xp})`);
 check(aliceProfile.stats.roundsPlayed === 1, "stats updated");
 const lb = await j("/api/leaderboard?scope=alltime&metric=xp");
 check(lb.rows.length >= 3, "leaderboard populated");
+const today = await j("/api/leaderboard?scope=today&metric=pnl");
+check(today.rows.some((r) => r.address === bob.address), "today leaderboard from round history");
+
+// Public trading history + creator profile view.
+const hist = await j(`/api/profile/${alice.address}/history`);
+check(hist.length === 1 && hist[0].symbol === "E2E", "trading history recorded");
+const cv = await j(`/api/creator/${creator.address}`);
+check(cv.aggregates.submissions === 1 && cv.aggregates.roundsLaunched === 1, "creator view aggregates");
+check(cv.rounds[0].summary !== null, "creator view includes round summary");
+const mySt = await j("/api/missions", { token: bob.token });
+check(mySt.some((m) => m.completed), "at least one mission completed by playing");
 
 await sleep(500);
 ws.close();

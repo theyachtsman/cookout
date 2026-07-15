@@ -28,7 +28,7 @@ if (snapshot) {
 
 const hub = new Hub(store);
 const engine = new RoundEngine(store, hub.broadcast, hub.spectatorCount);
-const app = createApp(store, engine, ADMIN_KEY);
+const app = createApp(store, engine, ADMIN_KEY, hub.broadcast);
 const server = createServer(app);
 hub.attach(server);
 

@@ -36,8 +36,8 @@ export async function verifyAndCreateSession(
   store.nonces.delete(key);
   const referrer = referralCode ? store.userByReferralCode(referralCode) : undefined;
   const isNew = !store.users.has(key);
-  const user = store.getOrCreateUser(key, isNew ? referrer?.address : undefined);
-  void user;
+  store.getOrCreateUser(key, isNew ? referrer?.address : undefined);
+  if (isNew && referrer && referrer.address !== key) referrer.referralCount++;
   const token = randomBytes(24).toString("hex");
   store.sessions.set(token, key);
   return { token };

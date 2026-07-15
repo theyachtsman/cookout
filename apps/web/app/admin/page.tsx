@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { Round, TokenConcept } from "@cookout/shared";
+import type { ChatMessage, Round, TokenConcept } from "@cookout/shared";
 import { api } from "../../lib/api";
 
 interface Overview {
@@ -20,6 +20,8 @@ export default function AdminPage() {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [concepts, setConcepts] = useState<TokenConcept[]>([]);
   const [error, setError] = useState("");
+  const [moderating, setModerating] = useState<string | null>(null);
+  const [modChat, setModChat] = useState<ChatMessage[]>([]);
 
   useEffect(() => {
     const k = localStorage.getItem("cookout_admin_key");
@@ -48,14 +50,31 @@ export default function AdminPage() {
     return () => clearInterval(t);
   }, [saved, load]);
 
-  const act = async (path: string, body?: unknown) => {
+  const act = async (path: string, body?: unknown, method = "POST") => {
     try {
       setError("");
-      await api(path, { admin: key, body: body ?? {}, method: "POST" });
+      await api(path, { admin: key, body: body ?? {}, method });
       void load();
     } catch (e) {
       setError((e as Error).message);
     }
+  };
+
+  const loadModChat = useCallback(
+    async (roundId: string) => {
+      const d = await api<{ chat: ChatMessage[] }>(`/api/rounds/${roundId}`);
+      setModChat(d.chat);
+    },
+    [],
+  );
+
+  const toggleModerate = (roundId: string) => {
+    if (moderating === roundId) {
+      setModerating(null);
+      return;
+    }
+    setModerating(roundId);
+    void loadModChat(roundId);
   };
 
   if (!saved)
@@ -123,29 +142,58 @@ export default function AdminPage() {
         <h2 className="mb-2 font-bold">Live Match Controls</h2>
         <div className="space-y-2">
           {activeRounds.map((r) => (
-            <div
-              key={r.id}
-              className="flex flex-wrap items-center gap-3 rounded-lg border border-zinc-800 p-3 text-sm"
-            >
-              <span className="font-bold">
-                {r.token.name} <span className="text-zinc-500">${r.token.symbol}</span>
-              </span>
-              <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs">{r.state}</span>
-              <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs uppercase">{r.tier}</span>
-              <div className="ml-auto flex gap-2">
-                <button onClick={() => void act(`/api/admin/rounds/${r.id}/pause`)} className="rounded bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700">
-                  Pause
-                </button>
-                <button onClick={() => void act(`/api/admin/rounds/${r.id}/resume`)} className="rounded bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700">
-                  Resume
-                </button>
-                <button onClick={() => void act(`/api/admin/rounds/${r.id}/end`)} className="rounded bg-red-900/50 px-2 py-1 text-xs text-red-300 hover:bg-red-900">
-                  End
-                </button>
-                <button onClick={() => void act(`/api/admin/rounds/${r.id}/rug`)} className="rounded bg-red-900/50 px-2 py-1 text-xs text-red-300 hover:bg-red-900" title="Paper-mode test tool: simulates a liquidity pull">
-                  Simulate Rug
-                </button>
+            <div key={r.id} className="rounded-lg border border-zinc-800 p-3 text-sm">
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="font-bold">
+                  {r.token.name} <span className="text-zinc-500">${r.token.symbol}</span>
+                </span>
+                <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs">{r.state}</span>
+                <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs uppercase">{r.tier}</span>
+                <div className="ml-auto flex gap-2">
+                  <button onClick={() => void act(`/api/admin/rounds/${r.id}/pause`)} className="rounded bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700">
+                    Pause
+                  </button>
+                  <button onClick={() => void act(`/api/admin/rounds/${r.id}/resume`)} className="rounded bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700">
+                    Resume
+                  </button>
+                  <button onClick={() => void act(`/api/admin/rounds/${r.id}/end`)} className="rounded bg-red-900/50 px-2 py-1 text-xs text-red-300 hover:bg-red-900">
+                    End
+                  </button>
+                  <button onClick={() => void act(`/api/admin/rounds/${r.id}/rug`)} className="rounded bg-red-900/50 px-2 py-1 text-xs text-red-300 hover:bg-red-900" title="Paper-mode test tool: simulates a liquidity pull">
+                    Simulate Rug
+                  </button>
+                  <button onClick={() => toggleModerate(r.id)} className="rounded bg-sky-900/50 px-2 py-1 text-xs text-sky-300 hover:bg-sky-900">
+                    {moderating === r.id ? "Close Chat" : "Moderate Chat"}
+                  </button>
+                </div>
               </div>
+              {moderating === r.id && (
+                <div className="mt-3 max-h-56 space-y-1 overflow-y-auto rounded bg-zinc-900 p-2">
+                  {[...modChat].reverse().map((m) => (
+                    <div key={m.id} className="flex items-center gap-2 text-xs">
+                      <span className="font-bold text-amber-400">
+                        {m.displayName ?? `${m.userAddress.slice(0, 6)}…`}
+                      </span>
+                      <span className="flex-1 truncate text-zinc-300">{m.text}</span>
+                      <button
+                        onClick={() =>
+                          void act(`/api/admin/chat/${r.id}/${m.id}`, undefined, "DELETE").then(() => loadModChat(r.id))
+                        }
+                        className="rounded bg-red-900/50 px-1.5 py-0.5 text-red-300 hover:bg-red-900"
+                      >
+                        delete
+                      </button>
+                      <button
+                        onClick={() => void act(`/api/admin/users/${m.userAddress}/mute`, { minutes: 15 })}
+                        className="rounded bg-zinc-800 px-1.5 py-0.5 hover:bg-zinc-700"
+                      >
+                        mute 15m
+                      </button>
+                    </div>
+                  ))}
+                  {modChat.length === 0 && <div className="text-xs text-zinc-600">no messages</div>}
+                </div>
+              )}
             </div>
           ))}
           {activeRounds.length === 0 && <div className="text-sm text-zinc-500">No active rounds.</div>}

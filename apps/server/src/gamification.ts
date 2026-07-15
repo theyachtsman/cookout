@@ -75,6 +75,18 @@ export function evaluateRoundEnd(ctx: {
     if (m?.firstBuyAt) award("first_buy");
     user.stats.roundsPlayed++;
     store.trackActivity(addr, "rounds_played", 1, now);
+    user.history.push({
+      roundId: round.id,
+      name: round.token.name,
+      symbol: round.token.symbol,
+      tier: round.tier,
+      pnl,
+      invested: m?.ethInvested ?? 0,
+      endReason: round.endReason!,
+      graduated: !!round.graduated,
+      at: now,
+    });
+    if (user.history.length > 100) user.history.splice(0, user.history.length - 100);
     user.stats.totalPnl += pnl;
     if (m && m.bestSellPnl > user.stats.bestTradePnl) user.stats.bestTradePnl = m.bestSellPnl;
     const seasonStats = (user.seasons[season] ??= { pnl: 0, xp: 0, wins: 0, trades: 0 });
@@ -171,7 +183,10 @@ export function evaluateRoundEnd(ctx: {
     }
     if (creator.referredBy) {
       const referrer = store.users.get(creator.referredBy);
-      if (referrer) referrer.paperBalance += fees * REFERRAL_FEE_SHARE;
+      if (referrer) {
+        referrer.paperBalance += fees * REFERRAL_FEE_SHARE;
+        referrer.referralEarnings += fees * REFERRAL_FEE_SHARE;
+      }
     }
   } else {
     creator.creatorReputation -= 5;
