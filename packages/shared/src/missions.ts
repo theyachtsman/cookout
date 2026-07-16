@@ -73,15 +73,24 @@ function hashStr(s: string): number {
   return h >>> 0;
 }
 
+/** Low-friction quests any newcomer can clear by just playing — the rotation
+ *  always seeds one so a first round never leaves the board empty. */
+const STARTER_DAILY_IDS = new Set(["d_play_2", "d_trade_10", "d_auction_1", "d_predict_1"]);
+
 /** The daily missions live for the given day — a stable, date-seeded subset of
- *  the pool so the board rotates without ever depending on a player. */
+ *  the pool so the board rotates without ever depending on a player, but always
+ *  including at least one starter quest. */
 export function activeDailyMissions(now = Date.now()): MissionDef[] {
   const day = dayKey(now);
-  return MISSIONS.filter((m) => m.period === "daily")
-    .map((m) => ({ m, k: hashStr(day + ":" + m.id) }))
-    .sort((a, b) => a.k - b.k)
-    .slice(0, DAILY_ACTIVE_COUNT)
-    .map((x) => x.m);
+  const dailies = MISSIONS.filter((m) => m.period === "daily");
+  const rank = (m: MissionDef) => hashStr(day + ":" + m.id);
+  const byRank = (a: MissionDef, b: MissionDef) => rank(a) - rank(b);
+  const starter = dailies.filter((m) => STARTER_DAILY_IDS.has(m.id)).sort(byRank)[0];
+  const rest = dailies
+    .filter((m) => m.id !== starter?.id)
+    .sort(byRank)
+    .slice(0, DAILY_ACTIVE_COUNT - (starter ? 1 : 0));
+  return (starter ? [starter, ...rest] : rest).sort(byRank);
 }
 
 export const WEEKLY_MISSIONS = MISSIONS.filter((m) => m.period === "weekly");
