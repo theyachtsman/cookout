@@ -17,6 +17,7 @@ import {
   type AuthedRequest,
 } from "./auth.js";
 import { Err, type Broadcast, type RoundEngine } from "./engine.js";
+import { jackpotStatus } from "./jackpot.js";
 import { rateLimit } from "./ratelimit.js";
 import type { Store, StoredUser } from "./store.js";
 import { spotPrice } from "@cookout/shared";
@@ -580,6 +581,12 @@ export function createApp(
     }),
   );
 
+  // ---- jackpot ----
+  app.get(
+    "/api/jackpot",
+    wrap((_req, res) => res.json(jackpotStatus(store))),
+  );
+
   // ---- leaderboards ----
   app.get(
     "/api/leaderboard",
@@ -827,6 +834,7 @@ function sanitizeImageUrl(value: unknown): string | undefined {
 function publicProfile(u: StoredUser, self = false) {
   const {
     seasons,
+    weeklyXp,
     activity,
     missionsDone,
     history,
@@ -839,7 +847,9 @@ function publicProfile(u: StoredUser, self = false) {
   } = u;
   void activity;
   void missionsDone;
+  void weeklyXp; // internal jackpot ranking state, not public
   void history; // served via /api/profile/:address/history
+  // rest still carries jackpotWinnings + jackpotWins — shown on profiles.
   const d = new Date();
   const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
   const base = { ...rest, season: seasons[key] ?? { pnl: 0, xp: 0, wins: 0, trades: 0 } };

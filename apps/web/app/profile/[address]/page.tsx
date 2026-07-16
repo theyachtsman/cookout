@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { ACHIEVEMENTS, type RoundHistoryEntry } from "@cookout/shared";
+import { ACHIEVEMENTS, type JackpotWin, type RoundHistoryEntry } from "@cookout/shared";
 import { api } from "../../../lib/api";
 
 interface PublicProfile {
@@ -16,6 +16,8 @@ interface PublicProfile {
   achievements: string[];
   creatorReputation: number;
   stats: Record<string, number>;
+  jackpotWinnings?: number;
+  jackpotWins?: JackpotWin[];
 }
 
 export default function PublicProfilePage() {
@@ -85,6 +87,31 @@ export default function PublicProfilePage() {
           </div>
         ))}
       </div>
+
+      {(profile.jackpotWinnings ?? 0) > 0 && (
+        <div className="rounded-xl border border-amber-400/40 bg-gradient-to-br from-amber-500/10 to-transparent p-4">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h2 className="text-base font-black text-amber-300">🎰 Jackpot Winnings</h2>
+            <span className="font-mono text-lg font-black text-amber-300">
+              {(profile.jackpotWinnings ?? 0).toFixed(4)} pETH
+            </span>
+            <div className="ml-auto flex flex-wrap gap-1.5">
+              {[...(profile.jackpotWins ?? [])]
+                .reverse()
+                .slice(0, 8)
+                .map((w, i) => (
+                  <span
+                    key={i}
+                    title={`${w.week}: +${w.amountEth.toFixed(4)} pETH ($${w.amountUsd.toFixed(2)})`}
+                    className="rounded border border-amber-400/30 bg-amber-400/5 px-2 py-0.5 text-xs"
+                  >
+                    {["🥇", "🥈", "🥉"][w.rank - 1] ?? `#${w.rank}`} {w.week}
+                  </span>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {unlocked.length > 0 && (
         <div>

@@ -7,6 +7,7 @@ import {
   type RoundSummary,
 } from "@cookout/shared";
 import type { PlayerMeta } from "./engine.js";
+import { accrueJackpot } from "./jackpot.js";
 import type { Store } from "./store.js";
 
 /**
@@ -176,6 +177,9 @@ export function evaluateRoundEnd(ctx: {
   // Creator rewards: capped fee share + reputation. Rugging forfeits both.
   const creator = store.getOrCreateUser(round.creatorAddress);
   const fees = store.feesByRound.get(round.id) ?? 0;
+  // Weekly Jackpot accrues from every round's fees — volume drives the pot,
+  // regardless of whether the creator forfeited their share to a rug.
+  accrueJackpot(store, fees);
   if (!rugged) {
     const creatorCut = fees * CREATOR_FEE_SHARE;
     creator.paperBalance += creatorCut;

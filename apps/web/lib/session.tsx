@@ -14,6 +14,8 @@ export interface Profile {
   referralCode: string;
   creatorReputation: number;
   stats: Record<string, number>;
+  jackpotWinnings?: number;
+  jackpotWins?: { week: string; rank: number; amountEth: number; amountUsd: number; at: number }[];
 }
 
 interface Session {

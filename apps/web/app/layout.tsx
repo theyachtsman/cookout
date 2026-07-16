@@ -3,6 +3,7 @@ import Link from "next/link";
 import { SessionProvider } from "../lib/session";
 import { BrandLogo } from "../components/BrandLogo";
 import { FeedbackWidget } from "../components/FeedbackWidget";
+import { JackpotPill } from "../components/JackpotPill";
 import { WalletButton } from "../components/WalletButton";
 import "./globals.css";
 
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <span className="hidden rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400 sm:inline">
               paper beta
             </span>
+            <JackpotPill />
             <div className="flex-1" />
             <Link href="/matches" className="text-sm text-zinc-400 hover:text-lime-300">
               Matches
@@ -30,6 +32,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </Link>
             <Link href="/leaderboard" className="text-sm text-zinc-400 hover:text-lime-300">
               Board
+            </Link>
+            <Link href="/jackpot" className="text-sm text-amber-400/90 hover:text-amber-300">
+              Jackpot
             </Link>
             <Link href="/docs" className="text-sm text-zinc-400 hover:text-lime-300">
               Docs

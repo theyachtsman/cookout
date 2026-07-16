@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import { RoundEngine } from "./engine.js";
+import { settleWeeklyJackpot } from "./jackpot.js";
 import { FilePersistence, PgPersistence, type Persistence } from "./persistence.js";
 import { createApp } from "./routes.js";
 import { autoScheduler, evaluateVoting, seedDemo } from "./seed.js";
@@ -71,6 +72,12 @@ setInterval(() => {
     engine.tick(Date.now());
     evaluateVoting(store);
     autoScheduler(store, engine); // gated by store.settings.autoSchedule
+    const payout = settleWeeklyJackpot(store, Date.now());
+    if (payout)
+      console.log(
+        `weekly jackpot ${payout.week} paid: ${payout.totalEth.toFixed(4)} pETH ` +
+          `to ${payout.winners.length} winners (≈ $${payout.totalUsd.toFixed(0)})`,
+      );
   } catch (e) {
     console.error("tick error", e);
   }

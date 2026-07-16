@@ -17,6 +17,7 @@ import {
   type AuctionIntent,
   type AuctionResult,
   type ChatMessage,
+  type JackpotPayout,
   type KillFeedEvent,
   type Position,
   type Prediction,
@@ -65,6 +66,8 @@ export interface SeasonStats {
 export interface StoredUser extends UserProfile {
   /** Per-season (YYYY-MM) aggregates for seasonal leaderboards. */
   seasons: Record<string, SeasonStats>;
+  /** XP earned per ISO week (key "2026-W29") — drives the weekly jackpot. */
+  weeklyXp: Record<string, number>;
   feesEarned: number;
   /** Activity counters keyed by period ("2026-07-14" and "2026-W29"). */
   activity: Record<string, Partial<Record<MissionMetric, number>>>;
@@ -113,6 +116,16 @@ export class Store {
   /** Live ETH/USD, refreshed by the price feed; used to peg the $40k bond. */
   ethUsd = DEFAULT_ETH_USD;
 
+  // ---- Weekly Jackpot ----
+  /** Accrued pot for the week currently in progress (paper ETH). */
+  jackpotPool = 0;
+  /** The ISO week the pool is accruing for; a roll past this triggers payout. */
+  jackpotWeekKey = weekKey();
+  /** Settled weekly payouts, newest last. */
+  jackpotHistory: JackpotPayout[] = [];
+  /** Lifetime jackpot paid out (paper ETH) — headline stat. */
+  jackpotLifetimeEth = 0;
+
   id(): string {
     return randomUUID();
   }
@@ -138,6 +151,9 @@ export class Store {
         createdAt: Date.now(),
         creatorReputation: 0,
         seasons: {},
+        weeklyXp: {},
+        jackpotWinnings: 0,
+        jackpotWins: [],
         feesEarned: 0,
         activity: {},
         missionsDone: {},
@@ -176,6 +192,8 @@ export class Store {
     u.title = titleForLevel(u.level);
     const season = (u.seasons[this.seasonKey()] ??= { pnl: 0, xp: 0, wins: 0, trades: 0 });
     season.xp += amount;
+    const wk = weekKey();
+    u.weeklyXp[wk] = (u.weeklyXp[wk] ?? 0) + amount;
     return u;
   }
 
@@ -275,6 +293,10 @@ export class Store {
         .slice(-5000),
       feedback: this.feedback.slice(-2000),
       settings: this.settings,
+      jackpotPool: this.jackpotPool,
+      jackpotWeekKey: this.jackpotWeekKey,
+      jackpotHistory: this.jackpotHistory.slice(-52),
+      jackpotLifetimeEth: this.jackpotLifetimeEth,
     };
   }
 
@@ -287,6 +309,9 @@ export class Store {
       u.history ??= [];
       u.referralCount ??= 0;
       u.referralEarnings ??= 0;
+      u.weeklyXp ??= {};
+      u.jackpotWinnings ??= 0;
+      u.jackpotWins ??= [];
       this.users.set(u.address, u);
     }
     for (const c of snap.concepts) this.concepts.set(c.id, c);
@@ -307,6 +332,10 @@ export class Store {
     if (snap.settings) this.settings = { ...this.settings, ...snap.settings };
     this.adminLog = snap.adminLog;
     for (const b of snap.betaSignups ?? []) this.betaSignups.set(b.address, b);
+    this.jackpotPool = snap.jackpotPool ?? 0;
+    this.jackpotWeekKey = snap.jackpotWeekKey ?? weekKey();
+    this.jackpotHistory = snap.jackpotHistory ?? [];
+    this.jackpotLifetimeEth = snap.jackpotLifetimeEth ?? 0;
   }
 }
 
@@ -341,4 +370,8 @@ export interface Snapshot {
   sessions?: Array<[string, Address | SessionRecord]>;
   feedback?: FeedbackEntry[];
   settings?: OpsSettings;
+  jackpotPool?: number;
+  jackpotWeekKey?: string;
+  jackpotHistory?: JackpotPayout[];
+  jackpotLifetimeEth?: number;
 }

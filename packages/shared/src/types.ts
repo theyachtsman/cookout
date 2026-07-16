@@ -221,6 +221,60 @@ export interface UserProfile {
   createdAt: number;
   creatorReputation: number;
   stats: UserStats;
+  /** Lifetime jackpot winnings (paper ETH in Phase 1). */
+  jackpotWinnings?: number;
+  /** Individual weekly jackpot wins, newest last (shown on profiles). */
+  jackpotWins?: JackpotWin[];
+}
+
+/** A single weekly jackpot win, recorded on the winner's profile. */
+export interface JackpotWin {
+  week: string; // ISO week key, e.g. "2026-W29"
+  rank: number; // 1..10
+  amountEth: number;
+  amountUsd: number;
+  at: number;
+}
+
+/** One winner row in a settled or projected weekly jackpot. */
+export interface JackpotStanding {
+  rank: number;
+  address: Address;
+  displayName?: string;
+  level: number;
+  title: string;
+  badge?: string;
+  weeklyXp: number;
+  amountEth: number;
+  amountUsd: number;
+}
+
+/** A settled weekly payout, archived in jackpot history. */
+export interface JackpotPayout {
+  week: string;
+  paidAt: number;
+  totalEth: number;
+  totalUsd: number;
+  ethUsd: number;
+  winners: JackpotStanding[];
+}
+
+/** Live jackpot state served to the whole site (GET /api/jackpot). */
+export interface JackpotStatus {
+  week: string;
+  poolEth: number;
+  poolUsd: number;
+  ethUsd: number;
+  paperMode: boolean;
+  /** Fee routing, percentages of every trade fee. */
+  breakdown: { creatorPct: number; referralPct: number; jackpotPct: number; housePct: number };
+  payoutWeights: number[];
+  nextPayoutAt: number;
+  lifetimePaidEth: number;
+  /** Projected top-10 for the in-progress week, by XP earned this week. */
+  standings: JackpotStanding[];
+  lastPayout: JackpotPayout | null;
+  history: JackpotPayout[];
 }
 
 /** One row of a player's public trading history, written at round end. */

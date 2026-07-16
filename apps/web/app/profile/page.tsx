@@ -126,6 +126,35 @@ export default function ProfilePage() {
         ))}
       </div>
 
+      {(profile.jackpotWinnings ?? 0) > 0 && (
+        <div className="rounded-xl border border-amber-400/40 bg-gradient-to-br from-amber-500/10 to-transparent p-5">
+          <div className="flex flex-wrap items-baseline justify-between gap-2">
+            <h2 className="text-lg font-black text-amber-300">🎰 Jackpot Winnings</h2>
+            <a href="/jackpot" className="text-xs text-amber-400/80 hover:underline">
+              this week&apos;s pot →
+            </a>
+          </div>
+          <div className="mt-1 font-mono text-3xl font-black text-amber-300">
+            {(profile.jackpotWinnings ?? 0).toFixed(4)} pETH
+          </div>
+          <div className="mt-3 space-y-1">
+            {[...(profile.jackpotWins ?? [])]
+              .reverse()
+              .slice(0, 6)
+              .map((w, i) => (
+                <div key={i} className="flex items-center gap-3 text-sm">
+                  <span className="w-14 font-mono text-zinc-500">{w.week}</span>
+                  <span className="w-10">{["🥇", "🥈", "🥉"][w.rank - 1] ?? `#${w.rank}`}</span>
+                  <span className="font-mono text-amber-300">+{w.amountEth.toFixed(4)} pETH</span>
+                  <span className="font-mono text-xs text-zinc-500">
+                    ${w.amountUsd.toFixed(2)}
+                  </span>
+                </div>
+              ))}
+          </div>
+        </div>
+      )}
+
       <Missions />
 
       <CosmeticsLocker />

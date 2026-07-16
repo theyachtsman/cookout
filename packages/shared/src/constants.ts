@@ -98,6 +98,28 @@ export const CREATOR_FEE_SHARE = 0.3;
 /** Referral revenue share — single tier only, no downlines (spec §11/§12). */
 export const REFERRAL_FEE_SHARE = 0.1;
 
+/**
+ * Weekly Jackpot (volume-driven XP reward pool).
+ *
+ * A fixed slice of every round's trading fees accrues to a site-wide pot that
+ * pays out weekly to the top players by XP earned that week. The share below
+ * is 50% of the house cut: after the creator (30%) and referral (10%) shares,
+ * the house keeps ~60% of fees; half of that — 30% of total fees — feeds the
+ * jackpot. Kept as a share of total fees so accrual is one simple multiply.
+ */
+export const JACKPOT_FEE_SHARE = 0.3;
+/** For display: the jackpot's cut expressed as a fraction of the house take. */
+export const JACKPOT_HOUSE_SHARE = 0.5;
+/** Number of weekly winners. */
+export const JACKPOT_WINNERS = 10;
+/**
+ * Payout weights for ranks 1..10 (sum = 1). Top three are strictly the
+ * largest; 4th–10th taper down. Rendered verbatim on the jackpot page.
+ */
+export const JACKPOT_PAYOUT_WEIGHTS = [
+  0.25, 0.18, 0.14, 0.1, 0.08, 0.07, 0.06, 0.05, 0.04, 0.03,
+] as const;
+
 /** Community voting lifecycle: a submission is auto-shortlisted at the vote
  *  threshold; if the window closes below it, the submission is rejected. */
 export const VOTE_THRESHOLD = 10;

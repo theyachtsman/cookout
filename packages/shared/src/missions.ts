@@ -57,3 +57,15 @@ export function weekKey(now = Date.now()): string {
 export function periodKey(period: "daily" | "weekly", now = Date.now()): string {
   return period === "daily" ? dayKey(now) : weekKey(now);
 }
+
+/** Epoch ms of Monday 00:00:00 UTC for the ISO week containing `now`. */
+export function weekStart(now = Date.now()): number {
+  const d = new Date(now);
+  const dayNum = (d.getUTCDay() + 6) % 7; // 0 = Monday
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() - dayNum);
+}
+
+/** Epoch ms of the next Monday 00:00:00 UTC — when the weekly jackpot pays out. */
+export function nextWeekStart(now = Date.now()): number {
+  return weekStart(now) + 7 * 86_400_000;
+}
