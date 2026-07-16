@@ -407,6 +407,38 @@ export function createApp(
     }),
   );
 
+  /** Bulk import (CSV upload): add + approve a list of wallets from X engagement. */
+  app.post(
+    "/api/admin/beta/import",
+    admin,
+    wrap((req, res) => {
+      const { addresses } = req.body as { addresses?: unknown };
+      if (!Array.isArray(addresses)) throw new Err(400, "addresses array required");
+      let added = 0;
+      let already = 0;
+      let invalid = 0;
+      for (const raw of addresses) {
+        const a = String(raw).trim().toLowerCase();
+        if (!BETA_ADDR.test(a)) {
+          invalid++;
+          continue;
+        }
+        const existing = store.betaSignups.get(a);
+        if (existing) {
+          if (!existing.approved) {
+            existing.approved = true;
+            added++;
+          } else already++;
+        } else {
+          store.betaSignups.set(a, { address: a, at: Date.now(), approved: true });
+          added++;
+        }
+      }
+      store.logAdmin("beta_import", `${added} added/approved, ${already} existing, ${invalid} invalid`);
+      res.json({ ok: true, added, already, invalid, total: addresses.length });
+    }),
+  );
+
   /** Revoke access for a wallet (keeps it on the collected list, unapproved). */
   app.post(
     "/api/admin/beta/revoke",

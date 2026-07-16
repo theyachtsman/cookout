@@ -81,8 +81,8 @@ export async function verifyAndCreateSession(
   ) {
     throw Object.assign(
       new Error(
-        "The Cookout is in private beta. You don't need to connect a wallet to join — " +
-          "paste your address into the beta sign-up form on the home page. We'll open access at launch.",
+        "The Cookout is in private beta. To get whitelisted, follow @hoodcookout on X and " +
+          "comment your wallet address on a post — details on the home page. Watch for the beta announcement.",
       ),
       { status: 403 },
     );

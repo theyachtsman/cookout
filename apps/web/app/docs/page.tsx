@@ -447,10 +447,12 @@ export default function Docs() {
               refund, no fill.
             </Faq>
             <Faq q="How do I get whitelisted for the beta?">
-              Just paste your wallet address into the sign-up form on the{" "}
-              <Link href="/#beta" className="text-lime-400 underline">home page</Link> — no wallet
-              connection needed. We&apos;ll open access to the whitelist at launch; beta windows are
-              announced on X.
+              The whitelist is earned on X. Follow{" "}
+              <a href="https://x.com/hoodcookout" target="_blank" rel="noreferrer" className="text-lime-400 underline">@hoodcookout</a>,
+              like and repost the posts, and comment your Robinhood wallet address (0x…). Eligible
+              wallets are added by hand — watch for the official beta-test announcement to know when
+              your wave goes live. Full steps on the{" "}
+              <Link href="/#access" className="text-lime-400 underline">home page</Link>.
             </Faq>
             <Faq q="How does the Weekly Jackpot work?">
               A slice of every trading fee builds a shared pot that pays the top{" "}

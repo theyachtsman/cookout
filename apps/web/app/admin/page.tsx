@@ -67,6 +67,7 @@ function BetaList({ adminKey }: { adminKey: string }) {
   const [data, setData] = useState<BetaData | null>(null);
   const [addr, setAddr] = useState("");
   const [busy, setBusy] = useState(false);
+  const [importMsg, setImportMsg] = useState("");
 
   const load = useCallback(() => {
     api<BetaData>("/api/admin/beta", { admin: adminKey }).then(setData).catch(() => {});
@@ -78,6 +79,28 @@ function BetaList({ adminKey }: { adminKey: string }) {
     try {
       await api(path, { admin: adminKey, body: body ?? {} });
       load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // CSV/paste import: pull every 0x… address out of the text and whitelist them.
+  const importText = async (text: string) => {
+    const addresses = [...new Set((text.match(/0x[0-9a-fA-F]{40}/g) ?? []).map((a) => a.toLowerCase()))];
+    if (addresses.length === 0) {
+      setImportMsg("No 0x… wallet addresses found in that file/text.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await api<{ added: number; already: number; invalid: number; total: number }>(
+        "/api/admin/beta/import",
+        { admin: adminKey, body: { addresses } },
+      );
+      setImportMsg(`Imported ${addresses.length} unique wallets → ${r.added} added/approved, ${r.already} already on list.`);
+      load();
+    } catch (e) {
+      setImportMsg(`Import failed: ${(e as Error).message}`);
     } finally {
       setBusy(false);
     }
@@ -139,6 +162,42 @@ function BetaList({ adminKey }: { adminKey: string }) {
         >
           Approve
         </button>
+      </div>
+
+      {/* CSV import — bulk-whitelist wallets collected from X engagement. */}
+      <div className="mb-3 rounded-lg border border-dashed border-zinc-700 bg-zinc-900/40 p-3">
+        <div className="flex flex-wrap items-center gap-3 text-xs">
+          <span className="font-bold text-zinc-300">📥 Import whitelist (CSV)</span>
+          <label className="cursor-pointer rounded bg-lime-500 px-3 py-1.5 font-bold text-zinc-950 hover:bg-lime-400">
+            Choose CSV / TXT
+            <input
+              type="file"
+              accept=".csv,.txt,text/csv,text/plain"
+              className="hidden"
+              disabled={busy}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (!f) return;
+                f.text().then(importText);
+                e.target.value = "";
+              }}
+            />
+          </label>
+          <button
+            disabled={busy}
+            onClick={() => {
+              const text = prompt("Paste wallet addresses (any format — we extract every 0x… address):");
+              if (text) void importText(text);
+            }}
+            className="rounded bg-zinc-800 px-3 py-1.5 font-bold text-zinc-200 hover:bg-zinc-700"
+          >
+            Paste addresses
+          </button>
+          <span className="text-zinc-500">
+            Extracts every <code className="text-zinc-400">0x…</code> address and whitelists it — column layout doesn&apos;t matter.
+          </span>
+        </div>
+        {importMsg && <div className="mt-2 text-xs text-lime-300">{importMsg}</div>}
       </div>
 
       <div className="max-h-56 overflow-y-auto font-mono text-xs">

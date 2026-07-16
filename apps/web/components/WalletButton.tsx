@@ -90,11 +90,11 @@ export function WalletButton() {
           <p className="text-amber-200">{authError}</p>
           <div className="mt-2 flex items-center gap-3">
             <a
-              href="/#beta"
+              href="/#access"
               onClick={clearAuthError}
               className="rounded bg-lime-400 px-2 py-1 text-[11px] font-bold text-zinc-950 hover:bg-lime-300"
             >
-              Go to the sign-up form →
+              How to get access →
             </a>
             <button
               onClick={clearAuthError}
