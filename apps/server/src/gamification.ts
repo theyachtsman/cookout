@@ -80,10 +80,12 @@ export function evaluateRoundEnd(ctx: {
     const award = (kind: keyof typeof XP_AWARDS) => store.addXp(addr, XP_AWARDS[kind]);
     const grant = (id: string) => store.grantAchievement(addr, id);
 
-    award("participation");
-    if (m?.firstBuyAt) award("first_buy");
+    // Participation & first-buy are "floor" XP (attendance) — weekly-capped.
+    store.addXp(addr, XP_AWARDS.participation, "floor");
+    if (m?.firstBuyAt) store.addXp(addr, XP_AWARDS.first_buy, "floor");
     user.stats.roundsPlayed++;
     store.trackActivity(addr, "rounds_played", 1, now);
+    store.bumpPlayStreak(addr, now); // daily play streak (idempotent per day)
     user.history.push({
       roundId: round.id,
       name: round.token.name,
@@ -155,6 +157,9 @@ export function evaluateRoundEnd(ctx: {
       grant("moon_rider");
       store.trackActivity(addr, "graduations_held", 1, now);
     }
+
+    // Lifetime milestone ladders (trades / rounds / cumulative PnL).
+    store.checkMilestones(addr);
   }
 
   // Round podium — top 3 by PnL. Zero-sum XP (farm-proof) + a quest metric.
@@ -163,6 +168,9 @@ export function evaluateRoundEnd(ctx: {
     store.addXp(p.address, PODIUM_XP[i]!);
     store.trackActivity(p.address, "podium_finishes", 1, now);
   });
+
+  // Season pass last, so this round's full XP (incl. podium/streaks) counts.
+  for (const p of podium) store.checkSeasonPass(p.address);
 
   // First Blood: the round's first buyer (auction fills count via earliest firstBuyAt).
   let firstBuyer: Address | undefined;

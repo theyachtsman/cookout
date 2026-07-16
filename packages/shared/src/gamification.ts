@@ -42,6 +42,75 @@ export function tradeXpForIndex(n: number): number {
   return Math.round(TRADE_XP.base * Math.pow(TRADE_XP.decay, n - 1));
 }
 
+// ---- Phase 2: streaks (retention) ----
+
+/** XP for reaching a given daily play-streak length (consecutive days played). */
+export const DAILY_STREAK_MILESTONES: Record<number, number> = { 1: 5, 3: 15, 7: 40, 14: 70, 30: 150 };
+export function dailyStreakReward(streak: number): number {
+  if (DAILY_STREAK_MILESTONES[streak] !== undefined) return DAILY_STREAK_MILESTONES[streak];
+  if (streak > 30 && streak % 7 === 0) return 50; // weekly upkeep past a month
+  return 0;
+}
+/** XP for a weekly-consistency streak (consecutive weeks clearing the weekly set). */
+export const WEEKLY_STREAK_MILESTONES: Record<number, number> = { 2: 150, 4: 400, 8: 900 };
+export function weeklyStreakReward(weeks: number): number {
+  if (WEEKLY_STREAK_MILESTONES[weeks] !== undefined) return WEEKLY_STREAK_MILESTONES[weeks];
+  if (weeks > 8 && weeks % 4 === 0) return 900;
+  return 0;
+}
+/** A streak freeze auto-saves one missed day. Earned every 7 days played, capped. */
+export const STREAK_FREEZE_MAX = 3;
+
+// ---- Phase 3: milestone ladders (long-horizon) ----
+
+export interface MilestoneTier {
+  at: number;
+  xp: number;
+}
+export interface MilestoneLadder {
+  id: string;
+  name: string;
+  /** Which lifetime UserStats field the ladder tracks. */
+  stat: "trades" | "roundsPlayed" | "totalPnl";
+  unit: string;
+  tiers: MilestoneTier[];
+}
+export const MILESTONES: MilestoneLadder[] = [
+  { id: "trader", name: "Trader", stat: "trades", unit: "trades", tiers: [
+    { at: 25, xp: 40 }, { at: 100, xp: 90 }, { at: 500, xp: 180 }, { at: 2500, xp: 300 },
+  ] },
+  { id: "veteran", name: "Veteran", stat: "roundsPlayed", unit: "rounds", tiers: [
+    { at: 10, xp: 50 }, { at: 50, xp: 120 }, { at: 250, xp: 250 },
+  ] },
+  { id: "profiteer", name: "Profiteer", stat: "totalPnl", unit: "pETH profit", tiers: [
+    { at: 10, xp: 60 }, { at: 50, xp: 150 }, { at: 200, xp: 350 },
+  ] },
+];
+
+// ---- Phase 3: anti-farm weekly floor cap ----
+
+/**
+ * Weekly ceiling on "floor" XP — trade XP, daily quests, and participation.
+ * Past this, those sources stop paying for the week, so the top of the jackpot
+ * board is decided by skill/competition/streaks, never by out-grinding.
+ */
+export const FLOOR_XP_WEEKLY_CAP = 1000;
+
+// ---- Phase 3: monthly season pass ----
+
+export interface PassTier {
+  at: number; // cumulative season (month) XP to reach the tier
+  xp: number; // XP kicker awarded on reaching it
+  reward?: string; // human label for a cosmetic unlock, if any
+}
+export const SEASON_PASS_TIERS: PassTier[] = [
+  { at: 300, xp: 50 },
+  { at: 800, xp: 100, reward: "🎟️ Season Pass badge" },
+  { at: 1800, xp: 200 },
+  { at: 3500, xp: 400, reward: "Season profile frame" },
+  { at: 6000, xp: 700 },
+];
+
 /** Cumulative XP required to reach each level (1-indexed; level 1 = 0 XP). */
 export function xpForLevel(level: number): number {
   if (level <= 1) return 0;

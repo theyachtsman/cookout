@@ -15,6 +15,10 @@ import {
   PODIUM_XP,
   TRADE_XP,
   ACHIEVEMENT_XP,
+  FLOOR_XP_WEEKLY_CAP,
+  DAILY_STREAK_MILESTONES,
+  SEASON_PASS_TIERS,
+  MILESTONES,
 } from "@cookout/shared";
 
 /** Product wiki: everything a new player needs, in the arena's own voice. */
@@ -219,8 +223,10 @@ export default function Docs() {
             {[...LEVEL_TITLES].reverse().map((l) => l.title).join(" → ")}
           </p>
           <p>
-            Badges, titles, chat colors, and frames unlock from levels, achievements, and season
-            placements. <b>Everything cosmetic is earned; nothing is for sale that affects play.</b>
+            Badges, titles, chat colors, and frames unlock from levels, achievements, season
+            placements, and the monthly season pass. Full detail on earning XP is in{" "}
+            <a href="#quests" className="text-lime-400 underline">Quests &amp; Earning XP</a> below.{" "}
+            <b>Everything cosmetic is earned; nothing is for sale that affects play.</b>
           </p>
         </Section>
 
@@ -350,14 +356,53 @@ export default function Docs() {
                     not a bet.
                   </td>
                 </tr>
+                <tr className="border-t border-zinc-800">
+                  <td className="py-2 pr-4 font-bold">Streaks</td>
+                  <td className="py-2 pr-4 font-mono text-orange-300">
+                    {Object.values(DAILY_STREAK_MILESTONES)[0]}–
+                    {Object.values(DAILY_STREAK_MILESTONES).slice(-1)[0]}+
+                  </td>
+                  <td className="py-2 text-zinc-400">
+                    Play at least one round a day to build a 🔥 <b>play streak</b> — milestones at
+                    days 3, 7, 14, 30 pay more and more. Miss a day and a <b>freeze token</b> (earned
+                    every 7 days) saves it. Clearing the weekly set week after week builds a second
+                    streak.
+                  </td>
+                </tr>
+                <tr className="border-t border-zinc-800">
+                  <td className="py-2 pr-4 font-bold">Milestones</td>
+                  <td className="py-2 pr-4 font-mono text-lime-300">40–350</td>
+                  <td className="py-2 text-zinc-400">
+                    Lifetime ladders — {MILESTONES.map((m) => m.name).join(", ")} — pay XP at every
+                    tier as your career totals climb. Months of goals that never reset.
+                  </td>
+                </tr>
+                <tr className="border-t border-zinc-800">
+                  <td className="py-2 pr-4 font-bold">Season Pass</td>
+                  <td className="py-2 pr-4 font-mono text-amber-300">
+                    {SEASON_PASS_TIERS[0]!.xp}–{SEASON_PASS_TIERS.slice(-1)[0]!.xp}
+                  </td>
+                  <td className="py-2 text-zinc-400">
+                    A free monthly track: pass XP thresholds to earn kickers and unlock
+                    pass-exclusive cosmetics. Resets each month for a fresh climb.
+                  </td>
+                </tr>
               </tbody>
             </table>
           </div>
 
           <p className="text-zinc-400">
-            Track your live quests on your <Link href="/profile" className="text-lime-400 underline">profile</Link>.
-            Because the biggest, farm-proof XP comes from winning, timing, and consistency, the
-            jackpot always flows to the best players — not the busiest bots.
+            Track all of it — quests, streaks, milestones and your pass — on your{" "}
+            <Link href="/profile" className="text-lime-400 underline">profile</Link>.
+          </p>
+          <p className="text-zinc-400">
+            <b className="text-zinc-200">One anti-farm rule worth knowing:</b> the “grind” sources —
+            trade XP, daily quests, and just showing up — are capped at{" "}
+            <span className="font-mono text-zinc-200">{FLOOR_XP_WEEKLY_CAP.toLocaleString()}</span>{" "}
+            XP a week toward the jackpot. Past that, only skill, competition, streaks, and milestones
+            keep counting. You can&apos;t out-grind the board — you have to out-play it, which is
+            exactly why the <Link href="/jackpot" className="text-amber-400 underline">jackpot</Link>{" "}
+            stays fair when it&apos;s paying real ETH.
           </p>
         </Section>
 

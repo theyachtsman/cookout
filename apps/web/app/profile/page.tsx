@@ -7,6 +7,7 @@ import { useSession } from "../../lib/session";
 import { CosmeticsLocker } from "../../components/CosmeticsLocker";
 import { ImagePicker } from "../../components/ImagePicker";
 import { Missions } from "../../components/Missions";
+import { Progress } from "../../components/Progress";
 
 export default function ProfilePage() {
   const { profile, signIn, refresh } = useSession();
@@ -156,6 +157,8 @@ export default function ProfilePage() {
       )}
 
       <Missions />
+
+      <Progress />
 
       <CosmeticsLocker />
 

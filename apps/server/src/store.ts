@@ -2,10 +2,16 @@ import { randomUUID } from "node:crypto";
 import {
   DEFAULT_ETH_USD,
   DAILY_SET_BONUS_XP,
+  FLOOR_XP_WEEKLY_CAP,
+  MILESTONES,
+  SEASON_PASS_TIERS,
+  STREAK_FREEZE_MAX,
   WEEKLY_MISSIONS,
   WEEKLY_SET_BONUS_XP,
   achievementXp,
   activeDailyMissions,
+  dailyStreakReward,
+  weeklyStreakReward,
   type Candle,
   STARTING_PAPER_BALANCE,
   TRADE_XP,
@@ -74,6 +80,18 @@ export interface StoredUser extends UserProfile {
   /** Daily trade-XP accounting (Layer-1 grind cap): the day and XP so far. */
   tradeXpDayKey?: string;
   tradeXpToday?: number;
+  /** Weekly "floor" XP accounting (anti-farm cap on grind sources). */
+  floorXpWeekKey?: string;
+  floorXpWeek?: number;
+  /** Daily play streak (consecutive days with ≥1 round) + freeze tokens. */
+  playStreak?: number;
+  bestPlayStreak?: number;
+  lastPlayDay?: string;
+  streakFreezes?: number;
+  /** Weekly-consistency streak (consecutive weeks clearing the weekly set). */
+  weekStreak?: number;
+  bestWeekStreak?: number;
+  lastWeekSetKey?: string;
   feesEarned: number;
   /** Activity counters keyed by period ("2026-07-14" and "2026-W29"). */
   activity: Record<string, Partial<Record<MissionMetric, number>>>;
@@ -191,15 +209,32 @@ export class Store {
     return undefined;
   }
 
-  addXp(address: Address, amount: number): StoredUser {
+  /**
+   * Award XP. `source` marks anti-farm category: "floor" XP (trade XP, daily
+   * quests, participation) is subject to a weekly cap so grinding can't top the
+   * jackpot board; "ceiling" XP (skill, competition, streaks, milestones) is
+   * uncapped. Returns the user.
+   */
+  addXp(address: Address, amount: number, source: "floor" | "ceiling" = "ceiling"): StoredUser {
     const u = this.getOrCreateUser(address);
-    u.xp += amount;
+    let give = amount;
+    if (source === "floor" && give > 0) {
+      const wk = weekKey();
+      if (u.floorXpWeekKey !== wk) {
+        u.floorXpWeekKey = wk;
+        u.floorXpWeek = 0;
+      }
+      give = Math.min(give, Math.max(0, FLOOR_XP_WEEKLY_CAP - (u.floorXpWeek ?? 0)));
+      u.floorXpWeek = (u.floorXpWeek ?? 0) + give;
+    }
+    if (give <= 0) return u;
+    u.xp += give;
     u.level = levelForXp(u.xp);
     u.title = titleForLevel(u.level);
     const season = (u.seasons[this.seasonKey()] ??= { pnl: 0, xp: 0, wins: 0, trades: 0 });
-    season.xp += amount;
+    season.xp += give;
     const wk = weekKey();
-    u.weeklyXp[wk] = (u.weeklyXp[wk] ?? 0) + amount;
+    u.weeklyXp[wk] = (u.weeklyXp[wk] ?? 0) + give;
     return u;
   }
 
@@ -228,7 +263,7 @@ export class Store {
     const give = Math.min(amount, Math.max(0, TRADE_XP.dailyCap - (u.tradeXpToday ?? 0)));
     if (give > 0) {
       u.tradeXpToday = (u.tradeXpToday ?? 0) + give;
-      this.addXp(address, give);
+      this.addXp(address, give, "floor");
     }
     return give;
   }
@@ -279,7 +314,8 @@ export class Store {
       if (u.missionsDone[doneKey]) continue;
       if ((u.activity[pk]?.[m.metric] ?? 0) >= m.target) {
         u.missionsDone[doneKey] = true;
-        this.addXp(address, m.xp);
+        // Daily quests are floor (capped); weekly challenges are ceiling.
+        this.addXp(address, m.xp, m.period === "daily" ? "floor" : "ceiling");
       }
     }
 
@@ -290,7 +326,7 @@ export class Store {
       activeDaily.every((m) => u.missionsDone[`${dk}:${m.id}`])
     ) {
       u.missionsDone[dailyBonusKey] = true;
-      this.addXp(address, DAILY_SET_BONUS_XP);
+      this.addXp(address, DAILY_SET_BONUS_XP, "floor");
     }
     const weeklyBonusKey = `${wk}:__weekly_set__`;
     if (
@@ -299,6 +335,80 @@ export class Store {
     ) {
       u.missionsDone[weeklyBonusKey] = true;
       this.addXp(address, WEEKLY_SET_BONUS_XP);
+      this.bumpWeeklyStreak(address, now);
+    }
+  }
+
+  /** Advance the daily play streak (call once per round played). Handles freeze
+   *  tokens (auto-save one missed day) and pays streak-milestone XP. */
+  bumpPlayStreak(address: Address, now = Date.now()): void {
+    const u = this.getOrCreateUser(address);
+    const today = dayKey(now);
+    if (u.lastPlayDay === today) return; // already counted today
+    const yesterday = dayKey(now - 86_400_000);
+    const twoAgo = dayKey(now - 2 * 86_400_000);
+    if (u.lastPlayDay === yesterday) {
+      u.playStreak = (u.playStreak ?? 0) + 1;
+    } else if (u.lastPlayDay === twoAgo && (u.streakFreezes ?? 0) > 0) {
+      u.streakFreezes = (u.streakFreezes ?? 0) - 1; // freeze saves the 1-day gap
+      u.playStreak = (u.playStreak ?? 0) + 1;
+    } else {
+      u.playStreak = 1; // fresh start (first play or streak broken)
+    }
+    u.lastPlayDay = today;
+    u.bestPlayStreak = Math.max(u.bestPlayStreak ?? 0, u.playStreak);
+    // Earn a freeze every 7 days played, capped.
+    if (u.playStreak % 7 === 0 && (u.streakFreezes ?? 0) < STREAK_FREEZE_MAX) {
+      u.streakFreezes = (u.streakFreezes ?? 0) + 1;
+    }
+    const reward = dailyStreakReward(u.playStreak);
+    if (reward > 0) this.addXp(address, reward); // ceiling (retention)
+  }
+
+  /** Advance the weekly-consistency streak (call when the weekly set is cleared). */
+  bumpWeeklyStreak(address: Address, now = Date.now()): void {
+    const u = this.getOrCreateUser(address);
+    const thisWeek = weekKey(now);
+    if (u.lastWeekSetKey === thisWeek) return;
+    const lastWeek = weekKey(now - 7 * 86_400_000);
+    u.weekStreak = u.lastWeekSetKey === lastWeek ? (u.weekStreak ?? 0) + 1 : 1;
+    u.lastWeekSetKey = thisWeek;
+    u.bestWeekStreak = Math.max(u.bestWeekStreak ?? 0, u.weekStreak);
+    const reward = weeklyStreakReward(u.weekStreak);
+    if (reward > 0) this.addXp(address, reward);
+  }
+
+  /** Award any newly-crossed lifetime milestone tiers. */
+  checkMilestones(address: Address): void {
+    const u = this.getOrCreateUser(address);
+    for (const ladder of MILESTONES) {
+      const value = (u.stats as unknown as Record<string, number>)[ladder.stat] ?? 0;
+      for (const tier of ladder.tiers) {
+        const key = `milestone:${ladder.id}:${tier.at}`;
+        if (!u.missionsDone[key] && value >= tier.at) {
+          u.missionsDone[key] = true;
+          this.addXp(address, tier.xp);
+        }
+      }
+    }
+  }
+
+  /** Award any newly-crossed monthly season-pass tiers (cascades once). */
+  checkSeasonPass(address: Address): void {
+    const u = this.getOrCreateUser(address);
+    const key = this.seasonKey();
+    let awarded = true;
+    while (awarded) {
+      awarded = false;
+      const seasonXp = u.seasons[key]?.xp ?? 0;
+      for (const tier of SEASON_PASS_TIERS) {
+        const doneKey = `pass:${key}:${tier.at}`;
+        if (!u.missionsDone[doneKey] && seasonXp >= tier.at) {
+          u.missionsDone[doneKey] = true;
+          this.addXp(address, tier.xp);
+          awarded = true; // the kicker may cross the next tier
+        }
+      }
     }
   }
 
@@ -315,6 +425,41 @@ export class Store {
         completed: !!u.missionsDone[`${pk}:${m.id}`],
       };
     });
+  }
+
+  /** Streaks, lifetime milestone ladders, and monthly season-pass progress. */
+  progressStatus(address: Address, now = Date.now()) {
+    const u = this.getOrCreateUser(address);
+    const seasonXp = u.seasons[this.seasonKey(now)]?.xp ?? 0;
+    const stats = u.stats as unknown as Record<string, number>;
+    return {
+      streak: {
+        current: u.playStreak ?? 0,
+        best: u.bestPlayStreak ?? 0,
+        freezes: u.streakFreezes ?? 0,
+        playedToday: u.lastPlayDay === dayKey(now),
+      },
+      weekStreak: { current: u.weekStreak ?? 0, best: u.bestWeekStreak ?? 0 },
+      milestones: MILESTONES.map((l) => {
+        const value = stats[l.stat] ?? 0;
+        return {
+          id: l.id,
+          name: l.name,
+          unit: l.unit,
+          value,
+          tiers: l.tiers.map((t) => ({ at: t.at, xp: t.xp, done: value >= t.at })),
+        };
+      }),
+      seasonPass: {
+        xp: seasonXp,
+        tiers: SEASON_PASS_TIERS.map((t) => ({
+          at: t.at,
+          xp: t.xp,
+          reward: t.reward,
+          done: seasonXp >= t.at,
+        })),
+      },
+    };
   }
 
   /** Serializable snapshot of durable state (live rounds stay ephemeral). */

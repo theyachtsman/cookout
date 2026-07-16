@@ -150,11 +150,25 @@ export function createApp(
   );
 
   app.get(
+    "/api/progress",
+    auth,
+    wrap((req, res) => res.json(store.progressStatus(req.userAddress!))),
+  );
+
+  // Cosmetics unlock also considers this month's season XP (season-pass tiers).
+  const cosmeticsUser = (u: StoredUser) => ({
+    level: u.level,
+    achievements: u.achievements,
+    bestSeasonRank: u.bestSeasonRank,
+    monthlyXp: u.seasons[store.seasonKey()]?.xp ?? 0,
+  });
+
+  app.get(
     "/api/me/cosmetics",
     auth,
     wrap((req, res) => {
       const u = store.getOrCreateUser(req.userAddress!);
-      res.json({ unlocked: unlockedCosmetics(u), equipped: u.equipped, all: COSMETICS });
+      res.json({ unlocked: unlockedCosmetics(cosmeticsUser(u)), equipped: u.equipped, all: COSMETICS });
     }),
   );
 
@@ -163,7 +177,7 @@ export function createApp(
     auth,
     wrap((req, res) => {
       const u = store.getOrCreateUser(req.userAddress!);
-      const unlockedIds = new Set(unlockedCosmetics(u).map((c) => c.id));
+      const unlockedIds = new Set(unlockedCosmetics(cosmeticsUser(u)).map((c) => c.id));
       const body = req.body as Partial<Record<"title" | "badge" | "chatColor" | "frame", string | null>>;
       const slots: Array<["title" | "badge" | "chatColor" | "frame", CosmeticType]> = [
         ["title", "title"],

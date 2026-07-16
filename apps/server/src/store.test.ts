@@ -6,6 +6,9 @@ import { test } from "node:test";
 import {
   DAILY_ACTIVE_COUNT,
   DAILY_SET_BONUS_XP,
+  FLOOR_XP_WEEKLY_CAP,
+  MILESTONES,
+  SEASON_PASS_TIERS,
   TRADE_XP,
   achievementXp,
   activeDailyMissions,
@@ -84,6 +87,65 @@ test("trade XP: geometric decay, capped per round and per day", () => {
   // New day resets the cap.
   const nextDay = now + 26 * 3600 * 1000;
   assert.equal(store.awardTradeXp(A, 5, nextDay), 5, "cap resets next day");
+});
+
+const DAY = 86_400_000;
+
+test("streaks: daily play streak advances, resets on a miss", () => {
+  const store = new Store();
+  const d0 = Date.UTC(2026, 6, 1, 12);
+  store.bumpPlayStreak(A, d0);
+  assert.equal(store.getOrCreateUser(A).playStreak, 1);
+  store.bumpPlayStreak(A, d0 + DAY);
+  assert.equal(store.getOrCreateUser(A).playStreak, 2, "consecutive day extends");
+  store.bumpPlayStreak(A, d0 + DAY + 3600_000);
+  assert.equal(store.getOrCreateUser(A).playStreak, 2, "same day is idempotent");
+  store.bumpPlayStreak(A, d0 + 3 * DAY);
+  assert.equal(store.getOrCreateUser(A).playStreak, 1, "a missed day (no freeze) resets");
+});
+
+test("streaks: a freeze token saves a one-day gap", () => {
+  const store = new Store();
+  const d0 = Date.UTC(2026, 6, 1, 12);
+  store.bumpPlayStreak(A, d0); // streak 1
+  const u = store.getOrCreateUser(A);
+  u.streakFreezes = 1;
+  store.bumpPlayStreak(A, d0 + 2 * DAY); // missed one day → freeze covers it
+  assert.equal(u.playStreak, 2, "streak preserved");
+  assert.equal(u.streakFreezes, 0, "freeze consumed");
+});
+
+test("floor cap: grind XP is capped weekly, ceiling XP is not", () => {
+  const store = new Store();
+  const u = store.getOrCreateUser(A);
+  for (let i = 0; i < 500; i++) store.addXp(A, 20, "floor");
+  assert.equal(u.floorXpWeek, FLOOR_XP_WEEKLY_CAP, "floor accrual capped");
+  assert.equal(u.xp, FLOOR_XP_WEEKLY_CAP, "capped floor is all that landed");
+  store.addXp(A, 500, "ceiling");
+  assert.equal(u.xp, FLOOR_XP_WEEKLY_CAP + 500, "ceiling XP bypasses the cap");
+});
+
+test("milestones: crossing a lifetime tier pays once", () => {
+  const store = new Store();
+  const u = store.getOrCreateUser(A);
+  const trader = MILESTONES.find((m) => m.id === "trader")!;
+  u.stats.trades = trader.tiers[0]!.at;
+  const before = u.xp;
+  store.checkMilestones(A);
+  assert.equal(u.xp, before + trader.tiers[0]!.xp, "first tier paid");
+  store.checkMilestones(A);
+  assert.equal(u.xp, before + trader.tiers[0]!.xp, "no double pay");
+});
+
+test("season pass: crossing a monthly tier awards the kicker once", () => {
+  const store = new Store();
+  const u = store.getOrCreateUser(A);
+  store.addXp(A, SEASON_PASS_TIERS[0]!.at, "ceiling"); // reach tier 1's threshold
+  const before = u.xp;
+  store.checkSeasonPass(A);
+  assert.equal(u.xp, before + SEASON_PASS_TIERS[0]!.xp, "tier kicker paid");
+  store.checkSeasonPass(A);
+  assert.equal(u.xp, before + SEASON_PASS_TIERS[0]!.xp, "no double pay");
 });
 
 test("achievements: first unlock pays rarity XP, never twice", () => {
