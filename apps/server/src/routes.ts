@@ -379,6 +379,20 @@ export function createApp(
     }),
   );
 
+  /** Remove a wallet from the collected list entirely (test/spam cleanup). */
+  app.post(
+    "/api/admin/beta/remove",
+    admin,
+    wrap((req, res) => {
+      const { address } = req.body as { address?: string };
+      if (!address || !BETA_ADDR.test(address)) throw new Err(400, "valid wallet address required");
+      const key = address.toLowerCase();
+      const existed = store.betaSignups.delete(key);
+      store.logAdmin("beta_remove", key);
+      res.json({ ok: true, address: key, removed: existed });
+    }),
+  );
+
   /** Revoke access for a wallet (keeps it on the collected list, unapproved). */
   app.post(
     "/api/admin/beta/revoke",

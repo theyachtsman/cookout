@@ -167,6 +167,17 @@ function BetaList({ adminKey }: { adminKey: string }) {
             >
               {s.approved ? "revoke" : "approve"}
             </button>
+            <button
+              disabled={busy}
+              title="Remove from the list (test/spam)"
+              onClick={() => {
+                if (confirm(`Remove ${s.address} from the beta list entirely?`))
+                  void act("/api/admin/beta/remove", { address: s.address });
+              }}
+              className="shrink-0 rounded px-1.5 py-0.5 text-[11px] font-bold text-zinc-500 hover:bg-red-600/20 hover:text-red-300"
+            >
+              ✕
+            </button>
           </div>
         ))}
         {signups.length === 0 && <div className="py-2 text-zinc-600">no signups yet</div>}

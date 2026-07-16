@@ -151,6 +151,11 @@ export class PgPersistence implements Persistence {
         "INSERT INTO beta_signups (address, data) VALUES ($1, $2) ON CONFLICT (address) DO UPDATE SET data = $2",
         (s.betaSignups ?? []).map((b) => [b.address, b]),
       );
+      // Sync removals: drop rows no longer in the store (admin-removed signups)
+      // so a deletion survives restart instead of being reloaded.
+      await client.query("DELETE FROM beta_signups WHERE address <> ALL($1::text[])", [
+        (s.betaSignups ?? []).map((b) => b.address),
+      ]);
       for (const e of s.adminLog)
         await client.query(
           "INSERT INTO admin_log (id, at, action, detail) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING",

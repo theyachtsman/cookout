@@ -309,8 +309,9 @@ function Signup() {
         Get on the <span className="text-lime-400">whitelist</span>
       </h2>
       <p className="mt-3 text-zinc-400">
-        Drop your wallet address and we&apos;ll whitelist it for the paper beta — simulated
-        balances, real competition, zero risk. Beta windows announced on X.
+        No wallet connection needed — just paste your address (and optionally your X handle) to
+        join the list for the paper beta. Simulated balances, real competition, zero risk. We&apos;ll
+        open access at launch; beta windows announced on X.
       </p>
       {count !== null && count > 0 && (
         <p className="mt-2 font-mono text-sm text-lime-300">{count} wallets already in line</p>

@@ -35,11 +35,12 @@ export function TopNav() {
           <Link href="/jackpot" className="text-sm text-amber-400/90 hover:text-amber-300">
             Jackpot
           </Link>
-          <Link href="/docs" className="text-sm text-zinc-400 hover:text-lime-300">
-            Docs
-          </Link>
         </>
       )}
+      {/* Docs is public — available to everyone, signed in or not. */}
+      <Link href="/docs" className="text-sm text-zinc-400 hover:text-lime-300">
+        Docs
+      </Link>
       <WalletButton />
     </nav>
   );

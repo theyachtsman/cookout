@@ -11,21 +11,24 @@ import { useSession } from "../lib/session";
  * land on the splash are sent into the arena.
  */
 const HOME = "/matches"; // where a signed-in wallet enters the app
+const PUBLIC_PATHS = new Set(["/", "/docs"]); // viewable without a session
 
 export function BetaGate({ children }: { children: React.ReactNode }) {
   const { profile, ready } = useSession();
   const pathname = usePathname();
   const router = useRouter();
   const isSplash = pathname === "/";
+  const isPublic = PUBLIC_PATHS.has(pathname);
 
   useEffect(() => {
     if (!ready) return;
-    if (!isSplash && !profile) router.replace("/");
+    if (!isPublic && !profile) router.replace("/");
     else if (isSplash && profile) router.replace(HOME);
-  }, [ready, isSplash, profile, router]);
+  }, [ready, isPublic, isSplash, profile, router]);
 
-  // Splash is always allowed to render (redirect for signed-in users happens above).
-  if (isSplash) return <>{children}</>;
+  // Public pages (splash, docs) render for everyone; signed-in users are sent
+  // from the splash into the arena by the effect above.
+  if (isPublic) return <>{children}</>;
 
   // Gated route: wait for the auth check, then require a session.
   if (!ready || !profile) {

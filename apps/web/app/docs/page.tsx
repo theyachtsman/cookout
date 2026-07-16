@@ -4,8 +4,12 @@ import Link from "next/link";
 import {
   LEVEL_TITLES,
   TIER_CONFIGS,
+  TIER_UNLOCK_LEVEL,
   VOTE_THRESHOLD,
   CREATOR_FEE_SHARE,
+  JACKPOT_FEE_SHARE,
+  JACKPOT_WINNERS,
+  JACKPOT_PAYOUT_WEIGHTS,
 } from "@cookout/shared";
 
 /** Product wiki: everything a new player needs, in the arena's own voice. */
@@ -18,6 +22,7 @@ const SECTIONS = [
   ["endings", "Rugs, Redemption & Graduation"],
   ["tiers", "Risk Tiers"],
   ["progression", "XP, Levels & Cosmetics"],
+  ["jackpot", "The Weekly Jackpot"],
   ["missions", "Missions & Predictions"],
   ["creators", "Launching Your Own Coin"],
   ["faq", "FAQ"],
@@ -183,7 +188,7 @@ export default function Docs() {
                   return (
                     <tr key={t} className="border-t border-zinc-800">
                       <td className="py-2 pr-4 font-bold uppercase">{t}</td>
-                      <td className="py-2 pr-4">Lv {t === "rookie" ? 1 : t === "standard" ? 10 : 35}</td>
+                      <td className="py-2 pr-4">Lv {TIER_UNLOCK_LEVEL[t]}</td>
                       <td className="py-2 pr-4">{c.initialEthLiquidity} pETH (deep→thin)</td>
                       <td className="py-2 pr-4">{c.maxPositionEth > 0 ? `${c.maxPositionEth} pETH` : "none"}</td>
                       <td className="py-2">{c.devSellLockSeconds > 0 ? `${c.devSellLockSeconds}s` : "none 💀"}</td>
@@ -211,6 +216,52 @@ export default function Docs() {
           <p>
             Badges, titles, chat colors, and frames unlock from levels, achievements, and season
             placements. <b>Everything cosmetic is earned; nothing is for sale that affects play.</b>
+          </p>
+        </Section>
+
+        <Section id="jackpot" title="The Weekly Jackpot">
+          <p>
+            Every trade on The Cookout feeds a single, site-wide{" "}
+            <b className="text-amber-300">Weekly Jackpot</b> — a shared prize pot that pays out to
+            the top players every week.
+          </p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>
+              <b>Trading fills it.</b> {Math.round(JACKPOT_FEE_SHARE * 100)}% of every trading fee
+              across the whole site flows into the pot (half of the platform&apos;s house cut).
+              Nothing is minted for it — it&apos;s pure fee revenue, so a busy week directly means a
+              bigger jackpot. There is no cap.
+            </li>
+            <li>
+              <b>XP wins it.</b> When the week closes (Monday 00:00 UTC), the{" "}
+              <b>top {JACKPOT_WINNERS} players by XP earned that week</b> split the pot. It rewards
+              playing, not just profit — and it resets every week, so newcomers and veterans compete
+              on the same clock.
+            </li>
+            <li>
+              <b>1st, 2nd and 3rd take the most,</b> then the shares taper down through 10th:{" "}
+              <span className="font-mono text-amber-300">
+                {JACKPOT_PAYOUT_WEIGHTS.map((w) => `${Math.round(w * 100)}%`).join(" · ")}
+              </span>
+              .
+            </li>
+            <li>
+              <b>Paid automatically.</b> During the paper beta, winnings land in your paper balance
+              and show as trophies on your public profile. In production the same payout goes out as
+              real ETH to the winning wallet addresses.
+            </li>
+            <li>
+              <b>It only grows.</b> If fewer than {JACKPOT_WINNERS} players earned XP in a week, the
+              unclaimed shares roll into next week&apos;s pot.
+            </li>
+          </ul>
+          <p className="text-zinc-400">
+            The live pot, this week&apos;s standings, the full fee breakdown, and past payouts are
+            all on the{" "}
+            <Link href="/jackpot" className="text-amber-400 underline">
+              Jackpot page
+            </Link>{" "}
+            (open once you&apos;re in the beta).
           </p>
         </Section>
 
@@ -266,8 +317,16 @@ export default function Docs() {
               refund, no fill.
             </Faq>
             <Faq q="How do I get whitelisted for the beta?">
-              Drop your wallet on the <Link href="/#beta" className="text-lime-400 underline">landing page</Link>.
-              Beta windows are announced on X.
+              Just paste your wallet address into the sign-up form on the{" "}
+              <Link href="/#beta" className="text-lime-400 underline">home page</Link> — no wallet
+              connection needed. We&apos;ll open access to the whitelist at launch; beta windows are
+              announced on X.
+            </Faq>
+            <Faq q="How does the Weekly Jackpot work?">
+              A slice of every trading fee builds a shared pot that pays the top{" "}
+              {JACKPOT_WINNERS} players by weekly XP every Monday — the more the site trades, the
+              bigger it gets. Full details in{" "}
+              <a href="#jackpot" className="text-lime-400 underline">The Weekly Jackpot</a> above.
             </Faq>
           </dl>
         </Section>
