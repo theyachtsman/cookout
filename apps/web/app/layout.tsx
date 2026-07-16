@@ -28,16 +28,14 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Link href="/submissions" className="text-sm text-zinc-400 hover:text-lime-300">
               Launchpad
             </Link>
-            <Link href="/docs" className="text-sm text-zinc-400 hover:text-lime-300">
-              Docs
-            </Link>
             <Link href="/leaderboard" className="text-sm text-zinc-400 hover:text-lime-300">
               Board
             </Link>
-            <Link href="/profile" className="text-sm text-zinc-400 hover:text-lime-300">
-              Profile
+            <Link href="/docs" className="text-sm text-zinc-400 hover:text-lime-300">
+              Docs
             </Link>
-            {/* /admin is reachable by URL only — no nav link by design */}
+            {/* /admin is reachable by URL only — no nav link by design.
+                Profile lives in the wallet dropdown. */}
             <WalletButton />
           </nav>
           <main className="mx-auto max-w-6xl px-3 py-6 sm:px-4">{children}</main>

@@ -1,22 +1,78 @@
 "use client";
 
+import Link from "next/link";
+import { useEffect, useRef, useState } from "react";
 import { useSession } from "../lib/session";
 
 export function WalletButton() {
   const { profile, signIn, signOut, busy } = useSession();
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, []);
+
   if (profile) {
     return (
-      <div className="flex items-center gap-3">
-        <span className="text-xs text-zinc-400">
-          Lv{profile.level} {profile.title} · {profile.paperBalance.toFixed(2)} pETH
-        </span>
+      <div ref={ref} className="relative">
         <button
-          onClick={signOut}
-          className="rounded border border-zinc-700 px-3 py-1 text-xs text-zinc-300 hover:bg-zinc-800"
+          onClick={() => setOpen((v) => !v)}
+          className="flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm hover:border-lime-400/60"
           title={profile.address}
         >
-          {profile.displayName ?? `${profile.address.slice(0, 6)}…${profile.address.slice(-4)}`}
+          {(profile as unknown as { avatarUrl?: string }).avatarUrl ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={(profile as unknown as { avatarUrl?: string }).avatarUrl}
+              alt=""
+              className="h-5 w-5 rounded-full object-cover"
+            />
+          ) : (
+            <span className="h-2 w-2 rounded-full bg-lime-400" />
+          )}
+          <span className="font-bold">
+            {profile.displayName ?? `${profile.address.slice(0, 6)}…${profile.address.slice(-4)}`}
+          </span>
+          <span className="font-mono text-xs text-zinc-400">
+            {profile.paperBalance.toFixed(2)} pETH
+          </span>
+          <span className="text-xs text-zinc-500">▾</span>
         </button>
+        {open && (
+          <div className="absolute right-0 top-full z-30 mt-1 w-48 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl">
+            <div className="border-b border-zinc-800 px-3 py-2 text-xs text-zinc-500">
+              Lv{profile.level} {profile.title} · {profile.xp} XP
+            </div>
+            <Link
+              href="/profile"
+              onClick={() => setOpen(false)}
+              className="block px-3 py-2 text-sm hover:bg-zinc-800"
+            >
+              👤 Profile
+            </Link>
+            <Link
+              href={`/profile/${profile.address}`}
+              onClick={() => setOpen(false)}
+              className="block px-3 py-2 text-sm hover:bg-zinc-800"
+            >
+              🌐 Public view
+            </Link>
+            <button
+              onClick={() => {
+                setOpen(false);
+                signOut();
+              }}
+              className="block w-full px-3 py-2 text-left text-sm text-zinc-400 hover:bg-zinc-800"
+            >
+              ⏏ Sign out
+            </button>
+          </div>
+        )}
       </div>
     );
   }

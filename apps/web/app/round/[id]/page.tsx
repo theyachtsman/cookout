@@ -309,7 +309,10 @@ export default function RoundPage() {
                 }}
               />
             )}
-            <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
+            {/* fixed-height console-style chat so it shares the screen with the chart */}
+            <div className="h-64">
+              <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
+            </div>
             {summary && <Results round={round} summary={summary} auction={auction} />}
           </div>
           <div className="space-y-4">

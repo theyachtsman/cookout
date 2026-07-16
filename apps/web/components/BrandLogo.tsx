@@ -10,7 +10,7 @@ export function BrandLogo() {
   return (
     <Link href="/" className="flex items-center">
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt="THE COOKOUT" className="h-9 w-auto" />
+      <img src={src} alt="THE COOKOUT" className="h-12 w-auto sm:h-14" />
     </Link>
   );
 }
