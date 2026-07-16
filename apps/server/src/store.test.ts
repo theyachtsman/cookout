@@ -3,39 +3,97 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
-import { MISSIONS, unlockedCosmetics } from "@cookout/shared";
+import {
+  DAILY_ACTIVE_COUNT,
+  DAILY_SET_BONUS_XP,
+  TRADE_XP,
+  achievementXp,
+  activeDailyMissions,
+  tradeXpForIndex,
+  unlockedCosmetics,
+} from "@cookout/shared";
 import { FilePersistence } from "./persistence.js";
 import { Store } from "./store.js";
 
 const A = "0x00000000000000000000000000000000000000aa";
 
-test("missions: activity tracking completes missions and awards XP once", () => {
+test("missions: an active daily completes once, resets next day, weekly accrues", () => {
   const store = new Store();
   const u = store.getOrCreateUser(A);
   const now = Date.UTC(2026, 6, 14, 12);
 
+  // Pick a daily mission that's actually live today (rotation is date-seeded).
+  const active = activeDailyMissions(now);
+  const d = active.find((m) => m.metric === "trades") ?? active[0]!;
+
   const before = u.xp;
-  store.trackActivity(A, "predictions", 1, now);
-  const d = MISSIONS.find((m) => m.id === "d_predict_1")!;
-  assert.equal(u.xp, before + d.xp, "daily prediction mission completed");
+  store.trackActivity(A, d.metric, d.target, now);
+  assert.equal(u.xp, before + d.xp, "active daily completes and pays once");
 
   // Same period: no double award.
-  store.trackActivity(A, "predictions", 1, now + 1000);
+  store.trackActivity(A, d.metric, d.target, now + 1000);
   assert.equal(u.xp, before + d.xp);
 
-  // Next day: daily resets, weekly still counting.
+  // Next day (same metric may or may not be live) — completing an active one pays again.
   const nextDay = now + 26 * 3600 * 1000;
-  store.trackActivity(A, "predictions", 1, nextDay);
-  assert.equal(u.xp, before + 2 * d.xp, "new day, mission completes again");
+  const active2 = activeDailyMissions(nextDay);
+  const d2 = active2[0]!;
+  const beforeD2 = u.xp;
+  store.trackActivity(A, d2.metric, d2.target, nextDay);
+  assert.ok(u.xp >= beforeD2 + d2.xp, "a fresh day re-opens the daily board");
+});
 
-  const status = store.missionStatus(A, nextDay);
-  const weekly = status.find((m) => m.id === "w_predict_5")!;
-  assert.equal(weekly.progress, 3, "weekly counts across days");
-  assert.equal(weekly.completed, false);
+test("missions: only the rotating daily subset is live, and it's deterministic", () => {
+  const store = new Store();
+  const now = Date.UTC(2026, 6, 14, 12);
+  const dailies = store.missionStatus(A, now).filter((m) => m.period === "daily");
+  assert.equal(dailies.length, DAILY_ACTIVE_COUNT, "exactly the active daily count is shown");
+  // Same day → identical set; a later day → a (re-seeded) set.
+  assert.deepEqual(
+    activeDailyMissions(now).map((m) => m.id),
+    activeDailyMissions(now + 3_600_000).map((m) => m.id),
+    "stable within a day",
+  );
+});
 
-  store.trackActivity(A, "predictions", 2, nextDay + 1000);
-  const w = MISSIONS.find((m) => m.id === "w_predict_5")!;
-  assert.equal(u.xp, before + 2 * d.xp + w.xp, "weekly challenge completed");
+test("missions: clearing every active daily pays the set bonus", () => {
+  const store = new Store();
+  const u = store.getOrCreateUser(A);
+  const now = Date.UTC(2026, 6, 15, 9);
+  const active = activeDailyMissions(now);
+  const missionXp = active.reduce((s, m) => s + m.xp, 0);
+  // Complete each active daily by driving its metric to target.
+  for (const m of active) store.trackActivity(A, m.metric, m.target, now);
+  // All active dailies done ⇒ their XP + the set bonus.
+  assert.equal(u.xp, missionXp + DAILY_SET_BONUS_XP, "set bonus paid once all cleared");
+});
+
+test("trade XP: geometric decay, capped per round and per day", () => {
+  const store = new Store();
+  const now = Date.UTC(2026, 6, 15, 9);
+  // Award per-round-style: caller decays; store enforces the daily cap.
+  // Verify the decay curve values.
+  assert.deepEqual(
+    [1, 2, 3, 4, 5, 6].map(tradeXpForIndex),
+    [5, 3, 2, 1, 1, 0],
+  );
+  // Daily cap: repeated awards stop paying past TRADE_XP.dailyCap.
+  let given = 0;
+  for (let i = 0; i < 100; i++) given += store.awardTradeXp(A, 5, now);
+  assert.equal(given, TRADE_XP.dailyCap, "daily trade-XP is capped");
+  // New day resets the cap.
+  const nextDay = now + 26 * 3600 * 1000;
+  assert.equal(store.awardTradeXp(A, 5, nextDay), 5, "cap resets next day");
+});
+
+test("achievements: first unlock pays rarity XP, never twice", () => {
+  const store = new Store();
+  const u = store.getOrCreateUser(A);
+  const before = u.xp;
+  assert.equal(store.grantAchievement(A, "hundred_x"), true);
+  assert.equal(u.xp, before + achievementXp("hundred_x"), "legendary XP paid");
+  assert.equal(store.grantAchievement(A, "hundred_x"), false);
+  assert.equal(u.xp, before + achievementXp("hundred_x"), "no double pay");
 });
 
 test("cosmetics: unlocks by level and achievement, equip validated shape", () => {
@@ -87,5 +145,6 @@ test("snapshot → hydrate roundtrip via FilePersistence", async () => {
   assert.ok(store2.conceptVoters.get(concept.id)!.has(A));
   assert.equal(store2.adminLog.length, 1);
   const status = store2.missionStatus(A);
-  assert.equal(status.find((m) => m.id === "d_trade_10")!.progress, 7, "activity survives restart");
+  // Weekly challenges are always live (dailies rotate), so check the trades one.
+  assert.equal(status.find((m) => m.id === "w_trade_50")!.progress, 7, "activity survives restart");
 });

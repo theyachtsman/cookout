@@ -1,5 +1,6 @@
 import {
   CREATOR_FEE_SHARE,
+  PODIUM_XP,
   REFERRAL_FEE_SHARE,
   XP_AWARDS,
   type Address,
@@ -39,6 +40,7 @@ export function evaluateRoundEnd(ctx: {
   let fastestExit: RoundSummary["fastestExit"];
   let returnSum = 0;
   let returnCount = 0;
+  const podium: Array<{ address: Address; pnl: number }> = [];
 
   for (const pos of positions.values()) {
     const addr = pos.userAddress as Address;
@@ -49,6 +51,8 @@ export function evaluateRoundEnd(ctx: {
     const pnl =
       pos.realizedPnl +
       (round.graduated ? pos.tokens * ctx.finalPrice - pos.costBasisEth : 0);
+
+    podium.push({ address: addr, pnl });
 
     // Aggregate summary candidates.
     if (!winner || pnl > winner.pnl) winner = { address: addr, pnl };
@@ -119,8 +123,12 @@ export function evaluateRoundEnd(ctx: {
     if (m?.soldNearPeak) {
       award("perfect_exit");
       grant("perfect_exit");
+      store.trackActivity(addr, "peak_sells", 1, now);
     }
-    if (m?.boughtNearBottom) grant("lucky_bastard");
+    if (m?.boughtNearBottom) {
+      grant("lucky_bastard");
+      store.trackActivity(addr, "dip_buys", 1, now);
+    }
     if (m?.whaleHunter) {
       award("whale_hunter");
       grant("whale_hunter");
@@ -128,6 +136,7 @@ export function evaluateRoundEnd(ctx: {
     if (m?.firstBuyAt && !m.fullExitAt && now - m.firstBuyAt >= durationSeconds * 750) {
       award("diamond_hands");
       grant("diamond_hands");
+      store.trackActivity(addr, "diamond_holds", 1, now);
     }
     if (m && m.firstBuyAt && m.fullExitAt && m.fullExitAt - m.firstBuyAt <= 10_000)
       grant("paper_hands");
@@ -135,14 +144,25 @@ export function evaluateRoundEnd(ctx: {
     if (rugged && m && m.maxTokens > 0 && m.tokensSoldBeforeEnd >= m.maxTokens * 0.5) {
       award("rug_survivor");
       grant("rug_survivor");
+      store.trackActivity(addr, "rug_survivals", 1, now);
       user.stats.rugsSurvived++;
     }
     if (round.tier === "degen" && won) {
       award("degen_survivor");
       grant("degen_survivor");
     }
-    if (round.graduated && pos.tokens > 0) grant("moon_rider");
+    if (round.graduated && pos.tokens > 0) {
+      grant("moon_rider");
+      store.trackActivity(addr, "graduations_held", 1, now);
+    }
   }
+
+  // Round podium — top 3 by PnL. Zero-sum XP (farm-proof) + a quest metric.
+  const ranked = podium.filter((p) => p.pnl > 0).sort((a, b) => b.pnl - a.pnl);
+  ranked.slice(0, PODIUM_XP.length).forEach((p, i) => {
+    store.addXp(p.address, PODIUM_XP[i]!);
+    store.trackActivity(p.address, "podium_finishes", 1, now);
+  });
 
   // First Blood: the round's first buyer (auction fills count via earliest firstBuyAt).
   let firstBuyer: Address | undefined;
@@ -153,7 +173,10 @@ export function evaluateRoundEnd(ctx: {
       firstBuyer = addr;
     }
   }
-  if (firstBuyer) store.grantAchievement(firstBuyer, "first_blood");
+  if (firstBuyer) {
+    store.grantAchievement(firstBuyer, "first_blood");
+    store.trackActivity(firstBuyer, "first_buys", 1, now);
+  }
 
   // Moon-or-Rug resolution (XP only).
   const outcome: "moon" | "rug" | undefined = rugged
@@ -169,6 +192,7 @@ export function evaluateRoundEnd(ctx: {
       if (outcome && p.call === outcome) {
         u.stats.predictionsCorrect++;
         store.addXp(p.userAddress, XP_AWARDS.prediction_correct);
+        store.trackActivity(p.userAddress, "correct_predictions", 1, now);
         if (u.stats.predictionsCorrect >= 10) store.grantAchievement(p.userAddress, "oracle");
       }
     }

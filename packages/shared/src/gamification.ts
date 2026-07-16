@@ -19,6 +19,29 @@ export const XP_AWARDS = {
 
 export type XpEventKind = keyof typeof XP_AWARDS;
 
+/** Round-podium XP by finishing rank (1st, 2nd, 3rd by round PnL). Zero-sum —
+ *  only three per round — so it can't be farmed by splitting into wallets. */
+export const PODIUM_XP = [60, 35, 20] as const;
+
+/** One-time XP for unlocking an achievement, by rarity. */
+export const ACHIEVEMENT_XP: Record<AchievementDef["rarity"], number> = {
+  common: 25,
+  rare: 60,
+  epic: 120,
+  legendary: 300,
+};
+
+/**
+ * Per-trade XP with geometric decay and a per-round cap, so buys and sells feel
+ * rewarding without letting volume be farmed for XP: trade n pays
+ * `round(5 · 0.6^(n-1))` — 5, 3, 2, 1, 1, 0… — capped at 12 XP/round and (via
+ * the store) 60 XP/day. A thousand wash trades earn what six real ones do.
+ */
+export const TRADE_XP = { base: 5, decay: 0.6, roundCap: 12, dailyCap: 60 } as const;
+export function tradeXpForIndex(n: number): number {
+  return Math.round(TRADE_XP.base * Math.pow(TRADE_XP.decay, n - 1));
+}
+
 /** Cumulative XP required to reach each level (1-indexed; level 1 = 0 XP). */
 export function xpForLevel(level: number): number {
   if (level <= 1) return 0;
@@ -84,3 +107,9 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "streak_5", name: "Heater", description: "5 winning rounds in a row", rarity: "rare" },
   { id: "oracle", name: "Oracle", description: "10 correct Moon-or-Rug predictions", rarity: "rare" },
 ];
+
+/** One-time XP an achievement grants on first unlock (0 if unknown id). */
+export function achievementXp(id: string): number {
+  const a = ACHIEVEMENTS.find((x) => x.id === id);
+  return a ? ACHIEVEMENT_XP[a.rarity] : 0;
+}

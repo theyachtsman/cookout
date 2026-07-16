@@ -1,13 +1,16 @@
 import { randomUUID } from "node:crypto";
 import {
   DEFAULT_ETH_USD,
-  MISSIONS,
+  DAILY_SET_BONUS_XP,
+  WEEKLY_MISSIONS,
+  WEEKLY_SET_BONUS_XP,
+  achievementXp,
+  activeDailyMissions,
   type Candle,
   STARTING_PAPER_BALANCE,
-  XP_AWARDS,
+  TRADE_XP,
   dayKey,
   levelForXp,
-  periodKey,
   titleForLevel,
   weekKey,
   type EquippedCosmetics,
@@ -68,6 +71,9 @@ export interface StoredUser extends UserProfile {
   seasons: Record<string, SeasonStats>;
   /** XP earned per ISO week (key "2026-W29") — drives the weekly jackpot. */
   weeklyXp: Record<string, number>;
+  /** Daily trade-XP accounting (Layer-1 grind cap): the day and XP so far. */
+  tradeXpDayKey?: string;
+  tradeXpToday?: number;
   feesEarned: number;
   /** Activity counters keyed by period ("2026-07-14" and "2026-W29"). */
   activity: Record<string, Partial<Record<MissionMetric, number>>>;
@@ -201,7 +207,30 @@ export class Store {
     const u = this.getOrCreateUser(address);
     if (u.achievements.includes(id)) return false;
     u.achievements.push(id);
+    // One-time XP by rarity — turns the badge wall into a progression track.
+    const xp = achievementXp(id);
+    if (xp > 0) this.addXp(address, xp);
     return true;
+  }
+
+  /**
+   * Award Layer-1 trade XP with a daily cap. Per-round decay is enforced by the
+   * caller (engine); this bounds the daily grind total. Returns XP actually given.
+   */
+  awardTradeXp(address: Address, amount: number, now = Date.now()): number {
+    if (amount <= 0) return 0;
+    const u = this.getOrCreateUser(address);
+    const dk = dayKey(now);
+    if (u.tradeXpDayKey !== dk) {
+      u.tradeXpDayKey = dk;
+      u.tradeXpToday = 0;
+    }
+    const give = Math.min(amount, Math.max(0, TRADE_XP.dailyCap - (u.tradeXpToday ?? 0)));
+    if (give > 0) {
+      u.tradeXpToday = (u.tradeXpToday ?? 0) + give;
+      this.addXp(address, give);
+    }
+    return give;
   }
 
   position(roundId: string, address: Address): Position {
@@ -228,7 +257,9 @@ export class Store {
    */
   trackActivity(address: Address, metric: MissionMetric, amount = 1, now = Date.now()): void {
     const u = this.getOrCreateUser(address);
-    for (const key of [dayKey(now), weekKey(now)]) {
+    const dk = dayKey(now);
+    const wk = weekKey(now);
+    for (const key of [dk, wk]) {
       const bucket = (u.activity[key] ??= {});
       bucket[metric] = (bucket[metric] ?? 0) + amount;
     }
@@ -237,9 +268,13 @@ export class Store {
     if (keys.length > 20) {
       for (const k of keys.sort().slice(0, keys.length - 12)) delete u.activity[k];
     }
-    for (const m of MISSIONS) {
+
+    // Only today's rotating daily set (plus all weeklies) can be completed.
+    const activeDaily = activeDailyMissions(now);
+    const relevant = [...activeDaily, ...WEEKLY_MISSIONS];
+    for (const m of relevant) {
       if (m.metric !== metric) continue;
-      const pk = periodKey(m.period, now);
+      const pk = m.period === "daily" ? dk : wk;
       const doneKey = `${pk}:${m.id}`;
       if (u.missionsDone[doneKey]) continue;
       if ((u.activity[pk]?.[m.metric] ?? 0) >= m.target) {
@@ -247,12 +282,33 @@ export class Store {
         this.addXp(address, m.xp);
       }
     }
+
+    // Set-completion bonuses: clear every active daily / every weekly.
+    const dailyBonusKey = `${dk}:__daily_set__`;
+    if (
+      !u.missionsDone[dailyBonusKey] &&
+      activeDaily.every((m) => u.missionsDone[`${dk}:${m.id}`])
+    ) {
+      u.missionsDone[dailyBonusKey] = true;
+      this.addXp(address, DAILY_SET_BONUS_XP);
+    }
+    const weeklyBonusKey = `${wk}:__weekly_set__`;
+    if (
+      !u.missionsDone[weeklyBonusKey] &&
+      WEEKLY_MISSIONS.every((m) => u.missionsDone[`${wk}:${m.id}`])
+    ) {
+      u.missionsDone[weeklyBonusKey] = true;
+      this.addXp(address, WEEKLY_SET_BONUS_XP);
+    }
   }
 
   missionStatus(address: Address, now = Date.now()) {
     const u = this.getOrCreateUser(address);
-    return MISSIONS.map((m) => {
-      const pk = periodKey(m.period, now);
+    const dk = dayKey(now);
+    const wk = weekKey(now);
+    // Today's rotating daily set + all weekly challenges.
+    return [...activeDailyMissions(now), ...WEEKLY_MISSIONS].map((m) => {
+      const pk = m.period === "daily" ? dk : wk;
       return {
         ...m,
         progress: Math.min(m.target, u.activity[pk]?.[m.metric] ?? 0),

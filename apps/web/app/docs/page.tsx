@@ -10,6 +10,11 @@ import {
   JACKPOT_FEE_SHARE,
   JACKPOT_WINNERS,
   JACKPOT_PAYOUT_WEIGHTS,
+  DAILY_SET_BONUS_XP,
+  WEEKLY_SET_BONUS_XP,
+  PODIUM_XP,
+  TRADE_XP,
+  ACHIEVEMENT_XP,
 } from "@cookout/shared";
 
 /** Product wiki: everything a new player needs, in the arena's own voice. */
@@ -23,7 +28,7 @@ const SECTIONS = [
   ["tiers", "Risk Tiers"],
   ["progression", "XP, Levels & Cosmetics"],
   ["jackpot", "The Weekly Jackpot"],
-  ["missions", "Missions & Predictions"],
+  ["quests", "Quests & Earning XP"],
   ["creators", "Launching Your Own Coin"],
   ["faq", "FAQ"],
 ] as const;
@@ -265,14 +270,94 @@ export default function Docs() {
           </p>
         </Section>
 
-        <Section id="missions" title="Missions & Predictions">
+        <Section id="quests" title="Quests & Earning XP">
           <p>
-            Daily missions and weekly challenges (profile page) award bonus XP for playing —
-            rounds, trades, profitable finishes, predictions, auction entries.
+            XP is the whole game — it sets your level, unlocks tiers and cosmetics, and decides
+            the <Link href="/jackpot" className="text-amber-400 underline">Weekly Jackpot</Link>.
+            You earn it from many places, and the system is built so the way to the top of the
+            board is <b>playing well and often</b>, never spamming one action. Here&apos;s every
+            source:
           </p>
-          <p>
-            <b>Moon or Rug</b>: before each open, call the outcome. Correct calls earn XP only —
-            it&apos;s bragging rights, not a bet.
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs uppercase text-zinc-500">
+                <tr>
+                  <th className="py-2 pr-4">Source</th>
+                  <th className="py-2 pr-4">XP</th>
+                  <th className="py-2">How it works</th>
+                </tr>
+              </thead>
+              <tbody className="align-top">
+                <tr className="border-t border-zinc-800">
+                  <td className="py-2 pr-4 font-bold">Every trade</td>
+                  <td className="py-2 pr-4 font-mono text-lime-300">5·3·2·1…</td>
+                  <td className="py-2 text-zinc-400">
+                    Buys and sells both earn, but on a decaying curve — capped at{" "}
+                    {TRADE_XP.roundCap} XP a round and {TRADE_XP.dailyCap} a day. Wash-spamming
+                    trades earns almost nothing.
+                  </td>
+                </tr>
+                <tr className="border-t border-zinc-800">
+                  <td className="py-2 pr-4 font-bold">Daily Quests</td>
+                  <td className="py-2 pr-4 font-mono text-lime-300">15–60</td>
+                  <td className="py-2 text-zinc-400">
+                    A board of 4 quests that <b>rotates every day</b> from a big pool — play rounds,
+                    catch a dip, nail an exit, hold to the end, make the podium. Clear all four for a{" "}
+                    <span className="text-amber-300">+{DAILY_SET_BONUS_XP}</span> bonus.
+                  </td>
+                </tr>
+                <tr className="border-t border-zinc-800">
+                  <td className="py-2 pr-4 font-bold">Weekly Challenges</td>
+                  <td className="py-2 pr-4 font-mono text-lime-300">120–250</td>
+                  <td className="py-2 text-zinc-400">
+                    Bigger goals that span the week and drive your jackpot standing. Clear the whole
+                    set for a <span className="text-amber-300">+{WEEKLY_SET_BONUS_XP}</span> bonus.
+                  </td>
+                </tr>
+                <tr className="border-t border-zinc-800">
+                  <td className="py-2 pr-4 font-bold">Round podium</td>
+                  <td className="py-2 pr-4 font-mono text-lime-300">
+                    {PODIUM_XP.join(" / ")}
+                  </td>
+                  <td className="py-2 text-zinc-400">
+                    Finish a round top-3 by PnL. Only three players win it per round — you can&apos;t
+                    farm it, you have to out-trade the table.
+                  </td>
+                </tr>
+                <tr className="border-t border-zinc-800">
+                  <td className="py-2 pr-4 font-bold">Achievements</td>
+                  <td className="py-2 pr-4 font-mono text-lime-300">
+                    {ACHIEVEMENT_XP.common}–{ACHIEVEMENT_XP.legendary}
+                  </td>
+                  <td className="py-2 text-zinc-400">
+                    Every badge you unlock pays one-time XP, scaled by rarity — common to legendary.
+                  </td>
+                </tr>
+                <tr className="border-t border-zinc-800">
+                  <td className="py-2 pr-4 font-bold">Round play</td>
+                  <td className="py-2 pr-4 font-mono text-lime-300">15–75</td>
+                  <td className="py-2 text-zinc-400">
+                    Just showing up and playing, first buys, profitable finishes, diamond hands,
+                    perfect exits, whale hunts, rug survival — all pay, win or lose.
+                  </td>
+                </tr>
+                <tr className="border-t border-zinc-800">
+                  <td className="py-2 pr-4 font-bold">Predictions</td>
+                  <td className="py-2 pr-4 font-mono text-lime-300">15–20</td>
+                  <td className="py-2 text-zinc-400">
+                    <b>Moon or Rug</b> — call each open before it happens. XP only; bragging rights,
+                    not a bet.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <p className="text-zinc-400">
+            Track your live quests on your <Link href="/profile" className="text-lime-400 underline">profile</Link>.
+            Because the biggest, farm-proof XP comes from winning, timing, and consistency, the
+            jackpot always flows to the best players — not the busiest bots.
           </p>
         </Section>
 

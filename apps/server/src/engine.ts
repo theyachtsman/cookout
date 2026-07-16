@@ -5,12 +5,14 @@ import {
   RUG_DRAIN_FRACTION,
   RUG_WINDOW_SECONDS,
   TIER_CONFIGS,
+  TRADE_XP,
   WHALE_TRADE_FRACTION,
   buy,
   marketCap,
   sell,
   settleAuction,
   spotPrice,
+  tradeXpForIndex,
   type Address,
   type Candle,
   type KillFeedKind,
@@ -38,6 +40,8 @@ export interface PlayerMeta {
   whaleHunter: boolean;
   minPnlFrac: number; // worst unrealized drawdown vs cost basis
   tokensSoldBeforeEnd: number;
+  tradesThisRound: number; // for per-round trade-XP decay
+  tradeXpEarned: number; // XP already paid for trading this round (round cap)
 }
 
 interface LiveRoundState {
@@ -134,6 +138,8 @@ export class RoundEngine {
         whaleHunter: false,
         minPnlFrac: 0,
         tokensSoldBeforeEnd: 0,
+        tradesThisRound: 0,
+        tradeXpEarned: 0,
       };
       s.meta.set(address, m);
     }
@@ -376,6 +382,14 @@ export class RoundEngine {
     const season = (user.seasons[this.store.seasonKey(now)] ??= { pnl: 0, xp: 0, wins: 0, trades: 0 });
     season.trades += 1;
     this.store.trackActivity(user.address, "trades", 1, now);
+    // Layer-1 trade XP: buys and sells earn, but on a per-round decay curve
+    // (5·0.6^(n-1)) capped at TRADE_XP.roundCap, so spam can't be farmed.
+    m.tradesThisRound += 1;
+    const wantXp = Math.min(
+      tradeXpForIndex(m.tradesThisRound),
+      Math.max(0, TRADE_XP.roundCap - m.tradeXpEarned),
+    );
+    if (wantXp > 0) m.tradeXpEarned += this.store.awardTradeXp(user.address, wantXp, now);
     this.afterTrade(round, now);
     return trade;
   }
