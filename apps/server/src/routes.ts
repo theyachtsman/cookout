@@ -37,15 +37,26 @@ export function createApp(
 
   // CORS_ORIGIN is a comma-separated allowlist of web origins (the API and the
   // web app are on different hosts in production: API behind a tunnel, web on
-  // Vercel). An entry of "*" allows any origin; an entry like "*.vercel.app"
-  // matches that suffix (preview deploys). The matching request Origin is
-  // echoed back so multiple front-end hosts work without wildcarding.
+  // Vercel). An entry of "*" allows any origin; an entry may contain a single
+  // "*" wildcard, e.g. "https://*.vercel.app" for preview deploys. The matching
+  // request Origin is echoed back so multiple front-end hosts work.
   const corsAllow = (process.env.CORS_ORIGIN ?? "*")
     .split(",")
     .map((s) => s.trim())
     .filter(Boolean);
   const originAllowed = (origin: string) =>
-    corsAllow.some((a) => a === origin || (a.startsWith("*.") && origin.endsWith(a.slice(1))));
+    corsAllow.some((a) => {
+      if (a === origin) return true;
+      const star = a.indexOf("*");
+      if (star === -1) return false;
+      const pre = a.slice(0, star);
+      const post = a.slice(star + 1);
+      return (
+        origin.length >= pre.length + post.length &&
+        origin.startsWith(pre) &&
+        origin.endsWith(post)
+      );
+    });
   app.use((req, res, next) => {
     const origin = req.headers.origin;
     const allow = corsAllow.includes("*")
