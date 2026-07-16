@@ -34,9 +34,27 @@ export function createApp(
   const app = express();
   // Body limit covers client-downscaled data-URL images (coin art, avatars).
   app.use(express.json({ limit: "2mb" }));
+
+  // CORS_ORIGIN is a comma-separated allowlist of web origins (the API and the
+  // web app are on different hosts in production: API behind a tunnel, web on
+  // Vercel). An entry of "*" allows any origin; an entry like "*.vercel.app"
+  // matches that suffix (preview deploys). The matching request Origin is
+  // echoed back so multiple front-end hosts work without wildcarding.
+  const corsAllow = (process.env.CORS_ORIGIN ?? "*")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const originAllowed = (origin: string) =>
+    corsAllow.some((a) => a === origin || (a.startsWith("*.") && origin.endsWith(a.slice(1))));
   app.use((req, res, next) => {
-    // Set CORS_ORIGIN to your web origin in production (e.g. https://cookout.vercel.app).
-    res.setHeader("Access-Control-Allow-Origin", process.env.CORS_ORIGIN ?? "*");
+    const origin = req.headers.origin;
+    const allow = corsAllow.includes("*")
+      ? "*"
+      : origin && originAllowed(origin)
+        ? origin
+        : (corsAllow[0] ?? "*");
+    res.setHeader("Access-Control-Allow-Origin", allow);
+    res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-Admin-Key");
     res.setHeader("Access-Control-Allow-Methods", "GET, POST, PATCH, DELETE, OPTIONS");
     if (req.method === "OPTIONS") {
