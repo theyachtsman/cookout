@@ -18,6 +18,15 @@ const SIWE_URI = process.env.SIWE_URI ?? `http://${SIWE_DOMAIN}`;
 const SIWE_CHAIN_ID = process.env.SIWE_CHAIN_ID ?? "1";
 const NONCE_TTL_MS = 5 * 60 * 1000;
 
+/** Dev wallets always bypass the beta whitelist (comma-separated addresses). */
+const DEV_WALLETS = new Set(
+  (process.env.DEV_WALLETS ?? "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean),
+);
+export const isDevWallet = (address: string): boolean => DEV_WALLETS.has(address.toLowerCase());
+
 export function nonceMessage(address: string, nonce: string, issuedAtMs: number): string {
   return [
     `${SIWE_DOMAIN} wants you to sign in with your Ethereum account:`,
@@ -61,15 +70,19 @@ export async function verifyAndCreateSession(
   });
   if (!valid) throw Object.assign(new Error("invalid signature"), { status: 401 });
   store.nonces.delete(key);
-  // Beta-period gate: with BETA_WHITELIST=1, only signed-up wallets (or
-  // wallets that already have profiles) may create sessions.
+  // Beta-period gate: with BETA_WHITELIST=1, only dev wallets, approved
+  // whitelist wallets, or wallets that already have profiles may create
+  // sessions. Collected-but-unapproved signups are held out until launch.
   if (
     process.env.BETA_WHITELIST === "1" &&
+    !isDevWallet(key) &&
     !store.users.has(key) &&
     !store.betaSignups.get(key)?.approved
   ) {
     throw Object.assign(
-      new Error("this wallet is not on the beta whitelist — sign up on the landing page"),
+      new Error(
+        "The Cookout is in private beta. Your wallet is on the list — we'll open access at launch.",
+      ),
       { status: 403 },
     );
   }

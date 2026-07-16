@@ -311,7 +311,8 @@ export function createApp(
         address: key,
         xHandle: xHandle ? String(xHandle).replace(/^@/, "").slice(0, 32) : undefined,
         at: Date.now(),
-        approved: true, // beta period gating is flipped via BETA_WHITELIST env
+        // Collected only — NOT access. Admin approves wallets at beta launch.
+        approved: false,
       });
       res.json({ ok: true, count: store.betaSignups.size });
     }),
@@ -325,9 +326,72 @@ export function createApp(
   app.get(
     "/api/admin/beta",
     admin,
-    wrap((_req, res) =>
-      res.json([...store.betaSignups.values()].sort((a, b) => a.at - b.at)),
-    ),
+    wrap((_req, res) => {
+      const signups = [...store.betaSignups.values()].sort((a, b) => a.at - b.at);
+      res.json({
+        signups,
+        total: signups.length,
+        approved: signups.filter((s) => s.approved).length,
+        pending: signups.filter((s) => !s.approved).length,
+        whitelistOn: process.env.BETA_WHITELIST === "1",
+      });
+    }),
+  );
+
+  const BETA_ADDR = /^0x[0-9a-fA-F]{40}$/;
+
+  /** Approve one wallet (creating the signup if the admin is adding it directly). */
+  app.post(
+    "/api/admin/beta/approve",
+    admin,
+    wrap((req, res) => {
+      const { address, xHandle } = req.body as { address?: string; xHandle?: string };
+      if (!address || !BETA_ADDR.test(address)) throw new Err(400, "valid wallet address required");
+      const key = address.toLowerCase();
+      const existing = store.betaSignups.get(key);
+      if (existing) existing.approved = true;
+      else
+        store.betaSignups.set(key, {
+          address: key,
+          xHandle: xHandle ? String(xHandle).replace(/^@/, "").slice(0, 32) : undefined,
+          at: Date.now(),
+          approved: true,
+        });
+      store.logAdmin("beta_approve", key);
+      res.json({ ok: true, address: key, approved: true });
+    }),
+  );
+
+  /** Bulk-approve every collected signup — the "open the beta" button. */
+  app.post(
+    "/api/admin/beta/approve-all",
+    admin,
+    wrap((_req, res) => {
+      let approvedNow = 0;
+      for (const s of store.betaSignups.values()) {
+        if (!s.approved) {
+          s.approved = true;
+          approvedNow++;
+        }
+      }
+      store.logAdmin("beta_approve_all", `${approvedNow} wallets`);
+      res.json({ ok: true, approvedNow, total: store.betaSignups.size });
+    }),
+  );
+
+  /** Revoke access for a wallet (keeps it on the collected list, unapproved). */
+  app.post(
+    "/api/admin/beta/revoke",
+    admin,
+    wrap((req, res) => {
+      const { address } = req.body as { address?: string };
+      if (!address || !BETA_ADDR.test(address)) throw new Err(400, "valid wallet address required");
+      const key = address.toLowerCase();
+      const s = store.betaSignups.get(key);
+      if (s) s.approved = false;
+      store.logAdmin("beta_revoke", key);
+      res.json({ ok: true, address: key, approved: false });
+    }),
   );
 
   // ---- creator submissions & community voting ----

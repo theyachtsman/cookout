@@ -49,22 +49,64 @@ function FlagClearer({ act }: { act: (path: string, body?: unknown, method?: str
   );
 }
 
+interface BetaSignup {
+  address: string;
+  xHandle?: string;
+  at: number;
+  approved: boolean;
+}
+interface BetaData {
+  signups: BetaSignup[];
+  total: number;
+  approved: number;
+  pending: number;
+  whitelistOn: boolean;
+}
+
 function BetaList({ adminKey }: { adminKey: string }) {
-  const [signups, setSignups] = useState<Array<{ address: string; xHandle?: string; at: number }>>([]);
-  useEffect(() => {
-    api<typeof signups>("/api/admin/beta", { admin: adminKey })
-      .then(setSignups)
-      .catch(() => {});
+  const [data, setData] = useState<BetaData | null>(null);
+  const [addr, setAddr] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const load = useCallback(() => {
+    api<BetaData>("/api/admin/beta", { admin: adminKey }).then(setData).catch(() => {});
   }, [adminKey]);
+  useEffect(load, [load]);
+
+  const act = async (path: string, body?: Record<string, unknown>) => {
+    setBusy(true);
+    try {
+      await api(path, { admin: adminKey, body: body ?? {} });
+      load();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const signups = data?.signups ?? [];
+
   return (
     <div className="rounded-lg border border-zinc-800 p-3">
-      <div className="mb-2 flex items-center gap-3 text-sm">
-        <span className="font-mono font-bold">{signups.length}</span>
-        <span className="text-zinc-500">wallets in line</span>
+      <div className="mb-3 flex flex-wrap items-center gap-3 text-sm">
+        <span>
+          <span className="font-mono font-bold text-emerald-400">{data?.approved ?? 0}</span>{" "}
+          <span className="text-zinc-500">approved</span>
+        </span>
+        <span>
+          <span className="font-mono font-bold text-amber-400">{data?.pending ?? 0}</span>{" "}
+          <span className="text-zinc-500">pending</span>
+        </span>
+        <span
+          className={`rounded px-2 py-0.5 text-xs font-bold ${
+            data?.whitelistOn ? "bg-emerald-500/20 text-emerald-300" : "bg-red-500/20 text-red-300"
+          }`}
+        >
+          gate {data?.whitelistOn ? "ON" : "OFF"}
+        </span>
         <button
           onClick={() =>
             void navigator.clipboard.writeText(
-              signups.map((s) => `${s.address},${s.xHandle ?? ""}`).join("\n"),
+              signups.map((s) => `${s.address},${s.xHandle ?? ""},${s.approved ? "approved" : "pending"}`).join("\n"),
             )
           }
           className="ml-auto rounded bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700"
@@ -72,20 +114,66 @@ function BetaList({ adminKey }: { adminKey: string }) {
           copy CSV
         </button>
       </div>
-      <div className="max-h-48 overflow-y-auto font-mono text-xs">
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <button
+          disabled={busy || (data?.pending ?? 0) === 0}
+          onClick={() => {
+            if (confirm(`Approve all ${data?.pending ?? 0} pending wallets? This opens the beta to everyone collected.`))
+              void act("/api/admin/beta/approve-all");
+          }}
+          className="rounded bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-emerald-500 disabled:opacity-40"
+        >
+          🚀 Approve all pending (open beta)
+        </button>
+        <input
+          value={addr}
+          onChange={(e) => setAddr(e.target.value)}
+          placeholder="0x… add/approve a wallet"
+          className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 font-mono text-xs"
+        />
+        <button
+          disabled={busy || !/^0x[0-9a-fA-F]{40}$/.test(addr.trim())}
+          onClick={() => void act("/api/admin/beta/approve", { address: addr.trim() }).then(() => setAddr(""))}
+          className="rounded bg-lime-500 px-3 py-1.5 text-xs font-bold text-zinc-950 hover:bg-lime-400 disabled:opacity-40"
+        >
+          Approve
+        </button>
+      </div>
+
+      <div className="max-h-56 overflow-y-auto font-mono text-xs">
         {signups.map((s) => (
-          <div key={s.address} className="flex justify-between border-b border-zinc-800/50 py-1">
-            <span>{s.address}</span>
-            <span className="text-zinc-500">
+          <div key={s.address} className="flex items-center gap-2 border-b border-zinc-800/50 py-1">
+            <span className={s.approved ? "text-emerald-400" : "text-amber-400"}>
+              {s.approved ? "✓" : "•"}
+            </span>
+            <span className="truncate">{s.address}</span>
+            <span className="ml-auto shrink-0 text-zinc-500">
               {s.xHandle && `@${s.xHandle} · `}
               {new Date(s.at).toLocaleDateString()}
             </span>
+            <button
+              disabled={busy}
+              onClick={() =>
+                void act(s.approved ? "/api/admin/beta/revoke" : "/api/admin/beta/approve", {
+                  address: s.address,
+                })
+              }
+              className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-bold ${
+                s.approved
+                  ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
+                  : "bg-emerald-600 text-white hover:bg-emerald-500"
+              }`}
+            >
+              {s.approved ? "revoke" : "approve"}
+            </button>
           </div>
         ))}
         {signups.length === 0 && <div className="py-2 text-zinc-600">no signups yet</div>}
       </div>
       <p className="mt-2 text-[11px] text-zinc-600">
-        Start the API with BETA_WHITELIST=1 to restrict sign-ins to this list during the beta.
+        Gate ON ⇒ only dev wallets + approved wallets can sign in. Collected signups stay{" "}
+        <span className="text-amber-400">pending</span> until you approve them at launch.
       </p>
     </div>
   );

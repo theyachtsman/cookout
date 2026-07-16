@@ -6,6 +6,44 @@ import { SESSION_TTL_MS, Store } from "./store.js";
 
 const account = privateKeyToAccount(generatePrivateKey());
 
+/** Sign the current nonce for `acct` and attempt to create a session. */
+async function attemptSignIn(store: Store, acct = account) {
+  const { message } = issueNonce(store, acct.address);
+  const signature = await acct.signMessage({ message });
+  return verifyAndCreateSession(store, acct.address, signature);
+}
+
+test("beta gate: with BETA_WHITELIST=1, only approved wallets may sign in", async () => {
+  const prev = process.env.BETA_WHITELIST;
+  process.env.BETA_WHITELIST = "1";
+  try {
+    const store = new Store();
+
+    // Unapproved (or merely collected) wallet is refused with 403.
+    await assert.rejects(attemptSignIn(store), (e: Error & { status?: number }) => {
+      assert.equal(e.status, 403);
+      assert.match(e.message, /private beta/i);
+      return true;
+    });
+
+    // A collected-but-unapproved signup is still refused.
+    store.betaSignups.set(account.address.toLowerCase(), {
+      address: account.address.toLowerCase(),
+      at: Date.now(),
+      approved: false,
+    });
+    await assert.rejects(attemptSignIn(store), (e: Error & { status?: number }) => e.status === 403);
+
+    // Once approved, sign-in succeeds.
+    store.betaSignups.get(account.address.toLowerCase())!.approved = true;
+    const { token } = await attemptSignIn(store);
+    assert.equal(store.sessionAddress(token), account.address.toLowerCase());
+  } finally {
+    if (prev === undefined) delete process.env.BETA_WHITELIST;
+    else process.env.BETA_WHITELIST = prev;
+  }
+});
+
 test("sign-in: SIWE message is domain-bound and verifies round-trip", async () => {
   const store = new Store();
   const { message } = issueNonce(store, account.address);

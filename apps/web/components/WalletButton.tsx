@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { useSession } from "../lib/session";
 
 export function WalletButton() {
-  const { profile, signIn, signOut, busy } = useSession();
+  const { profile, signIn, signOut, busy, authError, clearAuthError } = useSession();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -77,12 +77,25 @@ export function WalletButton() {
     );
   }
   return (
-    <button
-      onClick={() => void signIn()}
-      disabled={busy}
-      className="rounded bg-lime-400 px-3 py-1 text-sm font-semibold text-zinc-950 hover:bg-lime-300 disabled:opacity-50"
-    >
-      {busy ? "Signing…" : "Connect Wallet"}
-    </button>
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => void signIn()}
+        disabled={busy}
+        className="rounded bg-lime-400 px-3 py-1 text-sm font-semibold text-zinc-950 hover:bg-lime-300 disabled:opacity-50"
+      >
+        {busy ? "Signing…" : "Connect Wallet"}
+      </button>
+      {authError && (
+        <div className="absolute right-0 top-full z-30 mt-1 w-64 rounded-lg border border-amber-500/40 bg-zinc-900 p-3 text-xs shadow-2xl">
+          <p className="text-amber-200">{authError}</p>
+          <button
+            onClick={clearAuthError}
+            className="mt-2 text-[11px] text-zinc-500 hover:text-zinc-300"
+          >
+            dismiss
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
