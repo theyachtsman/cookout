@@ -11,7 +11,6 @@ import {
 } from "@cookout/shared";
 import {
   issueNonce,
-  nonceMessage,
   requireAdmin,
   requireAuth,
   verifyAndCreateSession,
@@ -77,8 +76,8 @@ export function createApp(
     wrap((req, res) => {
       const { address } = req.body as { address?: string };
       if (!address?.startsWith("0x")) throw new Err(400, "address required");
-      const nonce = issueNonce(store, address);
-      res.json({ nonce, message: nonceMessage(address, nonce) });
+      const { nonce, message } = issueNonce(store, address);
+      res.json({ nonce, message });
     }),
   );
 

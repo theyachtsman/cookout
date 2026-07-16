@@ -35,6 +35,8 @@ Create `/home/cookout/cookout.env`:
 ADMIN_KEY=<openssl rand -hex 24>
 DATABASE_URL=postgres://cookout:cookout@127.0.0.1:5434/cookout
 CORS_ORIGIN=https://yourdomain.com
+SIWE_DOMAIN=yourdomain.com          # domain shown in (and bound to) the sign-in message
+SIWE_URI=https://yourdomain.com     # defaults to http://$SIWE_DOMAIN if unset
 SEED=1                # demo auto-scheduler on; flip auto-schedule in /admin Live Ops
 # BETA_WHITELIST=1    # uncomment when the beta window opens, restart the API
 NEXT_PUBLIC_API_URL=https://api.yourdomain.com

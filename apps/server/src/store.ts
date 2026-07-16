@@ -28,6 +28,19 @@ import {
   type UserProfile,
 } from "@cookout/shared";
 
+/** Sessions outlive deploys but not this window (see snapshot comment). */
+export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+
+export interface SessionRecord {
+  address: Address;
+  expiresAt: number;
+}
+
+export interface PendingNonce {
+  nonce: string;
+  issuedAt: number;
+}
+
 export interface BetaSignup {
   address: Address;
   xHandle?: string;
@@ -72,8 +85,8 @@ export interface StoredUser extends UserProfile {
  */
 export class Store {
   users = new Map<Address, StoredUser>();
-  sessions = new Map<string, Address>(); // token → address
-  nonces = new Map<Address, string>();
+  sessions = new Map<string, SessionRecord>(); // token → session
+  nonces = new Map<Address, PendingNonce>();
   concepts = new Map<string, TokenConcept>();
   conceptVoters = new Map<string, Set<Address>>();
   rounds = new Map<string, Round>();
@@ -231,6 +244,17 @@ export class Store {
   }
 
   /** Serializable snapshot of durable state (live rounds stay ephemeral). */
+  /** Resolve a session token, expiring it lazily. */
+  sessionAddress(token: string): Address | undefined {
+    const s = this.sessions.get(token);
+    if (!s) return undefined;
+    if (s.expiresAt <= Date.now()) {
+      this.sessions.delete(token);
+      return undefined;
+    }
+    return s.address;
+  }
+
   snapshot(): Snapshot {
     return {
       version: 1,
@@ -246,7 +270,9 @@ export class Store {
       adminLog: this.adminLog.slice(-1000),
       betaSignups: [...this.betaSignups.values()],
       // Sessions persist so a deploy/restart never signs the beta out.
-      sessions: [...this.sessions.entries()].slice(-5000),
+      sessions: [...this.sessions.entries()]
+        .filter(([, s]) => s.expiresAt > Date.now())
+        .slice(-5000),
       feedback: this.feedback.slice(-2000),
       settings: this.settings,
     };
@@ -270,7 +296,13 @@ export class Store {
     for (const a of snap.auctionResults) this.auctionResults.set(a.roundId, a);
     for (const s of snap.summaries) this.summaries.set(s.roundId, s);
     for (const b of snap.betaSignups ?? []) this.betaSignups.set(b.address, b);
-    for (const [token, address] of snap.sessions ?? []) this.sessions.set(token, address);
+    for (const [token, s] of snap.sessions ?? []) {
+      // Pre-expiry snapshots stored the bare address; grant those the full TTL.
+      this.sessions.set(
+        token,
+        typeof s === "string" ? { address: s, expiresAt: Date.now() + SESSION_TTL_MS } : s,
+      );
+    }
     this.feedback = snap.feedback ?? [];
     if (snap.settings) this.settings = { ...this.settings, ...snap.settings };
     this.adminLog = snap.adminLog;
@@ -306,7 +338,7 @@ export interface Snapshot {
   summaries: RoundSummary[];
   adminLog: AdminLogEntry[];
   betaSignups?: BetaSignup[];
-  sessions?: Array<[string, Address]>;
+  sessions?: Array<[string, Address | SessionRecord]>;
   feedback?: FeedbackEntry[];
   settings?: OpsSettings;
 }

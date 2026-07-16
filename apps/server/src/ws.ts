@@ -28,7 +28,7 @@ export class Hub {
       const token = url.searchParams.get("token");
       const client: Client = {
         ws,
-        address: token ? this.store.sessions.get(token) : undefined,
+        address: token ? this.store.sessionAddress(token) : undefined,
         rooms: new Set(),
       };
       this.clients.add(client);

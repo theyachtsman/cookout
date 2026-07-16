@@ -11,6 +11,12 @@ import {RoundPool} from "./RoundPool.sol";
 ///         "creators supply metadata, never code" is enforced by construction.
 ///         The factory holds no post-deploy rights over any round it creates.
 contract RoundFactory {
+    /// @notice Hard cap on both fee streams. Creation is permissionless, so
+    ///         without this a round with a ~100% sell fee is a honeypot that
+    ///         passes every other trust property. 5% leaves ample headroom
+    ///         over the 1% the platform actually charges.
+    uint16 public constant MAX_FEE_BPS = 500;
+
     struct RoundAddresses {
         address token;
         address pool;
@@ -57,6 +63,11 @@ contract RoundFactory {
         returns (address tokenAddr, address poolAddr, address auctionAddr)
     {
         require(msg.value > 0, "liquidity");
+        require(p.totalSupply > 0, "supply");
+        require(p.tradeFeeBps <= MAX_FEE_BPS && p.auctionFeeBps <= MAX_FEE_BPS, "fee too high");
+        require(p.feeRecipient != address(0), "fee recipient");
+        require(p.queueClosesAt > block.timestamp, "queue closes in past");
+        require(p.endTime > p.queueClosesAt, "ends before queue closes");
         ArenaToken token = new ArenaToken(p.name, p.symbol, p.totalSupply, address(this));
         RoundPool pool = new RoundPool(
             token,

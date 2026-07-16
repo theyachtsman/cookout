@@ -78,6 +78,58 @@ describe("ArenaToken", () => {
   });
 });
 
+describe("RoundFactory parameter bounds", () => {
+  /** Expect createRound to revert with `reason` for the given overrides. */
+  async function expectRejected(overrides, reason) {
+    const [deployer] = await ethers.getSigners();
+    const factory = await (await ethers.getContractFactory("RoundFactory")).deploy();
+    const t = await now();
+    const params = {
+      name: "Honeypot",
+      symbol: "TRAP",
+      totalSupply: E(1_000_000),
+      queueClosesAt: t + 100,
+      endTime: t + 1000,
+      auctionMaxRaiseWei: E(50),
+      auctionFeeBps: 0,
+      tradeFeeBps: 100,
+      mcapTargetWei: 0,
+      graduationMcapWei: E(400),
+      graduationMinVolumeWei: E(200),
+      graduationMinHolders: 10,
+      feeRecipient: deployer.address,
+      creator: deployer.address,
+      ...overrides,
+    };
+    await expect(factory.createRound(params, { value: E(100) })).to.be.revertedWith(reason);
+  }
+
+  it("rejects honeypot trade fees above MAX_FEE_BPS", async () => {
+    await expectRejected({ tradeFeeBps: 501 }, "fee too high");
+    await expectRejected({ tradeFeeBps: 9999 }, "fee too high");
+  });
+
+  it("rejects auction fees above MAX_FEE_BPS", async () => {
+    await expectRejected({ auctionFeeBps: 501 }, "fee too high");
+  });
+
+  it("rejects zero supply and zero fee recipient", async () => {
+    await expectRejected({ totalSupply: 0n }, "supply");
+    await expectRejected({ feeRecipient: ethers.ZeroAddress }, "fee recipient");
+  });
+
+  it("rejects degenerate schedules", async () => {
+    const t = await now();
+    await expectRejected({ queueClosesAt: t - 10 }, "queue closes in past");
+    await expectRejected({ queueClosesAt: t + 500, endTime: t + 400 }, "ends before queue closes");
+  });
+
+  it("accepts fees exactly at MAX_FEE_BPS", async () => {
+    const { pool } = await createRound({ tradeFeeBps: 500, auctionFeeBps: 500 });
+    expect(await pool.tradeFeeBps()).to.equal(500n);
+  });
+});
+
 describe("Round lifecycle on-chain", () => {
   it("auction → uniform fills → live trading → timer end → uniform redemption", async () => {
     const [, alice, bob, carol, rando] = await ethers.getSigners();
