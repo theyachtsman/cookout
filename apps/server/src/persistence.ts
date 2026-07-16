@@ -68,22 +68,38 @@ export class PgPersistence implements Persistence {
       CREATE TABLE IF NOT EXISTS summaries (round_id TEXT PRIMARY KEY, data JSONB NOT NULL);
       CREATE TABLE IF NOT EXISTS admin_log (id TEXT PRIMARY KEY, at BIGINT NOT NULL, action TEXT NOT NULL, detail TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS beta_signups (address TEXT PRIMARY KEY, data JSONB NOT NULL);
+      CREATE TABLE IF NOT EXISTS state (id INT PRIMARY KEY, data JSONB NOT NULL);
     `);
   }
 
+  /** Snapshot fields that are singletons (not one-row-per-entity): kept in a
+   *  single `state` row so they survive restarts like everything else. */
+  private static readonly STATE_KEYS = [
+    "candles",
+    "sessions",
+    "feedback",
+    "settings",
+    "jackpotPool",
+    "jackpotWeekKey",
+    "jackpotHistory",
+    "jackpotLifetimeEth",
+  ] as const;
+
   async load(): Promise<Snapshot | null> {
     await this.ready;
-    const [users, concepts, voters, rounds, auctions, summaries, log, beta] = await Promise.all([
-      this.pool.query("SELECT data FROM users"),
-      this.pool.query("SELECT data FROM concepts"),
-      this.pool.query("SELECT concept_id, voters FROM concept_voters"),
-      this.pool.query("SELECT data FROM rounds_archive"),
-      this.pool.query("SELECT data FROM auction_results"),
-      this.pool.query("SELECT data FROM summaries"),
-      this.pool.query("SELECT id, at, action, detail FROM admin_log ORDER BY at ASC"),
-      this.pool.query("SELECT data FROM beta_signups"),
-    ]);
-    if (users.rowCount === 0 && concepts.rowCount === 0) return null;
+    const [users, concepts, voters, rounds, auctions, summaries, log, beta, state] =
+      await Promise.all([
+        this.pool.query("SELECT data FROM users"),
+        this.pool.query("SELECT data FROM concepts"),
+        this.pool.query("SELECT concept_id, voters FROM concept_voters"),
+        this.pool.query("SELECT data FROM rounds_archive"),
+        this.pool.query("SELECT data FROM auction_results"),
+        this.pool.query("SELECT data FROM summaries"),
+        this.pool.query("SELECT id, at, action, detail FROM admin_log ORDER BY at ASC"),
+        this.pool.query("SELECT data FROM beta_signups"),
+        this.pool.query("SELECT data FROM state WHERE id = 1"),
+      ]);
+    if (users.rowCount === 0 && concepts.rowCount === 0 && state.rowCount === 0) return null;
     return {
       version: 1,
       users: users.rows.map((r) => r.data),
@@ -94,6 +110,7 @@ export class PgPersistence implements Persistence {
       summaries: summaries.rows.map((r) => r.data),
       adminLog: log.rows.map((r) => ({ ...r, at: Number(r.at) })),
       betaSignups: beta.rows.map((r) => r.data),
+      ...(state.rows[0]?.data ?? {}), // sessions, settings, jackpot*, feedback, candles
     };
   }
 
@@ -139,6 +156,14 @@ export class PgPersistence implements Persistence {
           "INSERT INTO admin_log (id, at, action, detail) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING",
           [e.id, e.at, e.action, e.detail],
         );
+      // Singleton state (sessions, settings, jackpot, feedback, candles) in one row.
+      const state = Object.fromEntries(
+        PgPersistence.STATE_KEYS.map((k) => [k, s[k]]),
+      );
+      await client.query(
+        "INSERT INTO state (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = $1",
+        [JSON.stringify(state)],
+      );
       await client.query("COMMIT");
     } catch (err) {
       await client.query("ROLLBACK");
