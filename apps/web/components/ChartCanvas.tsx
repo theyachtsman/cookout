@@ -31,6 +31,8 @@ interface Props {
   windowSec?: number;
   /** Show the MCAP/PRICE switch (default true; off for the landing demo). */
   showToggle?: boolean;
+  /** Trades from this address always get a tagged bubble (e.g. your own). */
+  highlightAddress?: string;
   /** Populate a trader tag (name/avatar) for a bubble — async mutation ok. */
   resolveTag?: (address: string, tag: ProfileTag) => void;
   /** Canvas classes (size/border). Defaults to the product's 20rem panel. */
@@ -82,7 +84,7 @@ export function ChartCanvas(props: Props) {
       raf = requestAnimationFrame(draw);
       const canvas = ref.current;
       if (!canvas) return;
-      const { candles, trades, livePrice, openPrice, supply, bigTradeEth, cooking, endReason, graduated, windowSec } =
+      const { candles, trades, livePrice, openPrice, supply, bigTradeEth, cooking, endReason, graduated, windowSec, highlightAddress } =
         propsRef.current;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
@@ -232,7 +234,7 @@ export function ChartCanvas(props: Props) {
         const ty = y(t.price);
         const buy = t.side === "buy";
         const color = buy ? UP : DOWN;
-        const big = t.ethAmount >= threshold || t.isCreator;
+        const big = t.ethAmount >= threshold || t.isCreator || t.userAddress === highlightAddress;
         ctx.beginPath();
         ctx.arc(tx, ty, big ? 4 : 2.2, 0, Math.PI * 2);
         ctx.fillStyle = color;

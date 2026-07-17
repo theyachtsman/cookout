@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { Candle, Trade } from "@cookout/shared";
 import { ChartCanvas } from "./ChartCanvas";
 
@@ -33,6 +33,51 @@ const SCENES = [
 
 /** Look up a scene duration by key (robust to reordering). */
 const durOf = (k: string) => SCENES.find((s) => s.key === k)!.dur;
+
+/** The visitor's wallet in the playable Launch→Live scene. */
+const YOU_ADDR = "0xc0ffee00000000000000000000000000000000c0";
+const SUPPLY = 2_000_000;
+const ETH_USD = 1920;
+const START_CASH = 10; // pETH to play with
+
+/**
+ * Satisfying click blips, synthesized with Web Audio — no audio assets, and it
+ * only ever fires from a real button press (never autoplay).
+ */
+function useSfx(muted: boolean) {
+  const ctxRef = useRef<AudioContext | null>(null);
+  return useCallback(
+    (kind: "buy" | "sell" | "deny") => {
+      if (muted) return;
+      try {
+        const AC =
+          window.AudioContext ??
+          (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+        if (!AC) return;
+        ctxRef.current ??= new AC();
+        const ctx = ctxRef.current;
+        void ctx.resume();
+        const t0 = ctx.currentTime;
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = kind === "deny" ? "square" : "triangle";
+        const [f0, f1] =
+          kind === "buy" ? [523, 940] : kind === "sell" ? [440, 196] : [150, 120];
+        osc.frequency.setValueAtTime(f0, t0);
+        osc.frequency.exponentialRampToValueAtTime(f1, t0 + 0.085);
+        gain.gain.setValueAtTime(0.0001, t0);
+        gain.gain.exponentialRampToValueAtTime(kind === "deny" ? 0.05 : 0.14, t0 + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.17);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(t0);
+        osc.stop(t0 + 0.2);
+      } catch {
+        /* audio unavailable — stay silent */
+      }
+    },
+    [muted],
+  );
+}
 
 function useReducedMotion() {
   const [reduce, setReduce] = useState(false);
@@ -593,6 +638,17 @@ function LaunchScene() {
   const t = useSceneClock(durOf("launch"));
   const settling = t < 0.13;
   const [feed, setFeed] = useState<FeedItem[]>([]);
+  const market = useDemoMarket();
+
+  // your play-money wallet — the demo is fully tradeable
+  const [cash, setCash] = useState(START_CASH);
+  const [tokens, setTokens] = useState(0);
+  const [basis, setBasis] = useState(0);
+  const [realized, setRealized] = useState(0);
+  const [amount, setAmount] = useState(0.1);
+  const [muted, setMuted] = useState(false);
+  const sfx = useSfx(muted);
+  const feedId = useRef(10_000);
 
   useEffect(() => {
     let id = 0;
@@ -621,12 +677,50 @@ function LaunchScene() {
     return () => clearInterval(iv);
   }, []);
 
-  // live counters, eased over the scene
-  const price = t;
-  const mcap = lerp(6.2, 39.4, price); // $k
-  const vol = lerp(2.1, 61.8, price);
-  const holders = Math.round(lerp(41, 188, price));
-  const pnl = lerp(0.02, 0.94, price);
+  const addFeed = (side: FeedItem["side"], eth: number) =>
+    setFeed((f) => [
+      ...f.slice(-7),
+      { id: feedId.current++, name: "you", color: "#a3e635", side, eth },
+    ]);
+
+  const buy = (eth: number) => {
+    if (settling || eth > cash + 1e-9) {
+      sfx("deny");
+      return;
+    }
+    const px = market.price.current;
+    setCash((c) => c - eth);
+    setTokens((tk) => tk + eth / px);
+    setBasis((b) => b + eth);
+    market.push("buy", eth);
+    sfx("buy");
+    addFeed("buy", eth);
+  };
+
+  const sell = (pct: number) => {
+    if (settling || tokens <= 1e-9) {
+      sfx("deny");
+      return;
+    }
+    const px = market.price.current;
+    const tokensIn = tokens * pct;
+    const out = tokensIn * px;
+    setCash((c) => c + out);
+    setTokens((tk) => tk - tokensIn);
+    setRealized((r) => r + (out - basis * pct));
+    setBasis((b) => b - b * pct);
+    market.push("sell", out);
+    sfx("sell");
+    addFeed("sell", out);
+  };
+
+  // live counters, driven by the real demo market
+  const px = market.price.current || 1.6e-6;
+  const mcap = (px * SUPPLY * ETH_USD) / 1000; // $k
+  const vol = market.volume.current;
+  const holders = Math.round(lerp(41, 188, t)) + (tokens > 0 ? 1 : 0);
+  const bagEth = tokens * px;
+  const pnl = realized + (bagEth - basis); // pETH
   const age = Math.round(lerp(3, 96, t));
   const gradPct = Math.min(100, (mcap / 40) * 100);
 
@@ -646,7 +740,7 @@ function LaunchScene() {
               ● LIVE TRADING
             </span>
             <span className="hidden text-xs text-zinc-400 sm:inline">
-              Your buys push price up, sells push it down — scalp it or diamond-hand the bell
+              👉 It&apos;s playable — you have {START_CASH} pETH. Hit Buy or Sell and watch the chart answer.
             </span>
             <span className="ml-auto font-mono text-lg font-black tabular-nums text-zinc-100">
               1:{String(Math.max(0, 40 - age)).padStart(2, "0")}
@@ -673,7 +767,11 @@ function LaunchScene() {
         <Stat label="Volume" value={`${vol.toFixed(1)} pETH`} />
         <Stat label="Holders" value={String(holders)} />
         <Stat label="Age" value={`${age}s`} />
-        <Stat label="Your PnL" value={`+${pnl.toFixed(3)} pETH`} tone="up" />
+        <Stat
+          label="Your PnL"
+          value={`${pnl >= 0 ? "+" : "−"}${Math.abs(pnl).toFixed(3)} pETH`}
+          tone={pnl >= 0 ? "up" : "down"}
+        />
       </div>
 
       <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1fr_240px]">
@@ -690,24 +788,71 @@ function LaunchScene() {
               <div className="h-full bg-lime-400" style={{ width: `${gradPct}%` }} />
             </div>
           </div>
-          {/* the chart — the exact product renderer, on simulated two-way action */}
+          {/* the chart — the exact product renderer, on the live demo market */}
           <div className="min-h-0 flex-1">
-            <DemoChart />
+            <ChartCanvas
+              candles={market.candles.current}
+              trades={market.trades.current}
+              livePrice={market.price.current}
+              openPrice={market.open.current}
+              supply={SUPPLY}
+              bigTradeEth={0.5}
+              cooking
+              windowSec={40}
+              showToggle={false}
+              highlightAddress={YOU_ADDR}
+              resolveTag={demoResolveTag}
+              className="h-full w-full rounded-xl border border-zinc-800 bg-zinc-950"
+            />
           </div>
-          {/* trade panel */}
+          {/* trade panel — fully playable: your presses move the chart */}
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800 p-2.5">
-            <div className="w-16 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-center font-mono text-xs">
-              0.10
-            </div>
-            <span className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-black text-white">Buy</span>
+            <button
+              title="Click to change your buy size"
+              onClick={() => setAmount((a) => ({ 0.1: 0.25, 0.25: 0.5, 0.5: 1, 1: 0.05, 0.05: 0.1 })[a] ?? 0.1)}
+              className="w-16 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-center font-mono text-xs hover:border-lime-400/60"
+            >
+              {amount.toFixed(2)}
+            </button>
+            <button
+              onClick={() => buy(amount)}
+              disabled={settling}
+              className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-black text-white transition hover:bg-emerald-500 active:scale-95 disabled:opacity-40"
+            >
+              Buy
+            </button>
             {[0.02, 0.05, 0.1].map((v) => (
-              <span key={v} className="rounded bg-emerald-600/20 px-2 py-1.5 text-[11px] font-bold text-emerald-300">
+              <button
+                key={v}
+                onClick={() => buy(v)}
+                disabled={settling}
+                className="rounded bg-emerald-600/20 px-2 py-1.5 text-[11px] font-bold text-emerald-300 transition hover:bg-emerald-600/40 active:scale-95 disabled:opacity-40"
+              >
                 +{v}
-              </span>
+              </button>
             ))}
             <div className="mx-1 h-6 w-px bg-zinc-800" />
-            <span className="rounded bg-red-600/20 px-2 py-1.5 text-[11px] font-bold text-red-300">Sell 50%</span>
-            <span className="rounded-lg bg-red-600 px-4 py-1.5 text-xs font-black text-white">Sell All</span>
+            <button
+              onClick={() => sell(0.5)}
+              disabled={settling || tokens <= 0}
+              className="rounded bg-red-600/20 px-2 py-1.5 text-[11px] font-bold text-red-300 transition hover:bg-red-600/40 active:scale-95 disabled:opacity-40"
+            >
+              Sell 50%
+            </button>
+            <button
+              onClick={() => sell(1)}
+              disabled={settling || tokens <= 0}
+              className="rounded-lg bg-red-600 px-4 py-1.5 text-xs font-black text-white transition hover:bg-red-500 active:scale-95 disabled:opacity-40"
+            >
+              Sell All
+            </button>
+            <button
+              onClick={() => setMuted((m) => !m)}
+              title={muted ? "Unmute" : "Mute"}
+              className="ml-auto rounded px-1.5 py-1 text-xs text-zinc-500 hover:text-zinc-200"
+            >
+              {muted ? "🔇" : "🔊"}
+            </button>
           </div>
           {/* the trenches — live chat under the buy/sell buttons */}
           <div className="flex h-24 shrink-0 flex-col rounded-xl border border-zinc-800 p-2.5">
@@ -742,23 +887,28 @@ function LaunchScene() {
         {/* side: your bag + kill feed */}
         <div className="flex min-h-0 flex-col gap-3">
           <div className="neon rounded-xl border border-lime-400/40 bg-zinc-900/60 p-3">
-            <h4 className="mb-2 text-xs font-black tracking-wide text-lime-300">💰 YOUR BAG</h4>
+            <div className="mb-2 flex items-baseline justify-between">
+              <h4 className="text-xs font-black tracking-wide text-lime-300">💰 YOUR BAG</h4>
+              <span className="text-[9px] uppercase tracking-wide text-zinc-600">play money</span>
+            </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div>
                 <div className="text-[9px] uppercase text-zinc-500">$PORK held</div>
-                <div className="font-mono font-bold">1.9M</div>
+                <div className="font-mono font-bold">{fmtTokens(tokens)}</div>
               </div>
               <div>
                 <div className="text-[9px] uppercase text-zinc-500">Bag value</div>
-                <div className="font-mono font-bold">${(pnl * 1925 + 200).toFixed(0)}</div>
+                <div className="font-mono font-bold">${(bagEth * ETH_USD).toFixed(0)}</div>
               </div>
               <div>
                 <div className="text-[9px] uppercase text-zinc-500">Round PnL</div>
-                <div className="font-mono font-bold text-emerald-400">+${(pnl * 1925).toFixed(0)}</div>
+                <div className={`font-mono font-bold ${pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  {pnl >= 0 ? "+" : "−"}${Math.abs(pnl * ETH_USD).toFixed(0)}
+                </div>
               </div>
               <div>
                 <div className="text-[9px] uppercase text-zinc-500">Cash left</div>
-                <div className="font-mono font-bold">4.90</div>
+                <div className="font-mono font-bold">{cash.toFixed(2)}</div>
               </div>
             </div>
           </div>
@@ -797,15 +947,26 @@ function LaunchScene() {
   );
 }
 
-function Stat({ label, value, tone }: { label: string; value: string; tone?: "up" }) {
+function Stat({ label, value, tone }: { label: string; value: string; tone?: "up" | "down" }) {
   return (
     <div>
       <div className="text-[9px] uppercase tracking-wide text-zinc-500">{label}</div>
-      <div className={`font-mono text-sm font-bold ${tone === "up" ? "text-emerald-400" : "text-zinc-100"}`}>
+      <div
+        className={`font-mono text-sm font-bold ${
+          tone === "up" ? "text-emerald-400" : tone === "down" ? "text-red-400" : "text-zinc-100"
+        }`}
+      >
         {value}
       </div>
     </div>
   );
+}
+
+/** Compact token count: 1.9M / 12.4K / 340 */
+function fmtTokens(n: number): string {
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`;
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`;
+  return n.toFixed(0);
 }
 
 const DEMO_TRADERS = [
@@ -813,6 +974,10 @@ const DEMO_TRADERS = [
   "0xWhale", "ByteBurner", "TapeReader", "degen_kate", "chefsluck", "rug_doc",
 ];
 function demoResolveTag(address: string, tag: { name: string }) {
+  if (address === YOU_ADDR) {
+    tag.name = "you";
+    return;
+  }
   let h = 0;
   for (let i = 0; i < address.length; i++) h = (h * 31 + address.charCodeAt(i)) >>> 0;
   tag.name = DEMO_TRADERS[h % DEMO_TRADERS.length]!;
@@ -828,7 +993,12 @@ function randAddr() {
  * realistic two-way buy/sell action — pre-seeds a full window of history, then
  * streams new 1-second candles and pops big-trade bubbles, just like the app.
  */
-function DemoChart() {
+/**
+ * The playable demo market. Owns the candles/trades/price simulation and
+ * exposes push() so the visitor's own Buy/Sell presses move the same chart the
+ * bots are trading — buys lift the price, sells drop it.
+ */
+function useDemoMarket() {
   const [, force] = useState(0);
   const candles = useRef<Candle[]>([]);
   const trades = useRef<Array<Trade & { seenAt?: number }>>([]);
@@ -839,6 +1009,7 @@ function DemoChart() {
   const popTarget = useRef(0);
   const mountMs = useRef(0);
   const lastBubble = useRef(0);
+  const volume = useRef(0);
 
   // Sit flat at the clearing price (the coin waiting at the open) filling the
   // window, then blast off live the instant the scene loads — the rightmost
@@ -847,7 +1018,7 @@ function DemoChart() {
     const N = 33; // flat base candles — fills the window so it's well-spaced
     const nowSec = Math.floor(Date.now() / 1000);
     const start = nowSec - N;
-    const clearing = 0.00003;
+    const clearing = 1.6e-6; // ≈ $6k opening market cap at 2M supply
     const seed: Candle[] = [];
     for (let i = 0; i <= N; i++) {
       const o = clearing * (1 + (Math.random() - 0.5) * 0.012);
@@ -861,6 +1032,7 @@ function DemoChart() {
     popTarget.current = clearing * (2.3 + Math.random() * 0.5); // where the blast peaks
     mountMs.current = performance.now();
     lastBubble.current = 0;
+    volume.current = 0;
     force((x) => x + 1);
   }, []);
 
@@ -916,6 +1088,7 @@ function DemoChart() {
         };
         if (bubble) t.seenAt = now;
         trades.current.push(t);
+        volume.current += eth;
       }
       price.current = px;
       trades.current = trades.current.filter((t) => t.at > now - 6000);
@@ -924,21 +1097,35 @@ function DemoChart() {
     return () => clearInterval(iv);
   }, []);
 
-  return (
-    <ChartCanvas
-      candles={candles.current}
-      trades={trades.current}
-      livePrice={price.current}
-      openPrice={open.current}
-      supply={2_000_000}
-      bigTradeEth={0.5}
-      cooking
-      windowSec={40}
-      showToggle={false}
-      resolveTag={demoResolveTag}
-      className="h-full w-full rounded-xl border border-zinc-800 bg-zinc-950"
-    />
-  );
+  /** The visitor's own trade — hits harder than the bots so the chart visibly
+   *  answers every press, and always lands a tagged bubble on the tape. */
+  const push = useCallback((side: "buy" | "sell", eth: number) => {
+    const now = Date.now();
+    const px = Math.max(
+      price.current * 0.4,
+      price.current * (1 + (side === "buy" ? 1 : -1) * eth * 0.09),
+    );
+    price.current = px;
+    volume.current += eth;
+    lastBubble.current = now;
+    trades.current.push({
+      id: String(id.current++),
+      roundId: "demo",
+      userAddress: YOU_ADDR,
+      side,
+      ethAmount: eth,
+      tokenAmount: 0,
+      price: px,
+      fee: 0,
+      at: now,
+      isCreator: false,
+      seenAt: now,
+    } as Trade & { seenAt?: number });
+    force((x) => x + 1);
+    return px;
+  }, []);
+
+  return { candles, trades, price, open, volume, push };
 }
 
 /* ------------------------------------------------------------------ *
