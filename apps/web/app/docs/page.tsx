@@ -12,13 +12,20 @@ import {
   JACKPOT_PAYOUT_WEIGHTS,
   DAILY_SET_BONUS_XP,
   WEEKLY_SET_BONUS_XP,
+  DAILY_ACTIVE_COUNT,
   PODIUM_XP,
   TRADE_XP,
   ACHIEVEMENT_XP,
+  ACHIEVEMENTS,
   FLOOR_XP_WEEKLY_CAP,
   DAILY_STREAK_MILESTONES,
+  WEEKLY_STREAK_MILESTONES,
+  STREAK_FREEZE_MAX,
   SEASON_PASS_TIERS,
   MILESTONES,
+  MISSIONS,
+  WEEKLY_MISSIONS,
+  xpForLevel,
 } from "@cookout/shared";
 
 /** Product wiki: everything a new player needs, in the arena's own voice. */
@@ -30,9 +37,10 @@ const SECTIONS = [
   ["trading", "Live Trading"],
   ["endings", "Rugs, Redemption & Graduation"],
   ["tiers", "Risk Tiers"],
-  ["progression", "XP, Levels & Cosmetics"],
+  ["progression", "XP, Levels & Titles"],
   ["jackpot", "The Weekly Jackpot"],
   ["quests", "Quests & Earning XP"],
+  ["badges", "Badges & Achievements"],
   ["creators", "Launching Your Own Coin"],
   ["faq", "FAQ"],
 ] as const;
@@ -213,19 +221,60 @@ export default function Docs() {
           </p>
         </Section>
 
-        <Section id="progression" title="XP, Levels & Cosmetics">
+        <Section id="progression" title="XP, Levels & Titles">
           <p>
             You earn XP every round <b>regardless of profit</b> — participation, first buys,
-            diamond hands, perfect exits, rug survival, and more. Levels never reset and gate the
-            risk tiers. The ladder:
+            diamond hands, perfect exits, rug survival, and more. Every point counts toward your{" "}
+            <b>level for life</b> — levels never reset. Each bracket carries a <b>title</b> that
+            rides next to your name everywhere, and two brackets also <b>unlock a new arena</b>. The
+            curve steepens as you climb (XP to reach a level ≈{" "}
+            <span className="font-mono text-zinc-300">80·(L−1)^1.6</span>).
           </p>
-          <p className="font-mono text-sm text-lime-300">
-            {[...LEVEL_TITLES].reverse().map((l) => l.title).join(" → ")}
-          </p>
+
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="text-left text-xs uppercase text-zinc-500">
+                <tr>
+                  <th className="py-2 pr-4">Title</th>
+                  <th className="py-2 pr-4">Level</th>
+                  <th className="py-2 pr-4">XP to reach</th>
+                  <th className="py-2">Unlocks</th>
+                </tr>
+              </thead>
+              <tbody className="align-top">
+                {[...LEVEL_TITLES]
+                  .sort((a, b) => a.minLevel - b.minLevel)
+                  .map((t) => {
+                    const unlock = (Object.keys(TIER_UNLOCK_LEVEL) as Array<
+                      keyof typeof TIER_UNLOCK_LEVEL
+                    >).find((tier) => TIER_UNLOCK_LEVEL[tier] === t.minLevel);
+                    return (
+                      <tr key={t.minLevel} className="border-t border-zinc-800">
+                        <td className="py-2 pr-4 font-bold text-lime-300">{t.title}</td>
+                        <td className="py-2 pr-4 font-mono text-zinc-300">{t.minLevel}</td>
+                        <td className="py-2 pr-4 font-mono text-amber-300">
+                          {t.minLevel <= 1 ? "start" : xpForLevel(t.minLevel).toLocaleString()}
+                        </td>
+                        <td className="py-2 text-zinc-400">
+                          {unlock ? (
+                            <span className="capitalize">🔓 {unlock} Arena</span>
+                          ) : (
+                            <span className="text-zinc-600">—</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+
           <p>
             Badges, titles, chat colors, and frames unlock from levels, achievements, season
             placements, and the monthly season pass. Full detail on earning XP is in{" "}
-            <a href="#quests" className="text-lime-400 underline">Quests &amp; Earning XP</a> below.{" "}
+            <a href="#quests" className="text-lime-400 underline">Quests &amp; Earning XP</a>; the
+            complete badge list is under{" "}
+            <a href="#badges" className="text-lime-400 underline">Badges &amp; Achievements</a>.{" "}
             <b>Everything cosmetic is earned; nothing is for sale that affects play.</b>
           </p>
         </Section>
@@ -391,7 +440,122 @@ export default function Docs() {
             </table>
           </div>
 
-          <p className="text-zinc-400">
+          <h3 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-300">
+            Daily quests — {DAILY_ACTIVE_COUNT} of these {MISSIONS.filter((m) => m.period === "daily").length} rotate in each day
+          </h3>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {MISSIONS.filter((m) => m.period === "daily").map((m) => (
+              <QuestCard key={m.id} name={m.name} desc={m.description} xp={m.xp} />
+            ))}
+          </div>
+          <p className="mt-2 text-sm text-zinc-400">
+            The board reseeds every day at 00:00 UTC (always with at least one easy starter). Clear
+            all {DAILY_ACTIVE_COUNT} for a <span className="text-amber-300">+{DAILY_SET_BONUS_XP} XP</span> sweep bonus.
+          </p>
+
+          <h3 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-300">
+            Weekly challenges — all {WEEKLY_MISSIONS.length} live all week
+          </h3>
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {WEEKLY_MISSIONS.map((m) => (
+              <QuestCard key={m.id} name={m.name} desc={m.description} xp={m.xp} />
+            ))}
+          </div>
+          <p className="mt-2 text-sm text-zinc-400">
+            They reset Monday 00:00 UTC with the jackpot week. Clear the whole set for a{" "}
+            <span className="text-amber-300">+{WEEKLY_SET_BONUS_XP} XP</span> bonus.
+          </p>
+
+          <h3 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-300">
+            Streaks — show up, get paid
+          </h3>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-zinc-800 p-4">
+              <div className="mb-2 text-sm font-bold">🔥 Daily play streak</div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-sm">
+                {Object.entries(DAILY_STREAK_MILESTONES).map(([days, xp]) => (
+                  <span key={days} className="text-zinc-300">
+                    {days}d <span className="text-amber-300">+{xp}</span>
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-zinc-500">
+                Consecutive days played. Past 30 days, upkeep pays +50 XP each further week. A{" "}
+                <b className="text-sky-300">streak freeze</b> auto-saves one missed day — earn one
+                every 7 days played, hold up to {STREAK_FREEZE_MAX}.
+              </p>
+            </div>
+            <div className="rounded-xl border border-zinc-800 p-4">
+              <div className="mb-2 text-sm font-bold">📅 Weekly consistency</div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 font-mono text-sm">
+                {Object.entries(WEEKLY_STREAK_MILESTONES).map(([weeks, xp]) => (
+                  <span key={weeks} className="text-zinc-300">
+                    {weeks}w <span className="text-amber-300">+{xp}</span>
+                  </span>
+                ))}
+              </div>
+              <p className="mt-2 text-xs text-zinc-500">
+                Consecutive weeks clearing the weekly set. Beyond 8 weeks, every 4th week keeps
+                paying +900 XP. The single biggest long-term XP source.
+              </p>
+            </div>
+          </div>
+
+          <h3 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-300">
+            Lifetime milestone ladders — never reset
+          </h3>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {MILESTONES.map((lad) => (
+              <div key={lad.id} className="rounded-xl border border-zinc-800 p-4">
+                <div className="mb-2 flex items-baseline justify-between">
+                  <span className="font-bold">{lad.name}</span>
+                  <span className="font-mono text-xs text-zinc-500">{lad.unit}</span>
+                </div>
+                <div className="space-y-1">
+                  {lad.tiers.map((tier) => (
+                    <div key={tier.at} className="flex justify-between font-mono text-sm">
+                      <span className="text-zinc-300">{tier.at.toLocaleString()}</span>
+                      <span className="text-amber-300">+{tier.xp}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <h3 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-300">
+            Monthly season pass — free track
+          </h3>
+          <div className="overflow-x-auto">
+            <div className="flex gap-2">
+              {SEASON_PASS_TIERS.map((tier, i) => (
+                <div
+                  key={tier.at}
+                  className={`min-w-[120px] flex-1 rounded-xl border p-3 ${
+                    tier.reward ? "border-amber-400/40" : "border-zinc-800"
+                  }`}
+                >
+                  <div className="font-mono text-[10px] uppercase text-zinc-500">Tier {i + 1}</div>
+                  <div className="mt-0.5 font-mono text-sm font-bold text-zinc-200">
+                    {tier.at.toLocaleString()}
+                    <span className="ml-1 text-[10px] font-normal text-zinc-500">season XP</span>
+                  </div>
+                  <div className="mt-1 font-mono text-sm text-amber-300">+{tier.xp}</div>
+                  {tier.reward && (
+                    <div className="mt-2 border-t border-zinc-800 pt-2 text-xs text-amber-300">
+                      {tier.reward}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+          <p className="mt-2 text-sm text-zinc-500">
+            Your season XP climbs a free monthly track — no paid tier, ever. Hit the marks for XP
+            kickers and pass-exclusive cosmetics, then it resets for a fresh climb.
+          </p>
+
+          <p className="mt-6 text-zinc-400">
             Track all of it — quests, streaks, milestones and your pass — on your{" "}
             <Link href="/profile" className="text-lime-400 underline">profile</Link>.
           </p>
@@ -404,6 +568,40 @@ export default function Docs() {
             exactly why the <Link href="/jackpot" className="text-amber-400 underline">jackpot</Link>{" "}
             stays fair when it&apos;s paying real ETH.
           </p>
+        </Section>
+
+        <Section id="badges" title="Badges & Achievements">
+          <p>
+            Badges are earned <b>once</b> and displayed on your profile forever. Each pays one-time
+            XP scaled by rarity — <span className="font-mono text-zinc-400">common {ACHIEVEMENT_XP.common}</span> ·{" "}
+            <span className="font-mono text-sky-400">rare {ACHIEVEMENT_XP.rare}</span> ·{" "}
+            <span className="font-mono text-violet-400">epic {ACHIEVEMENT_XP.epic}</span> ·{" "}
+            <span className="font-mono text-amber-400">legendary {ACHIEVEMENT_XP.legendary}</span>.
+            Rarer badges are harder plays. The registry grows over time — here&apos;s every one live
+            today:
+          </p>
+          {(["legendary", "epic", "rare", "common"] as const).map((rarity) => {
+            const list = ACHIEVEMENTS.filter((a) => a.rarity === rarity);
+            if (list.length === 0) return null;
+            return (
+              <div key={rarity} className="mt-5">
+                <div className={`mb-2 text-xs font-bold uppercase tracking-wide ${RARITY_TEXT[rarity]}`}>
+                  {rarity} · +{ACHIEVEMENT_XP[rarity]} XP · {list.length}
+                </div>
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {list.map((a) => (
+                    <div
+                      key={a.id}
+                      className={`rounded-xl border-l-2 border border-zinc-800 p-3 ${RARITY_BORDER[rarity]}`}
+                    >
+                      <div className="text-sm font-bold text-zinc-100">{a.name}</div>
+                      <div className="mt-0.5 text-xs text-zinc-500">{a.description}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
         </Section>
 
         <Section id="creators" title="Launching Your Own Coin">
@@ -484,3 +682,30 @@ function Faq({ q, children }: { q: string; children: React.ReactNode }) {
     </div>
   );
 }
+
+function QuestCard({ name, desc, xp }: { name: string; desc: string; xp: number }) {
+  return (
+    <div className="rounded-xl border border-zinc-800 p-3">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-sm font-bold text-zinc-100">{name}</span>
+        <span className="font-mono text-sm text-amber-300">+{xp}</span>
+      </div>
+      <div className="mt-0.5 text-xs text-zinc-500">{desc}</div>
+    </div>
+  );
+}
+
+/** Rarity → styling. Conventional game semantics; each badge is always text-labelled. */
+const RARITY_TEXT: Record<AchievementRarity, string> = {
+  common: "text-zinc-400",
+  rare: "text-sky-400",
+  epic: "text-violet-400",
+  legendary: "text-amber-400",
+};
+const RARITY_BORDER: Record<AchievementRarity, string> = {
+  common: "border-l-zinc-600",
+  rare: "border-l-sky-400",
+  epic: "border-l-violet-400",
+  legendary: "border-l-amber-400",
+};
+type AchievementRarity = (typeof ACHIEVEMENTS)[number]["rarity"];
