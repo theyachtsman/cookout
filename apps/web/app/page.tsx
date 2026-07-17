@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useBrandAsset } from "../lib/useBrandAsset";
+import { ArenaDemo } from "../components/ArenaDemo";
 
 /**
  * Marketing landing + beta funnel. The whitelist is earned on X (@hoodcookout):
@@ -18,6 +19,7 @@ export default function Landing() {
   return (
     <div className="-mx-4 -my-6">
       <Hero />
+      <ArenaDemo />
       <RoundFlow />
       <FairOpen />
       <Jackpot />

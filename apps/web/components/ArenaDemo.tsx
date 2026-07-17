@@ -1,0 +1,956 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+/**
+ * ArenaDemo — an auto-cycling, self-contained mockup of the live arena that
+ * runs right on the landing page. It walks a visitor through the product with
+ * fake-but-realistic data, reusing the exact look & feel of the real app:
+ *
+ *   1. Calendar     — queued lobbies + one live match
+ *   2. Pre-Launch   — the batch-auction queue: place a market buy before open
+ *   3. Launch→Live  — settle, then the chart rips while the feed goes off
+ *   4. Community     — the Moon-or-Rug crowd call on a fresh coin
+ *
+ * Everything is simulated in the browser — no wallet, no server, no risk.
+ */
+
+const SCENES = [
+  { key: "calendar", label: "The Calendar", blurb: "Queued lobbies + a live match", dur: 5200 },
+  { key: "queue", label: "Pre-Launch Queue", blurb: "Place your buy before the open", dur: 7600 },
+  { key: "launch", label: "Launch → Live", blurb: "Settle, then the chart rips", dur: 9800 },
+  { key: "vote", label: "Community Vote", blurb: "The crowd calls it: Moon or Rug", dur: 5600 },
+] as const;
+
+function useReducedMotion() {
+  const [reduce, setReduce] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setReduce(mq.matches);
+    const on = () => setReduce(mq.matches);
+    mq.addEventListener("change", on);
+    return () => mq.removeEventListener("change", on);
+  }, []);
+  return reduce;
+}
+
+export function ArenaDemo() {
+  const [scene, setScene] = useState(0);
+  const [progress, setProgress] = useState(0);
+  const reduce = useReducedMotion();
+
+  const pausedRef = useRef(false);
+  const progressRef = useRef(0);
+  const startRef = useRef(0);
+
+  // deep-link: #1..#4 jumps straight to a chapter (nice for sharing a demo)
+  useEffect(() => {
+    const n = Number(window.location.hash.slice(1));
+    if (n >= 1 && n <= SCENES.length) setScene(n - 1);
+  }, []);
+
+  // reset the clock whenever the active scene changes
+  useEffect(() => {
+    progressRef.current = 0;
+    setProgress(0);
+    startRef.current = performance.now();
+  }, [scene]);
+
+  // auto-advance loop (skipped entirely under reduced-motion)
+  useEffect(() => {
+    if (reduce) return;
+    let raf = 0;
+    const loop = (t: number) => {
+      raf = requestAnimationFrame(loop);
+      if (pausedRef.current) {
+        startRef.current = t - progressRef.current * SCENES[scene].dur;
+        return;
+      }
+      const p = Math.min(1, (t - startRef.current) / SCENES[scene].dur);
+      progressRef.current = p;
+      setProgress(p);
+      if (p >= 1) setScene((s) => (s + 1) % SCENES.length);
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [scene, reduce]);
+
+  const key = SCENES[scene].key;
+
+  return (
+    <section className="mx-auto max-w-6xl px-6 py-20">
+      <div className="text-center">
+        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">Live Demo</div>
+        <h2 className="mt-3 text-3xl font-black md:text-5xl">
+          This is a <span className="text-lime-400">battle arena.</span>
+        </h2>
+        <p className="mx-auto mt-4 max-w-2xl text-zinc-300">
+          Watch a full match play out — the pre-launch buy queue, the fair open, the chart ripping
+          live, and the crowd calling it. Simulated with sample data; the real thing runs on paper
+          money in your browser.
+        </p>
+      </div>
+
+      {/* scene tabs */}
+      <div className="mt-8 flex flex-wrap items-stretch justify-center gap-2">
+        {SCENES.map((s, i) => (
+          <button
+            key={s.key}
+            onClick={() => setScene(i)}
+            className={`group relative overflow-hidden rounded-xl border px-4 py-2 text-left transition ${
+              i === scene
+                ? "border-lime-400/70 bg-lime-400/10"
+                : "border-zinc-800 bg-zinc-900/40 hover:border-zinc-600"
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span
+                className={`font-mono text-xs ${i === scene ? "text-lime-300" : "text-zinc-500"}`}
+              >
+                0{i + 1}
+              </span>
+              <span className={`text-sm font-black ${i === scene ? "text-zinc-50" : "text-zinc-300"}`}>
+                {s.label}
+              </span>
+            </div>
+            <div className="mt-0.5 hidden text-[11px] text-zinc-500 sm:block">{s.blurb}</div>
+            {i === scene && !reduce && (
+              <div
+                className="absolute inset-x-0 bottom-0 h-0.5 bg-lime-400"
+                style={{ width: `${progress * 100}%` }}
+              />
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* device frame */}
+      <div
+        onMouseEnter={() => (pausedRef.current = true)}
+        onMouseLeave={() => (pausedRef.current = false)}
+        className="mt-6 overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl shadow-black/60"
+      >
+        {/* app chrome */}
+        <div className="flex items-center gap-3 border-b border-zinc-800 bg-zinc-950/90 px-4 py-2.5">
+          <div className="flex items-center gap-1.5">
+            <span className="h-2.5 w-2.5 rounded-full bg-red-500/70" />
+            <span className="h-2.5 w-2.5 rounded-full bg-amber-500/70" />
+            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/70" />
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-black">
+              <span className="text-lime-400">THE</span>{" "}
+              <span className="text-zinc-100">COOKOUT</span>
+            </span>
+            <span className="hidden rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-300 sm:inline">
+              private beta
+            </span>
+          </div>
+          <div className="ml-auto flex items-center gap-3 text-xs text-zinc-500">
+            <span className="hidden sm:inline">Matches</span>
+            <span className="hidden sm:inline">Board</span>
+            <span className="hidden text-amber-400/80 sm:inline">Jackpot</span>
+            <span className="rounded-lg bg-lime-400 px-2.5 py-1 text-[11px] font-black text-zinc-950">
+              0xC0…ok
+            </span>
+          </div>
+        </div>
+
+        {/* scene body */}
+        <div className="relative h-[30rem] overflow-hidden bg-zinc-950 p-4 sm:h-[32rem]">
+          {key === "calendar" && <CalendarScene />}
+          {key === "queue" && <QueueScene />}
+          {key === "launch" && <LaunchScene />}
+          {key === "vote" && <VoteScene />}
+          {/* sample-data watermark */}
+          <div className="pointer-events-none absolute bottom-2 right-3 font-mono text-[10px] uppercase tracking-widest text-zinc-700">
+            simulated · sample data
+          </div>
+        </div>
+      </div>
+
+      <p className="mt-4 text-center text-xs text-zinc-600">
+        Hover to pause · click a chapter to jump · everything above is paper-money, zero risk.
+      </p>
+    </section>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ *  small shared bits
+ * ------------------------------------------------------------------ */
+
+const TRADERS = [
+  ["degenharu", "#f59e0b"],
+  ["serialtop", "#a3e635"],
+  ["ovenmitt", "#38bdf8"],
+  ["paperKing", "#f472b6"],
+  ["rugpull_rick", "#ef4444"],
+  ["moonboy42", "#22c55e"],
+  ["basedchad", "#c084fc"],
+  ["exitliquidity", "#fb923c"],
+  ["gwei_guy", "#2dd4bf"],
+  ["sniperSue", "#e879f9"],
+] as const;
+
+function Avatar({ name, color }: { name: string; color: string }) {
+  return (
+    <span
+      className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-black text-zinc-950"
+      style={{ background: color }}
+    >
+      {name.replace(/[^a-z]/gi, "").slice(0, 2).toUpperCase()}
+    </span>
+  );
+}
+
+/** count-up display that eases toward a target as `t` (0..1) advances */
+function lerp(from: number, to: number, t: number) {
+  return from + (to - from) * Math.min(1, Math.max(0, t));
+}
+
+/** shared scene progress: returns 0..1 over `ms`, plus a tick counter */
+function useSceneClock(ms: number) {
+  const [t, setT] = useState(0);
+  useEffect(() => {
+    let raf = 0;
+    const start = performance.now();
+    const loop = (now: number) => {
+      raf = requestAnimationFrame(loop);
+      setT(Math.min(1, (now - start) / ms));
+    };
+    raf = requestAnimationFrame(loop);
+    return () => cancelAnimationFrame(raf);
+  }, [ms]);
+  return t;
+}
+
+/* ------------------------------------------------------------------ *
+ *  SCENE 1 — Match Calendar
+ * ------------------------------------------------------------------ */
+
+function CalendarScene() {
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const t = setInterval(() => setTick((x) => x + 1), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const fmt = (s: number) => {
+    const v = Math.max(0, s - tick);
+    return `${Math.floor(v / 60)}:${String(v % 60).padStart(2, "0")}`;
+  };
+
+  return (
+    <div className="flex h-full animate-[fadein_.4s_ease] flex-col">
+      <div className="mb-3">
+        <h3 className="text-lg font-black">Match Calendar</h3>
+        <p className="text-xs text-zinc-500">
+          A fresh community-made token every few minutes — fair open, pro-rata fills, auditable
+          settlement.
+        </p>
+      </div>
+      <div className="grid flex-1 gap-3 sm:grid-cols-2">
+        <CalCard
+          emoji="🐷"
+          grad="from-pink-500/30 to-orange-500/20"
+          name="PORK BELLY"
+          symbol="PORK"
+          theme="BBQ szn is upon us"
+          badge="LIVE"
+          badgeCls="animate-pulse bg-emerald-500/25 text-emerald-300"
+          sub={<span className="text-emerald-400">Trading now · +214%</span>}
+          tier="degen"
+          highlight
+        />
+        <CalCard
+          emoji="🔥"
+          grad="from-lime-500/25 to-emerald-500/20"
+          name="???"
+          symbol=""
+          theme="Theme: flame-grilled"
+          badge="Queue open — get in"
+          badgeCls="bg-lime-400/15 text-lime-300"
+          sub={<>Queue closes in <b className="font-mono text-zinc-200">{fmt(38)}</b></>}
+          tier="prime"
+        />
+        <CalCard
+          emoji="🧊"
+          grad="from-sky-500/25 to-indigo-500/20"
+          name="???"
+          symbol=""
+          theme="Theme: cold storage"
+          badge="Lobby open"
+          badgeCls="bg-zinc-800 text-zinc-300"
+          sub={<>Queue opens in <b className="font-mono text-zinc-200">{fmt(74)}</b></>}
+          tier="mid"
+        />
+        <CalCard
+          emoji="❓"
+          grad="from-zinc-700/30 to-zinc-800/20"
+          name="???"
+          symbol=""
+          theme="Theme: mystery drop"
+          badge="Starting soon"
+          badgeCls="bg-zinc-800 text-zinc-400"
+          sub={<>Lobby opens in <b className="font-mono text-zinc-200">{fmt(126)}</b></>}
+          tier="degen"
+        />
+      </div>
+      <div className="mt-3">
+        <div className="mb-1.5 text-[11px] font-bold text-zinc-500">Recent results</div>
+        <div className="flex flex-wrap gap-2">
+          <ResultChip emoji="🍽️" name="WAGYU" cls="border-lime-400/40 text-lime-300" tag="served up" />
+          <ResultChip emoji="🔥" name="RUGRAT" cls="border-red-900/60 text-red-300" tag="burnt" />
+          <ResultChip emoji="🍽️" name="BRISKET" cls="border-lime-400/40 text-lime-300" tag="served up" />
+          <ResultChip emoji="🪙" name="CHUCK" cls="border-zinc-700 text-zinc-400" tag="closed" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CalCard({
+  emoji,
+  grad,
+  name,
+  symbol,
+  theme,
+  badge,
+  badgeCls,
+  sub,
+  tier,
+  highlight,
+}: {
+  emoji: string;
+  grad: string;
+  name: string;
+  symbol: string;
+  theme: string;
+  badge: string;
+  badgeCls: string;
+  sub: React.ReactNode;
+  tier: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div
+      className={`group relative overflow-hidden rounded-2xl border ${
+        highlight ? "border-lime-400/60" : "border-zinc-800"
+      }`}
+    >
+      <div className={`absolute inset-0 bg-gradient-to-br ${grad} opacity-60`} />
+      <div className="absolute inset-0 bg-gradient-to-br from-zinc-950/80 via-zinc-950/60 to-zinc-950/90" />
+      <div className="relative p-4">
+        <div className="flex items-start justify-between gap-2">
+          <div className="flex items-center gap-3">
+            <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900/70 text-2xl">
+              {emoji}
+            </div>
+            <div>
+              <div className="text-lg font-black">
+                {name} {symbol && <span className="text-zinc-400">${symbol}</span>}
+              </div>
+              <div className="text-xs text-zinc-400">{theme}</div>
+            </div>
+          </div>
+          <span className={`shrink-0 rounded px-2 py-1 text-[10px] font-bold ${badgeCls}`}>{badge}</span>
+        </div>
+        <div className="mt-4 flex items-center justify-between">
+          <div className="text-xs text-zinc-400">
+            {sub}
+            <span className="ml-2 rounded bg-zinc-800/90 px-1.5 py-0.5 text-[10px] uppercase">{tier}</span>
+          </div>
+          <span className="rounded-lg bg-lime-400 px-3 py-1.5 text-xs font-black text-zinc-950">
+            Pull Up
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ResultChip({ emoji, name, cls, tag }: { emoji: string; name: string; cls: string; tag: string }) {
+  return (
+    <div className={`flex items-center gap-2 rounded-lg border bg-zinc-950/50 px-2.5 py-1.5 ${cls}`}>
+      <span className="text-base">{emoji}</span>
+      <span className="text-xs font-bold text-zinc-200">${name}</span>
+      <span className="text-[10px]">{tag}</span>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ *  SCENE 2 — Pre-Launch Queue (batch auction)
+ * ------------------------------------------------------------------ */
+
+interface Bid {
+  name: string;
+  color: string;
+  eth: number;
+  you?: boolean;
+}
+
+function QueueScene() {
+  const t = useSceneClock(SCENES[1].dur);
+  const [bids, setBids] = useState<Bid[]>([
+    { name: TRADERS[2][0], color: TRADERS[2][1], eth: 0.25 },
+    { name: TRADERS[0][0], color: TRADERS[0][1], eth: 0.5 },
+  ]);
+  const [moon, setMoon] = useState(31);
+  const [rug, setRug] = useState(12);
+  const [youBid, setYouBid] = useState(false);
+
+  // stream new pre-positions in
+  useEffect(() => {
+    let i = 0;
+    const iv = setInterval(() => {
+      const [name, color] = TRADERS[(i * 3 + 4) % TRADERS.length];
+      const eth = [0.1, 0.25, 0.5, 0.05, 0.8, 0.15][i % 6];
+      setBids((b) => [...b.slice(-7), { name, color, eth }]);
+      if (i % 2 === 0) setMoon((m) => m + 1);
+      else setRug((r) => r + (i % 3 === 0 ? 1 : 0));
+      i++;
+    }, 720);
+    return () => clearInterval(iv);
+  }, []);
+
+  // "you" place a market buy partway through
+  useEffect(() => {
+    const to = setTimeout(() => {
+      setYouBid(true);
+      setBids((b) => [...b.slice(-7), { name: "you", color: "#a3e635", eth: 0.1, you: true }]);
+      setMoon((m) => m + 1);
+    }, 2600);
+    return () => clearTimeout(to);
+  }, []);
+
+  const players = 18 + bids.length;
+  const committed = 4.2 + bids.reduce((s, b) => s + b.eth, 0);
+  const closeIn = Math.max(0, 42 - Math.floor(t * 42));
+
+  return (
+    <div className="flex h-full animate-[fadein_.4s_ease] flex-col gap-3">
+      {/* phase banner */}
+      <div className="rounded-xl border border-lime-400/60 bg-lime-400/10 px-4 py-2.5">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          <span className="text-base font-black tracking-wide text-lime-300">QUEUE OPEN — PULL UP</span>
+          <span className="hidden text-xs text-zinc-400 sm:inline">
+            Everyone settles at ONE clearing price — order and speed don&apos;t matter
+          </span>
+          <span className="ml-auto font-mono text-xl font-black tabular-nums text-zinc-100">
+            0:{String(closeIn).padStart(2, "0")}
+          </span>
+        </div>
+        <div className="mt-2 h-1 overflow-hidden rounded bg-zinc-800">
+          <div className="h-full bg-lime-400/70" style={{ width: `${t * 100}%` }} />
+        </div>
+      </div>
+
+      <div className="grid flex-1 gap-3 md:grid-cols-3">
+        {/* queue + live pre-positions */}
+        <div className="flex min-h-0 flex-col rounded-xl border border-zinc-800 p-4 md:col-span-2">
+          <h4 className="text-sm font-black">Position Queue — open</h4>
+          <p className="mb-3 text-[11px] text-zinc-500">
+            Buy intents queue until close, then settle at one uniform price. Oversubscribed? Pro-rata
+            fills — speed buys nothing.
+          </p>
+          {/* the buy row */}
+          <div className="flex flex-wrap items-end gap-2">
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Amount (pETH)</div>
+              <div className="w-24 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 font-mono text-sm">
+                0.10
+              </div>
+            </div>
+            <div>
+              <div className="mb-1 text-[10px] text-zinc-500">Max price</div>
+              <div className="w-24 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 font-mono text-sm text-zinc-500">
+                market
+              </div>
+            </div>
+            <button
+              className={`rounded-lg px-5 py-2 text-sm font-black text-zinc-950 transition ${
+                youBid ? "bg-lime-400/40" : "bg-lime-400 shadow-lg shadow-lime-400/30"
+              } ${!youBid ? "animate-pulse" : ""}`}
+            >
+              {youBid ? "✓ In queue" : "Pull Up"}
+            </button>
+          </div>
+
+          <div className="mt-3 flex items-center justify-between border-t border-zinc-800 pt-2 text-[11px]">
+            <span className="font-bold text-zinc-300">Live pre-positions</span>
+            <span className="font-mono text-zinc-500">
+              {bids.length} bids · {committed.toFixed(2)} pETH
+            </span>
+          </div>
+          <div className="mt-1 flex min-h-0 flex-1 flex-col-reverse gap-1 overflow-hidden">
+            {bids
+              .slice()
+              .reverse()
+              .map((b, i) => (
+                <div
+                  key={`${b.name}-${bids.length}-${i}`}
+                  className={`flex items-center gap-2 rounded px-2 py-1 text-sm ${
+                    b.you ? "flash bg-lime-400/10 ring-1 ring-lime-400/40" : "bg-zinc-900"
+                  } ${i === 0 ? "killfeed-item" : ""}`}
+                >
+                  <Avatar name={b.name} color={b.color} />
+                  <span className="truncate text-zinc-200">
+                    {b.you ? "you" : b.name}
+                  </span>
+                  <span className="ml-auto font-mono text-lime-300">{b.eth.toFixed(2)} pETH</span>
+                </div>
+              ))}
+          </div>
+        </div>
+
+        {/* lobby + moon/rug + tokenomics */}
+        <div className="flex flex-col gap-3">
+          <div className="rounded-xl border border-zinc-800 p-3">
+            <h4 className="mb-2 text-xs font-bold text-zinc-300">Lobby</h4>
+            <dl className="space-y-1 text-xs">
+              <Row k="Players in queue" v={String(players)} />
+              <Row k="Committed" v={`${committed.toFixed(2)} pETH`} />
+              <Row k="Auction cap" v="25 pETH" />
+            </dl>
+          </div>
+          <div className="rounded-xl border border-zinc-800 p-3">
+            <h4 className="mb-1.5 text-xs font-bold text-zinc-300">Moon or Rug?</h4>
+            <p className="mb-2 text-[10px] text-zinc-500">Call it before the open — correct calls earn XP.</p>
+            <div className="flex gap-2">
+              <div
+                className={`flex-1 rounded px-2 py-1.5 text-center text-xs font-bold text-emerald-300 ${
+                  youBid ? "bg-emerald-600/50 ring-1 ring-emerald-400" : "bg-emerald-600/20"
+                }`}
+              >
+                🌕 Moon ({moon})
+              </div>
+              <div className="flex-1 rounded bg-red-600/20 px-2 py-1.5 text-center text-xs font-bold text-red-300">
+                🧨 Rug ({rug})
+              </div>
+            </div>
+          </div>
+          <div className="rounded-xl border border-zinc-800 p-3">
+            <h4 className="mb-2 text-xs font-bold text-zinc-300">Tokenomics</h4>
+            <dl className="space-y-1 text-xs">
+              <Row k="Total supply" v="1,000,000,000" />
+              <Row k="Trade fee" v="1%" />
+              <Row k="Serves up at" v="$40k mcap" />
+            </dl>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Row({ k, v }: { k: string; v: string }) {
+  return (
+    <div className="flex justify-between">
+      <dt className="text-zinc-500">{k}</dt>
+      <dd className="font-mono text-zinc-200">{v}</dd>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ *  SCENE 3 — Launch → Live (the chart rips)
+ * ------------------------------------------------------------------ */
+
+interface FeedItem {
+  id: number;
+  name: string;
+  color: string;
+  side: "buy" | "sell" | "whale";
+  eth: number;
+}
+
+function LaunchScene() {
+  const t = useSceneClock(SCENES[2].dur);
+  const settling = t < 0.13;
+  const [feed, setFeed] = useState<FeedItem[]>([]);
+
+  useEffect(() => {
+    let id = 0;
+    const iv = setInterval(() => {
+      const [name, color] = TRADERS[id % TRADERS.length];
+      const roll = Math.random();
+      const side = roll > 0.82 ? "whale" : roll > 0.28 ? "buy" : "sell";
+      const eth = side === "whale" ? 0.6 + Math.random() : 0.03 + Math.random() * 0.25;
+      setFeed((f) => [...f.slice(-7), { id: id++, name, color, side, eth }]);
+    }, 620);
+    return () => clearInterval(iv);
+  }, []);
+
+  // live counters, eased over the scene
+  const price = t;
+  const mcap = lerp(6.2, 39.4, price); // $k
+  const vol = lerp(2.1, 61.8, price);
+  const holders = Math.round(lerp(41, 188, price));
+  const pnl = lerp(0.02, 0.94, price);
+  const age = Math.round(lerp(3, 96, t));
+  const gradPct = Math.min(100, (mcap / 40) * 100);
+
+  return (
+    <div className="flex h-full animate-[fadein_.4s_ease] flex-col gap-3">
+      {/* phase banner: settling then live */}
+      {settling ? (
+        <div className="flex items-center gap-3 rounded-xl border border-purple-500/50 bg-purple-500/10 px-4 py-2.5">
+          <span className="inline-block h-5 w-5 animate-spin rounded-full border-2 border-purple-400 border-t-transparent" />
+          <span className="text-base font-black tracking-wide text-purple-200">SETTLING</span>
+          <span className="text-xs text-zinc-400">Computing the uniform clearing price…</span>
+        </div>
+      ) : (
+        <div className="rounded-xl border border-emerald-500/60 bg-emerald-500/10 px-4 py-2.5">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+            <span className="animate-pulse text-base font-black tracking-wide text-emerald-300">
+              ● LIVE TRADING
+            </span>
+            <span className="hidden text-xs text-zinc-400 sm:inline">
+              Your buys push price up, sells push it down — scalp it or diamond-hand the bell
+            </span>
+            <span className="ml-auto font-mono text-lg font-black tabular-nums text-zinc-100">
+              1:{String(Math.max(0, 40 - age)).padStart(2, "0")}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* ticker stat bar */}
+      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 rounded-xl border border-zinc-800 bg-zinc-900/50 px-4 py-2">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-900 text-lg">
+            🐷
+          </div>
+          <span className="font-black">PORK BELLY</span>
+          <span className="text-xs text-zinc-500">$PORK</span>
+        </div>
+        {!settling && (
+          <span className="animate-pulse rounded bg-orange-500/20 px-2 py-0.5 text-[10px] font-black text-orange-300">
+            🔥 Cooking
+          </span>
+        )}
+        <Stat label="Market Cap" value={`$${mcap.toFixed(1)}k`} />
+        <Stat label="Volume" value={`${vol.toFixed(1)} pETH`} />
+        <Stat label="Holders" value={String(holders)} />
+        <Stat label="Age" value={`${age}s`} />
+        <Stat label="Your PnL" value={`+${pnl.toFixed(3)} pETH`} tone="up" />
+      </div>
+
+      <div className="grid min-h-0 flex-1 gap-3 lg:grid-cols-[1fr_240px]">
+        <div className="flex min-h-0 flex-col gap-3">
+          {/* bonding progress */}
+          <div className="rounded-xl border border-zinc-800 px-3 py-2">
+            <div className="mb-1.5 flex items-center justify-between text-[11px]">
+              <span className="font-bold text-zinc-300">🍽️ Bonding progress</span>
+              <span className="font-mono text-zinc-400">
+                ${mcap.toFixed(1)}k / $40k · {gradPct.toFixed(0)}%
+              </span>
+            </div>
+            <div className="h-1.5 overflow-hidden rounded bg-zinc-800">
+              <div className="h-full bg-lime-400" style={{ width: `${gradPct}%` }} />
+            </div>
+          </div>
+          {/* the chart */}
+          <div className="min-h-0 flex-1">
+            <LiveChart run={!settling} />
+          </div>
+          {/* trade panel */}
+          <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800 p-2.5">
+            <div className="w-16 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-center font-mono text-xs">
+              0.10
+            </div>
+            <span className="rounded-lg bg-emerald-600 px-4 py-1.5 text-xs font-black text-white">Buy</span>
+            {[0.02, 0.05, 0.1].map((v) => (
+              <span key={v} className="rounded bg-emerald-600/20 px-2 py-1.5 text-[11px] font-bold text-emerald-300">
+                +{v}
+              </span>
+            ))}
+            <div className="mx-1 h-6 w-px bg-zinc-800" />
+            <span className="rounded bg-red-600/20 px-2 py-1.5 text-[11px] font-bold text-red-300">Sell 50%</span>
+            <span className="rounded-lg bg-red-600 px-4 py-1.5 text-xs font-black text-white">Sell All</span>
+          </div>
+        </div>
+
+        {/* side: your bag + kill feed */}
+        <div className="flex min-h-0 flex-col gap-3">
+          <div className="neon rounded-xl border border-lime-400/40 bg-zinc-900/60 p-3">
+            <h4 className="mb-2 text-xs font-black tracking-wide text-lime-300">💰 YOUR BAG</h4>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div>
+                <div className="text-[9px] uppercase text-zinc-500">$PORK held</div>
+                <div className="font-mono font-bold">1.9M</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase text-zinc-500">Bag value</div>
+                <div className="font-mono font-bold">${(pnl * 1925 + 200).toFixed(0)}</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase text-zinc-500">Round PnL</div>
+                <div className="font-mono font-bold text-emerald-400">+${(pnl * 1925).toFixed(0)}</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase text-zinc-500">Cash left</div>
+                <div className="font-mono font-bold">4.90</div>
+              </div>
+            </div>
+          </div>
+          <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-zinc-800 p-3">
+            <h4 className="mb-2 text-xs font-bold text-zinc-300">Kill feed</h4>
+            <div className="flex min-h-0 flex-1 flex-col-reverse gap-1 overflow-hidden">
+              {feed
+                .slice()
+                .reverse()
+                .map((f, i) => (
+                  <div
+                    key={f.id}
+                    className={`flex items-center gap-1.5 rounded px-1.5 py-1 text-[11px] ${
+                      i === 0 ? "killfeed-item" : ""
+                    } ${f.side === "whale" ? "bg-amber-500/10" : "bg-zinc-900"}`}
+                  >
+                    <Avatar name={f.name} color={f.color} />
+                    <span className="truncate text-zinc-300">
+                      {f.side === "whale" ? "🐳" : f.side === "buy" ? "🟢" : "🔴"} {f.name}
+                    </span>
+                    <span
+                      className={`ml-auto font-mono ${
+                        f.side === "sell" ? "text-red-400" : "text-emerald-400"
+                      }`}
+                    >
+                      {f.side === "sell" ? "-" : "+"}
+                      {f.eth.toFixed(2)}
+                    </span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, tone }: { label: string; value: string; tone?: "up" }) {
+  return (
+    <div>
+      <div className="text-[9px] uppercase tracking-wide text-zinc-500">{label}</div>
+      <div className={`font-mono text-sm font-bold ${tone === "up" ? "text-emerald-400" : "text-zinc-100"}`}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+/** Canvas candlestick chart that streams in candles trending up (a pump). */
+function LiveChart({ run }: { run: boolean }) {
+  const ref = useRef<HTMLCanvasElement>(null);
+  const candles = useRef<Array<{ o: number; c: number; h: number; l: number }>>([]);
+  const price = useRef(100);
+  const drift = useRef(0);
+
+  useEffect(() => {
+    candles.current = [];
+    price.current = 100;
+    drift.current = 0;
+    // seed a little history
+    for (let i = 0; i < 18; i++) step();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function step() {
+    const o = price.current;
+    // upward bias with volatility + the occasional red candle
+    drift.current = drift.current * 0.8 + 0.9 + (Math.random() - 0.42) * 6;
+    let c = o + drift.current;
+    c = Math.max(60, c);
+    price.current = c;
+    const wick = 2 + Math.random() * 4;
+    candles.current.push({
+      o,
+      c,
+      h: Math.max(o, c) + Math.random() * wick,
+      l: Math.min(o, c) - Math.random() * wick,
+    });
+    if (candles.current.length > 46) candles.current.shift();
+  }
+
+  useEffect(() => {
+    if (!run) return;
+    const iv = setInterval(step, 300);
+    return () => clearInterval(iv);
+  }, [run]);
+
+  useEffect(() => {
+    const canvas = ref.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d")!;
+    let raf = 0;
+    const draw = () => {
+      raf = requestAnimationFrame(draw);
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
+        canvas.width = w * dpr;
+        canvas.height = h * dpr;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+
+      const cs = candles.current;
+      if (cs.length < 2) return;
+      let lo = Infinity;
+      let hi = -Infinity;
+      for (const cd of cs) {
+        lo = Math.min(lo, cd.l);
+        hi = Math.max(hi, cd.h);
+      }
+      const pad = (hi - lo) * 0.12 || 1;
+      lo -= pad;
+      hi += pad;
+      const padTop = 8;
+      const padBot = 8;
+      const y = (p: number) => padTop + (1 - (p - lo) / (hi - lo)) * (h - padTop - padBot);
+      const bw = w / cs.length;
+
+      // area fill under the close line
+      ctx.beginPath();
+      ctx.moveTo(0, h);
+      cs.forEach((cd, i) => ctx.lineTo(i * bw + bw / 2, y(cd.c)));
+      ctx.lineTo((cs.length - 1) * bw + bw / 2, h);
+      ctx.closePath();
+      const g = ctx.createLinearGradient(0, 0, 0, h);
+      g.addColorStop(0, "rgba(163,230,53,0.22)");
+      g.addColorStop(1, "rgba(163,230,53,0)");
+      ctx.fillStyle = g;
+      ctx.fill();
+
+      // candles
+      cs.forEach((cd, i) => {
+        const cx = i * bw + bw / 2;
+        const up = cd.c >= cd.o;
+        ctx.strokeStyle = up ? "#22c55e" : "#ef4444";
+        ctx.fillStyle = up ? "#22c55e" : "#ef4444";
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(cx, y(cd.h));
+        ctx.lineTo(cx, y(cd.l));
+        ctx.stroke();
+        const bodyW = Math.max(2, bw * 0.6);
+        const yo = y(cd.o);
+        const yc = y(cd.c);
+        ctx.fillRect(cx - bodyW / 2, Math.min(yo, yc), bodyW, Math.max(1.5, Math.abs(yc - yo)));
+      });
+
+      // glowing live price dot + line
+      const last = cs[cs.length - 1]!;
+      const ly = y(last.c);
+      const lx = (cs.length - 1) * bw + bw / 2;
+      ctx.strokeStyle = "rgba(163,230,53,0.35)";
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(0, ly);
+      ctx.lineTo(w, ly);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#a3e635";
+      ctx.shadowColor = "#a3e635";
+      ctx.shadowBlur = 12;
+      ctx.beginPath();
+      ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    };
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+
+  return (
+    <div className="h-full min-h-[9rem] rounded-xl border border-zinc-800 bg-zinc-900/30 p-1">
+      <canvas ref={ref} className="h-full w-full" />
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ *  SCENE 4 — Community Vote
+ * ------------------------------------------------------------------ */
+
+function VoteScene() {
+  const t = useSceneClock(SCENES[3].dur);
+  const moon = Math.round(lerp(0, 128, t));
+  const rug = Math.round(lerp(0, 47, t));
+  const total = moon + rug || 1;
+  const moonPct = (moon / total) * 100;
+  const revealed = t > 0.82;
+
+  return (
+    <div className="flex h-full animate-[fadein_.4s_ease] flex-col items-center justify-center gap-6 px-4">
+      <div className="text-center">
+        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">
+          Fresh coin created
+        </div>
+        <div className="mt-2 flex items-center justify-center gap-3">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-zinc-700 bg-gradient-to-br from-pink-500/40 to-orange-500/30 text-3xl">
+            🐷
+          </div>
+          <div className="text-left">
+            <div className="text-2xl font-black">PORK BELLY <span className="text-zinc-500">$PORK</span></div>
+            <div className="text-xs text-zinc-400">The crowd calls it before the open</div>
+          </div>
+        </div>
+      </div>
+
+      <h3 className="text-3xl font-black md:text-4xl">
+        Moon <span className="text-zinc-600">or</span> Rug?
+      </h3>
+
+      {/* the tug-of-war bar */}
+      <div className="w-full max-w-xl">
+        <div className="flex h-12 overflow-hidden rounded-xl border border-zinc-800">
+          <div
+            className="flex items-center justify-start bg-emerald-500/25 pl-3 transition-[width] duration-300"
+            style={{ width: `${moonPct}%` }}
+          >
+            <span className="text-sm font-black text-emerald-300">🌕 {moon}</span>
+          </div>
+          <div className="flex flex-1 items-center justify-end bg-red-500/20 pr-3">
+            <span className="text-sm font-black text-red-300">{rug} 🧨</span>
+          </div>
+        </div>
+        <div className="mt-2 flex justify-between text-xs">
+          <span className="font-bold text-emerald-400">{moonPct.toFixed(0)}% MOON</span>
+          <span className="text-zinc-500">{total} calls in</span>
+          <span className="font-bold text-red-400">{(100 - moonPct).toFixed(0)}% RUG</span>
+        </div>
+      </div>
+
+      {/* voter avatars */}
+      <div className="flex -space-x-1.5">
+        {TRADERS.slice(0, 7).map(([name, color]) => (
+          <Avatar key={name} name={name} color={color} />
+        ))}
+        <span className="flex h-5 items-center rounded-full bg-zinc-800 px-2 text-[10px] font-bold text-zinc-400">
+          +{total - 7}
+        </span>
+      </div>
+
+      <div
+        className={`rounded-xl border px-5 py-2.5 text-center transition ${
+          revealed
+            ? "border-emerald-500/60 bg-emerald-500/10 opacity-100"
+            : "border-zinc-800 bg-zinc-900/40 opacity-70"
+        }`}
+      >
+        {revealed ? (
+          <span className="text-sm font-black text-emerald-300">
+            🌕 The crowd called it — Mooners bank XP toward the weekly jackpot
+          </span>
+        ) : (
+          <span className="text-sm text-zinc-400">Correct calls earn XP · locks at the open</span>
+        )}
+      </div>
+    </div>
+  );
+}

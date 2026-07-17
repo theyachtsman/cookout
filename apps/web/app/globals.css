@@ -23,6 +23,17 @@ body {
   animation: slide-in 0.25s ease-out;
 }
 
+@keyframes fadein {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
 @keyframes flash-green {
   0% {
     background-color: rgba(16, 185, 129, 0.35);
