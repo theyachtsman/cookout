@@ -7,24 +7,32 @@ import { ChartCanvas } from "./ChartCanvas";
 /**
  * ArenaDemo — an auto-cycling, self-contained mockup of the live arena that
  * runs right on the landing page. It walks a visitor through the product with
- * fake-but-realistic data, reusing the exact look & feel of the real app:
+ * fake-but-realistic data, reusing the exact look & feel of the real app —
+ * chronologically, from creating a coin to splitting the jackpot:
  *
- *   1. Calendar     — queued lobbies + one live match
- *   2. Pre-Launch   — the batch-auction queue: place a market buy before open
- *   3. Launch→Live  — settle, then the chart rips while the feed goes off
- *   4. Community     — the Moon-or-Rug crowd call on a fresh coin
+ *   1. Launchpad    — submit a token concept (metadata only)
+ *   2. Upvote       — the community votes it onto the calendar
+ *   3. Calendar     — queued lobbies + one live match
+ *   4. Pre-Launch   — the batch-auction queue + the trenches chat
+ *   5. Launch→Live  — settle, then the real chart rips on two-way action
+ *   6. Board        — leaderboard, quests, XP, streaks, season pass
+ *   7. Jackpot      — top weekly-XP earners split the pot
  *
  * Everything is simulated in the browser — no wallet, no server, no risk.
  */
 
 const SCENES = [
+  { key: "launchpad", label: "The Launchpad", blurb: "Submit a coin — metadata only", dur: 7600 },
+  { key: "upvote", label: "Community Upvote", blurb: "Vote coins onto the calendar", dur: 7000 },
   { key: "calendar", label: "The Calendar", blurb: "Queued lobbies + a live match", dur: 5200 },
-  { key: "queue", label: "Pre-Launch Queue", blurb: "Place your buy before the open", dur: 7600 },
+  { key: "queue", label: "Pre-Launch Queue", blurb: "Place your buy before the open", dur: 8200 },
   { key: "launch", label: "Launch → Live", blurb: "Settle, then the chart rips", dur: 9800 },
-  { key: "vote", label: "Community Vote", blurb: "The crowd calls it: Moon or Rug", dur: 5600 },
   { key: "board", label: "Board · Quests · XP", blurb: "Climb the ranks, earn XP", dur: 8600 },
   { key: "jackpot", label: "The Weekly Jackpot", blurb: "Top XP earners split real ETH", dur: 7200 },
 ] as const;
+
+/** Look up a scene duration by key (robust to reordering). */
+const durOf = (k: string) => SCENES.find((s) => s.key === k)!.dur;
 
 function useReducedMotion() {
   const [reduce, setReduce] = useState(false);
@@ -89,9 +97,9 @@ export function ArenaDemo() {
           This is a <span className="text-lime-400">battle arena.</span>
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-zinc-300">
-          Watch a full match play out — the pre-launch buy queue, the fair open, the chart ripping
-          live, and the crowd calling it. Simulated with sample data; the real thing runs on paper
-          money in your browser.
+          The whole loop, start to finish — launch a coin, get voted in, pull up to the queue, trade
+          the live chart, climb the board, and split the jackpot. Simulated with sample data; the
+          real thing runs on paper money in your browser.
         </p>
       </div>
 
@@ -162,10 +170,11 @@ export function ArenaDemo() {
 
         {/* scene body */}
         <div className="relative h-[30rem] overflow-hidden bg-zinc-950 p-4 sm:h-[32rem]">
+          {key === "launchpad" && <LaunchpadScene />}
+          {key === "upvote" && <UpvoteScene />}
           {key === "calendar" && <CalendarScene />}
           {key === "queue" && <QueueScene />}
           {key === "launch" && <LaunchScene />}
-          {key === "vote" && <VoteScene />}
           {key === "board" && <BoardScene />}
           {key === "jackpot" && <JackpotScene />}
           {/* sample-data watermark */}
@@ -397,8 +406,16 @@ interface Bid {
   you?: boolean;
 }
 
+const CHAT_LINES = [
+  "aping in, lfg 🚀", "who's the dev?", "this one bonds ez", "liquidity thin ser 👀",
+  "paper hands ngmi", "i'm all in", "wen moon", "🌕🌕🌕", "chart about to rip",
+  "comfy hold", "zoom out", "2x from here easy", "don't fumble this", "full send",
+  "who selling? i'm buying", "this is the one", "top blast incoming", "dev based",
+  "first 🥇", "let it cook 🔥", "diamond hands only 💎", "send it higher",
+];
+
 function QueueScene() {
-  const t = useSceneClock(SCENES[1].dur);
+  const t = useSceneClock(durOf("queue"));
   const [bids, setBids] = useState<Bid[]>([
     { name: TRADERS[2][0], color: TRADERS[2][1], eth: 0.25 },
     { name: TRADERS[0][0], color: TRADERS[0][1], eth: 0.5 },
@@ -429,6 +446,22 @@ function QueueScene() {
       setMoon((m) => m + 1);
     }, 2600);
     return () => clearTimeout(to);
+  }, []);
+
+  // the trenches — simulated pre-launch chat
+  const [chat, setChat] = useState<Array<{ id: number; name: string; color: string; text: string }>>([
+    { id: -2, name: TRADERS[1][0], color: TRADERS[1][1], text: "gm degens, aping this one 🫡" },
+    { id: -1, name: TRADERS[4][0], color: TRADERS[4][1], text: "art is 10/10, sending it" },
+  ]);
+  useEffect(() => {
+    let i = 0;
+    const iv = setInterval(() => {
+      const [name, color] = TRADERS[(i * 5 + 1) % TRADERS.length];
+      const text = CHAT_LINES[(i * 7 + 3) % CHAT_LINES.length];
+      setChat((c) => [...c.slice(-9), { id: i, name, color, text }]);
+      i++;
+    }, 1150);
+    return () => clearInterval(iv);
   }, []);
 
   const players = 18 + bids.length;
@@ -484,7 +517,36 @@ function QueueScene() {
             </button>
           </div>
 
-          <div className="mt-3 flex items-center justify-between border-t border-zinc-800 pt-2 text-[11px]">
+          {/* the trenches — live chat, right under the buy row */}
+          <div className="mt-3 flex min-h-0 flex-1 flex-col border-t border-zinc-800 pt-2">
+            <div className="mb-1 flex items-center gap-2 text-[11px]">
+              <span className="font-bold text-zinc-300">💬 Trenches</span>
+              <span className="text-zinc-600">live chat</span>
+              <span className="ml-auto flex items-center gap-1 text-[10px] text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> {players} online
+              </span>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col-reverse gap-0.5 overflow-hidden">
+              {chat
+                .slice()
+                .reverse()
+                .map((m, i) => (
+                  <div
+                    key={m.id}
+                    className={`flex items-baseline gap-1.5 rounded px-1.5 py-0.5 text-[11px] ${
+                      i === 0 ? "killfeed-item" : ""
+                    }`}
+                  >
+                    <span className="shrink-0 font-bold" style={{ color: m.color }}>
+                      {m.name}
+                    </span>
+                    <span className="truncate text-zinc-300">{m.text}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+
+          <div className="mt-2 flex items-center justify-between border-t border-zinc-800 pt-2 text-[11px]">
             <span className="font-bold text-zinc-300">Live pre-positions</span>
             <span className="font-mono text-zinc-500">
               {bids.length} bids · {committed.toFixed(2)} pETH
@@ -573,7 +635,7 @@ interface FeedItem {
 }
 
 function LaunchScene() {
-  const t = useSceneClock(SCENES[2].dur);
+  const t = useSceneClock(durOf("launch"));
   const settling = t < 0.13;
   const [feed, setFeed] = useState<FeedItem[]>([]);
 
@@ -888,7 +950,7 @@ function QuestRow({ name, xp, p }: { name: string; xp: number; p: number }) {
 }
 
 function BoardScene() {
-  const t = useSceneClock(SCENES[4].dur);
+  const t = useSceneClock(durOf("board"));
   const xpNow = Math.round(lerp(1200, 2180, Math.min(1, t * 1.3)));
   const podium = [
     ["🥈", "DiamondDan", "+42.1"],
@@ -991,7 +1053,7 @@ function BoardScene() {
  * ------------------------------------------------------------------ */
 
 function JackpotScene() {
-  const t = useSceneClock(SCENES[5].dur);
+  const t = useSceneClock(durOf("jackpot"));
   const pot = lerp(0, 2384, Math.min(1, t * 1.5)); // USD, counts up
   const eth = pot / 1920;
   const winners = [
@@ -1053,83 +1115,212 @@ function JackpotScene() {
 }
 
 /* ------------------------------------------------------------------ *
- *  SCENE 4 — Community Vote
+ *  Launchpad (submit a coin) + Community Upvote (vote it onto the calendar)
  * ------------------------------------------------------------------ */
 
-function VoteScene() {
-  const t = useSceneClock(SCENES[3].dur);
-  const moon = Math.round(lerp(0, 128, t));
-  const rug = Math.round(lerp(0, 47, t));
-  const total = moon + rug || 1;
-  const moonPct = (moon / total) * 100;
-  const revealed = t > 0.82;
+function typed(s: string, t: number, start: number, end: number) {
+  const p = Math.max(0, Math.min(1, (t - start) / (end - start)));
+  return s.slice(0, Math.round(s.length * p));
+}
+
+function Field({
+  label,
+  children,
+  mono,
+  full,
+}: {
+  label: string;
+  children: React.ReactNode;
+  mono?: boolean;
+  full?: boolean;
+}) {
+  return (
+    <div className={full ? "sm:col-span-2" : ""}>
+      <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">{label}</div>
+      <div className={`min-h-[2.4rem] rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm ${mono ? "font-mono" : ""}`}>
+        {children}
+      </div>
+    </div>
+  );
+}
+
+/** Accurate recreation of the launchpad's "Submit a Token Concept" flow. */
+function LaunchpadScene() {
+  const t = useSceneClock(durOf("launchpad"));
+  const submitted = t > 0.86;
+  const name = typed("Pork Belly", t, 0.05, 0.22);
+  const sym = typed("PORK", t, 0.22, 0.32);
+  const theme = typed("the ultimate breakfast meme", t, 0.32, 0.55);
+  const supply = typed("2000000", t, 0.55, 0.66);
+  const showImg = t > 0.66;
+  const armed = t > 0.74;
+  const caret = <span className="ml-0.5 inline-block h-3.5 w-px animate-pulse bg-lime-400 align-middle" />;
 
   return (
-    <div className="flex h-full animate-[fadein_.4s_ease] flex-col items-center justify-center gap-6 px-4">
-      <div className="text-center">
-        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">
-          Fresh coin created
-        </div>
-        <div className="mt-2 flex items-center justify-center gap-3">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-zinc-700 bg-gradient-to-br from-pink-500/40 to-orange-500/30 text-3xl">
-            🐷
-          </div>
-          <div className="text-left">
-            <div className="text-2xl font-black">PORK BELLY <span className="text-zinc-500">$PORK</span></div>
-            <div className="text-xs text-zinc-400">The crowd calls it before the open</div>
-          </div>
-        </div>
+    <div className="flex h-full animate-[fadein_.4s_ease] flex-col gap-3">
+      <div>
+        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">The Launchpad</div>
+        <h3 className="mt-1 text-lg font-black">Submit a Token Concept</h3>
+        <p className="text-xs text-zinc-500">
+          You supply metadata, never code — every token deploys from the platform-audited template.
+          No creator mint, pause, or blacklist controls exist.
+        </p>
       </div>
 
-      <h3 className="text-3xl font-black md:text-4xl">
-        Moon <span className="text-zinc-600">or</span> Rug?
-      </h3>
-
-      {/* the tug-of-war bar */}
-      <div className="w-full max-w-xl">
-        <div className="flex h-12 overflow-hidden rounded-xl border border-zinc-800">
-          <div
-            className="flex items-center justify-start bg-emerald-500/25 pl-3 transition-[width] duration-300"
-            style={{ width: `${moonPct}%` }}
-          >
-            <span className="text-sm font-black text-emerald-300">🌕 {moon}</span>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="Token name">
+          {name}
+          {!submitted && name.length > 0 && name.length < 10 && caret}
+        </Field>
+        <Field label="Symbol" mono>
+          {sym ? `$${sym}` : ""}
+          {!submitted && sym.length > 0 && sym.length < 4 && caret}
+        </Field>
+        <Field label="Theme (one line)" full>
+          {theme}
+          {!submitted && theme.length > 0 && theme.length < 27 && caret}
+        </Field>
+        <div className="flex items-end gap-5 sm:col-span-2">
+          <div>
+            <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">Coin image</div>
+            <div
+              className={`flex h-14 w-14 items-center justify-center rounded-lg border text-3xl transition ${
+                showImg
+                  ? "border-lime-400/50 bg-gradient-to-br from-pink-500/30 to-orange-500/20"
+                  : "border-dashed border-zinc-700 text-zinc-700"
+              }`}
+            >
+              {showImg ? "🐷" : "+"}
+            </div>
           </div>
-          <div className="flex flex-1 items-center justify-end bg-red-500/20 pr-3">
-            <span className="text-sm font-black text-red-300">{rug} 🧨</span>
+          <div>
+            <div className="mb-1 text-[10px] uppercase tracking-wide text-zinc-500">
+              Total supply (100K – 1B)
+            </div>
+            <div className="w-44 rounded border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-sm">
+              {supply ? Number(supply).toLocaleString() : ""}
+              {!submitted && supply.length > 0 && supply.length < 7 && caret}
+            </div>
           </div>
         </div>
-        <div className="mt-2 flex justify-between text-xs">
-          <span className="font-bold text-emerald-400">{moonPct.toFixed(0)}% MOON</span>
-          <span className="text-zinc-500">{total} calls in</span>
-          <span className="font-bold text-red-400">{(100 - moonPct).toFixed(0)}% RUG</span>
-        </div>
-      </div>
-
-      {/* voter avatars */}
-      <div className="flex -space-x-1.5">
-        {TRADERS.slice(0, 7).map(([name, color]) => (
-          <Avatar key={name} name={name} color={color} />
-        ))}
-        <span className="flex h-5 items-center rounded-full bg-zinc-800 px-2 text-[10px] font-bold text-zinc-400">
-          +{total - 7}
-        </span>
       </div>
 
       <div
-        className={`rounded-xl border px-5 py-2.5 text-center transition ${
-          revealed
-            ? "border-emerald-500/60 bg-emerald-500/10 opacity-100"
-            : "border-zinc-800 bg-zinc-900/40 opacity-70"
+        className={`w-fit rounded-lg px-5 py-2 text-sm font-black transition ${
+          submitted
+            ? "bg-emerald-500 text-white"
+            : armed
+              ? "bg-lime-400 text-zinc-950 shadow-lg shadow-lime-400/30"
+              : "bg-zinc-800 text-zinc-500"
         }`}
       >
-        {revealed ? (
-          <span className="text-sm font-black text-emerald-300">
-            🌕 The crowd called it — Mooners bank XP toward the weekly jackpot
-          </span>
-        ) : (
-          <span className="text-sm text-zinc-400">Correct calls earn XP · locks at the open</span>
-        )}
+        {submitted ? "✓ Submitted — now up for community vote" : "Submit Concept"}
       </div>
+
+      <div className="mt-auto grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {[
+          ["50%", "supply in pool at open"],
+          ["1.5 pETH", "seed liquidity"],
+          ["1% fee", "creator gets 30%"],
+          ["$40k mcap", "serves up / graduates"],
+        ].map(([v, k]) => (
+          <div key={k} className="rounded-lg bg-zinc-900 p-2.5">
+            <div className="font-mono text-xs font-bold text-zinc-200">{v}</div>
+            <div className="text-[10px] uppercase tracking-wide text-zinc-500">{k}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Real community-vote flow: upvote fresh concepts toward the shortlist. */
+function UpvoteScene() {
+  const t = useSceneClock(durOf("upvote"));
+  const CONCEPTS = [
+    { emoji: "🐷", name: "Pork Belly", sym: "PORK", theme: "the ultimate breakfast meme", by: "0x9f…c3", base: 6.5, gain: 6 },
+    { emoji: "🛸", name: "Abduction", sym: "BEAM", theme: "they're taking us to the moon", by: "0x2a…7e", base: 3, gain: 5 },
+    { emoji: "🥔", name: "Couch Potato", sym: "SPUD", theme: "do nothing, earn nothing, vibe", by: "0x84…1b", base: 2, gain: 4 },
+  ];
+  return (
+    <div className="flex h-full animate-[fadein_.4s_ease] flex-col gap-3">
+      <div>
+        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">Community Upvote</div>
+        <h3 className="mt-1 text-lg font-black">Voting Now</h3>
+        <p className="text-xs text-zinc-500">
+          10 upvotes sends a fresh coin to the committee shortlist — and onto the match calendar.
+        </p>
+      </div>
+      <div className="grid min-h-0 flex-1 gap-3 sm:grid-cols-3">
+        {CONCEPTS.map((c, i) => {
+          const votes = Math.min(12, Math.round(c.base + c.gain * Math.min(1, t * 1.5)));
+          const shortlisted = votes >= 10;
+          const pct = Math.min(100, (votes / 10) * 100);
+          return (
+            <div
+              key={c.sym}
+              className={`flex flex-col rounded-xl border p-3 ${
+                shortlisted ? "border-sky-500/50 bg-sky-500/[0.05]" : "border-zinc-800"
+              }`}
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="flex gap-2">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-900 text-2xl">
+                    {c.emoji}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-black leading-tight">
+                      {c.name} <span className="text-zinc-500">${c.sym}</span>
+                    </div>
+                    <div className="text-[11px] text-zinc-400">{c.theme}</div>
+                    <div className="mt-0.5 text-[10px] text-zinc-600">by {c.by}</div>
+                  </div>
+                </div>
+                <span
+                  className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] ${
+                    shortlisted ? "bg-sky-500/20 text-sky-300" : "bg-zinc-800 text-zinc-300"
+                  }`}
+                >
+                  {shortlisted ? "shortlisted" : "submitted"}
+                </span>
+              </div>
+              <div className="mt-auto pt-3">
+                {shortlisted ? (
+                  <div className="text-[11px] font-bold text-sky-300">
+                    ✓ Vote passed — awaiting a match slot
+                  </div>
+                ) : (
+                  <>
+                    <div className="h-1.5 overflow-hidden rounded bg-zinc-800">
+                      <div
+                        className="h-full bg-lime-400 transition-[width] duration-300"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <div className="mt-1 flex justify-between text-[10px] text-zinc-500">
+                      <span>{votes}/10 to shortlist</span>
+                      <span>{18 - i * 3}h left</span>
+                    </div>
+                  </>
+                )}
+                <div className="mt-2 flex items-center gap-2">
+                  <span
+                    className={`rounded px-2.5 py-1 text-xs font-bold ${
+                      shortlisted ? "bg-zinc-800 text-zinc-500" : "bg-lime-400 text-zinc-950"
+                    }`}
+                  >
+                    ▲ Upvote
+                  </span>
+                  <span className="font-mono text-xs text-zinc-400">{votes} votes</span>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <p className="text-center text-[11px] text-zinc-600">
+        Winners get a match slot · creators earn a cut of trading fees · every launch uses the same template.
+      </p>
     </div>
   );
 }
