@@ -448,22 +448,6 @@ function QueueScene() {
     return () => clearTimeout(to);
   }, []);
 
-  // the trenches — simulated pre-launch chat
-  const [chat, setChat] = useState<Array<{ id: number; name: string; color: string; text: string }>>([
-    { id: -2, name: TRADERS[1][0], color: TRADERS[1][1], text: "gm degens, aping this one 🫡" },
-    { id: -1, name: TRADERS[4][0], color: TRADERS[4][1], text: "art is 10/10, sending it" },
-  ]);
-  useEffect(() => {
-    let i = 0;
-    const iv = setInterval(() => {
-      const [name, color] = TRADERS[(i * 5 + 1) % TRADERS.length];
-      const text = CHAT_LINES[(i * 7 + 3) % CHAT_LINES.length];
-      setChat((c) => [...c.slice(-9), { id: i, name, color, text }]);
-      i++;
-    }, 1150);
-    return () => clearInterval(iv);
-  }, []);
-
   const players = 18 + bids.length;
   const committed = 4.2 + bids.reduce((s, b) => s + b.eth, 0);
   const closeIn = Math.max(0, 42 - Math.floor(t * 42));
@@ -517,36 +501,7 @@ function QueueScene() {
             </button>
           </div>
 
-          {/* the trenches — live chat, right under the buy row */}
-          <div className="mt-3 flex min-h-0 flex-1 flex-col border-t border-zinc-800 pt-2">
-            <div className="mb-1 flex items-center gap-2 text-[11px]">
-              <span className="font-bold text-zinc-300">💬 Trenches</span>
-              <span className="text-zinc-600">live chat</span>
-              <span className="ml-auto flex items-center gap-1 text-[10px] text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> {players} online
-              </span>
-            </div>
-            <div className="flex min-h-0 flex-1 flex-col-reverse gap-0.5 overflow-hidden">
-              {chat
-                .slice()
-                .reverse()
-                .map((m, i) => (
-                  <div
-                    key={m.id}
-                    className={`flex items-baseline gap-1.5 rounded px-1.5 py-0.5 text-[11px] ${
-                      i === 0 ? "killfeed-item" : ""
-                    }`}
-                  >
-                    <span className="shrink-0 font-bold" style={{ color: m.color }}>
-                      {m.name}
-                    </span>
-                    <span className="truncate text-zinc-300">{m.text}</span>
-                  </div>
-                ))}
-            </div>
-          </div>
-
-          <div className="mt-2 flex items-center justify-between border-t border-zinc-800 pt-2 text-[11px]">
+          <div className="mt-3 flex items-center justify-between border-t border-zinc-800 pt-2 text-[11px]">
             <span className="font-bold text-zinc-300">Live pre-positions</span>
             <span className="font-mono text-zinc-500">
               {bids.length} bids · {committed.toFixed(2)} pETH
@@ -651,6 +606,21 @@ function LaunchScene() {
     return () => clearInterval(iv);
   }, []);
 
+  // the trenches — live chat under the trade buttons
+  const [chat, setChat] = useState<Array<{ id: number; name: string; color: string; text: string }>>([
+    { id: -2, name: TRADERS[1][0], color: TRADERS[1][1], text: "sent it, we cooking now 🔥" },
+    { id: -1, name: TRADERS[4][0], color: TRADERS[4][1], text: "diamond hands only 💎" },
+  ]);
+  useEffect(() => {
+    let i = 0;
+    const iv = setInterval(() => {
+      const [name, color] = TRADERS[(i * 5 + 1) % TRADERS.length];
+      setChat((c) => [...c.slice(-9), { id: i, name, color, text: CHAT_LINES[(i * 7 + 3) % CHAT_LINES.length]! }]);
+      i++;
+    }, 1150);
+    return () => clearInterval(iv);
+  }, []);
+
   // live counters, eased over the scene
   const price = t;
   const mcap = lerp(6.2, 39.4, price); // $k
@@ -738,6 +708,34 @@ function LaunchScene() {
             <div className="mx-1 h-6 w-px bg-zinc-800" />
             <span className="rounded bg-red-600/20 px-2 py-1.5 text-[11px] font-bold text-red-300">Sell 50%</span>
             <span className="rounded-lg bg-red-600 px-4 py-1.5 text-xs font-black text-white">Sell All</span>
+          </div>
+          {/* the trenches — live chat under the buy/sell buttons */}
+          <div className="flex h-28 flex-col rounded-xl border border-zinc-800 p-2.5">
+            <div className="mb-1 flex items-center gap-2 text-[11px]">
+              <span className="font-bold text-zinc-300">💬 Trenches</span>
+              <span className="text-zinc-600">live chat</span>
+              <span className="ml-auto flex items-center gap-1 text-[10px] text-emerald-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> {holders} online
+              </span>
+            </div>
+            <div className="flex min-h-0 flex-1 flex-col-reverse gap-0.5 overflow-hidden">
+              {chat
+                .slice()
+                .reverse()
+                .map((m, i) => (
+                  <div
+                    key={m.id}
+                    className={`flex items-baseline gap-1.5 rounded px-1.5 py-0.5 text-[11px] ${
+                      i === 0 ? "killfeed-item" : ""
+                    }`}
+                  >
+                    <span className="shrink-0 font-bold" style={{ color: m.color }}>
+                      {m.name}
+                    </span>
+                    <span className="truncate text-zinc-300">{m.text}</span>
+                  </div>
+                ))}
+            </div>
           </div>
         </div>
 
