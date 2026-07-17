@@ -137,7 +137,7 @@ export function ArenaDemo() {
   const key = SCENES[scene].key;
 
   return (
-    <section className="mx-auto max-w-6xl px-6 py-20">
+    <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-20">
       <div className="text-center">
         <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">Live Demo</div>
         <h2 className="mt-3 text-3xl font-black md:text-5xl">
@@ -156,7 +156,7 @@ export function ArenaDemo() {
           <button
             key={s.key}
             onClick={() => setScene(i)}
-            className={`group relative overflow-hidden rounded-xl border px-4 py-2 text-left transition ${
+            className={`group relative overflow-hidden rounded-xl border px-3 py-1.5 text-left transition sm:px-4 sm:py-2 ${
               i === scene
                 ? "border-lime-400/70 bg-lime-400/10"
                 : "border-zinc-800 bg-zinc-900/40 hover:border-zinc-600"
@@ -168,7 +168,7 @@ export function ArenaDemo() {
               >
                 0{i + 1}
               </span>
-              <span className={`text-sm font-black ${i === scene ? "text-zinc-50" : "text-zinc-300"}`}>
+              <span className={`text-xs font-black sm:text-sm ${i === scene ? "text-zinc-50" : "text-zinc-300"}`}>
                 {s.label}
               </span>
             </div>
@@ -215,8 +215,8 @@ export function ArenaDemo() {
           </div>
         </div>
 
-        {/* scene body */}
-        <div className="relative h-[36rem] overflow-hidden bg-zinc-950 p-4 sm:h-[42rem]">
+        {/* scene body — taller on phones since side-columns stack vertically */}
+        <div className="relative h-[40rem] overflow-hidden bg-zinc-950 p-3 sm:h-[42rem] sm:p-4">
           {key === "launchpad" && <LaunchpadScene />}
           {key === "upvote" && <UpvoteScene />}
           {key === "calendar" && <CalendarScene />}
@@ -576,8 +576,8 @@ function QueueScene() {
           </div>
         </div>
 
-        {/* lobby + moon/rug + tokenomics */}
-        <div className="flex flex-col gap-3">
+        {/* lobby + moon/rug + tokenomics — secondary, hidden on phones */}
+        <div className="hidden flex-col gap-3 md:flex">
           <div className="rounded-xl border border-zinc-800 p-3">
             <h4 className="mb-2 text-xs font-bold text-zinc-300">Lobby</h4>
             <dl className="space-y-1 text-xs">
@@ -792,7 +792,7 @@ function LaunchScene() {
             </div>
           </div>
           {/* the chart — the exact product renderer, on the live demo market */}
-          <div className="min-h-0 flex-1">
+          <div className="min-h-[11rem] flex-1">
             <ChartCanvas
               candles={market.candles.current}
               trades={market.trades.current}
@@ -887,8 +887,8 @@ function LaunchScene() {
           </div>
         </div>
 
-        {/* side: your bag + kill feed */}
-        <div className="flex min-h-0 flex-col gap-3">
+        {/* side: your bag + kill feed — hidden on phones, chart+trades carry it */}
+        <div className="hidden min-h-0 flex-col gap-3 lg:flex">
           <div className="neon rounded-xl border border-lime-400/40 bg-zinc-900/60 p-3">
             <div className="mb-2 flex items-baseline justify-between">
               <h4 className="text-xs font-black tracking-wide text-lime-300">💰 YOUR BAG</h4>
@@ -1274,10 +1274,10 @@ function QuestScene() {
   const showBadge = t > 0.5 && t < 0.94;
 
   return (
-    <div className="relative grid h-full animate-[fadein_.4s_ease] gap-3 lg:grid-cols-2">
+    <div className="relative grid h-full animate-[fadein_.4s_ease] gap-3 sm:grid-cols-2">
       {/* achievement-unlock toast — proves badges are a thing */}
       {showBadge && (
-        <div className="absolute right-0 top-0 z-20 flex items-center gap-2 rounded-lg border border-violet-400/50 bg-zinc-900/95 px-3 py-2 shadow-lg animate-[fadein_.3s_ease]">
+        <div className="absolute right-0 top-0 z-20 flex max-w-[85%] items-center gap-2 rounded-lg border border-violet-400/50 bg-zinc-900/95 px-3 py-2 shadow-lg animate-[fadein_.3s_ease]">
           <span className="text-lg">🎯</span>
           <div className="leading-tight">
             <div className="text-[11px] font-black text-violet-300">Badge unlocked · Perfect Exit</div>
@@ -1324,7 +1324,7 @@ function QuestScene() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-zinc-800 p-3">
+        <div className="hidden rounded-xl border border-zinc-800 p-3 sm:block">
           <div className="mb-2 text-[11px] font-bold text-zinc-300">🏅 Lifetime Milestones</div>
           <div className="space-y-2">
             <MilestoneBar name="Trader" now={78} target={100} unit="trades" xp={90} />
