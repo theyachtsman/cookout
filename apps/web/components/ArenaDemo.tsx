@@ -710,7 +710,7 @@ function LaunchScene() {
             <span className="rounded-lg bg-red-600 px-4 py-1.5 text-xs font-black text-white">Sell All</span>
           </div>
           {/* the trenches — live chat under the buy/sell buttons */}
-          <div className="flex h-28 flex-col rounded-xl border border-zinc-800 p-2.5">
+          <div className="flex h-24 shrink-0 flex-col rounded-xl border border-zinc-800 p-2.5">
             <div className="mb-1 flex items-center gap-2 text-[11px]">
               <span className="font-bold text-zinc-300">💬 Trenches</span>
               <span className="text-zinc-600">live chat</span>
@@ -836,35 +836,35 @@ function DemoChart() {
   const open = useRef(0);
   const tSec = useRef(0);
   const id = useRef(0);
+  const popTarget = useRef(0);
+  const mountMs = useRef(0);
+  const lastBubble = useRef(0);
 
-  // Open at the launch: candle 0 (the leftmost) is one big green candle for all
-  // the settled auction buys, then the round's opening fills the window and runs
-  // — a full, evenly-spaced chart that starts at the launch, not mid-round.
+  // Sit flat at the clearing price (the coin waiting at the open) filling the
+  // window, then blast off live the instant the scene loads — the rightmost
+  // candle rips up to the settlement price and continuous trading takes over.
   useEffect(() => {
-    const N = 33; // candles of the opening already elapsed (fills the window)
+    const N = 33; // flat base candles — fills the window so it's well-spaced
     const nowSec = Math.floor(Date.now() / 1000);
     const start = nowSec - N;
     const clearing = 0.00003;
-    const pop = clearing * (1.85 + Math.random() * 0.3); // the settlement pop
-    const seed: Candle[] = [
-      { t: start, o: clearing, h: pop * 1.03, l: clearing * 0.985, c: pop, v: 0 },
-    ];
-    let p = pop;
-    for (let i = 1; i <= N; i++) {
-      const o = p;
-      const c = Math.max(clearing, o + (Math.random() - 0.45) * o * 0.06);
-      const wick = Math.abs(c - o) * 0.7 + o * 0.005;
-      seed.push({ t: start + i, o, h: Math.max(o, c) + Math.random() * wick, l: Math.min(o, c) - Math.random() * wick, c, v: 0 });
-      p = c;
+    const seed: Candle[] = [];
+    for (let i = 0; i <= N; i++) {
+      const o = clearing * (1 + (Math.random() - 0.5) * 0.012);
+      const c = clearing * (1 + (Math.random() - 0.5) * 0.012);
+      seed.push({ t: start + i, o, h: Math.max(o, c) * 1.004, l: Math.min(o, c) * 0.996, c, v: 0 });
     }
     candles.current = seed;
     open.current = clearing; // dashed "open" reference at the clearing price
-    price.current = p;
+    price.current = clearing;
     tSec.current = nowSec;
+    popTarget.current = clearing * (2.3 + Math.random() * 0.5); // where the blast peaks
+    mountMs.current = performance.now();
+    lastBubble.current = 0;
     force((x) => x + 1);
   }, []);
 
-  // Close a candle every second at the current (trade-driven) live price.
+  // Close a candle every second at the current live price.
   useEffect(() => {
     const iv = setInterval(() => {
       const arr = candles.current;
@@ -880,22 +880,28 @@ function DemoChart() {
     return () => clearInterval(iv);
   }, []);
 
-  // Real-market feel: buys push the live price up, sells push it down. Every
-  // ~150ms a trade or two fires and moves the price by its size, so the candles
-  // and the big-trade bubbles always agree (green + buy bubble, red + sell).
+  // Blast off for the first ~1.4s, then a trade-driven market: buys push the
+  // price up, sells push it down (so candles and bubbles always agree), and
+  // big-trade bubbles are rate-limited so they never pile up.
   useEffect(() => {
     const iv = setInterval(() => {
       const arr = candles.current;
       if (!arr.length) return;
       const now = Date.now();
-      let px = price.current || arr[arr.length - 1]!.c;
-      const n = Math.random() < 0.55 ? 1 : Math.random() < 0.9 ? 2 : 0;
+      const blasting = performance.now() - mountMs.current < 1400;
+      let px = price.current;
+      if (blasting) px += (popTarget.current - px) * 0.16; // the launch rip
+      else px *= 1 + (Math.random() - 0.5) * 0.003;
+
+      const n = Math.random() < 0.5 ? 1 : Math.random() < 0.85 ? 2 : 0;
       for (let k = 0; k < n; k++) {
-        const buy = Math.random() > 0.46; // slight buy bias — cooking
-        const big = Math.random() > 0.72;
-        const eth = big ? 0.5 + Math.random() * 1.2 : 0.02 + Math.random() * 0.22;
-        px = Math.max(px * 0.7, px * (1 + (buy ? 1 : -1) * eth * 0.015));
-        const isCreator = big && Math.random() > 0.88;
+        const buy = blasting ? Math.random() > 0.12 : Math.random() > 0.47;
+        const eth = Math.random() > 0.9 ? 0.5 + Math.random() * 1.1 : 0.02 + Math.random() * 0.22;
+        if (!blasting) px = Math.max(px * 0.7, px * (1 + (buy ? 1 : -1) * eth * 0.014));
+        // rate-limit bubbles: a big trade pops one only if none has for ~2.2s
+        const bubble = eth >= 0.5 && now - lastBubble.current > 2200;
+        if (bubble) lastBubble.current = now;
+        const isCreator = bubble && Math.random() > 0.8;
         const t: Trade & { seenAt?: number } = {
           id: String(id.current++),
           roundId: "demo",
@@ -903,17 +909,16 @@ function DemoChart() {
           side: buy ? "buy" : "sell",
           ethAmount: eth,
           tokenAmount: 0,
-          price: px, // the price right after this trade lands → dot sits on the candle
+          price: px,
           fee: 0,
           at: now,
           isCreator,
         };
-        if (big || isCreator) t.seenAt = now;
+        if (bubble) t.seenAt = now;
         trades.current.push(t);
       }
-      px *= 1 + (Math.random() - 0.5) * 0.003; // tiny noise between trades
       price.current = px;
-      trades.current = trades.current.filter((t) => t.at > now - 8000);
+      trades.current = trades.current.filter((t) => t.at > now - 6000);
       force((x) => x + 1);
     }, 150);
     return () => clearInterval(iv);
@@ -930,7 +935,7 @@ function DemoChart() {
       cooking
       windowSec={40}
       resolveTag={demoResolveTag}
-      className="h-full min-h-[9rem] w-full rounded-xl border border-zinc-800 bg-zinc-950"
+      className="h-full w-full rounded-xl border border-zinc-800 bg-zinc-950"
     />
   );
 }
