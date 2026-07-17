@@ -15,8 +15,9 @@ import { ChartCanvas } from "./ChartCanvas";
  *   3. Calendar     — queued lobbies + one live match
  *   4. Pre-Launch   — the batch-auction queue + the trenches chat
  *   5. Launch→Live  — settle, then the real chart rips on two-way action
- *   6. Board        — leaderboard, quests, XP, streaks, season pass
- *   7. Jackpot      — top weekly-XP earners split the pot
+ *   6. Leaderboard  — the weekly ranked board across every lobby
+ *   7. Quests       — XP sources, levels, streaks, milestones, season pass
+ *   8. Jackpot      — top weekly-XP earners split the pot
  *
  * Everything is simulated in the browser — no wallet, no server, no risk.
  */
@@ -27,7 +28,8 @@ const SCENES = [
   { key: "calendar", label: "The Calendar", blurb: "Queued lobbies + a live match", dur: 5200 },
   { key: "queue", label: "Pre-Launch Queue", blurb: "Place your buy before the open", dur: 8200 },
   { key: "launch", label: "Launch → Live", blurb: "Settle, then the chart rips", dur: 9800 },
-  { key: "board", label: "Board · Quests · XP", blurb: "Climb the ranks, earn XP", dur: 8600 },
+  { key: "leaderboard", label: "The Leaderboard", blurb: "Where you rank this week", dur: 7600 },
+  { key: "quests", label: "Quests · XP · Levels", blurb: "Earn XP, climb, unlock", dur: 9200 },
   { key: "jackpot", label: "The Weekly Jackpot", blurb: "Top XP earners split real ETH", dur: 7200 },
 ] as const;
 
@@ -220,7 +222,8 @@ export function ArenaDemo() {
           {key === "calendar" && <CalendarScene />}
           {key === "queue" && <QueueScene />}
           {key === "launch" && <LaunchScene />}
-          {key === "board" && <BoardScene />}
+          {key === "leaderboard" && <LeaderboardScene />}
+          {key === "quests" && <QuestScene />}
           {key === "jackpot" && <JackpotScene />}
           {/* sample-data watermark */}
           <div className="pointer-events-none absolute bottom-2 right-3 font-mono text-[10px] uppercase tracking-widest text-zinc-700">
@@ -1129,10 +1132,118 @@ function useDemoMarket() {
 }
 
 /* ------------------------------------------------------------------ *
- *  SCENE 5 — Board · Quests · XP  (mirrors /leaderboard + profile panels)
+ *  SCENE 6 — The Leaderboard  (mirrors /leaderboard)
  * ------------------------------------------------------------------ */
 
-function QuestRow({ name, xp, p }: { name: string; xp: number; p: number }) {
+function LeaderboardScene() {
+  const t = useSceneClock(durOf("leaderboard"));
+  // Your live PnL ticks up as rounds settle, nudging you up a rank mid-scene.
+  const youPnl = lerp(19.2, 24.6, Math.min(1, t * 1.25));
+  const climbed = t > 0.62;
+  const podium = [
+    ["🥈", "DiamondDan", "+42.1"],
+    ["🥇", "Grillmaster", "+61.8"],
+    ["🥉", "0xWhale", "+33.5"],
+  ] as const;
+  // rank, trader, weekly PnL (pETH), rounds, win%
+  const rows = [
+    ["4", "ape_ceo", "+28.0", "31", "58%"],
+    ["5", "TapeReader", "+21.4", "44", "61%"],
+    ["6", "degen_kate", "+18.9", "27", "52%"],
+    ["7", "solsurfer", "+15.2", "38", "49%"],
+    ["8", "notfinancial", "+12.7", "22", "55%"],
+  ] as const;
+
+  return (
+    <div className="flex h-full animate-[fadein_.4s_ease] flex-col gap-3">
+      {/* header + board tabs */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="text-sm font-black text-zinc-200">🏆 Leaderboard</div>
+        <div className="flex gap-1 text-[10px] font-bold">
+          <span className="rounded-full bg-lime-400 px-2.5 py-1 text-zinc-950">This Week · PnL</span>
+          <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-zinc-400">Season · XP</span>
+          <span className="rounded-full border border-zinc-700 px-2.5 py-1 text-zinc-400">All-Time</span>
+        </div>
+      </div>
+
+      {/* podium */}
+      <div className="grid grid-cols-3 items-end gap-2">
+        {podium.map(([m, name, v], i) => {
+          const rank = i === 1 ? 0 : i === 0 ? 1 : 2;
+          const style = [
+            "border-amber-400/70 from-amber-500/20 pt-6",
+            "border-zinc-400/50 from-zinc-400/15 pt-4",
+            "border-orange-700/60 from-orange-700/15 pt-4",
+          ][rank];
+          return (
+            <div key={name} className={`rounded-2xl border bg-gradient-to-b to-transparent p-3 text-center ${style}`}>
+              <div className="text-3xl">{m}</div>
+              <div className="mt-1 truncate text-xs font-black">{name}</div>
+              <div
+                className={`font-mono text-sm font-black ${
+                  rank === 0 ? "text-amber-300" : rank === 1 ? "text-zinc-300" : "text-orange-400"
+                }`}
+              >
+                {v}
+              </div>
+              <div className="text-[9px] text-zinc-500">pETH · this week</div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ranked table */}
+      <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-zinc-800">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="text-[9px] uppercase tracking-wide text-zinc-500">
+              <th className="px-3 py-2 text-left font-semibold">#</th>
+              <th className="px-3 py-2 text-left font-semibold">Trader</th>
+              <th className="px-3 py-2 text-right font-semibold">Weekly PnL</th>
+              <th className="hidden px-3 py-2 text-right font-semibold sm:table-cell">Rounds</th>
+              <th className="hidden px-3 py-2 text-right font-semibold sm:table-cell">Win %</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(([r, name, v, rounds, win]) => (
+              <tr key={name} className="border-t border-zinc-800/60">
+                <td className="px-3 py-2 font-mono text-zinc-500">{r}</td>
+                <td className="px-3 py-2">{name}</td>
+                <td className="px-3 py-2 text-right font-mono text-emerald-400">{v}</td>
+                <td className="hidden px-3 py-2 text-right font-mono text-zinc-400 sm:table-cell">{rounds}</td>
+                <td className="hidden px-3 py-2 text-right font-mono text-zinc-400 sm:table-cell">{win}</td>
+              </tr>
+            ))}
+            {/* your highlighted row, climbing a rank mid-scene */}
+            <tr className="border-t border-lime-400/30 bg-lime-400/10">
+              <td className="px-3 py-2 font-mono font-bold text-lime-300">
+                {climbed ? "9" : "10"}
+                <span className="ml-1 text-emerald-400">{climbed ? "▲" : ""}</span>
+              </td>
+              <td className="px-3 py-2 font-bold text-lime-300">you</td>
+              <td className="px-3 py-2 text-right font-mono font-bold text-emerald-400">
+                +{youPnl.toFixed(1)}
+              </td>
+              <td className="hidden px-3 py-2 text-right font-mono text-zinc-300 sm:table-cell">19</td>
+              <td className="hidden px-3 py-2 text-right font-mono text-zinc-300 sm:table-cell">63%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="text-[10px] leading-snug text-zinc-500">
+        Live across <span className="text-zinc-300">every lobby</span>, updating as rounds settle. Sort by weekly
+        PnL, season XP, or all-time. The <span className="text-amber-300">top 10 by weekly XP</span> split the Jackpot →
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ *  SCENE 7 — Quests · XP · Levels  (mirrors profile progression panels)
+ * ------------------------------------------------------------------ */
+
+function QuestRow({ name, sub, xp, p }: { name: string; sub?: string; xp: number; p: number }) {
   const done = p >= 1;
   return (
     <div className="rounded-lg bg-zinc-900 p-2">
@@ -1141,8 +1252,9 @@ function QuestRow({ name, xp, p }: { name: string; xp: number; p: number }) {
           {done ? "✓ " : ""}
           {name}
         </span>
-        <span className="text-[10px] text-lime-400">+{xp} XP</span>
+        <span className={`text-[10px] ${done ? "text-emerald-400" : "text-lime-400"}`}>+{xp} XP</span>
       </div>
+      {sub && <div className="mt-0.5 text-[9px] text-zinc-500">{sub}</div>}
       <div className="mt-1.5 h-1.5 overflow-hidden rounded bg-zinc-800">
         <div
           className={`h-full ${done ? "bg-emerald-500" : "bg-lime-400"}`}
@@ -1153,100 +1265,127 @@ function QuestRow({ name, xp, p }: { name: string; xp: number; p: number }) {
   );
 }
 
-function BoardScene() {
-  const t = useSceneClock(durOf("board"));
-  const xpNow = Math.round(lerp(1200, 2180, Math.min(1, t * 1.3)));
-  const podium = [
-    ["🥈", "DiamondDan", "+42.1"],
-    ["🥇", "Grillmaster", "+61.8"],
-    ["🥉", "0xWhale", "+33.5"],
-  ] as const;
-  const rows = [
-    ["4", "ape_ceo", "+28.0"],
-    ["5", "TapeReader", "+21.4"],
-    ["6", "degen_kate", "+18.9"],
-  ] as const;
-  return (
-    <div className="grid h-full animate-[fadein_.4s_ease] gap-3 lg:grid-cols-2">
-      {/* leaderboard */}
-      <div className="flex min-h-0 flex-col gap-3">
-        <div className="text-xs font-black text-zinc-300">🏆 Leaderboard · This Week · PnL</div>
-        <div className="grid grid-cols-3 items-end gap-2">
-          {podium.map(([m, name, v], i) => {
-            const rank = i === 1 ? 0 : i === 0 ? 1 : 2;
-            const style = [
-              "border-amber-400/70 from-amber-500/20 pt-6",
-              "border-zinc-400/50 from-zinc-400/15 pt-4",
-              "border-orange-700/60 from-orange-700/15 pt-4",
-            ][rank];
-            return (
-              <div key={name} className={`rounded-2xl border bg-gradient-to-b to-transparent p-3 text-center ${style}`}>
-                <div className="text-3xl">{m}</div>
-                <div className="mt-1 truncate text-xs font-black">{name}</div>
-                <div
-                  className={`font-mono text-sm font-black ${
-                    rank === 0 ? "text-amber-300" : rank === 1 ? "text-zinc-300" : "text-orange-400"
-                  }`}
-                >
-                  {v}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <div className="overflow-hidden rounded-xl border border-zinc-800">
-          <table className="w-full text-xs">
-            <tbody>
-              {rows.map(([r, name, v]) => (
-                <tr key={name} className="border-t border-zinc-800/60">
-                  <td className="px-3 py-2 font-mono text-zinc-500">{r}</td>
-                  <td className="px-3 py-2">{name}</td>
-                  <td className="px-3 py-2 text-right font-mono text-emerald-400">{v}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+function QuestScene() {
+  const t = useSceneClock(durOf("quests"));
+  // Level 24 (Sniper). Next level costs the delta between L24 and L25 of the curve.
+  const xpFloor = 12924; // xpForLevel(25) reference point in the real curve
+  const xpNow = Math.round(lerp(11300, 12300, Math.min(1, t * 1.3)));
+  const span = xpFloor - 11000;
+  const showBadge = t > 0.5 && t < 0.94;
 
-      {/* quests + XP + progression */}
-      <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
+  return (
+    <div className="relative grid h-full animate-[fadein_.4s_ease] gap-3 lg:grid-cols-2">
+      {/* achievement-unlock toast — proves badges are a thing */}
+      {showBadge && (
+        <div className="absolute right-0 top-0 z-20 flex items-center gap-2 rounded-lg border border-violet-400/50 bg-zinc-900/95 px-3 py-2 shadow-lg animate-[fadein_.3s_ease]">
+          <span className="text-lg">🎯</span>
+          <div className="leading-tight">
+            <div className="text-[11px] font-black text-violet-300">Badge unlocked · Perfect Exit</div>
+            <div className="text-[9px] text-zinc-400">Epic · sold within 5% of the peak · +120 XP</div>
+          </div>
+        </div>
+      )}
+
+      {/* left: identity, level, streaks, milestones */}
+      <div className="flex min-h-0 flex-col gap-3">
         <div className="rounded-xl border border-zinc-800 p-3">
           <div className="flex items-baseline justify-between text-xs">
-            <span className="font-black">Lv 24 · Sniper</span>
-            <span className="font-mono text-zinc-500">{xpNow.toLocaleString()} / 2,400 XP</span>
+            <span className="font-black text-lime-300">Lv 24 · Sniper</span>
+            <span className="font-mono text-zinc-500">
+              {xpNow.toLocaleString()} / {xpFloor.toLocaleString()} XP
+            </span>
           </div>
           <div className="mt-2 h-2 overflow-hidden rounded bg-zinc-800">
-            <div className="h-full bg-lime-400" style={{ width: `${(xpNow / 2400) * 100}%` }} />
+            <div
+              className="h-full bg-lime-400"
+              style={{ width: `${Math.min(100, ((xpNow - 11000) / span) * 100)}%` }}
+            />
+          </div>
+          <div className="mt-1.5 text-[10px] text-zinc-500">
+            Next: <span className="text-zinc-300">Lv 35 · Degen</span> unlocks the{" "}
+            <span className="text-red-300">Degen Arena</span>
           </div>
         </div>
+
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-xl border border-orange-500/40 bg-gradient-to-br from-orange-500/10 to-transparent p-3">
             <div className="text-[11px] font-bold text-orange-300">🔥 Play Streak</div>
             <div className="font-mono text-2xl font-black text-orange-300">
               12<span className="ml-1 text-xs font-bold text-zinc-500">days</span>
             </div>
-            <div className="text-[10px] text-zinc-500">best 18 · ❄️ 2 freezes</div>
+            <div className="text-[10px] text-zinc-500">best 18 · ❄️ 2 freezes held</div>
           </div>
           <div className="rounded-xl border border-amber-400/40 bg-gradient-to-br from-amber-500/10 to-transparent p-3">
             <div className="text-[11px] font-bold text-amber-300">🎟️ Season Pass</div>
             <div className="mt-2 h-1.5 overflow-hidden rounded bg-zinc-800">
               <div className="h-full bg-amber-400" style={{ width: "64%" }} />
             </div>
-            <div className="mt-1 text-[10px] text-zinc-500">tier 3 · next 3,500 XP</div>
+            <div className="mt-1 text-[10px] text-zinc-500">tier 3 · next at 3,500 XP</div>
           </div>
         </div>
-        <div className="min-h-0 flex-1 rounded-xl border border-zinc-800 p-3">
+
+        <div className="rounded-xl border border-zinc-800 p-3">
+          <div className="mb-2 text-[11px] font-bold text-zinc-300">🏅 Lifetime Milestones</div>
+          <div className="space-y-2">
+            <MilestoneBar name="Trader" now={78} target={100} unit="trades" xp={90} />
+            <MilestoneBar name="Veteran" now={41} target={50} unit="rounds" xp={120} />
+          </div>
+        </div>
+      </div>
+
+      {/* right: the quest boards */}
+      <div className="flex min-h-0 flex-col gap-3">
+        <div className="rounded-xl border border-zinc-800 p-3">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-xs font-bold text-zinc-300">Daily Quests</span>
-            <span className="text-[10px] text-amber-300">clear all → +50 XP</span>
+            <span className="text-[10px] text-amber-300">clear all 4 → +50 XP</span>
           </div>
           <div className="space-y-2">
-            <QuestRow name="Pull Up Twice" xp={30} p={Math.min(1, t * 1.6)} />
-            <QuestRow name="Catch the Dip" xp={35} p={Math.min(1, t * 1.05)} />
-            <QuestRow name="On the Box — top 3 PnL" xp={40} p={Math.min(1, t * 0.7)} />
+            <QuestRow name="Pull Up Twice" sub="Play 2 rounds today" xp={30} p={Math.min(1, t * 1.7)} />
+            <QuestRow name="Catch the Dip" sub="Buy near a round's bottom" xp={35} p={Math.min(1, t * 1.1)} />
+            <QuestRow name="Order Flow" sub="Make 10 trades today" xp={25} p={Math.min(1, t * 0.85)} />
+            <QuestRow name="On the Box" sub="Finish top 3 by PnL" xp={40} p={Math.min(1, t * 0.55)} />
           </div>
         </div>
+
+        <div className="min-h-0 flex-1 rounded-xl border border-zinc-800 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-bold text-zinc-300">Weekly Challenges</span>
+            <span className="text-[10px] text-amber-300">clear all 6 → +400 XP</span>
+          </div>
+          <div className="space-y-2">
+            <QuestRow name="Regular" sub="Play 20 rounds this week" xp={200} p={Math.min(1, t * 0.9)} />
+            <QuestRow name="On the Box ×3" sub="Reach a podium 3 times" xp={250} p={Math.min(1, t * 0.5)} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MilestoneBar({
+  name,
+  now,
+  target,
+  unit,
+  xp,
+}: {
+  name: string;
+  now: number;
+  target: number;
+  unit: string;
+  xp: number;
+}) {
+  return (
+    <div>
+      <div className="flex items-center justify-between text-[11px]">
+        <span className="font-bold">{name}</span>
+        <span className="font-mono text-zinc-500">
+          {now}/{target} {unit} · <span className="text-lime-400">+{xp}</span>
+        </span>
+      </div>
+      <div className="mt-1 h-1.5 overflow-hidden rounded bg-zinc-800">
+        <div className="h-full bg-lime-500" style={{ width: `${(now / target) * 100}%` }} />
       </div>
     </div>
   );
