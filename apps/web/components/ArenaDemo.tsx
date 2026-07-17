@@ -837,23 +837,28 @@ function DemoChart() {
   const tSec = useRef(0);
   const id = useRef(0);
 
-  // Seed a full 75s window with a two-way walk (slight upward bias).
+  // Open at the launch: candle 0 is one big green candle for all the settled
+  // auction buys, then the round runs from there — no fake mid-round history.
   useEffect(() => {
     const nowSec = Math.floor(Date.now() / 1000);
-    const start = nowSec - 68;
-    let p = 0.00003 + Math.random() * 0.00001;
-    const seed: Candle[] = [];
-    for (let i = 0; i < 69; i++) {
+    const clearing = 0.00003;
+    const pop = clearing * (1.85 + Math.random() * 0.3); // the settlement pop
+    const seed: Candle[] = [
+      { t: nowSec, o: clearing, h: pop * 1.03, l: clearing * 0.985, c: pop, v: 0 },
+    ];
+    // a few seconds of the opening run, then live streaming takes over
+    let p = pop;
+    for (let i = 1; i <= 4; i++) {
       const o = p;
-      const c = Math.max(o * 0.6, o + (Math.random() - 0.46) * o * 0.07);
-      const wick = Math.abs(c - o) * 0.7 + p * 0.005;
-      seed.push({ t: start + i, o, h: Math.max(o, c) + Math.random() * wick, l: Math.min(o, c) - Math.random() * wick, c, v: 0 });
+      const c = Math.max(clearing, o + (Math.random() - 0.4) * o * 0.06);
+      const wick = Math.abs(c - o) * 0.7 + o * 0.005;
+      seed.push({ t: nowSec + i, o, h: Math.max(o, c) + Math.random() * wick, l: Math.min(o, c) - Math.random() * wick, c, v: 0 });
       p = c;
     }
     candles.current = seed;
-    open.current = seed[Math.floor(seed.length * 0.15)]!.o; // a plausible clearing price
+    open.current = clearing; // dashed "open" reference at the clearing price
     price.current = p;
-    tSec.current = nowSec;
+    tSec.current = nowSec + 4;
     force((x) => x + 1);
   }, []);
 
@@ -916,6 +921,7 @@ function DemoChart() {
       supply={2_000_000}
       bigTradeEth={0.5}
       cooking
+      windowSec={24}
       resolveTag={demoResolveTag}
       className="h-full min-h-[9rem] w-full rounded-xl border border-zinc-800 bg-zinc-950"
     />

@@ -27,6 +27,8 @@ interface Props {
   cooking?: boolean;
   endReason?: string;
   graduated?: boolean;
+  /** Scrolling window width in seconds (default 75). */
+  windowSec?: number;
   /** Populate a trader tag (name/avatar) for a bubble — async mutation ok. */
   resolveTag?: (address: string, tag: ProfileTag) => void;
   /** Canvas classes (size/border). Defaults to the product's 20rem panel. */
@@ -78,7 +80,7 @@ export function ChartCanvas(props: Props) {
       raf = requestAnimationFrame(draw);
       const canvas = ref.current;
       if (!canvas) return;
-      const { candles, trades, livePrice, openPrice, supply, bigTradeEth, cooking, endReason, graduated } =
+      const { candles, trades, livePrice, openPrice, supply, bigTradeEth, cooking, endReason, graduated, windowSec } =
         propsRef.current;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
@@ -118,7 +120,7 @@ export function ChartCanvas(props: Props) {
         span = Math.max(10, nowT - t0);
       } else {
         nowT = serverT + Math.min(2, (Date.now() - localMs) / 1000) + 1;
-        span = WINDOW_SEC;
+        span = windowSec ?? WINDOW_SEC;
         t0 = nowT - span;
       }
       const plotW = w - 80;
