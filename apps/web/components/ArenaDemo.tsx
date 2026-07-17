@@ -169,7 +169,7 @@ export function ArenaDemo() {
         </div>
 
         {/* scene body */}
-        <div className="relative h-[30rem] overflow-hidden bg-zinc-950 p-4 sm:h-[32rem]">
+        <div className="relative h-[36rem] overflow-hidden bg-zinc-950 p-4 sm:h-[42rem]">
           {key === "launchpad" && <LaunchpadScene />}
           {key === "upvote" && <UpvoteScene />}
           {key === "calendar" && <CalendarScene />}
@@ -934,6 +934,7 @@ function DemoChart() {
       bigTradeEth={0.5}
       cooking
       windowSec={40}
+      showToggle={false}
       resolveTag={demoResolveTag}
       className="h-full w-full rounded-xl border border-zinc-800 bg-zinc-950"
     />

@@ -29,6 +29,8 @@ interface Props {
   graduated?: boolean;
   /** Scrolling window width in seconds (default 75). */
   windowSec?: number;
+  /** Show the MCAP/PRICE switch (default true; off for the landing demo). */
+  showToggle?: boolean;
   /** Populate a trader tag (name/avatar) for a bubble — async mutation ok. */
   resolveTag?: (address: string, tag: ProfileTag) => void;
   /** Canvas classes (size/border). Defaults to the product's 20rem panel. */
@@ -339,20 +341,22 @@ export function ChartCanvas(props: Props) {
         ref={ref}
         className={props.className ?? "h-80 w-full rounded-xl border border-zinc-800 bg-zinc-950"}
       />
-      <div className="absolute right-2 top-2 flex overflow-hidden rounded-md border border-zinc-700 text-[11px] font-bold">
-        <button
-          onClick={() => setMode("mcap")}
-          className={`px-2 py-1 ${mode === "mcap" ? "bg-lime-400 text-zinc-950" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"}`}
-        >
-          MCAP
-        </button>
-        <button
-          onClick={() => setMode("price")}
-          className={`px-2 py-1 ${mode === "price" ? "bg-lime-400 text-zinc-950" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"}`}
-        >
-          PRICE
-        </button>
-      </div>
+      {(props.showToggle ?? true) && (
+        <div className="absolute right-2 top-2 flex overflow-hidden rounded-md border border-zinc-700 text-[11px] font-bold">
+          <button
+            onClick={() => setMode("mcap")}
+            className={`px-2 py-1 ${mode === "mcap" ? "bg-lime-400 text-zinc-950" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"}`}
+          >
+            MCAP
+          </button>
+          <button
+            onClick={() => setMode("price")}
+            className={`px-2 py-1 ${mode === "price" ? "bg-lime-400 text-zinc-950" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"}`}
+          >
+            PRICE
+          </button>
+        </div>
+      )}
     </div>
   );
 }
