@@ -19,9 +19,10 @@ export default function Landing() {
   return (
     <div className="-mx-4 -my-6">
       <Hero />
+      <Positioning />
+      <FairOpen />
       <ArenaDemo />
       <RoundFlow />
-      <FairOpen />
       <Jackpot />
       <Pillars />
       <Access />
@@ -74,6 +75,21 @@ function Reveal({
       } ${className}`}
     >
       {children}
+    </div>
+  );
+}
+
+/* ---------------- recurring slogan ---------------- */
+
+/** The product in six words. Reused verbatim across the page as a brand mark. */
+function Slogan({ className = "" }: { className?: string }) {
+  return (
+    <div
+      className={`flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 font-black tracking-tight ${className}`}
+    >
+      <span className="text-zinc-100">Same price.</span>
+      <span className="text-emerald-400">Same second.</span>
+      <span className="text-lime-400">Everyone.</span>
     </div>
   );
 }
@@ -230,22 +246,27 @@ function Hero() {
             COOKOUT
           </span>
         </h1>
-        <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-300 md:text-xl">
-          The live multiplayer trading arena. Every match is a brand-new token — a{" "}
-          <span className="font-bold text-zinc-100">provably fair open</span>, a few violent minutes
-          of real PvP trading in front of a crowd, then it graduates or it burns.
+        <p className="mx-auto mt-4 text-2xl font-black tracking-tight text-zinc-50 md:text-4xl">
+          The Multiplayer Trading Arena.
         </p>
-        <p className="mx-auto mt-3 max-w-xl text-base text-zinc-400">
-          Climb the XP ladder and take a cut of the weekly jackpot.
+        <p className="mx-auto mt-3 max-w-xl text-base text-zinc-400 md:text-lg">
+          Every launch is a battle. Everyone enters together — the best trader wins.
         </p>
-        <div className="mx-auto mt-6 inline-flex max-w-xl items-center gap-3 rounded-xl border border-lime-400/30 bg-lime-400/[0.06] px-5 py-3">
-          <span className="text-2xl">🎮</span>
-          <p className="text-left text-sm text-zinc-200">
-            <span className="font-black text-lime-300">This is a paper-money beta.</span> You trade
-            with simulated pETH — <b>no deposits and no real funds are ever at risk.</b>
-          </p>
+
+        {/* the promise, readable in one glance */}
+        <div className="mx-auto mt-7 flex max-w-2xl flex-wrap items-center justify-center gap-2.5">
+          {["Same price", "Same second", "No bots", "No snipers"].map((p) => (
+            <span
+              key={p}
+              className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-4 py-1.5 text-sm font-black text-emerald-300 md:text-base"
+            >
+              {p}
+            </span>
+          ))}
         </div>
-        <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
+        <Slogan className="mt-6 text-xl md:text-3xl" />
+
+        <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
           <a
             href="#access"
             className="rounded-xl bg-lime-400 px-8 py-4 text-lg font-black text-zinc-950 shadow-lg shadow-lime-400/30 transition hover:scale-105 hover:bg-lime-300"
@@ -259,9 +280,67 @@ function Hero() {
             Menu
           </Link>
         </div>
-        <p className="mt-6 text-xs text-zinc-500">
-          No deposits. No downloads. Your wallet address is your whole identity.
+        <div className="mx-auto mt-7 inline-flex max-w-xl items-center gap-3 rounded-xl border border-lime-400/30 bg-lime-400/[0.06] px-5 py-2.5">
+          <span className="text-xl">🎮</span>
+          <p className="text-left text-sm text-zinc-200">
+            <span className="font-black text-lime-300">100% paper money.</span> Trade simulated pETH —
+            <b> no deposits, zero risk.</b>
+          </p>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ---------------- positioning: why Cookout exists ---------------- */
+
+function Positioning() {
+  return (
+    <section className="mx-auto max-w-5xl px-6 py-20">
+      <Reveal className="text-center">
+        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">Why we exist</div>
+        <h2 className="mt-3 text-4xl font-black tracking-tight md:text-6xl">
+          Not another{" "}
+          <span className="text-zinc-600 line-through decoration-red-500/70 decoration-4">
+            launchpad.
+          </span>
+        </h2>
+        <p className="mx-auto mt-4 max-w-xl text-lg text-zinc-300">
+          Launchpads reward whoever shows up fastest. We reward whoever trades best.
         </p>
+      </Reveal>
+
+      <div className="mt-12 grid gap-5 md:grid-cols-2">
+        <Reveal>
+          <div className="h-full rounded-2xl border border-zinc-800 bg-zinc-900/40 p-7">
+            <div className="text-sm font-black uppercase tracking-wide text-zinc-500">
+              Every other launch rewards
+            </div>
+            <ul className="mt-5 space-y-3">
+              {["Bots", "Snipers", "The fastest transaction"].map((x) => (
+                <li key={x} className="flex items-center gap-3 text-lg font-bold text-zinc-500">
+                  <span className="text-red-500/80">✕</span>
+                  <span className="line-through decoration-zinc-700">{x}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Reveal>
+        <Reveal delay={100}>
+          <div className="h-full rounded-2xl border border-lime-400/40 bg-gradient-to-b from-lime-400/[0.08] to-transparent p-7">
+            <div className="text-sm font-black uppercase tracking-wide text-lime-300">
+              The Cookout rewards
+            </div>
+            <ul className="mt-5 space-y-3">
+              {["Better trading", "Better timing", "Better decisions"].map((x) => (
+                <li key={x} className="flex items-center gap-3 text-lg font-black text-zinc-100">
+                  <span className="text-lime-400">✓</span>
+                  {x}
+                </li>
+              ))}
+            </ul>
+          </div>
+        </Reveal>
       </div>
     </section>
   );
@@ -328,12 +407,13 @@ function FairOpen() {
       <div className="mx-auto max-w-5xl px-6">
         <Reveal className="text-center">
           <div className="text-xs font-bold uppercase tracking-[0.3em] text-emerald-400">The Fair Open</div>
-          <h2 className="mt-3 text-3xl font-black md:text-5xl">
+          <h2 className="mt-3 text-4xl font-black tracking-tight md:text-6xl">
             Speed buys you <span className="text-emerald-400">nothing.</span>
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-zinc-300">
-            On every other launchpad, the open goes to whoever has the fastest bot. Here it&apos;s a
-            uniform-price batch auction: the first bid and the last bid pay the exact same price.
+          <Slogan className="mt-6 text-2xl md:text-4xl" />
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-300">
+            Every launch opens as one uniform-price batch auction. The first bid and the last bid pay
+            the exact same price. There is no line to cut.
           </p>
         </Reveal>
         <div className="mt-12 grid gap-6 md:grid-cols-3">
@@ -358,27 +438,124 @@ function FairOpen() {
 
 /* ---------------- XP + weekly jackpot (the hook) ---------------- */
 
+/**
+ * A jackpot counter that ticks up on scroll-in, then keeps drifting upward so
+ * the pot feels alive. Illustrative — the real pot is exactly what the week
+ * trades (0.3% of all volume); this is a representative figure, not a balance.
+ */
+function GrowingPot() {
+  const ref = useRef<HTMLDivElement>(null);
+  const [val, setVal] = useState(0);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const BASE = 2384;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    let cancelled = false;
+    let raf = 0;
+    let timer = 0;
+
+    const io = new IntersectionObserver(
+      ([e]) => {
+        if (!e.isIntersecting) return;
+        io.disconnect();
+        if (reduce) {
+          setVal(BASE);
+          return;
+        }
+        const t0 = performance.now();
+        let cur = BASE;
+        const rise = (t: number) => {
+          if (cancelled) return;
+          const p = Math.min(1, (t - t0) / 1800);
+          setVal(Math.round(BASE * (1 - Math.pow(1 - p, 3))));
+          if (p < 1) raf = requestAnimationFrame(rise);
+          else drift();
+        };
+        const drift = () => {
+          if (cancelled) return;
+          cur += 3 + Math.floor(Math.random() * 12); // a few pETH of fees per beat
+          setVal(cur);
+          timer = window.setTimeout(drift, 1300);
+        };
+        raf = requestAnimationFrame(rise);
+      },
+      { threshold: 0.3 },
+    );
+    io.observe(el);
+    return () => {
+      cancelled = true;
+      io.disconnect();
+      cancelAnimationFrame(raf);
+      clearTimeout(timer);
+    };
+  }, []);
+
+  return (
+    <div ref={ref}>
+      <div className="font-mono text-6xl font-black tabular-nums text-amber-300 [text-shadow:0_0_34px_rgba(251,191,36,0.4)] md:text-8xl">
+        ${val.toLocaleString()}
+      </div>
+      <div className="mt-2 flex items-center justify-center gap-1.5 font-mono text-sm text-zinc-400">
+        <span className="relative flex h-2 w-2">
+          <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-75" />
+          <span className="relative inline-flex h-2 w-2 rounded-full bg-amber-400" />
+        </span>
+        growing with every trade · paid every Monday
+      </div>
+    </div>
+  );
+}
+
 function Jackpot() {
   return (
     <section className="relative overflow-hidden py-24">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_60%_at_50%_0%,rgba(251,191,36,0.12),transparent)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(65%_65%_at_50%_0%,rgba(251,191,36,0.16),transparent)]" />
       <div className="relative mx-auto max-w-5xl px-6">
         <Reveal className="text-center">
-          <div className="text-6xl">🎰</div>
-          <h2 className="mt-3 text-3xl font-black md:text-5xl">
-            Play for the <span className="text-amber-400">pot.</span>
+          <div className="text-6xl md:text-7xl">🎰</div>
+          <div className="mt-2 text-xs font-bold uppercase tracking-[0.3em] text-amber-400/80">
+            The Weekly Jackpot
+          </div>
+          <h2 className="mt-3 text-4xl font-black tracking-tight md:text-6xl">
+            Funded by the crowd. <span className="text-amber-400">Won by the best.</span>
           </h2>
-          <p className="mx-auto mt-4 max-w-2xl text-lg text-zinc-300">
-            Every trade on the site feeds one shared <b className="text-amber-300">Weekly Jackpot</b>.
-            At the end of each week it pays out to the top players — <b>real ETH</b> in production —
-            and the more the whole site trades, the bigger it grows.
+          <div className="mt-9">
+            <GrowingPot />
+          </div>
+          <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-300">
+            Every trade feeds one shared pot — no cap, no house money. The top 10 by weekly XP split
+            it in <b className="text-amber-300">real ETH</b>.
           </p>
         </Reveal>
+
+        {/* community-funded: where every 1% trading fee goes */}
+        <Reveal delay={80} className="mx-auto mt-10 max-w-2xl">
+          <div className="text-center text-xs font-bold uppercase tracking-wide text-zinc-500">
+            Every 1% trading fee → 70% back to the community
+          </div>
+          <div className="mt-2 flex h-7 overflow-hidden rounded-full text-[10px] font-black text-zinc-950">
+            <div className="flex items-center justify-center bg-amber-400" style={{ width: "30%" }}>
+              30% JACKPOT
+            </div>
+            <div className="flex items-center justify-center bg-lime-400" style={{ width: "30%" }}>
+              30% creator
+            </div>
+            <div className="flex items-center justify-center bg-sky-400" style={{ width: "10%" }}>
+              10% ref
+            </div>
+            <div className="flex items-center justify-center bg-zinc-600 text-zinc-300" style={{ width: "30%" }}>
+              house
+            </div>
+          </div>
+        </Reveal>
+
         <div className="mt-12 grid gap-6 md:grid-cols-3">
           {[
-            ["Real ETH, every week", "A slice of all trading fees builds the pot. The top 10 by weekly XP split it — no cap, paid out automatically."],
-            ["XP from playing", "Rotating daily quests, weekly challenges, play streaks, lifetime milestones, and a monthly season pass. Everything you do earns."],
-            ["Farm-proof by design", "Wash-trading and bot spam earn almost nothing. The pot rewards skill, timing, and consistency — never the busiest bot."],
+            ["Real ETH, every week", "A slice of every trading fee builds the pot. The top 10 split it, paid out automatically. No cap."],
+            ["Earned by playing", "Daily quests, weekly challenges, streaks, milestones, a season pass. Everything you do earns XP."],
+            ["Bots earn nothing", "Wash-trading and spam decay to almost zero. The pot rewards skill, timing, and consistency."],
           ].map(([title, body], i) => (
             <Reveal key={title} delay={i * 90}>
               <div className="h-full rounded-2xl border border-amber-400/30 bg-gradient-to-b from-amber-500/[0.08] to-transparent p-6">
