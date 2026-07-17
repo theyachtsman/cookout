@@ -837,68 +837,73 @@ function DemoChart() {
   const tSec = useRef(0);
   const id = useRef(0);
 
-  // Open at the launch: candle 0 is one big green candle for all the settled
-  // auction buys, then the round runs from there — no fake mid-round history.
+  // Open at the launch: candle 0 (the leftmost) is one big green candle for all
+  // the settled auction buys, then the round's opening fills the window and runs
+  // — a full, evenly-spaced chart that starts at the launch, not mid-round.
   useEffect(() => {
+    const N = 33; // candles of the opening already elapsed (fills the window)
     const nowSec = Math.floor(Date.now() / 1000);
+    const start = nowSec - N;
     const clearing = 0.00003;
     const pop = clearing * (1.85 + Math.random() * 0.3); // the settlement pop
     const seed: Candle[] = [
-      { t: nowSec, o: clearing, h: pop * 1.03, l: clearing * 0.985, c: pop, v: 0 },
+      { t: start, o: clearing, h: pop * 1.03, l: clearing * 0.985, c: pop, v: 0 },
     ];
-    // a few seconds of the opening run, then live streaming takes over
     let p = pop;
-    for (let i = 1; i <= 4; i++) {
+    for (let i = 1; i <= N; i++) {
       const o = p;
-      const c = Math.max(clearing, o + (Math.random() - 0.4) * o * 0.06);
+      const c = Math.max(clearing, o + (Math.random() - 0.45) * o * 0.06);
       const wick = Math.abs(c - o) * 0.7 + o * 0.005;
-      seed.push({ t: nowSec + i, o, h: Math.max(o, c) + Math.random() * wick, l: Math.min(o, c) - Math.random() * wick, c, v: 0 });
+      seed.push({ t: start + i, o, h: Math.max(o, c) + Math.random() * wick, l: Math.min(o, c) - Math.random() * wick, c, v: 0 });
       p = c;
     }
     candles.current = seed;
     open.current = clearing; // dashed "open" reference at the clearing price
     price.current = p;
-    tSec.current = nowSec + 4;
+    tSec.current = nowSec;
     force((x) => x + 1);
   }, []);
 
-  // Close a candle every ~1.05s.
+  // Close a candle every second at the current (trade-driven) live price.
   useEffect(() => {
     const iv = setInterval(() => {
       const arr = candles.current;
       if (!arr.length) return;
       const o = arr[arr.length - 1]!.c;
-      const c = Math.max(o * 0.6, o + (Math.random() - 0.44) * o * 0.07);
-      const wick = Math.abs(c - o) * 0.7 + o * 0.005;
+      const c = price.current;
+      const wick = Math.abs(c - o) * 0.5 + o * 0.004;
       tSec.current += 1;
       arr.push({ t: tSec.current, o, h: Math.max(o, c) + Math.random() * wick, l: Math.min(o, c) - Math.random() * wick, c, v: 0 });
-      if (arr.length > 100) arr.shift();
-      price.current = c;
+      if (arr.length > 120) arr.shift();
       force((x) => x + 1);
-    }, 1050);
+    }, 1000);
     return () => clearInterval(iv);
   }, []);
 
-  // Nudge the live price and emit two-way trades (some big → tagged bubbles).
+  // Real-market feel: buys push the live price up, sells push it down. Every
+  // ~150ms a trade or two fires and moves the price by its size, so the candles
+  // and the big-trade bubbles always agree (green + buy bubble, red + sell).
   useEffect(() => {
     const iv = setInterval(() => {
       const arr = candles.current;
       if (!arr.length) return;
-      const base = price.current || arr[arr.length - 1]!.c;
-      price.current = Math.max(base * 0.6, base + (Math.random() - 0.48) * base * 0.025);
       const now = Date.now();
-      if (Math.random() < 0.6) {
-        const buy = Math.random() > 0.44;
-        const big = Math.random() > 0.82;
-        const isCreator = big && Math.random() > 0.85;
+      let px = price.current || arr[arr.length - 1]!.c;
+      const n = Math.random() < 0.55 ? 1 : Math.random() < 0.9 ? 2 : 0;
+      for (let k = 0; k < n; k++) {
+        const buy = Math.random() > 0.46; // slight buy bias — cooking
+        const big = Math.random() > 0.72;
+        const eth = big ? 0.5 + Math.random() * 1.2 : 0.02 + Math.random() * 0.22;
+        px = Math.max(px * 0.7, px * (1 + (buy ? 1 : -1) * eth * 0.015));
+        const isCreator = big && Math.random() > 0.88;
         const t: Trade & { seenAt?: number } = {
           id: String(id.current++),
           roundId: "demo",
           userAddress: randAddr(),
           side: buy ? "buy" : "sell",
-          ethAmount: big ? 0.5 + Math.random() * 1.2 : 0.02 + Math.random() * 0.22,
+          ethAmount: eth,
           tokenAmount: 0,
-          price: price.current,
+          price: px, // the price right after this trade lands → dot sits on the candle
           fee: 0,
           at: now,
           isCreator,
@@ -906,9 +911,11 @@ function DemoChart() {
         if (big || isCreator) t.seenAt = now;
         trades.current.push(t);
       }
+      px *= 1 + (Math.random() - 0.5) * 0.003; // tiny noise between trades
+      price.current = px;
       trades.current = trades.current.filter((t) => t.at > now - 8000);
       force((x) => x + 1);
-    }, 170);
+    }, 150);
     return () => clearInterval(iv);
   }, []);
 
@@ -921,7 +928,7 @@ function DemoChart() {
       supply={2_000_000}
       bigTradeEth={0.5}
       cooking
-      windowSec={24}
+      windowSec={40}
       resolveTag={demoResolveTag}
       className="h-full min-h-[9rem] w-full rounded-xl border border-zinc-800 bg-zinc-950"
     />
