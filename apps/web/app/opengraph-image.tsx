@@ -83,7 +83,7 @@ export default function Image() {
               letterSpacing: 4,
             }}
           >
-            PRIVATE BETA · @hoodcookout
+            OPEN BETA · @hoodcookout
           </div>
         </div>
 

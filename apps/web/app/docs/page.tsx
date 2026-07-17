@@ -41,7 +41,7 @@ export default function Docs() {
   return (
     <div className="mx-auto flex max-w-6xl gap-10">
       <aside className="sticky top-20 hidden h-fit w-52 shrink-0 md:block">
-        <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">The Manual</div>
+        <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">The Menu</div>
         <nav className="mt-3 space-y-1">
           {SECTIONS.map(([id, label]) => (
             <a
@@ -58,7 +58,7 @@ export default function Docs() {
       <div className="min-w-0 flex-1 space-y-14 pb-24">
         <header>
           <h1 className="text-4xl font-black">
-            The Cookout <span className="text-lime-400">Manual</span>
+            The Cookout <span className="text-lime-400">Menu</span>
           </h1>
           <p className="mt-2 text-zinc-400">
             Everything you need before you pull up. Five minutes to read; a lifetime to master the

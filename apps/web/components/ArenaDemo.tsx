@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { Candle, Trade } from "@cookout/shared";
+import { ChartCanvas } from "./ChartCanvas";
 
 /**
  * ArenaDemo — an auto-cycling, self-contained mockup of the live arena that
@@ -20,6 +22,8 @@ const SCENES = [
   { key: "queue", label: "Pre-Launch Queue", blurb: "Place your buy before the open", dur: 7600 },
   { key: "launch", label: "Launch → Live", blurb: "Settle, then the chart rips", dur: 9800 },
   { key: "vote", label: "Community Vote", blurb: "The crowd calls it: Moon or Rug", dur: 5600 },
+  { key: "board", label: "Board · Quests · XP", blurb: "Climb the ranks, earn XP", dur: 8600 },
+  { key: "jackpot", label: "The Weekly Jackpot", blurb: "Top XP earners split real ETH", dur: 7200 },
 ] as const;
 
 function useReducedMotion() {
@@ -143,7 +147,7 @@ export function ArenaDemo() {
               <span className="text-zinc-100">COOKOUT</span>
             </span>
             <span className="hidden rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-300 sm:inline">
-              private beta
+              open beta
             </span>
           </div>
           <div className="ml-auto flex items-center gap-3 text-xs text-zinc-500">
@@ -162,6 +166,8 @@ export function ArenaDemo() {
           {key === "queue" && <QueueScene />}
           {key === "launch" && <LaunchScene />}
           {key === "vote" && <VoteScene />}
+          {key === "board" && <BoardScene />}
+          {key === "jackpot" && <JackpotScene />}
           {/* sample-data watermark */}
           <div className="pointer-events-none absolute bottom-2 right-3 font-mono text-[10px] uppercase tracking-widest text-zinc-700">
             simulated · sample data
@@ -652,9 +658,9 @@ function LaunchScene() {
               <div className="h-full bg-lime-400" style={{ width: `${gradPct}%` }} />
             </div>
           </div>
-          {/* the chart */}
+          {/* the chart — the exact product renderer, on simulated two-way action */}
           <div className="min-h-0 flex-1">
-            <LiveChart run={!settling} />
+            <DemoChart />
           </div>
           {/* trade panel */}
           <div className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-800 p-2.5">
@@ -742,133 +748,306 @@ function Stat({ label, value, tone }: { label: string; value: string; tone?: "up
   );
 }
 
-/** Canvas candlestick chart that streams in candles trending up (a pump). */
-function LiveChart({ run }: { run: boolean }) {
-  const ref = useRef<HTMLCanvasElement>(null);
-  const candles = useRef<Array<{ o: number; c: number; h: number; l: number }>>([]);
-  const price = useRef(100);
-  const drift = useRef(0);
+const DEMO_TRADERS = [
+  "Grillmaster", "DiamondDan", "ape_ceo", "PaperHandz", "MoonBoi", "SaltBae",
+  "0xWhale", "ByteBurner", "TapeReader", "degen_kate", "chefsluck", "rug_doc",
+];
+function demoResolveTag(address: string, tag: { name: string }) {
+  let h = 0;
+  for (let i = 0; i < address.length; i++) h = (h * 31 + address.charCodeAt(i)) >>> 0;
+  tag.name = DEMO_TRADERS[h % DEMO_TRADERS.length]!;
+}
+function randAddr() {
+  let s = "0x";
+  for (let i = 0; i < 40; i++) s += "0123456789abcdef"[(Math.random() * 16) | 0];
+  return s;
+}
 
+/**
+ * The exact product chart (ChartCanvas), driven by a simulated round with
+ * realistic two-way buy/sell action — pre-seeds a full window of history, then
+ * streams new 1-second candles and pops big-trade bubbles, just like the app.
+ */
+function DemoChart() {
+  const [, force] = useState(0);
+  const candles = useRef<Candle[]>([]);
+  const trades = useRef<Array<Trade & { seenAt?: number }>>([]);
+  const price = useRef(0);
+  const open = useRef(0);
+  const tSec = useRef(0);
+  const id = useRef(0);
+
+  // Seed a full 75s window with a two-way walk (slight upward bias).
   useEffect(() => {
-    candles.current = [];
-    price.current = 100;
-    drift.current = 0;
-    // seed a little history
-    for (let i = 0; i < 18; i++) step();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const nowSec = Math.floor(Date.now() / 1000);
+    const start = nowSec - 68;
+    let p = 0.00003 + Math.random() * 0.00001;
+    const seed: Candle[] = [];
+    for (let i = 0; i < 69; i++) {
+      const o = p;
+      const c = Math.max(o * 0.6, o + (Math.random() - 0.46) * o * 0.07);
+      const wick = Math.abs(c - o) * 0.7 + p * 0.005;
+      seed.push({ t: start + i, o, h: Math.max(o, c) + Math.random() * wick, l: Math.min(o, c) - Math.random() * wick, c, v: 0 });
+      p = c;
+    }
+    candles.current = seed;
+    open.current = seed[Math.floor(seed.length * 0.15)]!.o; // a plausible clearing price
+    price.current = p;
+    tSec.current = nowSec;
+    force((x) => x + 1);
   }, []);
 
-  function step() {
-    const o = price.current;
-    // upward bias with volatility + the occasional red candle
-    drift.current = drift.current * 0.8 + 0.9 + (Math.random() - 0.42) * 6;
-    let c = o + drift.current;
-    c = Math.max(60, c);
-    price.current = c;
-    const wick = 2 + Math.random() * 4;
-    candles.current.push({
-      o,
-      c,
-      h: Math.max(o, c) + Math.random() * wick,
-      l: Math.min(o, c) - Math.random() * wick,
-    });
-    if (candles.current.length > 46) candles.current.shift();
-  }
-
+  // Close a candle every ~1.05s.
   useEffect(() => {
-    if (!run) return;
-    const iv = setInterval(step, 300);
+    const iv = setInterval(() => {
+      const arr = candles.current;
+      if (!arr.length) return;
+      const o = arr[arr.length - 1]!.c;
+      const c = Math.max(o * 0.6, o + (Math.random() - 0.44) * o * 0.07);
+      const wick = Math.abs(c - o) * 0.7 + o * 0.005;
+      tSec.current += 1;
+      arr.push({ t: tSec.current, o, h: Math.max(o, c) + Math.random() * wick, l: Math.min(o, c) - Math.random() * wick, c, v: 0 });
+      if (arr.length > 100) arr.shift();
+      price.current = c;
+      force((x) => x + 1);
+    }, 1050);
     return () => clearInterval(iv);
-  }, [run]);
+  }, []);
 
+  // Nudge the live price and emit two-way trades (some big → tagged bubbles).
   useEffect(() => {
-    const canvas = ref.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext("2d")!;
-    let raf = 0;
-    const draw = () => {
-      raf = requestAnimationFrame(draw);
-      const dpr = window.devicePixelRatio || 1;
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      if (canvas.width !== w * dpr || canvas.height !== h * dpr) {
-        canvas.width = w * dpr;
-        canvas.height = h * dpr;
+    const iv = setInterval(() => {
+      const arr = candles.current;
+      if (!arr.length) return;
+      const base = price.current || arr[arr.length - 1]!.c;
+      price.current = Math.max(base * 0.6, base + (Math.random() - 0.48) * base * 0.025);
+      const now = Date.now();
+      if (Math.random() < 0.6) {
+        const buy = Math.random() > 0.44;
+        const big = Math.random() > 0.82;
+        const isCreator = big && Math.random() > 0.85;
+        const t: Trade & { seenAt?: number } = {
+          id: String(id.current++),
+          roundId: "demo",
+          userAddress: randAddr(),
+          side: buy ? "buy" : "sell",
+          ethAmount: big ? 0.5 + Math.random() * 1.2 : 0.02 + Math.random() * 0.22,
+          tokenAmount: 0,
+          price: price.current,
+          fee: 0,
+          at: now,
+          isCreator,
+        };
+        if (big || isCreator) t.seenAt = now;
+        trades.current.push(t);
       }
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, w, h);
-
-      const cs = candles.current;
-      if (cs.length < 2) return;
-      let lo = Infinity;
-      let hi = -Infinity;
-      for (const cd of cs) {
-        lo = Math.min(lo, cd.l);
-        hi = Math.max(hi, cd.h);
-      }
-      const pad = (hi - lo) * 0.12 || 1;
-      lo -= pad;
-      hi += pad;
-      const padTop = 8;
-      const padBot = 8;
-      const y = (p: number) => padTop + (1 - (p - lo) / (hi - lo)) * (h - padTop - padBot);
-      const bw = w / cs.length;
-
-      // area fill under the close line
-      ctx.beginPath();
-      ctx.moveTo(0, h);
-      cs.forEach((cd, i) => ctx.lineTo(i * bw + bw / 2, y(cd.c)));
-      ctx.lineTo((cs.length - 1) * bw + bw / 2, h);
-      ctx.closePath();
-      const g = ctx.createLinearGradient(0, 0, 0, h);
-      g.addColorStop(0, "rgba(163,230,53,0.22)");
-      g.addColorStop(1, "rgba(163,230,53,0)");
-      ctx.fillStyle = g;
-      ctx.fill();
-
-      // candles
-      cs.forEach((cd, i) => {
-        const cx = i * bw + bw / 2;
-        const up = cd.c >= cd.o;
-        ctx.strokeStyle = up ? "#22c55e" : "#ef4444";
-        ctx.fillStyle = up ? "#22c55e" : "#ef4444";
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(cx, y(cd.h));
-        ctx.lineTo(cx, y(cd.l));
-        ctx.stroke();
-        const bodyW = Math.max(2, bw * 0.6);
-        const yo = y(cd.o);
-        const yc = y(cd.c);
-        ctx.fillRect(cx - bodyW / 2, Math.min(yo, yc), bodyW, Math.max(1.5, Math.abs(yc - yo)));
-      });
-
-      // glowing live price dot + line
-      const last = cs[cs.length - 1]!;
-      const ly = y(last.c);
-      const lx = (cs.length - 1) * bw + bw / 2;
-      ctx.strokeStyle = "rgba(163,230,53,0.35)";
-      ctx.setLineDash([3, 3]);
-      ctx.beginPath();
-      ctx.moveTo(0, ly);
-      ctx.lineTo(w, ly);
-      ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = "#a3e635";
-      ctx.shadowColor = "#a3e635";
-      ctx.shadowBlur = 12;
-      ctx.beginPath();
-      ctx.arc(lx, ly, 3.5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.shadowBlur = 0;
-    };
-    raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
+      trades.current = trades.current.filter((t) => t.at > now - 8000);
+      force((x) => x + 1);
+    }, 170);
+    return () => clearInterval(iv);
   }, []);
 
   return (
-    <div className="h-full min-h-[9rem] rounded-xl border border-zinc-800 bg-zinc-900/30 p-1">
-      <canvas ref={ref} className="h-full w-full" />
+    <ChartCanvas
+      candles={candles.current}
+      trades={trades.current}
+      livePrice={price.current}
+      openPrice={open.current}
+      supply={2_000_000}
+      bigTradeEth={0.5}
+      cooking
+      resolveTag={demoResolveTag}
+      className="h-full min-h-[9rem] w-full rounded-xl border border-zinc-800 bg-zinc-950"
+    />
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ *  SCENE 5 — Board · Quests · XP  (mirrors /leaderboard + profile panels)
+ * ------------------------------------------------------------------ */
+
+function QuestRow({ name, xp, p }: { name: string; xp: number; p: number }) {
+  const done = p >= 1;
+  return (
+    <div className="rounded-lg bg-zinc-900 p-2">
+      <div className="flex items-center justify-between text-xs">
+        <span className={`font-bold ${done ? "text-emerald-400" : ""}`}>
+          {done ? "✓ " : ""}
+          {name}
+        </span>
+        <span className="text-[10px] text-lime-400">+{xp} XP</span>
+      </div>
+      <div className="mt-1.5 h-1.5 overflow-hidden rounded bg-zinc-800">
+        <div
+          className={`h-full ${done ? "bg-emerald-500" : "bg-lime-400"}`}
+          style={{ width: `${Math.min(100, p * 100)}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function BoardScene() {
+  const t = useSceneClock(SCENES[4].dur);
+  const xpNow = Math.round(lerp(1200, 2180, Math.min(1, t * 1.3)));
+  const podium = [
+    ["🥈", "DiamondDan", "+42.1"],
+    ["🥇", "Grillmaster", "+61.8"],
+    ["🥉", "0xWhale", "+33.5"],
+  ] as const;
+  const rows = [
+    ["4", "ape_ceo", "+28.0"],
+    ["5", "TapeReader", "+21.4"],
+    ["6", "degen_kate", "+18.9"],
+  ] as const;
+  return (
+    <div className="grid h-full animate-[fadein_.4s_ease] gap-3 lg:grid-cols-2">
+      {/* leaderboard */}
+      <div className="flex min-h-0 flex-col gap-3">
+        <div className="text-xs font-black text-zinc-300">🏆 Leaderboard · This Week · PnL</div>
+        <div className="grid grid-cols-3 items-end gap-2">
+          {podium.map(([m, name, v], i) => {
+            const rank = i === 1 ? 0 : i === 0 ? 1 : 2;
+            const style = [
+              "border-amber-400/70 from-amber-500/20 pt-6",
+              "border-zinc-400/50 from-zinc-400/15 pt-4",
+              "border-orange-700/60 from-orange-700/15 pt-4",
+            ][rank];
+            return (
+              <div key={name} className={`rounded-2xl border bg-gradient-to-b to-transparent p-3 text-center ${style}`}>
+                <div className="text-3xl">{m}</div>
+                <div className="mt-1 truncate text-xs font-black">{name}</div>
+                <div
+                  className={`font-mono text-sm font-black ${
+                    rank === 0 ? "text-amber-300" : rank === 1 ? "text-zinc-300" : "text-orange-400"
+                  }`}
+                >
+                  {v}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="overflow-hidden rounded-xl border border-zinc-800">
+          <table className="w-full text-xs">
+            <tbody>
+              {rows.map(([r, name, v]) => (
+                <tr key={name} className="border-t border-zinc-800/60">
+                  <td className="px-3 py-2 font-mono text-zinc-500">{r}</td>
+                  <td className="px-3 py-2">{name}</td>
+                  <td className="px-3 py-2 text-right font-mono text-emerald-400">{v}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* quests + XP + progression */}
+      <div className="flex min-h-0 flex-col gap-3 overflow-hidden">
+        <div className="rounded-xl border border-zinc-800 p-3">
+          <div className="flex items-baseline justify-between text-xs">
+            <span className="font-black">Lv 24 · Sniper</span>
+            <span className="font-mono text-zinc-500">{xpNow.toLocaleString()} / 2,400 XP</span>
+          </div>
+          <div className="mt-2 h-2 overflow-hidden rounded bg-zinc-800">
+            <div className="h-full bg-lime-400" style={{ width: `${(xpNow / 2400) * 100}%` }} />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="rounded-xl border border-orange-500/40 bg-gradient-to-br from-orange-500/10 to-transparent p-3">
+            <div className="text-[11px] font-bold text-orange-300">🔥 Play Streak</div>
+            <div className="font-mono text-2xl font-black text-orange-300">
+              12<span className="ml-1 text-xs font-bold text-zinc-500">days</span>
+            </div>
+            <div className="text-[10px] text-zinc-500">best 18 · ❄️ 2 freezes</div>
+          </div>
+          <div className="rounded-xl border border-amber-400/40 bg-gradient-to-br from-amber-500/10 to-transparent p-3">
+            <div className="text-[11px] font-bold text-amber-300">🎟️ Season Pass</div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded bg-zinc-800">
+              <div className="h-full bg-amber-400" style={{ width: "64%" }} />
+            </div>
+            <div className="mt-1 text-[10px] text-zinc-500">tier 3 · next 3,500 XP</div>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 rounded-xl border border-zinc-800 p-3">
+          <div className="mb-2 flex items-center justify-between">
+            <span className="text-xs font-bold text-zinc-300">Daily Quests</span>
+            <span className="text-[10px] text-amber-300">clear all → +50 XP</span>
+          </div>
+          <div className="space-y-2">
+            <QuestRow name="Pull Up Twice" xp={30} p={Math.min(1, t * 1.6)} />
+            <QuestRow name="Catch the Dip" xp={35} p={Math.min(1, t * 1.05)} />
+            <QuestRow name="On the Box — top 3 PnL" xp={40} p={Math.min(1, t * 0.7)} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ *  SCENE 6 — The Weekly Jackpot  (mirrors /jackpot)
+ * ------------------------------------------------------------------ */
+
+function JackpotScene() {
+  const t = useSceneClock(SCENES[5].dur);
+  const pot = lerp(0, 2384, Math.min(1, t * 1.5)); // USD, counts up
+  const eth = pot / 1920;
+  const winners = [
+    ["🥇", "Grillmaster", 4820, 0.25],
+    ["🥈", "DiamondDan", 3910, 0.18],
+    ["🥉", "0xWhale", 3140, 0.14],
+    ["4", "ape_ceo", 2600, 0.1],
+    ["5", "TapeReader", 2210, 0.08],
+  ] as const;
+  return (
+    <div className="flex h-full animate-[fadein_.4s_ease] flex-col gap-3">
+      <div className="relative overflow-hidden rounded-2xl border border-amber-400/40 bg-gradient-to-br from-amber-500/15 to-transparent p-5 text-center">
+        <div className="pointer-events-none absolute -right-6 -top-6 text-8xl opacity-10">🎰</div>
+        <div className="text-[11px] font-bold uppercase tracking-[0.3em] text-amber-400/80">The Weekly Jackpot</div>
+        <div className="mt-1 font-mono text-5xl font-black text-amber-300">
+          ${Math.round(pot).toLocaleString()}
+        </div>
+        <div className="mt-1 font-mono text-xs text-zinc-400">
+          {eth.toFixed(3)} ETH · pays out in 2d 14h · top 10 by weekly XP
+        </div>
+      </div>
+      <div className="rounded-xl border border-zinc-800 p-3">
+        <div className="mb-2 text-[11px] font-bold text-zinc-300">
+          Fed by every trading fee — no cap, paid in real ETH
+        </div>
+        <div className="flex h-6 overflow-hidden rounded-full text-[10px] font-black text-zinc-950">
+          <div className="flex items-center justify-center bg-amber-400" style={{ width: "30%" }}>30% JACKPOT</div>
+          <div className="flex items-center justify-center bg-lime-400" style={{ width: "30%" }}>30% creator</div>
+          <div className="flex items-center justify-center bg-sky-400" style={{ width: "10%" }}>10%</div>
+          <div className="flex items-center justify-center bg-zinc-600 text-zinc-300" style={{ width: "30%" }}>house</div>
+        </div>
+      </div>
+      <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-zinc-800">
+        <table className="w-full text-sm">
+          <thead className="bg-zinc-900 text-left text-[10px] uppercase text-zinc-500">
+            <tr>
+              <th className="px-3 py-2">#</th>
+              <th className="px-3 py-2">Player</th>
+              <th className="px-3 py-2 text-right">Weekly XP</th>
+              <th className="px-3 py-2 text-right">Projected cut</th>
+            </tr>
+          </thead>
+          <tbody>
+            {winners.map(([m, name, xp, wgt], i) => (
+              <tr key={name} className={`border-t border-zinc-800/60 ${i < 3 ? "bg-amber-500/[0.04]" : ""}`}>
+                <td className="px-3 py-2 font-mono">{m}</td>
+                <td className="px-3 py-2 font-bold">{name}</td>
+                <td className="px-3 py-2 text-right font-mono text-zinc-300">{xp.toLocaleString()}</td>
+                <td className="px-3 py-2 text-right font-mono font-bold text-amber-300">
+                  ${(pot * wgt).toFixed(2)}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

@@ -22,7 +22,7 @@ test("beta gate: with BETA_WHITELIST=1, only approved wallets may sign in", asyn
     // Unapproved (or merely collected) wallet is refused with 403.
     await assert.rejects(attemptSignIn(store), (e: Error & { status?: number }) => {
       assert.equal(e.status, 403);
-      assert.match(e.message, /private beta/i);
+      assert.match(e.message, /open beta/i);
       return true;
     });
 

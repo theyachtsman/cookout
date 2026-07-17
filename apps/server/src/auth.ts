@@ -81,7 +81,7 @@ export async function verifyAndCreateSession(
   ) {
     throw Object.assign(
       new Error(
-        "The Cookout is in private beta. To get whitelisted, follow @hoodcookout on X and " +
+        "The Cookout is in open beta (paper money). To get whitelisted, follow @hoodcookout on X and " +
           "comment your wallet address on a post — details on the home page. Watch for the beta announcement.",
       ),
       { status: 403 },

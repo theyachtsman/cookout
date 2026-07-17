@@ -27,7 +27,7 @@ export default function Landing() {
       <Access />
       <footer className="border-t border-zinc-800 px-6 py-8 text-center text-xs text-zinc-600">
         The Cookout · paper-money beta — simulated balances, no real funds at risk · the house only
-        ever earns fees · <Link href="/docs" className="underline hover:text-zinc-400">read the manual</Link>
+        ever earns fees · <Link href="/docs" className="underline hover:text-zinc-400">menu</Link>
       </footer>
     </div>
   );
@@ -222,7 +222,7 @@ function Hero() {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-lime-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-lime-400" />
           </span>
-          PRIVATE BETA · WHITELIST OPEN ON X
+          OPEN BETA · 100% PAPER MONEY
         </a>
         <h1 className="text-5xl font-black tracking-tight md:text-8xl">
           <span className="text-lime-400">THE</span>{" "}
@@ -236,9 +236,15 @@ function Hero() {
           of real PvP trading in front of a crowd, then it graduates or it burns.
         </p>
         <p className="mx-auto mt-3 max-w-xl text-base text-zinc-400">
-          Paper-money beta: real markets, real competition, <span className="text-lime-300">zero risk</span>.
           Climb the XP ladder and take a cut of the weekly jackpot.
         </p>
+        <div className="mx-auto mt-6 inline-flex max-w-xl items-center gap-3 rounded-xl border border-lime-400/30 bg-lime-400/[0.06] px-5 py-3">
+          <span className="text-2xl">🎮</span>
+          <p className="text-left text-sm text-zinc-200">
+            <span className="font-black text-lime-300">This is a paper-money beta.</span> You trade
+            with simulated pETH — <b>no deposits and no real funds are ever at risk.</b>
+          </p>
+        </div>
         <div className="mt-10 flex flex-wrap items-center justify-center gap-4">
           <a
             href="#access"
@@ -250,7 +256,7 @@ function Hero() {
             href="/docs"
             className="rounded-xl border border-zinc-700 px-8 py-4 text-lg font-bold text-zinc-200 transition hover:border-zinc-500"
           >
-            Read the Manual
+            Menu
           </Link>
         </div>
         <p className="mt-6 text-xs text-zinc-500">
@@ -435,8 +441,9 @@ function Access() {
           The whitelist is earned on <span className="text-lime-400">X.</span>
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-zinc-400">
-          The Cookout opens in private waves — no form, no gas, nothing to sign. You claim a seat by
-          showing up for {X_HANDLE} and dropping your wallet.
+          The Cookout opens in rolling waves — no form, no gas, nothing to sign. It&apos;s a
+          <b className="text-zinc-200"> paper-money beta</b> (simulated pETH, zero risk); you claim a
+          seat by showing up for {X_HANDLE} and dropping your wallet.
         </p>
       </Reveal>
 
