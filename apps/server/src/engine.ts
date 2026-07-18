@@ -291,6 +291,21 @@ export class RoundEngine {
     s.peakMcap = marketCap(round.pool);
     s.bottomPrice = result.clearingPrice;
     s.bottomAt = now;
+    // The opening candle: every settled fill enters as ONE green candle from
+    // the seed price to the post-settlement spot, so the chart blasts off
+    // from the actual open instead of starting blank.
+    if (result.totalRaised > 0) {
+      const openPrice = cfg.initialEthLiquidity / cfg.initialTokenLiquidity;
+      const spotAfter = spotPrice(round.pool);
+      this.closeCandle(round.id, {
+        t: Math.floor(now / 1000),
+        o: openPrice,
+        h: Math.max(openPrice, spotAfter),
+        l: openPrice,
+        c: spotAfter,
+        v: result.totalRaised,
+      });
+    }
     this.broadcast(round.id, { type: "auction_settled", result });
     this.emitState(round);
   }

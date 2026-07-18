@@ -13,6 +13,7 @@ interface Overview {
   totalFees: number;
   betaSignups: number;
   whitelistOn: boolean;
+  chainEnabled?: boolean;
   feedbackCount: number;
   settings: { autoSchedule: boolean; tier: string; leadSeconds: number };
   log: { id: string; at: number; action: string; detail: string }[];
@@ -535,7 +536,9 @@ export default function AdminPage() {
                       Shortlist
                     </button>
                   )}
-                  {/* The real thing: a full on-chain round via the factory. */}
+                  {/* The real thing: a full on-chain round via the factory —
+                      only when this server actually has a chain service. */}
+                  {overview?.chainEnabled && (
                   <button
                     onClick={() =>
                       void act(`/api/admin/concepts/${c.id}/schedule-chain`, {
@@ -554,6 +557,7 @@ export default function AdminPage() {
                   >
                     ⛓️ Schedule on-chain
                   </button>
+                  )}
                   {/* Paper simulation rounds don't exist on the chain-only
                       (dev) deployment — the server refuses them too. */}
                   {!chainOnly &&

@@ -835,6 +835,7 @@ export function createApp(
         totalFees: fees,
         betaSignups: store.betaSignups.size,
         whitelistOn: process.env.BETA_WHITELIST === "1",
+        chainEnabled: !!chain?.enabled,
         feedbackCount: store.feedback.length,
         settings: store.settings,
         log: store.adminLog.slice(-50),
