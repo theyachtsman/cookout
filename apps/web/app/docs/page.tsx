@@ -149,8 +149,8 @@ export default function Docs() {
         <Section id="trading" title="Live Trading">
           <p>
             Once the auction settles, it&apos;s a real market: your buys push price up, sells push
-            it down, 1-second candles, everything visible to the crowd. The chart defaults to{" "}
-            <b>market-cap view</b> (switch to price top-right). Big buys and sells pop tagged
+            it down, 1-second candles, everything visible to the crowd. The chart shows{" "}
+            <b>market-cap view</b>. Big buys and sells pop tagged
             bubbles right on the chart. A 🔥 <b>Cooking</b> tag means volume is running hot.
           </p>
           <p>
@@ -195,7 +195,7 @@ export default function Docs() {
                   <th className="py-2 pr-4">Tier</th>
                   <th className="py-2 pr-4">Unlock</th>
                   <th className="py-2 pr-4">Liquidity</th>
-                  <th className="py-2 pr-4">Position cap</th>
+                  <th className="py-2 pr-4">Queue cap</th>
                   <th className="py-2">Dev sell lock</th>
                 </tr>
               </thead>
