@@ -11,6 +11,7 @@ import {
   type JackpotStanding,
   type JackpotStatus,
 } from "@cookout/shared";
+import { BOT_ADDRESSES } from "./bots.js";
 import type { Store, StoredUser } from "./store.js";
 
 /**
@@ -33,10 +34,11 @@ function badgeFor(u: StoredUser): string | undefined {
   return COSMETICS.find((c) => c.id === u.equipped.badge)?.value;
 }
 
-/** Top XP earners for a week, highest first, capped at JACKPOT_WINNERS. */
+/** Top XP earners for a week, highest first, capped at JACKPOT_WINNERS.
+ *  The bot swarm is excluded — real players always win the pot. */
 function rankByWeeklyXp(store: Store, week: string): StoredUser[] {
   return [...store.users.values()]
-    .filter((u) => (u.weeklyXp[week] ?? 0) > 0)
+    .filter((u) => (u.weeklyXp[week] ?? 0) > 0 && !BOT_ADDRESSES.has(u.address))
     .sort((a, b) => (b.weeklyXp[week] ?? 0) - (a.weeklyXp[week] ?? 0))
     .slice(0, JACKPOT_WINNERS);
 }
