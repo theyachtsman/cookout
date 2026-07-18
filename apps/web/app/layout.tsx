@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { SessionProvider } from "../lib/session";
 import { DevBanner } from "../components/DevBanner";
+import { UnlockToasts } from "../components/UnlockToasts";
 import { BetaGate } from "../components/BetaGate";
 import { FeedbackWidget } from "../components/FeedbackWidget";
 import { TopNav } from "../components/TopNav";
@@ -43,6 +44,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <main className="mx-auto max-w-6xl px-3 py-6 sm:px-4">
             <BetaGate>{children}</BetaGate>
           </main>
+          <UnlockToasts />
           <FeedbackWidget />
         </SessionProvider>
       </body>

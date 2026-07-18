@@ -15,6 +15,7 @@
  */
 
 import type { Round } from "@cookout/shared";
+import { arenaAddress, arenaBalance, arenaSend, hasArenaWallet } from "./arenaWallet";
 
 type Eth = { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> };
 
@@ -91,6 +92,37 @@ export async function ensureChain(chainId: number): Promise<void> {
   }
 }
 
+/** True when the arena wallet should carry this round's transactions: it
+ *  exists and holds enough to cover the call (plus a little gas). Hot path =
+ *  local signing, zero wallet prompts. */
+export async function arenaActive(chainId: number, needEth = 0): Promise<boolean> {
+  if (!hasArenaWallet()) return false;
+  try {
+    return (await arenaBalance(chainId)) >= needEth + 0.0001;
+  } catch {
+    return false;
+  }
+}
+
+/** The address whose trades/holdings are "you" for this round — the arena
+ *  wallet when active, else the injected wallet. */
+export async function activeTradeAddress(chainId: number): Promise<string> {
+  return (await arenaActive(chainId)) ? arenaAddress() : account();
+}
+
+async function sendVia(
+  chainId: number,
+  to: string,
+  data: string,
+  valueWei = 0n,
+): Promise<string> {
+  if (await arenaActive(chainId, Number(valueWei) / 1e18)) {
+    return arenaSend(chainId, to as `0x${string}`, data as `0x${string}`, valueWei);
+  }
+  await ensureChain(chainId);
+  return sendTx(to, data, valueWei);
+}
+
 async function sendTx(to: string, data: string, valueWei = 0n): Promise<string> {
   const from = await account();
   const hash = (await eth().request({
@@ -136,73 +168,77 @@ export async function chainSubmitIntent(
   maxPrice?: string,
 ): Promise<string> {
   const c = round.chain!;
-  await ensureChain(c.chainId);
   const priceWad = maxPrice ? toWei(maxPrice) : 0n;
-  return sendTx(c.auction, SEL.submit + pad32(priceWad), toWei(ethAmount));
+  return sendVia(c.chainId, c.auction, SEL.submit + pad32(priceWad), toWei(ethAmount));
 }
 
 export async function chainCancelIntent(round: Round, intentId: string): Promise<string> {
   const c = round.chain!;
-  await ensureChain(c.chainId);
-  return sendTx(c.auction, SEL.cancel + pad32(BigInt(intentId)));
+  return sendVia(c.chainId, c.auction, SEL.cancel + pad32(BigInt(intentId)));
 }
 
 /** After settlement: pull your tokens + refund for one intent. */
 export async function chainClaimFill(round: Round, intentId: string): Promise<string> {
   const c = round.chain!;
-  await ensureChain(c.chainId);
-  return sendTx(c.auction, SEL.claim + pad32(BigInt(intentId)));
+  return sendVia(c.chainId, c.auction, SEL.claim + pad32(BigInt(intentId)));
 }
 
 /** Live trading: buy with real ETH. minTokensOut=0 — testnet convenience; a
  *  mainnet build must quote and pass a real slippage floor. */
 export async function chainBuy(round: Round, ethAmount: string): Promise<string> {
   const c = round.chain!;
-  await ensureChain(c.chainId);
-  return sendTx(c.pool, SEL.buy + pad32(0n), toWei(ethAmount));
+  return sendVia(c.chainId, c.pool, SEL.buy + pad32(0n), toWei(ethAmount));
 }
 
 /** Live trading: sell tokens. Exact-amount approval to this round's pool,
  *  then sell — never more than this trade needs (audit policy). */
 export async function chainSell(round: Round, tokensWei: bigint): Promise<string> {
   const c = round.chain!;
-  await ensureChain(c.chainId);
-  const me = await account();
+  const me = await activeTradeAddress(c.chainId);
   const allowance = BigInt(
     await call(c.token, SEL.allowance + pad32(me) + pad32(c.pool)),
   );
   if (allowance < tokensWei) {
-    await sendTx(c.token, SEL.approve + pad32(c.pool) + pad32(tokensWei));
+    await sendVia(c.chainId, c.token, SEL.approve + pad32(c.pool) + pad32(tokensWei));
   }
-  return sendTx(c.pool, SEL.sell + pad32(tokensWei) + pad32(0n));
+  return sendVia(c.chainId, c.pool, SEL.sell + pad32(tokensWei) + pad32(0n));
 }
 
 /** Non-graduated round over: redeem remaining tokens at the uniform price.
  *  Exact-amount approval to this round's pool only. */
 export async function chainRedeem(round: Round, tokensWei: bigint): Promise<string> {
   const c = round.chain!;
-  await ensureChain(c.chainId);
-  const me = await account();
+  const me = await activeTradeAddress(c.chainId);
   const allowance = BigInt(
     await call(c.token, SEL.allowance + pad32(me) + pad32(c.pool)),
   );
   if (allowance < tokensWei) {
-    await sendTx(c.token, SEL.approve + pad32(c.pool) + pad32(tokensWei));
+    await sendVia(c.chainId, c.token, SEL.approve + pad32(c.pool) + pad32(tokensWei));
   }
-  return sendTx(c.pool, SEL.redeem + pad32(tokensWei));
+  return sendVia(c.chainId, c.pool, SEL.redeem + pad32(tokensWei));
 }
 
 // ---------------- balances ----------------
 
-export async function walletEthBalance(): Promise<number> {
+/** Spendable balance for this round: arena wallet when hot, else injected. */
+export async function walletEthBalance(chainId?: number): Promise<number> {
+  if (chainId && (await arenaActive(chainId))) return arenaBalance(chainId);
   const me = await account();
   return fromWei(
     (await eth().request({ method: "eth_getBalance", params: [me, "latest"] })) as string,
   );
 }
 
-/** Raw wei balance of the round token (wei precision matters for sell-all). */
+/** Raw wei balance of the round token (wei precision matters for sell-all),
+ *  read for whichever address is trading this round. */
 export async function walletTokenBalanceWei(round: Round): Promise<bigint> {
-  const me = await account();
+  const me = await activeTradeAddress(round.chain!.chainId);
   return BigInt(await call(round.chain!.token, SEL.balanceOf + pad32(me)));
+}
+
+/** One-time funding: a single injected-wallet confirmation moves ETH into the
+ *  arena wallet; every trade after that signs locally with no prompts. */
+export async function fundArenaWallet(chainId: number, ethAmount: string): Promise<string> {
+  await ensureChain(chainId);
+  return sendTx(arenaAddress(), "0x", toWei(ethAmount));
 }

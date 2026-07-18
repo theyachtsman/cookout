@@ -802,7 +802,7 @@ function LaunchScene() {
               bigTradeEth={0.5}
               cooking
               windowSec={40}
-              showToggle={false}
+              fill
               highlightAddress={YOU_ADDR}
               resolveTag={demoResolveTag}
               className="h-full w-full rounded-xl border border-zinc-800 bg-zinc-950"

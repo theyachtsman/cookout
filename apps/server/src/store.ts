@@ -73,6 +73,10 @@ export interface SeasonStats {
 }
 
 export interface StoredUser extends UserProfile {
+  /** The user's arena (burner session) wallet for on-chain rounds. Chain
+   *  events from this address credit the owner's profile — XP, positions,
+   *  quests — while the funds themselves stay in the burner on-chain. */
+  arenaAddress?: string;
   /** Per-season (YYYY-MM) aggregates for seasonal leaderboards. */
   seasons: Record<string, SeasonStats>;
   /** XP earned per ISO week (key "2026-W29") — drives the weekly jackpot. */
@@ -150,8 +154,31 @@ export class Store {
   /** Lifetime jackpot paid out (paper ETH) — headline stat. */
   jackpotLifetimeEth = 0;
 
+  /** arena (burner) wallet address → owner profile address. */
+  private arenaIndex = new Map<string, Address>();
+
   id(): string {
     return randomUUID();
+  }
+
+  /** Link a user's arena wallet; chain events from it credit the owner. */
+  setArenaAddress(owner: Address, arena: string): void {
+    const u = this.getOrCreateUser(owner);
+    if (u.arenaAddress) this.arenaIndex.delete(u.arenaAddress);
+    u.arenaAddress = arena.toLowerCase();
+    this.arenaIndex.set(u.arenaAddress, u.address);
+  }
+
+  /** Resolve who a chain address belongs to (arena wallet → owner, else self). */
+  resolveArenaOwner(address: string): Address {
+    return this.arenaIndex.get(address.toLowerCase()) ?? (address.toLowerCase() as Address);
+  }
+
+  /** Rebuild the arena index (after hydrate). */
+  reindexArena(): void {
+    this.arenaIndex.clear();
+    for (const u of this.users.values())
+      if (u.arenaAddress) this.arenaIndex.set(u.arenaAddress, u.address);
   }
 
   seasonKey(now = Date.now()): string {
@@ -537,6 +564,7 @@ export class Store {
     this.jackpotWeekKey = snap.jackpotWeekKey ?? weekKey();
     this.jackpotHistory = snap.jackpotHistory ?? [];
     this.jackpotLifetimeEth = snap.jackpotLifetimeEth ?? 0;
+    this.reindexArena();
   }
 }
 

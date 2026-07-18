@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AuctionIntent, Round } from "@cookout/shared";
 import { api } from "../lib/api";
 import { chainCancelIntent, chainSubmitIntent, walletEthBalance } from "../lib/chainTx";
 import { useSession } from "../lib/session";
+import { playDeposit, playPullupPing } from "../lib/sfx";
 
 interface Lobby {
   players: number;
@@ -49,16 +50,23 @@ export function QueuePanel({
   const [ethBal, setEthBal] = useState<number | null>(null);
   useEffect(() => {
     if (!onChain || !profile) return;
-    walletEthBalance().then(setEthBal).catch(() => {});
+    walletEthBalance(round.chain?.chainId).then(setEthBal).catch(() => {});
   }, [onChain, profile, intents.length]);
 
   // Live pre-position board: everyone's bids, refreshed while the queue runs.
+  // Every NEW pull-up gets a harmonic ping so a filling queue literally sings.
+  const bidCount = useRef(-1);
   useEffect(() => {
     if (round.state !== "queue_open" && round.state !== "lobby") return;
     let alive = true;
     const poll = () =>
       api<{ bids?: Bid[] }>(`/api/rounds/${round.id}/intents`)
-        .then((d) => alive && d.bids && setBids(d.bids))
+        .then((d) => {
+          if (!alive || !d.bids) return;
+          if (bidCount.current >= 0 && d.bids.length > bidCount.current) playPullupPing();
+          bidCount.current = d.bids.length;
+          setBids(d.bids);
+        })
         .catch(() => {});
     void poll();
     const t = setInterval(poll, 2000);
@@ -97,6 +105,7 @@ export function QueuePanel({
           },
         });
       }
+      playDeposit();
       loadIntents();
       onChanged();
     } catch (e) {

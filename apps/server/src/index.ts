@@ -74,8 +74,9 @@ if (chain.enabled) {
     `chain service ON — operator ${chain.operatorAddress}, factory ${process.env.CHAIN_FACTORY}, ` +
       `chain ${process.env.CHAIN_ID}, scale ${chain.scale}`,
   );
-  // Fire-and-forget: ChainService.tick self-guards against overlap.
-  setInterval(() => void chain.tick(Date.now()), 3000);
+  // Fire-and-forget: ChainService.tick self-guards against overlap. 1.5s keeps
+  // the mirrored chart snappy; the guard absorbs slow RPC round-trips.
+  setInterval(() => void chain.tick(Date.now()), 1500);
 }
 
 setInterval(() => {

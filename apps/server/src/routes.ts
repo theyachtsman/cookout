@@ -144,6 +144,19 @@ export function createApp(
     }),
   );
 
+  /** Link the caller's arena (burner session) wallet. Chain events from that
+   *  address then credit this profile's XP/positions/quests. */
+  app.post(
+    "/api/me/arena",
+    auth,
+    wrap((req, res) => {
+      const { address } = req.body as { address?: string };
+      if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) throw new Err(400, "bad address");
+      store.setArenaAddress(req.userAddress!, address);
+      res.json(publicProfile(store.getOrCreateUser(req.userAddress!), true));
+    }),
+  );
+
   app.get(
     "/api/missions",
     auth,
@@ -1026,6 +1039,7 @@ function publicProfile(u: StoredUser, self = false) {
     referredBy,
     referralCount,
     referralEarnings,
+    arenaAddress,
     ...rest
   } = u;
   void activity;
@@ -1037,5 +1051,13 @@ function publicProfile(u: StoredUser, self = false) {
   const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
   const base = { ...rest, season: seasons[key] ?? { pnl: 0, xp: 0, wins: 0, trades: 0 } };
   if (!self) return base;
-  return { ...base, paperBalance, referralCode, referredBy, referralCount, referralEarnings };
+  return {
+    ...base,
+    paperBalance,
+    referralCode,
+    referredBy,
+    referralCount,
+    referralEarnings,
+    arenaAddress,
+  };
 }

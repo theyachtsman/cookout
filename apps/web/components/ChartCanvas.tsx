@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import type { Candle, Trade } from "@cookout/shared";
 
 /**
@@ -29,8 +29,10 @@ interface Props {
   graduated?: boolean;
   /** Scrolling window width in seconds (default 75). */
   windowSec?: number;
-  /** Show the MCAP/PRICE switch (default true; off for the landing demo). */
-  showToggle?: boolean;
+  /** Stretch to fill the parent (the landing demo's flex slot). The product
+   *  page must NOT set this: a percentage height inside a grid-stretched
+   *  column balloons to the whole column and shoves the panels below it. */
+  fill?: boolean;
   /** Trades from this address always get a tagged bubble (e.g. your own). */
   highlightAddress?: string;
   /** Populate a trader tag (name/avatar) for a bubble — async mutation ok. */
@@ -45,7 +47,9 @@ const UP = "#22c55e";
 const DOWN = "#ef4444";
 
 export function ChartCanvas(props: Props) {
-  const [mode, setMode] = useState<"mcap" | "price">("mcap");
+  // Market-cap view only — the MCAP/PRICE switch was cut (it sat on top of
+  // the candles); price still shows in the tooltip/labels scale.
+  const mode = "mcap" as const;
   const ref = useRef<HTMLCanvasElement>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
@@ -338,27 +342,11 @@ export function ChartCanvas(props: Props) {
   }, []);
 
   return (
-    <div className="relative h-full">
+    <div className={props.fill ? "relative h-full" : "relative"}>
       <canvas
         ref={ref}
         className={props.className ?? "h-80 w-full rounded-xl border border-zinc-800 bg-zinc-950"}
       />
-      {(props.showToggle ?? true) && (
-        <div className="absolute right-2 top-2 flex overflow-hidden rounded-md border border-zinc-700 text-[11px] font-bold">
-          <button
-            onClick={() => setMode("mcap")}
-            className={`px-2 py-1 ${mode === "mcap" ? "bg-lime-400 text-zinc-950" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"}`}
-          >
-            MCAP
-          </button>
-          <button
-            onClick={() => setMode("price")}
-            className={`px-2 py-1 ${mode === "price" ? "bg-lime-400 text-zinc-950" : "bg-zinc-900 text-zinc-400 hover:text-zinc-200"}`}
-          >
-            PRICE
-          </button>
-        </div>
-      )}
     </div>
   );
 }

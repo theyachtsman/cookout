@@ -5,6 +5,7 @@ import type { Round } from "@cookout/shared";
 import { api } from "../lib/api";
 import { chainBuy, chainSell, walletEthBalance, walletTokenBalanceWei } from "../lib/chainTx";
 import { useSession } from "../lib/session";
+import { playBuy, playSell } from "../lib/sfx";
 
 export function TradePanel({
   round,
@@ -26,7 +27,7 @@ export function TradePanel({
   const [tokenBal, setTokenBal] = useState<bigint | null>(null);
   const refreshChainBalances = useCallback(() => {
     if (!round.chain || !profile) return;
-    walletEthBalance().then(setEthBal).catch(() => {});
+    walletEthBalance(round.chain?.chainId).then(setEthBal).catch(() => {});
     walletTokenBalanceWei(round).then(setTokenBal).catch(() => {});
   }, [round, profile]);
   useEffect(() => {
@@ -57,6 +58,8 @@ export function TradePanel({
     try {
       if (onChain) await walletTrade(side, body);
       else await paperTrade(side, body as Record<string, number>);
+      if (side === "buy") playBuy();
+      else playSell();
       refreshChainBalances();
       onTraded();
     } catch (e) {

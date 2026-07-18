@@ -301,7 +301,8 @@ export class ChainService {
         const intent: AuctionIntent = {
           id: String(a.id),
           roundId: round.id,
-          userAddress: a.who.toLowerCase(),
+          // Arena (burner) wallets credit their owner's profile.
+          userAddress: this.store.resolveArenaOwner(a.who),
           ethAmount: wad(a.amount),
           maxPrice: a.maxPriceWad > 0n ? wad(a.maxPriceWad) : undefined,
           submittedAt: now,
@@ -448,7 +449,7 @@ export class ChainService {
         const a = ev.args as { who: HexAddress; ethIn: bigint; tokensOut: bigint; fee: bigint };
         this.engine.applyChainTrade(
           round,
-          a.who.toLowerCase(),
+          this.store.resolveArenaOwner(a.who),
           "buy",
           wad(a.ethIn),
           wad(a.tokensOut),
@@ -461,7 +462,7 @@ export class ChainService {
         const a = ev.args as { who: HexAddress; tokensIn: bigint; ethOut: bigint; fee: bigint };
         this.engine.applyChainTrade(
           round,
-          a.who.toLowerCase(),
+          this.store.resolveArenaOwner(a.who),
           "sell",
           wad(a.ethOut),
           wad(a.tokensIn),

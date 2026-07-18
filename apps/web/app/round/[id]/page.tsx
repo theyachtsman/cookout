@@ -22,6 +22,7 @@ import { Countdown } from "../../../components/Countdown";
 import { Feeds } from "../../../components/Feeds";
 import { GraduationProgress } from "../../../components/GraduationProgress";
 import { PhaseBanner } from "../../../components/PhaseBanner";
+import { ArenaWalletPanel } from "../../../components/ArenaWalletPanel";
 import { ChainActions } from "../../../components/ChainActions";
 import { QueuePanel } from "../../../components/QueuePanel";
 import { Results } from "../../../components/Results";
@@ -248,7 +249,8 @@ export default function RoundPage() {
       {/* ---- pre-launch arcade: everything on one screen ---- */}
       {(round.state === "lobby" || round.state === "queue_open" || round.state === "settling") && (
         <div className="grid gap-3 lg:h-[calc(100dvh-16rem)] lg:min-h-[34rem] lg:grid-cols-[1fr_340px]">
-          <div className={`min-h-0 overflow-y-auto rounded-xl ${round.state === "queue_open" ? "neon" : ""}`}>
+          <div className={`min-h-0 space-y-3 overflow-y-auto rounded-xl ${round.state === "queue_open" ? "neon" : ""}`}>
+            {round.chain && <ArenaWalletPanel round={round} />}
             <QueuePanel
               round={round}
               lobby={lobby}
@@ -318,6 +320,10 @@ export default function RoundPage() {
                 }}
               />
             )}
+            {/* the trenches — fixed-height console chat right under the chart+controls */}
+            <div className="h-64">
+              <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
+            </div>
             <ChainActions
               round={round}
               onChanged={() => {
@@ -325,13 +331,10 @@ export default function RoundPage() {
                 void refresh();
               }}
             />
-            {/* fixed-height console-style chat so it shares the screen with the chart */}
-            <div className="h-64">
-              <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
-            </div>
             {summary && <Results round={round} summary={summary} auction={auction} />}
           </div>
           <div className="space-y-4">
+            {round.chain && <ArenaWalletPanel round={round} />}
             {(round.state === "live" || round.graduated) && position && ticker && (
               <YourBag
                 position={position}
