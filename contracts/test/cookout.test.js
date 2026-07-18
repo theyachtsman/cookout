@@ -113,9 +113,16 @@ describe("RoundFactory parameter bounds", () => {
     await expectRejected({ auctionFeeBps: 501 }, "fee too high");
   });
 
-  it("rejects zero supply and zero fee recipient", async () => {
+  it("rejects out-of-bounds supply and zero fee recipient", async () => {
     await expectRejected({ totalSupply: 0n }, "supply");
+    await expectRejected({ totalSupply: 10n ** 18n - 1n }, "supply"); // dust-reserve pathologies
+    await expectRejected({ totalSupply: 10n ** 33n + 1n }, "supply"); // k-overflow headroom
     await expectRejected({ feeRecipient: ethers.ZeroAddress }, "fee recipient");
+  });
+
+  it("accepts supply exactly at the bounds", async () => {
+    await createRound({ totalSupply: 10n ** 18n });
+    await createRound({ totalSupply: 10n ** 33n });
   });
 
   it("rejects degenerate schedules", async () => {
@@ -127,6 +134,60 @@ describe("RoundFactory parameter bounds", () => {
   it("accepts fees exactly at MAX_FEE_BPS", async () => {
     const { pool } = await createRound({ tradeFeeBps: 500, auctionFeeBps: 500 });
     expect(await pool.tradeFeeBps()).to.equal(500n);
+  });
+});
+
+describe("BatchAuction guards (2026-07 audit follow-ups)", () => {
+  it("submit: rejects dust intents below MIN_INTENT_WEI", async () => {
+    const [, alice] = await ethers.getSigners();
+    const { auction } = await createRound();
+    const min = await auction.MIN_INTENT_WEI();
+    await expect(auction.connect(alice).submit(0, { value: min - 1n })).to.be.revertedWith("value");
+    await expect(auction.connect(alice).submit(0, { value: min })).to.emit(
+      auction,
+      "IntentSubmitted",
+    );
+  });
+
+  it("settle: zero-token sentinel settles as zero-fill; escrow never leaves; full refunds", async () => {
+    const [deployer, alice, bob] = await ethers.getSigners();
+    // A pool state no honest constructor can produce: zero token reserve makes
+    // _priceWadAt return its uint256.max sentinel for any raise. Before the
+    // guards, market intents accepted that price and their ETH entered the
+    // pool for zero tokens; now the auction must settle zero-fill instead.
+    const mock = await (await ethers.getContractFactory("MockRoundPool")).deploy();
+    await mock.setReserves(E(1), 0);
+    const token = await (
+      await ethers.getContractFactory("ArenaToken")
+    ).deploy("Trap", "TRAP", E(1), deployer.address);
+    const t = await now();
+    const auction = await (
+      await ethers.getContractFactory("BatchAuction")
+    ).deploy(
+      await mock.getAddress(),
+      await token.getAddress(),
+      t + 50,
+      E(50),
+      0,
+      deployer.address,
+    );
+
+    await auction.connect(alice).submit(0, { value: E(2) }); // market: accepts any price
+    await auction.connect(bob).submit(0, { value: E(1) });
+    await mine(60);
+
+    await expect(auction.settle()).to.emit(auction, "Settled").withArgs(0n, 0n, 0n, 0n);
+    expect(await mock.receivedWei()).to.equal(0n); // no escrow reached the pool
+    expect(await mock.opened()).to.equal(true); // trading still opened
+
+    // Every intent refunds in full (Claimed: ethFilled 0, tokensOut 0, refund all).
+    await expect(auction.connect(alice).claim(0))
+      .to.emit(auction, "Claimed")
+      .withArgs(0n, alice.address, 0n, 0n, E(2));
+    await expect(auction.connect(bob).claim(1))
+      .to.emit(auction, "Claimed")
+      .withArgs(1n, bob.address, 0n, 0n, E(1));
+    expect(await ethers.provider.getBalance(await auction.getAddress())).to.equal(0n);
   });
 });
 

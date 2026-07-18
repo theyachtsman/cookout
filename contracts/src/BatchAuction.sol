@@ -24,6 +24,10 @@ import {RoundPool} from "./RoundPool.sol";
 contract BatchAuction {
     uint256 private constant WAD = 1e18;
     uint256 private constant BPS = 10_000;
+    /// @notice Floor on intent size. Kills dust intents whose pro-rata token
+    ///         fill floors to zero, and prices out spamming settle()'s O(n)
+    ///         demand loops with 1-wei intents.
+    uint256 public constant MIN_INTENT_WEI = 0.001 ether;
 
     struct Intent {
         address who;
@@ -85,7 +89,7 @@ contract BatchAuction {
 
     function submit(uint128 maxPriceWad) external payable returns (uint256 id) {
         require(block.timestamp < closesAt, "queue closed");
-        require(msg.value > 0 && msg.value <= type(uint128).max, "value");
+        require(msg.value >= MIN_INTENT_WEI && msg.value <= type(uint128).max, "value");
         id = intents.length;
         intents.push(Intent(msg.sender, uint128(msg.value), maxPriceWad, false));
         emit IntentSubmitted(id, msg.sender, msg.value, maxPriceWad);
@@ -127,32 +131,52 @@ contract BatchAuction {
             else hi = mid - 1;
         }
         uint256 raise = lo;
-        totalRaisedWei = raise;
 
+        // Everything below computes into locals and commits to storage only on
+        // the success path: no ETH may leave escrow unless the aggregate buy
+        // provably mints tokens. Any guard failing falls through to the
+        // zero-fill settle, where claim() refunds every intent in full.
         if (raise > 0) {
-            clearingPriceWad = _priceWadAt(raise, ethReserve, tokenReserve);
-            uint256 d = _demandAt(clearingPriceWad);
-            eligibleDemandWei = d;
-            // Sum the exact floored per-intent fills; settling on this sum
-            // (not on raise) keeps escrow accounting exact to the wei, so
-            // every refund is always covered.
-            uint256 filled;
-            for (uint256 i = 0; i < intents.length; i++) {
-                Intent storage it = intents[i];
-                if (it.maxPriceWad == 0 || it.maxPriceWad >= clearingPriceWad) {
-                    filled += (uint256(it.amount) * raise) / d;
+            uint256 priceWad = _priceWadAt(raise, ethReserve, tokenReserve);
+            // Sentinel = the raise would buy zero token units. Market intents
+            // (maxPriceWad == 0) accept any price including the sentinel, so
+            // without this check their ETH would enter the pool for nothing.
+            if (priceWad != type(uint256).max) {
+                uint256 d = _demandAt(priceWad);
+                // Sum the exact floored per-intent fills; settling on this sum
+                // (not on raise) keeps escrow accounting exact to the wei, so
+                // every refund is always covered.
+                uint256 filled;
+                for (uint256 i = 0; i < intents.length; i++) {
+                    Intent storage it = intents[i];
+                    if (it.maxPriceWad == 0 || it.maxPriceWad >= priceWad) {
+                        filled += (uint256(it.amount) * raise) / d;
+                    }
                 }
-            }
-            settledFillWei = filled;
-            if (filled > 0) {
-                uint256 fee = (filled * feeBps) / BPS;
-                totalTokensSold = pool.auctionBuy{value: filled - fee}();
-                if (fee > 0) {
-                    (bool ok, ) = feeRecipient.call{value: fee}("");
-                    require(ok, "fee transfer");
+                if (filled > 0) {
+                    uint256 fee = (filled * feeBps) / BPS;
+                    uint256 net = filled - fee;
+                    // Mirror the pool's own curve math on the same reserves:
+                    // commit only if the buy mints at least one token unit.
+                    // (With honest constructors this always holds — the check
+                    // exists so escrow solvency never depends on invariants
+                    // maintained in other contracts.)
+                    uint256 predicted =
+                        tokenReserve - (ethReserve * tokenReserve) / (ethReserve + net);
+                    if (predicted > 0) {
+                        clearingPriceWad = priceWad;
+                        totalRaisedWei = raise;
+                        eligibleDemandWei = d;
+                        settledFillWei = filled;
+                        totalTokensSold = pool.auctionBuy{value: net}();
+                        if (fee > 0) {
+                            (bool ok, ) = feeRecipient.call{value: fee}("");
+                            require(ok, "fee transfer");
+                        }
+                        emit Settled(priceWad, raise, totalTokensSold, d);
+                        return;
+                    }
                 }
-                emit Settled(clearingPriceWad, raise, totalTokensSold, eligibleDemandWei);
-                return;
             }
         }
         pool.auctionBuy(); // opens continuous trading with no aggregate buy
@@ -170,7 +194,10 @@ contract BatchAuction {
         uint256 amount = it.amount;
         uint256 ethFilled;
         uint256 tokensOut;
-        bool eligible = settledFillWei > 0 &&
+        // totalTokensSold > 0 is guaranteed by settle()'s zero-token guards
+        // whenever settledFillWei > 0; kept here so no state, however reached,
+        // can charge ETH for zero tokens at the whole-auction level.
+        bool eligible = settledFillWei > 0 && totalTokensSold > 0 &&
             (it.maxPriceWad == 0 || it.maxPriceWad >= clearingPriceWad);
         if (eligible) {
             // Same floored formula settle() summed, so Σ ethFilled ==
