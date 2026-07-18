@@ -28,6 +28,43 @@ import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { api } from "./api";
 
 const STORE_KEY = "cookout:arena-key";
+const HISTORY_KEY = "cookout:arena-history";
+
+/** One ledger row. Every deposit/trade/claim/withdraw runs through our own
+ *  code, so this local log is a complete history of THIS browser's burner. */
+export interface ArenaTxEntry {
+  hash: string;
+  kind:
+    | "deposit"
+    | "withdraw"
+    | "pull-up"
+    | "cancel"
+    | "claim"
+    | "buy"
+    | "sell"
+    | "redeem"
+    | "approve";
+  /** ETH moved (0 for approvals/cancels/claims where unknown). */
+  eth: number;
+  /** "arena" = signed locally (hot); "wallet" = injected-wallet confirmation. */
+  via: "arena" | "wallet";
+  chainId: number;
+  at: number;
+}
+
+export function arenaHistory(): ArenaTxEntry[] {
+  try {
+    return JSON.parse(localStorage.getItem(HISTORY_KEY) ?? "[]") as ArenaTxEntry[];
+  } catch {
+    return [];
+  }
+}
+
+export function logArenaTx(entry: ArenaTxEntry): void {
+  const list = arenaHistory();
+  list.push(entry);
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(-200)));
+}
 
 /** Chain registry (mirror of chainTx's) — RPC the burner talks to directly. */
 const CHAINS: Record<number, { name: string; rpc: string }> = {
@@ -131,5 +168,6 @@ export async function arenaWithdraw(chainId: number, to: `0x${string}`): Promise
   const wallet = createWalletClient({ account: acct, chain, transport: http() });
   const hash = await wallet.sendTransaction({ to, value, gas: gasLimit, gasPrice });
   await client.waitForTransactionReceipt({ hash, timeout: 90_000 });
+  logArenaTx({ hash, kind: "withdraw", eth: Number(value) / 1e18, via: "arena", chainId, at: Date.now() });
   return hash;
 }

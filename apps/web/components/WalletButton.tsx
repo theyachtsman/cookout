@@ -56,6 +56,13 @@ export function WalletButton() {
               👤 Profile
             </Link>
             <Link
+              href="/wallet"
+              onClick={() => setOpen(false)}
+              className="block px-3 py-2 text-sm hover:bg-zinc-800"
+            >
+              ⚡ Arena Wallet
+            </Link>
+            <Link
               href={`/profile/${profile.address}`}
               onClick={() => setOpen(false)}
               className="block px-3 py-2 text-sm hover:bg-zinc-800"

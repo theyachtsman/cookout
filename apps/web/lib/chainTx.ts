@@ -15,7 +15,14 @@
  */
 
 import type { Round } from "@cookout/shared";
-import { arenaAddress, arenaBalance, arenaSend, hasArenaWallet } from "./arenaWallet";
+import {
+  arenaAddress,
+  arenaBalance,
+  arenaSend,
+  hasArenaWallet,
+  logArenaTx,
+  type ArenaTxEntry,
+} from "./arenaWallet";
 
 type Eth = { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> };
 
@@ -117,12 +124,21 @@ async function sendVia(
   to: string,
   data: string,
   valueWei = 0n,
+  kind: ArenaTxEntry["kind"] = "approve",
+  ethMoved = Number(valueWei) / 1e18,
 ): Promise<string> {
+  let hash: string;
+  let via: ArenaTxEntry["via"];
   if (await arenaActive(chainId, Number(valueWei) / 1e18)) {
-    return arenaSend(chainId, to as `0x${string}`, data as `0x${string}`, valueWei);
+    via = "arena";
+    hash = await arenaSend(chainId, to as `0x${string}`, data as `0x${string}`, valueWei);
+  } else {
+    via = "wallet";
+    await ensureChain(chainId);
+    hash = await sendTx(to, data, valueWei);
   }
-  await ensureChain(chainId);
-  return sendTx(to, data, valueWei);
+  logArenaTx({ hash, kind, eth: ethMoved, via, chainId, at: Date.now() });
+  return hash;
 }
 
 async function sendTx(to: string, data: string, valueWei = 0n, gas?: bigint): Promise<string> {
@@ -174,25 +190,25 @@ export async function chainSubmitIntent(
 ): Promise<string> {
   const c = round.chain!;
   const priceWad = maxPrice ? toWei(maxPrice) : 0n;
-  return sendVia(c.chainId, c.auction, SEL.submit + pad32(priceWad), toWei(ethAmount));
+  return sendVia(c.chainId, c.auction, SEL.submit + pad32(priceWad), toWei(ethAmount), "pull-up");
 }
 
 export async function chainCancelIntent(round: Round, intentId: string): Promise<string> {
   const c = round.chain!;
-  return sendVia(c.chainId, c.auction, SEL.cancel + pad32(BigInt(intentId)));
+  return sendVia(c.chainId, c.auction, SEL.cancel + pad32(BigInt(intentId)), 0n, "cancel");
 }
 
 /** After settlement: pull your tokens + refund for one intent. */
 export async function chainClaimFill(round: Round, intentId: string): Promise<string> {
   const c = round.chain!;
-  return sendVia(c.chainId, c.auction, SEL.claim + pad32(BigInt(intentId)));
+  return sendVia(c.chainId, c.auction, SEL.claim + pad32(BigInt(intentId)), 0n, "claim");
 }
 
 /** Live trading: buy with real ETH. minTokensOut=0 — testnet convenience; a
  *  mainnet build must quote and pass a real slippage floor. */
 export async function chainBuy(round: Round, ethAmount: string): Promise<string> {
   const c = round.chain!;
-  return sendVia(c.chainId, c.pool, SEL.buy + pad32(0n), toWei(ethAmount));
+  return sendVia(c.chainId, c.pool, SEL.buy + pad32(0n), toWei(ethAmount), "buy");
 }
 
 /** Live trading: sell tokens. Exact-amount approval to this round's pool,
@@ -206,7 +222,7 @@ export async function chainSell(round: Round, tokensWei: bigint): Promise<string
   if (allowance < tokensWei) {
     await sendVia(c.chainId, c.token, SEL.approve + pad32(c.pool) + pad32(tokensWei));
   }
-  return sendVia(c.chainId, c.pool, SEL.sell + pad32(tokensWei) + pad32(0n));
+  return sendVia(c.chainId, c.pool, SEL.sell + pad32(tokensWei) + pad32(0n), 0n, "sell");
 }
 
 /** Non-graduated round over: redeem remaining tokens at the uniform price.
@@ -220,7 +236,7 @@ export async function chainRedeem(round: Round, tokensWei: bigint): Promise<stri
   if (allowance < tokensWei) {
     await sendVia(c.chainId, c.token, SEL.approve + pad32(c.pool) + pad32(tokensWei));
   }
-  return sendVia(c.chainId, c.pool, SEL.redeem + pad32(tokensWei));
+  return sendVia(c.chainId, c.pool, SEL.redeem + pad32(tokensWei), 0n, "redeem");
 }
 
 // ---------------- balances ----------------
@@ -259,5 +275,14 @@ export async function fundArenaWallet(chainId: number, ethAmount: string): Promi
         `ETH on this chain — switch to a funded account or claim the faucet`,
     );
   }
-  return sendTx(arenaAddress(), "0x", value, 21_000n);
+  const hash = await sendTx(arenaAddress(), "0x", value, 21_000n);
+  logArenaTx({
+    hash,
+    kind: "deposit",
+    eth: fromWei(value),
+    via: "wallet",
+    chainId,
+    at: Date.now(),
+  });
+  return hash;
 }
