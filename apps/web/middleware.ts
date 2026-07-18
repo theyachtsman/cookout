@@ -16,21 +16,28 @@ import { NextRequest, NextResponse } from "next/server";
  *   DEV_GATE_USER  (optional, default "dev") — the developer username
  *   DEV_SITE_GATE  (optional) — "1" forces the gate on regardless of host,
  *                  "0" forces it off. Leave unset to auto-detect by host.
+ *
+ * Env is read via computed access (`process.env[key]`) ON PURPOSE: static
+ * `process.env.FOO` references get inlined into the Edge bundle at build time,
+ * so a value added/changed after that build would read stale/empty. Computed
+ * access is left as a runtime lookup, so the live deployment env always wins.
  */
 
-const GATE_USER = process.env.DEV_GATE_USER || "dev";
-const GATE_PASS = process.env.DEV_GATE_PASS || "";
 const REALM = 'Basic realm="The Cookout — dev", charset="UTF-8"';
 
+function env(key: string): string {
+  return process.env[key] ?? "";
+}
+
 function shouldGate(req: NextRequest): boolean {
-  const flag = process.env.DEV_SITE_GATE;
+  const flag = env("DEV_SITE_GATE");
   if (flag === "1") return true;
   if (flag === "0") return false;
   const host = (req.headers.get("host") || "").toLowerCase();
   return host.startsWith("dev.");
 }
 
-function challenge(body = "Developer access only."): NextResponse {
+function challenge(body: string): NextResponse {
   return new NextResponse(body, {
     status: 401,
     headers: {
@@ -44,10 +51,17 @@ function challenge(body = "Developer access only."): NextResponse {
 export function middleware(req: NextRequest): NextResponse {
   if (!shouldGate(req)) return NextResponse.next();
 
-  // Fail closed but explain, so a misconfigured deploy is obvious (only the dev
-  // team ever sees this — production is never gated).
-  if (!GATE_PASS) {
-    return challenge("Dev gate is on but DEV_GATE_PASS is not set for this deployment.");
+  const expectedUser = env("DEV_GATE_USER") || "dev";
+  const expectedPass = env("DEV_GATE_PASS");
+
+  // Fail closed but say which environment this deployment is, so the missing
+  // scope is obvious. Only the dev team ever sees this — production is never gated.
+  if (!expectedPass) {
+    const where = env("VERCEL_ENV") || "unknown";
+    return challenge(
+      `Dev gate is on but DEV_GATE_PASS is not set for this deployment (environment: ${where}). ` +
+        `Add DEV_GATE_PASS to the "${where}" environment in Vercel and redeploy.`,
+    );
   }
 
   const header = req.headers.get("authorization") || "";
@@ -61,11 +75,11 @@ export function middleware(req: NextRequest): NextResponse {
     const sep = decoded.indexOf(":");
     const user = sep >= 0 ? decoded.slice(0, sep) : "";
     const pass = sep >= 0 ? decoded.slice(sep + 1) : "";
-    if (user === GATE_USER && pass === GATE_PASS) {
+    if (user === expectedUser && pass === expectedPass) {
       return NextResponse.next();
     }
   }
-  return challenge();
+  return challenge("Developer access only.");
 }
 
 export const config = {
