@@ -527,19 +527,39 @@ export default function AdminPage() {
                 <span className="text-zinc-400">{c.theme}</span>
                 <span className="font-mono text-xs text-zinc-500">{c.votes} votes</span>
                 <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-xs">{c.status}</span>
-                <div className="ml-auto flex gap-2">
+                <div className="ml-auto flex flex-wrap gap-2">
                   {c.status === "submitted" && (
                     <button onClick={() => void act(`/api/admin/concepts/${c.id}/shortlist`)} className="rounded bg-sky-900/50 px-2 py-1 text-xs text-sky-300 hover:bg-sky-900">
                       Shortlist
                     </button>
                   )}
+                  {/* The real thing: a full on-chain round via the factory. */}
+                  <button
+                    onClick={() =>
+                      void act(`/api/admin/concepts/${c.id}/schedule-chain`, {
+                        tier: "rookie",
+                        inSeconds: 30,
+                        config: {
+                          lobbySeconds: 60,
+                          queueSeconds: 120,
+                          maxDurationSeconds: 300,
+                          initialEthLiquidity: 0.004,
+                          auctionMaxRaise: 0.002,
+                        },
+                      })
+                    }
+                    className="rounded bg-amber-500/20 px-2 py-1 text-xs font-bold text-amber-300 hover:bg-amber-500/40"
+                  >
+                    ⛓️ Schedule on-chain
+                  </button>
                   {["rookie", "standard", "degen"].map((tier) => (
                     <button
                       key={tier}
                       onClick={() => void act(`/api/admin/concepts/${c.id}/schedule`, { tier, inSeconds: 20 })}
-                      className="rounded bg-lime-900/50 px-2 py-1 text-xs text-lime-300 hover:bg-lime-900"
+                      className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-700"
+                      title="paper-money simulation round"
                     >
-                      Schedule {tier}
+                      paper {tier}
                     </button>
                   ))}
                 </div>
