@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { ChainService } from "./chain.js";
 import { RoundEngine } from "./engine.js";
 import { settleWeeklyJackpot } from "./jackpot.js";
 import { FilePersistence, PgPersistence, type Persistence } from "./persistence.js";
@@ -29,7 +30,8 @@ if (snapshot) {
 
 const hub = new Hub(store);
 const engine = new RoundEngine(store, hub.broadcast, hub.spectatorCount);
-const app = createApp(store, engine, ADMIN_KEY, hub.broadcast);
+const chain = new ChainService(store, engine);
+const app = createApp(store, engine, ADMIN_KEY, hub.broadcast, chain);
 const server = createServer(app);
 hub.attach(server);
 
@@ -66,6 +68,15 @@ async function refreshEthPrice(): Promise<void> {
 await refreshEthPrice();
 console.log(`ETH/USD: $${store.ethUsd} — bond target ≈ ${(40_000 / store.ethUsd).toFixed(2)} pETH mcap`);
 setInterval(() => void refreshEthPrice(), 10 * 60_000);
+
+if (chain.enabled) {
+  console.log(
+    `chain service ON — operator ${chain.operatorAddress}, factory ${process.env.CHAIN_FACTORY}, ` +
+      `chain ${process.env.CHAIN_ID}, scale ${chain.scale}`,
+  );
+  // Fire-and-forget: ChainService.tick self-guards against overlap.
+  setInterval(() => void chain.tick(Date.now()), 3000);
+}
 
 setInterval(() => {
   try {

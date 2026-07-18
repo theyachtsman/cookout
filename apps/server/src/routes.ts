@@ -30,6 +30,7 @@ export function createApp(
   engine: RoundEngine,
   adminKey: string,
   broadcast: Broadcast = () => {},
+  chain?: import("./chain.js").ChainService,
 ): Express {
   const app = express();
   // Body limit covers client-downscaled data-URL images (coin art, avatars).
@@ -854,6 +855,33 @@ export function createApp(
       const round = engine.scheduleRound(concept, tier, Date.now() + Number(inSeconds) * 1000);
       if (config) Object.assign(round.config, config);
       store.logAdmin("schedule", `round ${round.id} (${concept.symbol}, ${tier})`);
+      res.json(round);
+    }),
+  );
+
+  /** Phase 2: schedule a REAL on-chain round through the deployed factory.
+   *  Requires the chain service (CHAIN_RPC/CHAIN_ID/CHAIN_FACTORY/
+   *  CHAIN_OPERATOR_KEY env). Players trade from their own wallets. */
+  app.post(
+    "/api/admin/concepts/:id/schedule-chain",
+    admin,
+    wrap(async (req, res) => {
+      if (!chain?.enabled) throw new Err(503, "chain service is not configured");
+      const concept = store.concepts.get(req.params.id!);
+      if (!concept) throw new Err(404, "concept not found");
+      const { tier = "rookie", inSeconds = 30 } = req.body as {
+        tier?: RiskTier;
+        inSeconds?: number;
+      };
+      const round = await chain.scheduleChainRound(
+        concept,
+        tier,
+        Date.now() + Number(inSeconds) * 1000,
+      );
+      store.logAdmin(
+        "schedule-chain",
+        `round ${round.id} (${concept.symbol}, ${tier}) → pool ${round.chain!.pool} on chain ${round.chain!.chainId}`,
+      );
       res.json(round);
     }),
   );
