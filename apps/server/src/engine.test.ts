@@ -41,6 +41,11 @@ test("full round: lobby → queue → uniform settle → trades → timer end �
   const b = store.getOrCreateUser(B);
   engine.submitIntent(round.id, A, 0.2, undefined, round.queueOpensAt! + 1000);
   engine.submitIntent(round.id, B, 0.1, undefined, round.queueOpensAt! + 2000);
+  // The position cap constrains the fair-open queue: nobody pre-loads the bond.
+  assert.throws(
+    () => engine.submitIntent(round.id, B, round.config.maxPositionEth, undefined, round.queueOpensAt! + 3000),
+    /position cap/,
+  );
   assert.ok(Math.abs(a.paperBalance - 9.8) < 1e-9, "intent escrows balance");
   assert.ok(Math.abs(b.paperBalance - 9.9) < 1e-9);
 
@@ -63,8 +68,15 @@ test("full round: lobby → queue → uniform settle → trades → timer end �
   assert.ok(sellTrade.ethAmount > 0);
   assert.ok(events.some((e) => e.type === "trade"));
 
-  // Position cap enforced (rookie: 5 paper ETH).
-  assert.throws(() => engine.trade(round.id, B, "buy", { eth: 0.1 }, now + 2000), /position cap/);
+  // Live trading is uncapped — an over-cap buy is fine once the round is open.
+  const bigBuy = engine.trade(
+    round.id,
+    B,
+    "buy",
+    { eth: round.config.maxPositionEth + 0.5 },
+    now + 2000,
+  );
+  assert.equal(bigBuy.side, "buy");
 
   // Timer expiry ends the round and resolves everyone at one redemption price.
   engine.tick(round.endsAt!);

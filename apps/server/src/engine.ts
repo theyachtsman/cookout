@@ -211,7 +211,7 @@ export class RoundEngine {
     const mine = existing.filter((i) => i.userAddress === user.address);
     const committed = mine.reduce((s, i) => s + i.ethAmount, 0);
     if (cap > 0 && committed + ethAmount > cap)
-      throw new Err(400, `position cap is ${cap} paper ETH for this tier`);
+      throw new Err(400, `queue position cap is ${cap} paper ETH for this tier — live trading is uncapped`);
     if (user.paperBalance < ethAmount) throw new Err(400, "insufficient paper balance");
     user.paperBalance -= ethAmount; // escrow until settlement
     if (mine.length === 0) this.store.trackActivity(user.address, "auctions_entered", 1, now);
@@ -335,10 +335,9 @@ export class RoundEngine {
       const ethIn = amount.eth ?? 0;
       if (!(ethIn > 0)) throw new Err(400, "eth amount required");
       if (user.paperBalance < ethIn) throw new Err(400, "insufficient paper balance");
-      // Position caps apply to the arena battle only — wild trading is open.
-      const cap = alumni ? 0 : round.config.maxPositionEth;
-      if (cap > 0 && pos.costBasisEth + ethIn > cap)
-        throw new Err(400, `position cap is ${cap} paper ETH for this tier`);
+      // Live trading is uncapped — bet the whole bag if you dare. The
+      // position cap (maxPositionEth) constrains ONLY the fair-open queue
+      // (submitIntent), so nobody can pre-load the bond before the open.
       const r = buy(pool, ethIn, round.config.tradeFeeBps);
       user.paperBalance -= ethIn;
       round.pool = r.pool;
