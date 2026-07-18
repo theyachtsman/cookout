@@ -869,14 +869,16 @@ export function createApp(
       if (!chain?.enabled) throw new Err(503, "chain service is not configured");
       const concept = store.concepts.get(req.params.id!);
       if (!concept) throw new Err(404, "concept not found");
-      const { tier = "rookie", inSeconds = 30 } = req.body as {
+      const { tier = "rookie", inSeconds = 30, config } = req.body as {
         tier?: RiskTier;
         inSeconds?: number;
+        config?: Record<string, number>;
       };
       const round = await chain.scheduleChainRound(
         concept,
         tier,
         Date.now() + Number(inSeconds) * 1000,
+        config,
       );
       store.logAdmin(
         "schedule-chain",

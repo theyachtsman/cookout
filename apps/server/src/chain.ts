@@ -160,6 +160,7 @@ export class ChainService {
     concept: TokenConcept,
     tier: RiskTier,
     scheduledAt: number,
+    overrides?: Record<string, number>,
   ): Promise<Round> {
     if (!this.enabled) throw new Err(503, "chain service is not configured");
     const s = this.scale;
@@ -172,6 +173,9 @@ export class ChainService {
     config.lowVolumeThreshold *= s;
     if (config.mcapTarget) config.mcapTarget *= s;
     if (concept.totalSupply) config.totalSupply = concept.totalSupply;
+    // Admin overrides are absolute chain-unit values, applied after scaling
+    // (used to run short smoke-test rounds against real testnets).
+    if (overrides) Object.assign(config, overrides);
     // On-chain the whole supply seeds the pool (contract invariant).
     config.initialTokenLiquidity = config.totalSupply;
 
