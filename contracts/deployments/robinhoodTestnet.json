@@ -1,0 +1,10 @@
+{
+  "network": "robinhoodTestnet",
+  "chainId": 46630,
+  "roundFactory": "0xE52A4CB4FeD04E693EA39bf80B178b537e037E6E",
+  "deployer": "0xb6fFa5587db5E5781134E23988Bfca78f6DD27db",
+  "txHash": "0x06c644bcd9b9ec4acf200424bb1384dc962017b1a17750ff69fbd0b48cb7d410",
+  "block": 91197872,
+  "gasUsed": "4645089",
+  "deployedAt": "2026-07-18T05:22:03.303Z"
+}

@@ -81,6 +81,19 @@ export interface RoundConfig {
   devSellLockSeconds: number;
 }
 
+/** Deployed contract set backing an on-chain (Phase 2) round. When present,
+ *  the chain is the source of truth: the server mirrors events and never
+ *  moves player money — trades happen from players' own wallets. */
+export interface ChainRoundInfo {
+  chainId: number;
+  token: string;
+  pool: string;
+  auction: string;
+  createTx: string;
+  /** Mirror cursor: last chain block already reflected into server state. */
+  lastBlock: number;
+}
+
 export interface Round {
   id: string;
   conceptId: string;
@@ -100,6 +113,8 @@ export interface Round {
   clearingPrice?: number;
   graduated?: boolean;
   pool?: PoolState;
+  /** Present only for on-chain rounds. */
+  chain?: ChainRoundInfo;
 }
 
 export interface AuctionIntent {

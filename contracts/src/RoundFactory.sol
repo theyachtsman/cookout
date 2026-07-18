@@ -17,6 +17,14 @@ contract RoundFactory {
     ///         over the 1% the platform actually charges.
     uint16 public constant MAX_FEE_BPS = 500;
 
+    /// @notice Supply bounds. The floor (one whole 18-decimal token) makes the
+    ///         dust-reserve pathologies — auction fills that floor to zero
+    ///         tokens, sentinel clearing prices — unreachable by construction.
+    ///         The ceiling keeps the pool's k = ethReserve·tokenReserve far
+    ///         from uint256 overflow at any plausible ETH reserve.
+    uint256 public constant MIN_SUPPLY = 1e18;
+    uint256 public constant MAX_SUPPLY = 1e33;
+
     struct RoundAddresses {
         address token;
         address pool;
@@ -63,7 +71,7 @@ contract RoundFactory {
         returns (address tokenAddr, address poolAddr, address auctionAddr)
     {
         require(msg.value > 0, "liquidity");
-        require(p.totalSupply > 0, "supply");
+        require(p.totalSupply >= MIN_SUPPLY && p.totalSupply <= MAX_SUPPLY, "supply");
         require(p.tradeFeeBps <= MAX_FEE_BPS && p.auctionFeeBps <= MAX_FEE_BPS, "fee too high");
         require(p.feeRecipient != address(0), "fee recipient");
         require(p.queueClosesAt > block.timestamp, "queue closes in past");

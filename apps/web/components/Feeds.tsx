@@ -15,7 +15,15 @@ const KILL_ICONS: Record<string, string> = {
 };
 
 /** Kill feed + live activity feed. "Burnt" is flavor; data stays rug_detected. */
-export function Feeds({ killfeed, trades }: { killfeed: KillFeedEvent[]; trades: Trade[] }) {
+export function Feeds({
+  killfeed,
+  trades,
+  unit = "pETH",
+}: {
+  killfeed: KillFeedEvent[];
+  trades: Trade[];
+  unit?: string;
+}) {
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-zinc-800 p-4">
@@ -43,7 +51,7 @@ export function Feeds({ killfeed, trades }: { killfeed: KillFeedEvent[]; trades:
                 {t.isCreator ? "Developer" : `${t.userAddress.slice(0, 6)}…${t.userAddress.slice(-4)}`}{" "}
                 {t.side === "buy" ? "bought" : "sold"}
               </span>
-              <span>{t.ethAmount.toFixed(3)} pETH</span>
+              <span>{t.ethAmount.toFixed(3)} {unit}</span>
             </div>
           ))}
           {trades.length === 0 && <div className="text-xs text-zinc-600">no trades yet</div>}

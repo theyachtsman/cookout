@@ -13,8 +13,13 @@ module.exports = {
     sources: "./src",
   },
   networks: {
-    // Testnet deployment target (Arbitrum Sepolia as the stand-in until
-    // Robinhood Chain testnet RPC details are configured).
+    // The real target chain. Faucet: https://faucet.testnet.chain.robinhood.com
+    robinhoodTestnet: {
+      url: process.env.RH_TESTNET_RPC ?? "https://rpc.testnet.chain.robinhood.com",
+      chainId: 46630,
+      accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : [],
+    },
+    // Kept as a fallback testnet in case the Robinhood chain has issues.
     arbitrumSepolia: {
       url: process.env.ARB_SEPOLIA_RPC ?? "https://sepolia-rollup.arbitrum.io/rpc",
       accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : [],

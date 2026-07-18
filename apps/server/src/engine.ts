@@ -14,6 +14,7 @@ import {
   spotPrice,
   tradeXpForIndex,
   type Address,
+  type AuctionResult,
   type Candle,
   type KillFeedKind,
   type PoolState,
@@ -166,19 +167,25 @@ export class RoundEngine {
           this.emitLobby(round);
           break;
         case "queue_open":
-          if (now >= round.queueClosesAt!) {
+          if (round.chain) {
+            // Chain rounds settle on-chain; the ChainService fires settle()
+            // and mirrors the result. The paper tick only keeps the lobby UI
+            // fresh here.
+            this.emitLobby(round);
+          } else if (now >= round.queueClosesAt!) {
             this.settle(round, now);
           } else {
             this.emitLobby(round);
           }
           break;
         case "live":
-          this.tickLive(round, now);
+          if (!round.chain) this.tickLive(round, now);
           break;
         case "results":
           // Served-up coins keep trading "in the wild" (paper-simulated):
           // the market stays open forever with candles + ticker, no end checks.
-          if (round.graduated && round.pool) this.alumniTick(round, now);
+          // Chain alumni trade on the chain itself, not in the simulator.
+          if (!round.chain && round.graduated && round.pool) this.alumniTick(round, now);
           break;
         default:
           break;
@@ -194,6 +201,8 @@ export class RoundEngine {
     now: number,
   ) {
     const round = this.mustRound(roundId);
+    if (round.chain)
+      throw new Err(409, "on-chain round — submit your buy from your wallet, not the paper API");
     if (round.state !== "queue_open") throw new Err(409, "queue is not open");
     if (!(ethAmount > 0)) throw new Err(400, "ethAmount must be positive");
     const cap = round.config.maxPositionEth;
@@ -221,6 +230,8 @@ export class RoundEngine {
 
   cancelIntent(roundId: string, address: Address, intentId: string) {
     const round = this.mustRound(roundId);
+    if (round.chain)
+      throw new Err(409, "on-chain round — cancel from your wallet, not the paper API");
     if (round.state !== "queue_open") throw new Err(409, "queue is not open");
     const intents = this.store.intents.get(roundId)!;
     const idx = intents.findIndex(
@@ -280,6 +291,21 @@ export class RoundEngine {
     s.peakMcap = marketCap(round.pool);
     s.bottomPrice = result.clearingPrice;
     s.bottomAt = now;
+    // The opening candle: every settled fill enters as ONE green candle from
+    // the seed price to the post-settlement spot, so the chart blasts off
+    // from the actual open instead of starting blank.
+    if (result.totalRaised > 0) {
+      const openPrice = cfg.initialEthLiquidity / cfg.initialTokenLiquidity;
+      const spotAfter = spotPrice(round.pool);
+      this.closeCandle(round.id, {
+        t: Math.floor(now / 1000),
+        o: openPrice,
+        h: Math.max(openPrice, spotAfter),
+        l: openPrice,
+        c: spotAfter,
+        v: result.totalRaised,
+      });
+    }
     this.broadcast(round.id, { type: "auction_settled", result });
     this.emitState(round);
   }
@@ -292,6 +318,8 @@ export class RoundEngine {
     now: number,
   ): Trade {
     const round = this.mustRound(roundId);
+    if (round.chain)
+      throw new Err(409, "on-chain round — trade from your wallet, not the paper API");
     const s = this.liveState(roundId);
     const alumni = round.state === "results" && !!round.graduated;
     if (round.state !== "live" && !alumni) throw new Err(409, "round is not live");
@@ -633,7 +661,7 @@ export class RoundEngine {
     return this.live.get(roundId)?.paused ?? false;
   }
 
-  endRound(round: Round, reason: RoundEndReason, now: number): void {
+  endRound(round: Round, reason: RoundEndReason, now: number, forceGraduated?: boolean): void {
     if (round.state !== "live") return;
     round.state = "ended";
     round.endedAt = now;
@@ -657,13 +685,16 @@ export class RoundEngine {
     const finalPrice = spotPrice(pool);
 
     const cfg = round.config;
+    // For chain rounds the contract's own graduation decision is authoritative
+    // (passed via forceGraduated); paper rounds evaluate the criteria here.
     const graduated =
-      reason === "graduated" ||
-      (reason !== "rug_detected" &&
-        reason !== "liquidity_removed" &&
-        finalMcap >= cfg.graduationMcap &&
-        holdersAtEnd.length >= cfg.graduationMinHolders &&
-        s.totalVolume >= cfg.graduationMinVolume);
+      forceGraduated ??
+      (reason === "graduated" ||
+        (reason !== "rug_detected" &&
+          reason !== "liquidity_removed" &&
+          finalMcap >= cfg.graduationMcap &&
+          holdersAtEnd.length >= cfg.graduationMinHolders &&
+          s.totalVolume >= cfg.graduationMinVolume));
     round.graduated = graduated;
 
     if (graduated) {
@@ -676,12 +707,14 @@ export class RoundEngine {
     } else {
       // Uniform batch redemption: every remaining holder exits at one price,
       // E*O/(T+O) split pro-rata — no exit-order advantage at resolution.
+      // Chain rounds redeem on-chain (holders claim from their wallets), so
+      // only the PnL bookkeeping happens here — never a paper-balance credit.
       const outstanding = holdersAtEnd.reduce((sum, p) => sum + p.tokens, 0);
       if (outstanding > 0) {
         const ethOut = (pool.ethReserve * outstanding) / (pool.tokenReserve + outstanding);
         for (const p of holdersAtEnd) {
           const share = ethOut * (p.tokens / outstanding);
-          this.store.getOrCreateUser(p.userAddress).paperBalance += share;
+          if (!round.chain) this.store.getOrCreateUser(p.userAddress).paperBalance += share;
           p.realizedPnl += share - p.costBasisEth;
           p.tokens = 0;
           p.costBasisEth = 0;
@@ -706,6 +739,160 @@ export class RoundEngine {
     this.broadcast(round.id, { type: "round_end", roundId: round.id, summary });
     round.state = "results";
     this.emitState(round);
+  }
+
+  // ---- chain-round mirror entry points (called only by ChainService) ----
+  //
+  // These reuse the paper engine's bookkeeping — positions, meta, XP, kill
+  // feed, candles, broadcasts — but never touch paperBalance: for chain
+  // rounds every wei moves on-chain, and the server only observes.
+
+  emitStatePublic(round: Round): void {
+    this.emitState(round);
+  }
+
+  emitLobbyPublic(round: Round): void {
+    this.emitLobby(round);
+  }
+
+  /** Mirror an on-chain auction settlement into paper-shaped state. */
+  applyChainSettlement(
+    round: Round,
+    result: AuctionResult,
+    fee: number,
+    endsAtMs: number,
+    now: number,
+  ): void {
+    if (round.state === "live" || round.state === "results") return; // already applied
+    for (const fill of result.fills) {
+      if (fill.tokensOut > 0) {
+        const pos = this.store.position(round.id, fill.userAddress);
+        pos.tokens += fill.tokensOut;
+        pos.costBasisEth += fill.ethFilled;
+        pos.firstBuyAt = now;
+        const m = this.meta(round.id, fill.userAddress);
+        m.firstBuyAt = now;
+        m.maxTokens = Math.max(m.maxTokens, pos.tokens);
+        m.ethInvested += fill.ethFilled;
+        m.biggestBuyEth = Math.max(m.biggestBuyEth, fill.ethFilled);
+      }
+    }
+    this.store.feesByRound.set(round.id, (this.store.feesByRound.get(round.id) ?? 0) + fee);
+    this.store.auctionResults.set(round.id, result);
+
+    round.pool = result.poolAfter;
+    round.clearingPrice = result.clearingPrice;
+    round.state = "live";
+    round.liveAt = now;
+    round.endsAt = endsAtMs;
+    const s = this.liveState(round.id);
+    s.peakPrice = result.clearingPrice;
+    s.peakMcap = marketCap(round.pool);
+    s.bottomPrice = result.clearingPrice || Infinity;
+    s.bottomAt = now;
+    // The opening candle: every settled auction fill enters as ONE green
+    // candle — from the pre-auction seed price to the post-settlement spot —
+    // so the chart blasts off from the actual open instead of starting blank.
+    if (result.totalRaised > 0) {
+      const openPrice = round.config.initialEthLiquidity / round.config.initialTokenLiquidity;
+      const spotAfter = spotPrice(round.pool);
+      this.closeCandle(round.id, {
+        t: Math.floor(now / 1000),
+        o: openPrice,
+        h: Math.max(openPrice, spotAfter),
+        l: openPrice,
+        c: spotAfter,
+        v: result.totalRaised,
+      });
+    }
+    this.broadcast(round.id, { type: "auction_settled", result });
+    this.emitState(round);
+  }
+
+  /** Mirror one on-chain Bought/Sold event: full bookkeeping, no balances. */
+  applyChainTrade(
+    round: Round,
+    address: Address,
+    side: "buy" | "sell",
+    ethAmount: number,
+    tokenAmount: number,
+    price: number,
+    fee: number,
+    now: number,
+  ): void {
+    if (!round.pool) return;
+    const s = this.liveState(round.id);
+    const user = this.store.getOrCreateUser(address);
+    const pos = this.store.position(round.id, user.address);
+    const m = this.meta(round.id, user.address);
+    const preReserve = round.pool.ethReserve;
+
+    if (side === "buy") {
+      pos.tokens += tokenAmount;
+      pos.costBasisEth += ethAmount;
+      if (!pos.firstBuyAt) pos.firstBuyAt = now;
+      if (!m.firstBuyAt) m.firstBuyAt = now;
+      m.maxTokens = Math.max(m.maxTokens, pos.tokens);
+      m.ethInvested += ethAmount;
+      m.biggestBuyEth = Math.max(m.biggestBuyEth, ethAmount);
+      if (price <= s.bottomPrice * 1.02 && now - s.bottomAt <= 5000) m.boughtNearBottom = true;
+      if (ethAmount >= WHALE_TRADE_FRACTION * preReserve) {
+        s.lastWhaleAt = now;
+        this.kill(round, "whale_entered", `Whale entered with ${fmt(ethAmount)} ETH`, now);
+      }
+      if (user.address === round.creatorAddress)
+        this.kill(round, "dev_buy", `Developer bought ${fmt(ethAmount)} ETH`, now);
+    } else {
+      const sold = Math.min(tokenAmount, pos.tokens);
+      const costShare = pos.tokens > 0 ? pos.costBasisEth * (sold / pos.tokens) : 0;
+      const pnl = ethAmount - costShare;
+      pos.tokens -= sold;
+      pos.costBasisEth -= costShare;
+      pos.realizedPnl += pnl;
+      m.bestSellPnl = Math.max(m.bestSellPnl, pnl);
+      m.tokensSoldBeforeEnd += sold;
+      if (price >= s.peakPrice * 0.95) m.soldNearPeak = true;
+      if (s.lastWhaleAt && now - s.lastWhaleAt <= 10_000 && pnl > 0) m.whaleHunter = true;
+      if (pos.tokens <= 1e-9) {
+        pos.tokens = 0;
+        pos.lastExitAt = now;
+        if (!m.fullExitAt) m.fullExitAt = now;
+      }
+      if (user.address === round.creatorAddress)
+        this.kill(round, "dev_sell", `Developer sold ${fmt(ethAmount)} ETH`, now);
+    }
+
+    this.store.feesByRound.set(round.id, (this.store.feesByRound.get(round.id) ?? 0) + fee);
+    this.recordTrade(round, user.address, side, ethAmount, tokenAmount, price, fee, now);
+
+    user.stats.trades += 1;
+    const season = (user.seasons[this.store.seasonKey(now)] ??= { pnl: 0, xp: 0, wins: 0, trades: 0 });
+    season.trades += 1;
+    this.store.trackActivity(user.address, "trades", 1, now);
+    m.tradesThisRound += 1;
+    const wantXp = Math.min(
+      tradeXpForIndex(m.tradesThisRound),
+      Math.max(0, TRADE_XP.roundCap - m.tradeXpEarned),
+    );
+    if (wantXp > 0) m.tradeXpEarned += this.store.awardTradeXp(user.address, wantXp, now);
+
+    // Soft post-trade bookkeeping: peaks only (recordTrade already summed
+    // volume). End conditions are the chain's call (pool.resolve), never the
+    // mirror's.
+    const price2 = spotPrice(round.pool);
+    const mcap = marketCap(round.pool);
+    if (price2 > s.peakPrice) s.peakPrice = price2;
+    if (mcap > s.peakMcap) s.peakMcap = mcap;
+    if (price2 < s.bottomPrice) {
+      s.bottomPrice = price2;
+      s.bottomAt = now;
+    }
+  }
+
+  /** Mirror the on-chain Resolved event; the contract's graduation verdict
+   *  is authoritative. */
+  applyChainEnd(round: Round, graduated: boolean, now: number): void {
+    this.endRound(round, graduated ? "graduated" : "timer", now, graduated);
   }
 
   predictionCounts(roundId: string): { moon: number; rug: number } {

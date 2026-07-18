@@ -30,6 +30,7 @@ export function createApp(
   engine: RoundEngine,
   adminKey: string,
   broadcast: Broadcast = () => {},
+  chain?: import("./chain.js").ChainService,
 ): Express {
   const app = express();
   // Body limit covers client-downscaled data-URL images (coin art, avatars).
@@ -140,6 +141,19 @@ export function createApp(
       if (displayName !== undefined) u.displayName = String(displayName).slice(0, 24);
       if (avatarUrl !== undefined) u.avatarUrl = sanitizeImageUrl(avatarUrl);
       res.json(publicProfile(u, true));
+    }),
+  );
+
+  /** Link the caller's arena (burner session) wallet. Chain events from that
+   *  address then credit this profile's XP/positions/quests. */
+  app.post(
+    "/api/me/arena",
+    auth,
+    wrap((req, res) => {
+      const { address } = req.body as { address?: string };
+      if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) throw new Err(400, "bad address");
+      store.setArenaAddress(req.userAddress!, address);
+      res.json(publicProfile(store.getOrCreateUser(req.userAddress!), true));
     }),
   );
 
@@ -821,6 +835,7 @@ export function createApp(
         totalFees: fees,
         betaSignups: store.betaSignups.size,
         whitelistOn: process.env.BETA_WHITELIST === "1",
+        chainEnabled: !!chain?.enabled,
         feedbackCount: store.feedback.length,
         settings: store.settings,
         log: store.adminLog.slice(-50),
@@ -844,6 +859,10 @@ export function createApp(
     "/api/admin/concepts/:id/schedule",
     admin,
     wrap((req, res) => {
+      // CHAIN_ONLY deployments (the dev/staging stack) never run paper
+      // simulation rounds — every launch goes through the factory.
+      if (process.env.CHAIN_ONLY === "1")
+        throw new Err(403, "this deployment is chain-only — use schedule-chain");
       const concept = store.concepts.get(req.params.id!);
       if (!concept) throw new Err(404, "concept not found");
       const { tier = "rookie", inSeconds = 30, config } = req.body as {
@@ -854,6 +873,35 @@ export function createApp(
       const round = engine.scheduleRound(concept, tier, Date.now() + Number(inSeconds) * 1000);
       if (config) Object.assign(round.config, config);
       store.logAdmin("schedule", `round ${round.id} (${concept.symbol}, ${tier})`);
+      res.json(round);
+    }),
+  );
+
+  /** Phase 2: schedule a REAL on-chain round through the deployed factory.
+   *  Requires the chain service (CHAIN_RPC/CHAIN_ID/CHAIN_FACTORY/
+   *  CHAIN_OPERATOR_KEY env). Players trade from their own wallets. */
+  app.post(
+    "/api/admin/concepts/:id/schedule-chain",
+    admin,
+    wrap(async (req, res) => {
+      if (!chain?.enabled) throw new Err(503, "chain service is not configured");
+      const concept = store.concepts.get(req.params.id!);
+      if (!concept) throw new Err(404, "concept not found");
+      const { tier = "rookie", inSeconds = 30, config } = req.body as {
+        tier?: RiskTier;
+        inSeconds?: number;
+        config?: Record<string, number>;
+      };
+      const round = await chain.scheduleChainRound(
+        concept,
+        tier,
+        Date.now() + Number(inSeconds) * 1000,
+        config,
+      );
+      store.logAdmin(
+        "schedule-chain",
+        `round ${round.id} (${concept.symbol}, ${tier}) → pool ${round.chain!.pool} on chain ${round.chain!.chainId}`,
+      );
       res.json(round);
     }),
   );
@@ -996,6 +1044,7 @@ function publicProfile(u: StoredUser, self = false) {
     referredBy,
     referralCount,
     referralEarnings,
+    arenaAddress,
     ...rest
   } = u;
   void activity;
@@ -1007,5 +1056,13 @@ function publicProfile(u: StoredUser, self = false) {
   const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
   const base = { ...rest, season: seasons[key] ?? { pnl: 0, xp: 0, wins: 0, trades: 0 } };
   if (!self) return base;
-  return { ...base, paperBalance, referralCode, referredBy, referralCount, referralEarnings };
+  return {
+    ...base,
+    paperBalance,
+    referralCode,
+    referredBy,
+    referralCount,
+    referralEarnings,
+    arenaAddress,
+  };
 }

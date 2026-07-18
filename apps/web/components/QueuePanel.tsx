@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AuctionIntent, Round } from "@cookout/shared";
 import { api } from "../lib/api";
+import { chainCancelIntent, chainSubmitIntent, walletEthBalance } from "../lib/chainTx";
 import { useSession } from "../lib/session";
+import { playDeposit, playPullupPing } from "../lib/sfx";
 
 interface Lobby {
   players: number;
@@ -34,20 +36,37 @@ export function QueuePanel({
   onChanged: () => void;
 }) {
   const { profile, signIn } = useSession();
-  const [amount, setAmount] = useState("0.1");
+  const onChain = !!round.chain;
+  const unit = onChain ? "ETH" : "pETH";
+  const [amount, setAmount] = useState(onChain ? "0.001" : "0.1");
   const [maxPrice, setMaxPrice] = useState("");
   const [intents, setIntents] = useState<AuctionIntent[]>([]);
   const [bids, setBids] = useState<Bid[]>([]);
   const [error, setError] = useState("");
+  const [pending, setPending] = useState(false);
   const [myCall, setMyCall] = useState<"moon" | "rug" | null>(null);
 
+  // Chain rounds escrow real ETH from the wallet — show that balance instead.
+  const [ethBal, setEthBal] = useState<number | null>(null);
+  useEffect(() => {
+    if (!onChain || !profile) return;
+    walletEthBalance(round.chain?.chainId).then(setEthBal).catch(() => {});
+  }, [onChain, profile, intents.length]);
+
   // Live pre-position board: everyone's bids, refreshed while the queue runs.
+  // Every NEW pull-up gets a harmonic ping so a filling queue literally sings.
+  const bidCount = useRef(-1);
   useEffect(() => {
     if (round.state !== "queue_open" && round.state !== "lobby") return;
     let alive = true;
     const poll = () =>
       api<{ bids?: Bid[] }>(`/api/rounds/${round.id}/intents`)
-        .then((d) => alive && d.bids && setBids(d.bids))
+        .then((d) => {
+          if (!alive || !d.bids) return;
+          if (bidCount.current >= 0 && d.bids.length > bidCount.current) playPullupPing();
+          bidCount.current = d.bids.length;
+          setBids(d.bids);
+        })
         .catch(() => {});
     void poll();
     const t = setInterval(poll, 2000);
@@ -72,27 +91,41 @@ export function QueuePanel({
 
   const submit = async () => {
     setError("");
+    setPending(true);
     try {
-      await api(`/api/rounds/${round.id}/intents`, {
-        body: {
-          ethAmount: Number(amount),
-          maxPrice: maxPrice ? Number(maxPrice) : undefined,
-        },
-      });
+      if (onChain) {
+        // Real ETH escrows into the round's auction contract; the server
+        // mirrors the IntentSubmitted event into the board a tick later.
+        await chainSubmitIntent(round, amount, maxPrice || undefined);
+      } else {
+        await api(`/api/rounds/${round.id}/intents`, {
+          body: {
+            ethAmount: Number(amount),
+            maxPrice: maxPrice ? Number(maxPrice) : undefined,
+          },
+        });
+      }
+      playDeposit();
       loadIntents();
       onChanged();
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setPending(false);
     }
   };
 
   const cancel = async (intentId: string) => {
+    setPending(true);
     try {
-      await api(`/api/rounds/${round.id}/intents/${intentId}`, { method: "DELETE" });
+      if (onChain) await chainCancelIntent(round, intentId);
+      else await api(`/api/rounds/${round.id}/intents/${intentId}`, { method: "DELETE" });
       loadIntents();
       onChanged();
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setPending(false);
     }
   };
 
@@ -112,10 +145,16 @@ export function QueuePanel({
       <div className="flex flex-col rounded-xl border border-zinc-800 p-5 md:col-span-2">
         <h3 className="mb-1 font-black">
           {queueOpen ? "Position Queue — open" : round.state === "settling" ? "Settling…" : "Lobby"}
+          {onChain && (
+            <span className="ml-2 rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
+              ⛓️ ON-CHAIN · real testnet ETH
+            </span>
+          )}
         </h3>
         <p className="mb-4 text-xs text-zinc-500">
           Buy intents queue until close, then everyone settles at one uniform clearing price.
           Oversubscribed? Pro-rata fills — speed buys nothing here.
+          {onChain && " Your ETH escrows in the round's auction contract until settlement."}
         </p>
         {!profile ? (
           <button
@@ -127,7 +166,7 @@ export function QueuePanel({
         ) : queueOpen ? (
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-sm">
-              <div className="mb-1 text-xs text-zinc-500">Amount (pETH)</div>
+              <div className="mb-1 text-xs text-zinc-500">Amount ({unit})</div>
               <input
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -144,14 +183,18 @@ export function QueuePanel({
               />
             </label>
             <button
+              disabled={pending}
               onClick={() => void submit()}
-              className="rounded-lg bg-lime-400 px-6 py-2 font-black text-zinc-950 hover:bg-lime-300"
+              className="rounded-lg bg-lime-400 px-6 py-2 font-black text-zinc-950 hover:bg-lime-300 disabled:opacity-50"
             >
-              Pull Up
+              {pending ? "Confirm in wallet…" : "Pull Up"}
             </button>
             <span className="text-xs text-zinc-500">
-              balance: {profile.paperBalance.toFixed(2)} pETH
-              {round.config.maxPositionEth > 0 && ` · cap ${round.config.maxPositionEth} pETH`}
+              balance:{" "}
+              {onChain
+                ? `${ethBal !== null ? ethBal.toFixed(4) : "…"} ${unit}`
+                : `${profile.paperBalance.toFixed(2)} ${unit}`}
+              {round.config.maxPositionEth > 0 && ` · cap ${round.config.maxPositionEth} ${unit}`}
             </span>
           </div>
         ) : (
@@ -170,7 +213,7 @@ export function QueuePanel({
                 className="flex items-center justify-between rounded bg-zinc-900 px-3 py-1.5 text-sm"
               >
                 <span className="font-mono">
-                  {i.ethAmount} pETH{i.maxPrice ? ` @ ≤${i.maxPrice}` : " @ market"}
+                  {i.ethAmount} {unit}{i.maxPrice ? ` @ ≤${i.maxPrice}` : " @ market"}
                 </span>
                 {queueOpen && (
                   <button
@@ -189,7 +232,7 @@ export function QueuePanel({
           <div className="mb-2 flex items-center justify-between text-xs">
             <span className="font-bold text-zinc-300">Live pre-positions</span>
             <span className="font-mono text-zinc-500">
-              {bids.length} bids · {bids.reduce((s, b) => s + b.ethAmount, 0).toFixed(2)} pETH
+              {bids.length} bids · {bids.reduce((s, b) => s + b.ethAmount, 0).toFixed(2)} {unit}
             </span>
           </div>
           <div className="flex min-h-56 flex-1 flex-col-reverse gap-1 overflow-y-auto">
@@ -213,7 +256,7 @@ export function QueuePanel({
                     {b.displayName ?? `${b.userAddress.slice(0, 6)}…${b.userAddress.slice(-4)}`}
                   </a>
                   <span className="ml-auto font-mono text-lime-300">
-                    {b.ethAmount.toFixed(2)} pETH
+                    {b.ethAmount.toFixed(2)} {unit}
                   </span>
                   {b.limit && <span className="text-[10px] text-zinc-500">limit</span>}
                 </div>
@@ -231,9 +274,9 @@ export function QueuePanel({
           <dl className="space-y-1 text-sm">
             <Row k="Players in queue" v={String(lobby?.players ?? 0)} />
             <Row k="Spectators" v={String(lobby?.spectators ?? 0)} />
-            <Row k="Committed liquidity" v={`${(lobby?.committedEth ?? 0).toFixed(2)} pETH`} />
-            <Row k="Average entry" v={`${(lobby?.avgEntry ?? 0).toFixed(2)} pETH`} />
-            <Row k="Auction cap" v={`${round.config.auctionMaxRaise} pETH`} />
+            <Row k="Committed liquidity" v={`${(lobby?.committedEth ?? 0).toFixed(2)} ${unit}`} />
+            <Row k="Average entry" v={`${(lobby?.avgEntry ?? 0).toFixed(2)} ${unit}`} />
+            <Row k="Auction cap" v={`${round.config.auctionMaxRaise} ${unit}`} />
           </dl>
         </div>
         <div className="rounded-xl border border-zinc-800 p-5">
@@ -274,10 +317,17 @@ export function QueuePanel({
           <dl className="space-y-1 text-sm">
             <Row k="Total supply" v={round.config.totalSupply.toLocaleString()} />
             <Row k="Pool at open" v={round.config.initialTokenLiquidity.toLocaleString()} />
-            <Row k="Seed liquidity" v={`${round.config.initialEthLiquidity} pETH`} />
+            <Row k="Seed liquidity" v={`${round.config.initialEthLiquidity} ${unit}`} />
             <Row k="Trade fee" v={`${round.config.tradeFeeBps / 100}%`} />
             <Row k="Auction fee" v={`${round.config.auctionFeeBps / 100}%`} />
-            <Row k="Serves up at" v={`$40,000 mcap (≈${round.config.graduationMcap.toFixed(1)} pETH)`} />
+            <Row
+              k="Serves up at"
+              v={
+                onChain
+                  ? `${round.config.graduationMcap.toFixed(4)} ${unit} mcap`
+                  : `$40,000 mcap (≈${round.config.graduationMcap.toFixed(1)} ${unit})`
+              }
+            />
             <Row
               k="Dev sell lock"
               v={round.config.devSellLockSeconds > 0 ? `${round.config.devSellLockSeconds}s after open` : "none — degen rules"}

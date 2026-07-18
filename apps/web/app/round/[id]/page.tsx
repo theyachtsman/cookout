@@ -22,6 +22,8 @@ import { Countdown } from "../../../components/Countdown";
 import { Feeds } from "../../../components/Feeds";
 import { GraduationProgress } from "../../../components/GraduationProgress";
 import { PhaseBanner } from "../../../components/PhaseBanner";
+import { ArenaWalletPanel } from "../../../components/ArenaWalletPanel";
+import { ChainActions } from "../../../components/ChainActions";
 import { QueuePanel } from "../../../components/QueuePanel";
 import { Results } from "../../../components/Results";
 import { TradePanel } from "../../../components/TradePanel";
@@ -179,6 +181,7 @@ export default function RoundPage() {
 
   const teaser = round.state === "scheduled";
   const spectating = round.state === "live" && (!position || position.tokens === 0);
+  const unit = round.chain ? "ETH" : "pETH";
 
   return (
     <div className="relative space-y-3">
@@ -201,6 +204,14 @@ export default function RoundPage() {
           <span className="ml-3 rounded bg-zinc-800 px-1.5 py-0.5 text-xs uppercase text-zinc-300">
             {round.tier}
           </span>
+          {round.chain && (
+            <span
+              className="ml-2 rounded bg-amber-400/15 px-1.5 py-0.5 text-xs font-bold text-amber-300"
+              title={`pool ${round.chain.pool} on chain ${round.chain.chainId}`}
+            >
+              ⛓️ ON-CHAIN
+            </span>
+          )}
           {spectating && (
             <span className="ml-2 rounded bg-sky-500/20 px-1.5 py-0.5 text-xs text-sky-300">
               spectating
@@ -218,13 +229,13 @@ export default function RoundPage() {
               label="Market Cap"
               value={`$${((ticker.mcap * (ticker.ethUsd ?? 1925)) / 1000).toFixed(1)}k`}
             />
-            <Stat label="Liquidity" value={`${ticker.liquidity.toFixed(1)} pETH`} />
-            <Stat label="Volume" value={`${ticker.volume.toFixed(2)} pETH`} />
+            <Stat label="Liquidity" value={`${ticker.liquidity.toFixed(1)} ${unit}`} />
+            <Stat label="Volume" value={`${ticker.volume.toFixed(2)} ${unit}`} />
             <Stat label="Age" value={`${ticker.ageSeconds}s`} />
             <Stat label="Holders" value={String(ticker.holders)} />
             <Stat
               label="Your PnL"
-              value={`${pnl >= 0 ? "+" : ""}${pnl.toFixed(3)} pETH`}
+              value={`${pnl >= 0 ? "+" : ""}${pnl.toFixed(3)} ${unit}`}
               tone={pnl >= 0 ? "up" : "down"}
             />
           </>
@@ -239,7 +250,8 @@ export default function RoundPage() {
       {/* ---- pre-launch arcade: everything on one screen ---- */}
       {(round.state === "lobby" || round.state === "queue_open" || round.state === "settling") && (
         <div className="grid gap-3 lg:h-[calc(100dvh-16rem)] lg:min-h-[34rem] lg:grid-cols-[1fr_340px]">
-          <div className={`min-h-0 overflow-y-auto rounded-xl ${round.state === "queue_open" ? "neon" : ""}`}>
+          <div className={`min-h-0 space-y-3 overflow-y-auto rounded-xl ${round.state === "queue_open" ? "neon" : ""}`}>
+            {round.chain && <ArenaWalletPanel round={round} />}
             <QueuePanel
               round={round}
               lobby={lobby}
@@ -299,9 +311,9 @@ export default function RoundPage() {
               endReason={round.graduated ? undefined : round.endReason}
               graduated={round.graduated}
             />
-            {(round.state === "live" || round.graduated) && (
+            {(round.state === "live" || (round.graduated && !round.chain)) && (
               <TradePanel
-                roundId={round.id}
+                round={round}
                 position={position}
                 onTraded={() => {
                   void loadMe();
@@ -309,20 +321,31 @@ export default function RoundPage() {
                 }}
               />
             )}
-            {/* fixed-height console-style chat so it shares the screen with the chart */}
+            {/* the trenches — fixed-height console chat right under the chart+controls */}
             <div className="h-64">
               <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
             </div>
+            <ChainActions
+              round={round}
+              onChanged={() => {
+                void loadMe();
+                void refresh();
+              }}
+            />
             {summary && <Results round={round} summary={summary} auction={auction} />}
           </div>
           <div className="space-y-4">
+            {round.chain && <ArenaWalletPanel round={round} />}
             {(round.state === "live" || round.graduated) && position && ticker && (
               <YourBag
                 position={position}
                 price={ticker.price}
                 ethUsd={ticker.ethUsd ?? 1925}
                 symbol={round.token.symbol}
-                balance={profile?.paperBalance}
+                // Chain rounds spend real ETH (shown in the arena panel), so
+                // the paper balance would be a lie here.
+                balance={round.chain ? undefined : profile?.paperBalance}
+                unit={round.chain ? "ETH" : "pETH"}
               />
             )}
             <TopHolders roundId={round.id} ethUsd={ticker?.ethUsd} />
@@ -350,7 +373,7 @@ export default function RoundPage() {
                 </div>
               </div>
             )}
-            <Feeds killfeed={killfeed} trades={trades} />
+            <Feeds killfeed={killfeed} trades={trades} unit={unit} />
           </div>
         </div>
       )}
@@ -358,7 +381,7 @@ export default function RoundPage() {
       {auction && round.state !== "results" && (
         <div className="rounded-lg border border-zinc-800 px-4 py-2 text-xs text-zinc-500">
           Auction settled at {auction.clearingPrice.toExponential(4)} — raised{" "}
-          {auction.totalRaised.toFixed(2)} pETH from {auction.fills.length} intents (fill ratio{" "}
+          {auction.totalRaised.toFixed(2)} {unit} from {auction.fills.length} intents (fill ratio{" "}
           {(auction.fillRatio * 100).toFixed(0)}%) · audit {auction.auditHash.slice(0, 16)}…
         </div>
       )}
@@ -373,12 +396,14 @@ function YourBag({
   ethUsd,
   symbol,
   balance,
+  unit = "pETH",
 }: {
   position: { tokens: number; costBasisEth: number; realizedPnl: number };
   price: number;
   ethUsd: number;
   symbol: string;
   balance?: number;
+  unit?: string;
 }) {
   const valueEth = position.tokens * price;
   const pnl = position.realizedPnl + valueEth - position.costBasisEth;
@@ -398,7 +423,7 @@ function YourBag({
           <div className="text-[10px] uppercase tracking-wide text-zinc-500">Bag value</div>
           <div className="font-mono font-bold">
             ${(valueEth * ethUsd).toFixed(2)}
-            <span className="ml-1 text-[10px] text-zinc-500">{valueEth.toFixed(4)} pETH</span>
+            <span className="ml-1 text-[10px] text-zinc-500">{valueEth.toFixed(4)} {unit}</span>
           </div>
         </div>
         <div>
@@ -412,7 +437,7 @@ function YourBag({
           <div className="font-mono font-bold">
             {balance !== undefined ? (
               <>
-                {balance.toFixed(3)} <span className="text-[10px] text-zinc-500">pETH</span>
+                {balance.toFixed(3)} <span className="text-[10px] text-zinc-500">{unit}</span>
               </>
             ) : (
               "—"

@@ -2,12 +2,29 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { DEFAULT_CHAIN_ID, arenaBalance, hasArenaWallet } from "../lib/arenaWallet";
+import { useChainOnly } from "../lib/chainOnly";
 import { useSession } from "../lib/session";
 
 export function WalletButton() {
   const { profile, signIn, signOut, busy, authError, clearAuthError } = useSession();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
+  const chainOnly = useChainOnly();
+
+  // Chain-only mode: the menu bar shows the arena wallet's live balance
+  // instead of paper money.
+  const [arenaBal, setArenaBal] = useState<number | null>(null);
+  useEffect(() => {
+    if (!chainOnly || !profile) return;
+    const poll = () => {
+      if (hasArenaWallet()) arenaBalance(DEFAULT_CHAIN_ID).then(setArenaBal).catch(() => {});
+      else setArenaBal(null);
+    };
+    poll();
+    const t = setInterval(poll, 10_000);
+    return () => clearInterval(t);
+  }, [chainOnly, profile]);
 
   useEffect(() => {
     const close = (e: MouseEvent) => {
@@ -38,9 +55,15 @@ export function WalletButton() {
           <span className="font-bold">
             {profile.displayName ?? `${profile.address.slice(0, 6)}…${profile.address.slice(-4)}`}
           </span>
-          <span className="font-mono text-xs text-zinc-400">
-            {profile.paperBalance.toFixed(2)} pETH
-          </span>
+          {chainOnly ? (
+            <span className="font-mono text-xs text-lime-300">
+              ⚡ {arenaBal !== null ? `${arenaBal.toFixed(4)} ETH` : "arena"}
+            </span>
+          ) : (
+            <span className="font-mono text-xs text-zinc-400">
+              {profile.paperBalance.toFixed(2)} pETH
+            </span>
+          )}
           <span className="text-xs text-zinc-500">▾</span>
         </button>
         {open && (
@@ -54,6 +77,13 @@ export function WalletButton() {
               className="block px-3 py-2 text-sm hover:bg-zinc-800"
             >
               👤 Profile
+            </Link>
+            <Link
+              href="/wallet"
+              onClick={() => setOpen(false)}
+              className="block px-3 py-2 text-sm hover:bg-zinc-800"
+            >
+              ⚡ Arena Wallet
             </Link>
             <Link
               href={`/profile/${profile.address}`}
