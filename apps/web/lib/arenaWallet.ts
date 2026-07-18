@@ -30,6 +30,9 @@ import { api } from "./api";
 const STORE_KEY = "cookout:arena-key";
 const HISTORY_KEY = "cookout:arena-history";
 
+/** The chain the site plays on (Robinhood Chain Testnet for the dev phase). */
+export const DEFAULT_CHAIN_ID = 46630;
+
 /** One ledger row. Every deposit/trade/claim/withdraw runs through our own
  *  code, so this local log is a complete history of THIS browser's burner. */
 export interface ArenaTxEntry {

@@ -341,7 +341,10 @@ export default function RoundPage() {
                 price={ticker.price}
                 ethUsd={ticker.ethUsd ?? 1925}
                 symbol={round.token.symbol}
-                balance={profile?.paperBalance}
+                // Chain rounds spend real ETH (shown in the arena panel), so
+                // the paper balance would be a lie here.
+                balance={round.chain ? undefined : profile?.paperBalance}
+                unit={round.chain ? "ETH" : "pETH"}
               />
             )}
             <TopHolders roundId={round.id} ethUsd={ticker?.ethUsd} />
@@ -392,12 +395,14 @@ function YourBag({
   ethUsd,
   symbol,
   balance,
+  unit = "pETH",
 }: {
   position: { tokens: number; costBasisEth: number; realizedPnl: number };
   price: number;
   ethUsd: number;
   symbol: string;
   balance?: number;
+  unit?: string;
 }) {
   const valueEth = position.tokens * price;
   const pnl = position.realizedPnl + valueEth - position.costBasisEth;
@@ -417,7 +422,7 @@ function YourBag({
           <div className="text-[10px] uppercase tracking-wide text-zinc-500">Bag value</div>
           <div className="font-mono font-bold">
             ${(valueEth * ethUsd).toFixed(2)}
-            <span className="ml-1 text-[10px] text-zinc-500">{valueEth.toFixed(4)} pETH</span>
+            <span className="ml-1 text-[10px] text-zinc-500">{valueEth.toFixed(4)} {unit}</span>
           </div>
         </div>
         <div>
@@ -431,7 +436,7 @@ function YourBag({
           <div className="font-mono font-bold">
             {balance !== undefined ? (
               <>
-                {balance.toFixed(3)} <span className="text-[10px] text-zinc-500">pETH</span>
+                {balance.toFixed(3)} <span className="text-[10px] text-zinc-500">{unit}</span>
               </>
             ) : (
               "—"
