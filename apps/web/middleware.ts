@@ -26,7 +26,9 @@ import { NextRequest, NextResponse } from "next/server";
 const REALM = 'Basic realm="The Cookout — dev", charset="UTF-8"';
 
 function env(key: string): string {
-  return process.env[key] ?? "";
+  // Trim so a stray trailing newline/space pasted into the Vercel value (a very
+  // common cause of a silent credential mismatch) can't lock the dev team out.
+  return (process.env[key] ?? "").trim();
 }
 
 function shouldGate(req: NextRequest): boolean {
