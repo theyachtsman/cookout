@@ -20,12 +20,17 @@ interface Props {
   cooking?: boolean;
   endReason?: string;
   graduated?: boolean;
+  /** USD peg so the live tag shows $ market cap. */
+  ethUsd?: number;
+  /** The viewer's address: their own trades pin as lime-ringed bubbles. */
+  highlightAddress?: string;
 }
 
 export function Chart(props: Props) {
   return (
     <ChartCanvas
       {...props}
+      showTimeframes
       resolveTag={(address, tag) => {
         api<{ displayName?: string; avatarUrl?: string }>(`/api/profile/${address}`)
           .then((p) => {

@@ -12,6 +12,8 @@ import type {
   Trade,
 } from "@cookout/shared";
 import { api } from "../../../lib/api";
+import { chainSell, walletTokenBalanceWei } from "../../../lib/chainTx";
+import { playSell } from "../../../lib/sfx";
 import { useSession } from "../../../lib/session";
 import { useRoundSocket } from "../../../lib/useRoundSocket";
 import { FloatingReactions, KillFeedTicker } from "../../../components/ArcadeOverlays";
@@ -307,6 +309,8 @@ export default function RoundPage() {
               supply={round.config.totalSupply}
               bigTradeEth={Math.max(0.05, (ticker?.liquidity ?? round.config.initialEthLiquidity) * 0.05)}
               cooking={ticker?.cooking}
+              ethUsd={ticker?.ethUsd}
+              highlightAddress={profile?.address}
               // Served-up coins keep trading — no end overlay, live chart stays.
               endReason={round.graduated ? undefined : round.endReason}
               graduated={round.graduated}
@@ -342,10 +346,22 @@ export default function RoundPage() {
                 price={ticker.price}
                 ethUsd={ticker.ethUsd ?? 1925}
                 symbol={round.token.symbol}
-                // Chain rounds spend real ETH (shown in the arena panel), so
-                // the paper balance would be a lie here.
-                balance={round.chain ? undefined : profile?.paperBalance}
-                unit={round.chain ? "ETH" : "pETH"}
+                onSellAll={() => {
+                  const run = async () => {
+                    if (round.chain) {
+                      const bal = await walletTokenBalanceWei(round);
+                      if (bal > 0n) await chainSell(round, bal);
+                    } else {
+                      await api(`/api/rounds/${round.id}/trade`, {
+                        body: { side: "sell", pct: 100 },
+                      });
+                    }
+                    playSell();
+                    void loadMe();
+                    void refresh();
+                  };
+                  void run().catch(() => {});
+                }}
               />
             )}
             <TopHolders roundId={round.id} ethUsd={ticker?.ethUsd} />
@@ -389,61 +405,93 @@ export default function RoundPage() {
   );
 }
 
-/** The player's running bag: coin balance + ETH/USD value + cash left. */
+/** Unrealized P&L panel (pump.fun style): big signed dollar figure, a
+ *  percentage pill, a value-vs-cost bar, holdings + cost basis, Sell All
+ *  and a Share that copies a flex line to the clipboard. */
 function YourBag({
   position,
   price,
   ethUsd,
   symbol,
-  balance,
-  unit = "pETH",
+  onSellAll,
 }: {
   position: { tokens: number; costBasisEth: number; realizedPnl: number };
   price: number;
   ethUsd: number;
   symbol: string;
-  balance?: number;
-  unit?: string;
+  onSellAll?: () => void;
 }) {
+  const [shared, setShared] = useState(false);
   const valueEth = position.tokens * price;
-  const pnl = position.realizedPnl + valueEth - position.costBasisEth;
+  const unreal = valueEth - position.costBasisEth;
+  const unrealUsd = unreal * ethUsd;
+  const pct = position.costBasisEth > 0 ? (unreal / position.costBasisEth) * 100 : 0;
+  const up = unreal >= 0;
+  const tone = up ? "text-emerald-400" : "text-red-400";
+  // Bar: how much of the cost basis the bag is worth right now (2x caps it).
+  const ratio =
+    position.costBasisEth > 0 ? Math.max(0.01, Math.min(1, valueEth / (position.costBasisEth * 2))) : 0.5;
+  const fmtUsd = (v: number) =>
+    `${v < 0 ? "-" : ""}$${Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(2) + "k" : Math.abs(v).toFixed(2)}`;
+  const fmtTokens = (t: number) =>
+    t >= 1_000_000 ? `${(t / 1_000_000).toFixed(2)}M` : t >= 1000 ? `${(t / 1000).toFixed(1)}k` : t.toFixed(2);
+
+  const share = () => {
+    const line = `${up ? "🟢" : "🔴"} ${up ? "+" : ""}${pct.toFixed(1)}% on $${symbol} in The Cookout arena ${window.location.href}`;
+    void navigator.clipboard.writeText(line);
+    setShared(true);
+    setTimeout(() => setShared(false), 1500);
+  };
+
   return (
-    <div className="neon scanlines rounded-xl border border-lime-400/40 bg-zinc-900/60 p-4">
-      <h4 className="mb-2 text-sm font-black tracking-wide text-lime-300">💰 YOUR BAG</h4>
-      <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-        <div>
-          <div className="text-[10px] uppercase tracking-wide text-zinc-500">${symbol} held</div>
-          <div className="font-mono font-bold">
-            {position.tokens >= 1000
-              ? `${(position.tokens / 1000).toFixed(1)}k`
-              : position.tokens.toFixed(0)}
-          </div>
-        </div>
-        <div>
-          <div className="text-[10px] uppercase tracking-wide text-zinc-500">Bag value</div>
-          <div className="font-mono font-bold">
-            ${(valueEth * ethUsd).toFixed(2)}
-            <span className="ml-1 text-[10px] text-zinc-500">{valueEth.toFixed(4)} {unit}</span>
-          </div>
-        </div>
-        <div>
-          <div className="text-[10px] uppercase tracking-wide text-zinc-500">Round PnL</div>
-          <div className={`font-mono font-bold ${pnl >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-            {pnl >= 0 ? "+" : ""}${(pnl * ethUsd).toFixed(2)}
-          </div>
-        </div>
-        <div>
-          <div className="text-[10px] uppercase tracking-wide text-zinc-500">Cash left</div>
-          <div className="font-mono font-bold">
-            {balance !== undefined ? (
-              <>
-                {balance.toFixed(3)} <span className="text-[10px] text-zinc-500">{unit}</span>
-              </>
-            ) : (
-              "—"
-            )}
-          </div>
-        </div>
+    <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-4">
+      <div className="flex items-center justify-between">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
+          Unrealized P&amp;L <span className="text-zinc-700">●</span>
+        </span>
+        {onSellAll && position.tokens > 0 && (
+          <button
+            onClick={onSellAll}
+            className="rounded-md bg-red-600 px-3 py-1 text-xs font-black text-white hover:bg-red-500 active:scale-95"
+          >
+            Sell All
+          </button>
+        )}
+      </div>
+      <div className="mt-1 flex items-center justify-between gap-3">
+        <span className={`font-mono text-3xl font-black tracking-tight ${tone}`}>
+          {up ? "+" : ""}
+          {fmtUsd(unrealUsd)}
+        </span>
+        <span
+          className={`rounded-md px-2 py-1 font-mono text-xs font-bold ${
+            up ? "bg-emerald-500/15 text-emerald-300" : "bg-red-500/15 text-red-300"
+          }`}
+        >
+          {up ? "↑" : "↓"} {Math.abs(pct) >= 1000 ? Math.abs(pct).toFixed(0) : Math.abs(pct).toFixed(2)}%
+        </span>
+      </div>
+      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800">
+        <div
+          className={`h-full rounded-full transition-[width] duration-500 ${up ? "bg-gradient-to-r from-emerald-600 to-emerald-400" : "bg-gradient-to-r from-red-600 to-red-400"}`}
+          style={{ width: `${ratio * 100}%` }}
+        />
+      </div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+        <span className="font-mono font-bold text-zinc-200">
+          {fmtTokens(position.tokens)} {symbol}
+          <span className="ml-1.5 text-zinc-500">·</span>
+          <span className="ml-1.5 text-zinc-300">{fmtUsd(valueEth * ethUsd)}</span>
+        </span>
+        <span className="text-xs text-zinc-500">
+          Cost basis <span className="font-mono font-bold text-zinc-300">{fmtUsd(position.costBasisEth * ethUsd)}</span>
+        </span>
+        <button
+          onClick={share}
+          className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30"
+        >
+          {shared ? "✓ copied" : "➦ Share"}
+        </button>
       </div>
     </div>
   );
