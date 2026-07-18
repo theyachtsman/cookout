@@ -17,3 +17,10 @@ export function useChainOnly(): boolean {
   }, []);
   return on;
 }
+
+/** The money label for profile/global surfaces: real ETH on the chain-only
+ *  site, pETH on the paper beta. Round-scoped surfaces should key off
+ *  `round.chain` instead so archived paper rounds stay honest. */
+export function useUnit(): "ETH" | "pETH" {
+  return useChainOnly() ? "ETH" : "pETH";
+}

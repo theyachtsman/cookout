@@ -397,7 +397,7 @@ export default function AdminPage() {
             ["Concepts", overview.concepts],
             ["Rounds", overview.rounds],
             ["Live now", overview.liveRounds],
-            ["Fees (pETH)", overview.totalFees.toFixed(3)],
+            [`Fees (${chainOnly ? "ETH" : "pETH"})`, overview.totalFees.toFixed(3)],
             ["Beta signups", overview.betaSignups],
             ["Whitelist", overview.whitelistOn ? "🔒 ON" : "open"],
             ["Feedback", overview.feedbackCount],

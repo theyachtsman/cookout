@@ -122,7 +122,7 @@ export function jackpotStatus(store: Store, now = Date.now()): JackpotStatus {
     poolEth: pool,
     poolUsd: pool * ethUsd,
     ethUsd,
-    paperMode: process.env.JACKPOT_ONCHAIN !== "1",
+    paperMode: process.env.JACKPOT_ONCHAIN !== "1" && process.env.CHAIN_ONLY !== "1",
     breakdown: {
       creatorPct,
       referralPct,

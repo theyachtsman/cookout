@@ -1,8 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import Link from "next/link";
+import { useEffect, useState } from "react";
 import { ACHIEVEMENTS, xpForLevel } from "@cookout/shared";
 import { api } from "../../lib/api";
+import { DEFAULT_CHAIN_ID, arenaBalance, hasArenaWallet } from "../../lib/arenaWallet";
+import { useChainOnly, useUnit } from "../../lib/chainOnly";
 import { useSession } from "../../lib/session";
 import { CosmeticsLocker } from "../../components/CosmeticsLocker";
 import { ImagePicker } from "../../components/ImagePicker";
@@ -12,6 +15,18 @@ import { Progress } from "../../components/Progress";
 export default function ProfilePage() {
   const { profile, signIn, refresh } = useSession();
   const [name, setName] = useState("");
+  const chainOnly = useChainOnly();
+  const unit = useUnit();
+
+  // Chain-only site: the headline balance is the arena wallet, not paper.
+  const [arenaBal, setArenaBal] = useState<number | null>(null);
+  useEffect(() => {
+    if (!chainOnly || !hasArenaWallet()) return;
+    const poll = () => arenaBalance(DEFAULT_CHAIN_ID).then(setArenaBal).catch(() => {});
+    poll();
+    const t = setInterval(poll, 10_000);
+    return () => clearInterval(t);
+  }, [chainOnly]);
 
   if (!profile)
     return (
@@ -61,10 +76,21 @@ export default function ProfilePage() {
             </div>
           </div>
           <div className="ml-auto text-right">
-            <div className="text-2xl font-black text-lime-400">
-              {profile.paperBalance.toFixed(3)} pETH
-            </div>
-            <div className="text-xs text-zinc-500">paper balance</div>
+            {chainOnly ? (
+              <Link href="/wallet" className="block hover:opacity-80">
+                <div className="text-2xl font-black text-lime-400">
+                  ⚡ {arenaBal !== null ? arenaBal.toFixed(4) : "—"} ETH
+                </div>
+                <div className="text-xs text-zinc-500">arena wallet</div>
+              </Link>
+            ) : (
+              <>
+                <div className="text-2xl font-black text-lime-400">
+                  {profile.paperBalance.toFixed(3)} pETH
+                </div>
+                <div className="text-xs text-zinc-500">paper balance</div>
+              </>
+            )}
           </div>
         </div>
         <div className="mt-3 h-2 overflow-hidden rounded bg-zinc-800">
@@ -104,7 +130,7 @@ export default function ProfilePage() {
           </button>
           <span className="ml-auto text-zinc-500">
             {(profile as unknown as { referralCount?: number }).referralCount ?? 0} referred ·{" "}
-            {((profile as unknown as { referralEarnings?: number }).referralEarnings ?? 0).toFixed(3)} pETH earned
+            {((profile as unknown as { referralEarnings?: number }).referralEarnings ?? 0).toFixed(3)} {unit} earned
           </span>
         </div>
       </div>
@@ -136,7 +162,7 @@ export default function ProfilePage() {
             </a>
           </div>
           <div className="mt-1 font-mono text-3xl font-black text-amber-300">
-            {(profile.jackpotWinnings ?? 0).toFixed(4)} pETH
+            {(profile.jackpotWinnings ?? 0).toFixed(4)} {unit}
           </div>
           <div className="mt-3 space-y-1">
             {[...(profile.jackpotWins ?? [])]
@@ -146,7 +172,7 @@ export default function ProfilePage() {
                 <div key={i} className="flex items-center gap-3 text-sm">
                   <span className="w-14 font-mono text-zinc-500">{w.week}</span>
                   <span className="w-10">{["🥇", "🥈", "🥉"][w.rank - 1] ?? `#${w.rank}`}</span>
-                  <span className="font-mono text-amber-300">+{w.amountEth.toFixed(4)} pETH</span>
+                  <span className="font-mono text-amber-300">+{w.amountEth.toFixed(4)} {unit}</span>
                   <span className="font-mono text-xs text-zinc-500">
                     ${w.amountUsd.toFixed(2)}
                   </span>

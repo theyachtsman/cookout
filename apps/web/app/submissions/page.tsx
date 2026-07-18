@@ -9,10 +9,12 @@ import {
   type TokenConcept,
 } from "@cookout/shared";
 import { api } from "../../lib/api";
+import { useUnit } from "../../lib/chainOnly";
 import { useSession } from "../../lib/session";
 import { ImagePicker } from "../../components/ImagePicker";
 
 export default function Submissions() {
+  const unit = useUnit();
   const { profile, signIn } = useSession();
   const [concepts, setConcepts] = useState<TokenConcept[]>([]);
   const [form, setForm] = useState({
@@ -150,10 +152,10 @@ export default function Submissions() {
         <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
           {[
             ["Supply in pool at open", "50%"],
-            ["Seed liquidity (rookie)", `${TIER_CONFIGS.rookie.initialEthLiquidity} pETH`],
+            ["Seed liquidity (rookie)", `${TIER_CONFIGS.rookie.initialEthLiquidity} ${unit}`],
             ["Trade fee", `${TIER_CONFIGS.rookie.tradeFeeBps / 100}% (creator gets ${CREATOR_FEE_SHARE * 100}% of fees)`],
             ["Auction fee", `${TIER_CONFIGS.rookie.auctionFeeBps / 100}%`],
-            ["Serves up at", `$40,000 mcap · ${TIER_CONFIGS.rookie.graduationMinHolders} holders · ${TIER_CONFIGS.rookie.graduationMinVolume} pETH vol`],
+            ["Serves up at", `$40,000 mcap · ${TIER_CONFIGS.rookie.graduationMinHolders} holders · ${TIER_CONFIGS.rookie.graduationMinVolume} ${unit} vol`],
           ].map(([k, v]) => (
             <div key={k as string} className="rounded-lg bg-zinc-900 p-3">
               <div className="text-[10px] uppercase tracking-wide text-zinc-500">{k}</div>

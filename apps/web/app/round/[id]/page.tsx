@@ -181,6 +181,7 @@ export default function RoundPage() {
 
   const teaser = round.state === "scheduled";
   const spectating = round.state === "live" && (!position || position.tokens === 0);
+  const unit = round.chain ? "ETH" : "pETH";
 
   return (
     <div className="relative space-y-3">
@@ -228,13 +229,13 @@ export default function RoundPage() {
               label="Market Cap"
               value={`$${((ticker.mcap * (ticker.ethUsd ?? 1925)) / 1000).toFixed(1)}k`}
             />
-            <Stat label="Liquidity" value={`${ticker.liquidity.toFixed(1)} pETH`} />
-            <Stat label="Volume" value={`${ticker.volume.toFixed(2)} pETH`} />
+            <Stat label="Liquidity" value={`${ticker.liquidity.toFixed(1)} ${unit}`} />
+            <Stat label="Volume" value={`${ticker.volume.toFixed(2)} ${unit}`} />
             <Stat label="Age" value={`${ticker.ageSeconds}s`} />
             <Stat label="Holders" value={String(ticker.holders)} />
             <Stat
               label="Your PnL"
-              value={`${pnl >= 0 ? "+" : ""}${pnl.toFixed(3)} pETH`}
+              value={`${pnl >= 0 ? "+" : ""}${pnl.toFixed(3)} ${unit}`}
               tone={pnl >= 0 ? "up" : "down"}
             />
           </>
@@ -372,7 +373,7 @@ export default function RoundPage() {
                 </div>
               </div>
             )}
-            <Feeds killfeed={killfeed} trades={trades} />
+            <Feeds killfeed={killfeed} trades={trades} unit={unit} />
           </div>
         </div>
       )}
@@ -380,7 +381,7 @@ export default function RoundPage() {
       {auction && round.state !== "results" && (
         <div className="rounded-lg border border-zinc-800 px-4 py-2 text-xs text-zinc-500">
           Auction settled at {auction.clearingPrice.toExponential(4)} — raised{" "}
-          {auction.totalRaised.toFixed(2)} pETH from {auction.fills.length} intents (fill ratio{" "}
+          {auction.totalRaised.toFixed(2)} {unit} from {auction.fills.length} intents (fill ratio{" "}
           {(auction.fillRatio * 100).toFixed(0)}%) · audit {auction.auditHash.slice(0, 16)}…
         </div>
       )}

@@ -15,6 +15,7 @@ export function Results({
   summary: RoundSummary;
   auction: AuctionResult | null;
 }) {
+  const unit = round.chain ? "ETH" : "pETH";
   return (
     <div className="rounded-xl border border-zinc-800 p-5">
       <div className="mb-3 flex items-center gap-3">
@@ -34,13 +35,13 @@ export function Results({
       <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm md:grid-cols-3">
         <R k="Winner" v={`${addr(summary.winner)} (${(summary.winner?.pnl ?? 0).toFixed(3)})`} />
         <R k="Best trade" v={`${addr(summary.bestTrade)} (+${(summary.bestTrade?.pnl ?? 0).toFixed(3)})`} />
-        <R k="Biggest whale" v={`${addr(summary.biggestWhale)} (${(summary.biggestWhale?.ethIn ?? 0).toFixed(2)} pETH)`} />
+        <R k="Biggest whale" v={`${addr(summary.biggestWhale)} (${(summary.biggestWhale?.ethIn ?? 0).toFixed(2)} ${unit})`} />
         <R k="Diamond hands" v={`${addr(summary.diamondHands)} (${summary.diamondHands?.holdSeconds ?? 0}s)`} />
         <R k="Fastest exit" v={`${addr(summary.fastestExit)} (${summary.fastestExit?.seconds ?? "—"}s)`} />
         <R k="Avg return" v={`${summary.averageReturnPct.toFixed(1)}%`} />
         <R k="Duration" v={`${summary.durationSeconds}s`} />
-        <R k="Total volume" v={`${summary.totalVolume.toFixed(2)} pETH`} />
-        <R k="Peak mcap" v={`${summary.peakMcap.toFixed(1)} pETH`} />
+        <R k="Total volume" v={`${summary.totalVolume.toFixed(2)} ${unit}`} />
+        <R k="Peak mcap" v={`${summary.peakMcap.toFixed(1)} ${unit}`} />
       </div>
       {auction && (
         <p className="mt-4 border-t border-zinc-800 pt-3 text-xs text-zinc-500">

@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import type { Round, RoundSummary, TokenConcept } from "@cookout/shared";
 import { api } from "../../../lib/api";
+import { useUnit } from "../../../lib/chainOnly";
 
 interface CreatorView {
   address: string;
@@ -34,6 +35,7 @@ function reputationTier(rep: number): string {
 }
 
 export default function CreatorPage() {
+  const unit = useUnit();
   const { address } = useParams<{ address: string }>();
   const [view, setView] = useState<CreatorView | null>(null);
   const [missing, setMissing] = useState(false);
@@ -73,7 +75,7 @@ export default function CreatorPage() {
           </Link>
         </div>
         <div className="mt-1 text-sm text-zinc-400">
-          Reputation {view.creatorReputation} · fees earned {view.feesEarned.toFixed(3)} pETH
+          Reputation {view.creatorReputation} · fees earned {view.feesEarned.toFixed(3)} {unit}
         </div>
       </div>
 
