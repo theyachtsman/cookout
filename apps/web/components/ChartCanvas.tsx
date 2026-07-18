@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Candle, Trade } from "@cookout/shared";
 
 /**
@@ -27,8 +27,12 @@ interface Props {
   cooking?: boolean;
   endReason?: string;
   graduated?: boolean;
-  /** Scrolling window width in seconds (default 75). */
+  /** Scrolling window width in buckets-of-timeframe (default 75). */
   windowSec?: number;
+  /** ETH/USD peg: when set (with supply), the live tag shows $ market cap. */
+  ethUsd?: number;
+  /** Show the 1s/1m/10m timeframe zoom (product chart; demo leaves it off). */
+  showTimeframes?: boolean;
   /** Stretch to fill the parent (the landing demo's flex slot). The product
    *  page must NOT set this: a percentage height inside a grid-stretched
    *  column balloons to the whole column and shoves the panels below it. */
@@ -50,11 +54,15 @@ export function ChartCanvas(props: Props) {
   // Market-cap view only — the MCAP/PRICE switch was cut (it sat on top of
   // the candles); price still shows in the tooltip/labels scale.
   const mode = "mcap" as const;
+  // View-only timeframe zoom: candles aggregate into 1s/1m/10m buckets.
+  const [tf, setTf] = useState<1 | 60 | 600>(1);
   const ref = useRef<HTMLCanvasElement>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
   const modeRef = useRef(mode);
   modeRef.current = mode;
+  const tfRef = useRef<number>(tf);
+  tfRef.current = tf;
 
   const clockRef = useRef({ serverT: 0, localMs: 0 });
   const scaleRef = useRef({ lo: 0, hi: 0 });
@@ -88,7 +96,7 @@ export function ChartCanvas(props: Props) {
       raf = requestAnimationFrame(draw);
       const canvas = ref.current;
       if (!canvas) return;
-      const { candles, trades, livePrice, openPrice, supply, bigTradeEth, cooking, endReason, graduated, windowSec, highlightAddress } =
+      const { candles, trades, livePrice, openPrice, supply, bigTradeEth, cooking, endReason, graduated, windowSec, highlightAddress, ethUsd } =
         propsRef.current;
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
@@ -118,24 +126,43 @@ export function ChartCanvas(props: Props) {
           : p.toExponential(3);
 
       const snapshot = !!endReason;
+      // View-only timeframe zoom: aggregate 1s candles into tf-second buckets.
+      const tfSec = tfRef.current;
+      let agg = candles;
+      if (tfSec > 1) {
+        const buckets = new Map<number, Candle>();
+        for (const c of candles) {
+          const bt = Math.floor(c.t / tfSec) * tfSec;
+          const b = buckets.get(bt);
+          if (!b) buckets.set(bt, { t: bt, o: c.o, h: c.h, l: c.l, c: c.c, v: c.v });
+          else {
+            b.h = Math.max(b.h, c.h);
+            b.l = Math.min(b.l, c.l);
+            b.c = c.c;
+            b.v += c.v;
+          }
+        }
+        agg = [...buckets.values()];
+      }
+
       const { serverT, localMs } = clockRef.current;
       let nowT: number;
       let t0: number;
       let span: number;
       if (snapshot) {
-        t0 = candles[0]!.t;
-        nowT = candles[candles.length - 1]!.t + 1;
-        span = Math.max(10, nowT - t0);
+        t0 = agg[0]!.t;
+        nowT = agg[agg.length - 1]!.t + tfSec;
+        span = Math.max(10 * tfSec, nowT - t0);
       } else {
-        nowT = serverT + Math.min(2, (Date.now() - localMs) / 1000) + 1;
-        span = windowSec ?? WINDOW_SEC;
+        nowT = serverT + Math.min(2, (Date.now() - localMs) / 1000) + tfSec;
+        span = (windowSec ?? WINDOW_SEC) * tfSec;
         t0 = nowT - span;
       }
       const plotW = w - 80;
       const x = (t: number) => ((t - t0) / span) * plotW;
-      const cw = plotW / span;
+      const cw = (plotW / span) * tfSec;
 
-      const visible = snapshot ? candles : candles.filter((c) => c.t >= t0 - 2);
+      const visible = snapshot ? agg : agg.filter((c) => c.t >= t0 - 2 * tfSec);
       if (visible.length === 0) return;
       const lastClosed = candles[candles.length - 1]!;
 
@@ -146,9 +173,31 @@ export function ChartCanvas(props: Props) {
       const lc = liveCandleRef.current;
       lc.hi = Math.max(lc.hi, disp);
       lc.lo = Math.min(lc.lo, disp);
-      const liveCandle: Candle | null = snapshot
-        ? null
-        : { t: lastClosed.t + 1, o: lastClosed.c, h: lc.hi, l: lc.lo, c: disp, v: 0 };
+      let liveCandle: Candle | null = null;
+      if (!snapshot) {
+        const liveT = lastClosed.t + 1;
+        if (tfSec === 1) {
+          liveCandle = { t: liveT, o: lastClosed.c, h: lc.hi, l: lc.lo, c: disp, v: 0 };
+        } else {
+          // Merge the in-progress second into its bucket so the last candle
+          // keeps wicking live at any zoom.
+          const bt = Math.floor(liveT / tfSec) * tfSec;
+          const lastB = visible[visible.length - 1];
+          if (lastB && lastB.t === bt) {
+            visible.pop();
+            liveCandle = {
+              t: bt,
+              o: lastB.o,
+              h: Math.max(lastB.h, lc.hi),
+              l: Math.min(lastB.l, lc.lo),
+              c: disp,
+              v: lastB.v,
+            };
+          } else {
+            liveCandle = { t: bt, o: lastClosed.c, h: lc.hi, l: lc.lo, c: disp, v: 0 };
+          }
+        }
+      }
 
       let lo = Infinity;
       let hi = -Infinity;
@@ -233,19 +282,28 @@ export function ChartCanvas(props: Props) {
       const nowMs = Date.now();
       const threshold = bigTradeEth ?? Infinity;
       for (const t of trades) {
-        const tx = x(t.at / 1000) + cw / 2;
+        const tx = x(t.at / 1000);
         if (tx < 0 || tx > plotW) continue;
         const ty = y(t.price);
         const buy = t.side === "buy";
         const color = buy ? UP : DOWN;
-        const big = t.ethAmount >= threshold || t.isCreator || t.userAddress === highlightAddress;
+        const mine = !!highlightAddress && t.userAddress === highlightAddress;
+        const big = t.ethAmount >= threshold || t.isCreator || mine;
         ctx.beginPath();
-        ctx.arc(tx, ty, big ? 4 : 2.2, 0, Math.PI * 2);
+        ctx.arc(tx, ty, mine ? 4.5 : big ? 4 : 2.2, 0, Math.PI * 2);
         ctx.fillStyle = color;
         ctx.fill();
-        ctx.strokeStyle = "#09090b";
-        ctx.lineWidth = 1;
-        ctx.stroke();
+        if (mine) {
+          // Your own entries/exits pin to the chart permanently — a lime-ringed
+          // bubble only this viewer sees (the ring keys off their own address).
+          ctx.strokeStyle = "#a3e635";
+          ctx.lineWidth = 1.8;
+          ctx.stroke();
+        } else {
+          ctx.strokeStyle = "#09090b";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
 
         const seenAt = (t as Trade & { seenAt?: number }).seenAt;
         const age = seenAt ? nowMs - seenAt : Infinity;
@@ -294,7 +352,16 @@ export function ChartCanvas(props: Props) {
       const lastUp = liveCandle ? liveCandle.c >= liveCandle.o : lastClosed.c >= lastClosed.o;
       const pillColor = lastUp ? UP : DOWN;
       ctx.font = "bold 11px ui-monospace, monospace";
-      const priceLabel = fmt(disp);
+      // The live tag reads as market cap — $ when the USD peg is known.
+      const mcap = supply ? disp * supply : disp;
+      const usd = ethUsd ? mcap * ethUsd : 0;
+      const priceLabel = usd
+        ? usd >= 1_000_000
+          ? `$${(usd / 1_000_000).toFixed(2)}M`
+          : usd >= 1000
+            ? `$${(usd / 1000).toFixed(1)}k`
+            : `$${usd.toFixed(0)}`
+        : fmt(disp);
       const pw = ctx.measureText(priceLabel).width + 10;
       ctx.fillStyle = pillColor;
       ctx.beginPath();
@@ -347,6 +414,25 @@ export function ChartCanvas(props: Props) {
         ref={ref}
         className={props.className ?? "h-80 w-full rounded-xl border border-zinc-800 bg-zinc-950"}
       />
+      {props.showTimeframes && (
+        <div className="absolute right-2 top-2 flex overflow-hidden rounded-md border border-zinc-800 bg-zinc-950/80 text-[10px] font-bold backdrop-blur">
+          {([
+            [1, "1s"],
+            [60, "1m"],
+            [600, "10m"],
+          ] as const).map(([v, label]) => (
+            <button
+              key={v}
+              onClick={() => setTf(v)}
+              className={`px-2 py-1 ${
+                tf === v ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
