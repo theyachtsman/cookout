@@ -96,9 +96,24 @@ export async function arenaSend(
   valueWei = 0n,
 ): Promise<string> {
   const chain = chainOf(chainId);
-  const wallet = createWalletClient({ account: account(), chain, transport: http() });
-  const hash = await wallet.sendTransaction({ to, data, value: valueWei });
-  const receipt = await pub(chainId).waitForTransactionReceipt({ hash, timeout: 90_000 });
+  const client = pub(chainId);
+  const acct = account();
+  // Explicit legacy gas: custom/Orbit chains trip EIP-1559 fee estimation
+  // (missing eth_maxPriorityFeePerGas, inflated defaults). gasPrice + a
+  // padded estimate is boring and always works.
+  const [gasPrice, gasEst] = await Promise.all([
+    client.getGasPrice(),
+    client.estimateGas({ account: acct.address, to, data, value: valueWei }),
+  ]);
+  const wallet = createWalletClient({ account: acct, chain, transport: http() });
+  const hash = await wallet.sendTransaction({
+    to,
+    data,
+    value: valueWei,
+    gasPrice,
+    gas: (gasEst * 13n) / 10n,
+  });
+  const receipt = await client.waitForTransactionReceipt({ hash, timeout: 90_000 });
   if (receipt.status !== "success") throw new Error("transaction reverted on-chain");
   return hash;
 }
@@ -114,7 +129,7 @@ export async function arenaWithdraw(chainId: number, to: `0x${string}`): Promise
   const value = bal - gasPrice * gasLimit * 2n;
   if (value <= 0n) throw new Error("nothing to withdraw");
   const wallet = createWalletClient({ account: acct, chain, transport: http() });
-  const hash = await wallet.sendTransaction({ to, value, gas: gasLimit });
+  const hash = await wallet.sendTransaction({ to, value, gas: gasLimit, gasPrice });
   await client.waitForTransactionReceipt({ hash, timeout: 90_000 });
   return hash;
 }

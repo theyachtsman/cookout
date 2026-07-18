@@ -98,7 +98,9 @@ export async function ensureChain(chainId: number): Promise<void> {
 export async function arenaActive(chainId: number, needEth = 0): Promise<boolean> {
   if (!hasArenaWallet()) return false;
   try {
-    return (await arenaBalance(chainId)) >= needEth + 0.0001;
+    // Gas here is ~0.01 gwei, so a generous reserve is still microscopic —
+    // a fat buffer would stop small testnet balances from ever going hot.
+    return (await arenaBalance(chainId)) >= needEth + 0.00002;
   } catch {
     return false;
   }
@@ -123,7 +125,7 @@ async function sendVia(
   return sendTx(to, data, valueWei);
 }
 
-async function sendTx(to: string, data: string, valueWei = 0n): Promise<string> {
+async function sendTx(to: string, data: string, valueWei = 0n, gas?: bigint): Promise<string> {
   const from = await account();
   const hash = (await eth().request({
     method: "eth_sendTransaction",
@@ -133,6 +135,9 @@ async function sendTx(to: string, data: string, valueWei = 0n): Promise<string> 
         to,
         data,
         ...(valueWei > 0n ? { value: "0x" + valueWei.toString(16) } : {}),
+        // Pinning gas stops wallets from over-estimating on custom chains
+        // and blocking the confirm with a bogus "insufficient gas".
+        ...(gas ? { gas: "0x" + gas.toString(16) } : {}),
       },
     ],
   })) as string;
@@ -240,5 +245,19 @@ export async function walletTokenBalanceWei(round: Round): Promise<bigint> {
  *  arena wallet; every trade after that signs locally with no prompts. */
 export async function fundArenaWallet(chainId: number, ethAmount: string): Promise<string> {
   await ensureChain(chainId);
-  return sendTx(arenaAddress(), "0x", toWei(ethAmount));
+  const value = toWei(ethAmount);
+  // Pre-check the payer so a short balance gives a useful message instead of
+  // the wallet's opaque gas-block (the connected account may not be the
+  // funded one — people juggle test wallets).
+  const from = await account();
+  const bal = BigInt(
+    (await eth().request({ method: "eth_getBalance", params: [from, "latest"] })) as string,
+  );
+  if (bal < value + toWei("0.00005")) {
+    throw new Error(
+      `connected wallet ${from.slice(0, 6)}…${from.slice(-4)} holds ${fromWei(bal).toFixed(5)} ` +
+        `ETH on this chain — switch to a funded account or claim the faucet`,
+    );
+  }
+  return sendTx(arenaAddress(), "0x", value, 21_000n);
 }
