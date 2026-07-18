@@ -309,12 +309,14 @@ export function createApp(
     "/api/admin/settings",
     admin,
     wrap((req, res) => {
-      const { autoSchedule, tier, leadSeconds } = req.body as {
+      const { autoSchedule, tier, leadSeconds, bots } = req.body as {
         autoSchedule?: boolean;
         tier?: RiskTier;
         leadSeconds?: number;
+        bots?: boolean;
       };
       if (autoSchedule !== undefined) store.settings.autoSchedule = !!autoSchedule;
+      if (bots !== undefined) store.settings.bots = !!bots;
       if (tier && ["rookie", "standard", "degen"].includes(tier)) store.settings.tier = tier;
       if (leadSeconds !== undefined)
         store.settings.leadSeconds = Math.max(5, Math.min(3600, Number(leadSeconds) || 15));

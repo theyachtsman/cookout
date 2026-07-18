@@ -140,7 +140,7 @@ export class Store {
   /** Tester feedback, wallet-attached (beta instrumentation). */
   feedback: FeedbackEntry[] = [];
   /** Live-ops settings, adjustable from the admin dashboard. */
-  settings: OpsSettings = { autoSchedule: true, tier: "rookie", leadSeconds: 15 };
+  settings: OpsSettings = { autoSchedule: true, tier: "rookie", leadSeconds: 15, bots: true };
   /** Live ETH/USD, refreshed by the price feed; used to peg the $40k bond. */
   ethUsd = DEFAULT_ETH_USD;
 
@@ -583,6 +583,8 @@ export interface OpsSettings {
   tier: RiskTier;
   /** Seconds between a slot being scheduled and the lobby opening. */
   leadSeconds: number;
+  /** The paper bot swarm — lobby chat, queue pull-ups, live trading. */
+  bots: boolean;
 }
 
 export interface Snapshot {

@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { BotSwarm } from "./bots.js";
 import { ChainService } from "./chain.js";
 import { RoundEngine } from "./engine.js";
 import { settleWeeklyJackpot } from "./jackpot.js";
@@ -32,6 +33,12 @@ const hub = new Hub(store);
 const engine = new RoundEngine(store, hub.broadcast, hub.spectatorCount);
 const chain = new ChainService(store, engine);
 const app = createApp(store, engine, ADMIN_KEY, hub.broadcast, chain);
+// The paper bot swarm: a crowd to trade against on the paper beta. Hard-off
+// on chain-only deployments and via BOTS=0; otherwise the admin Live Ops
+// toggle (store.settings.bots) turns it on and off at runtime.
+const botsAllowed = process.env.BOTS !== "0" && process.env.CHAIN_ONLY !== "1";
+const bots = new BotSwarm(store, engine, hub.broadcast);
+if (botsAllowed) console.log("paper bot swarm armed — admin Live Ops toggles it");
 const server = createServer(app);
 hub.attach(server);
 
@@ -82,6 +89,7 @@ if (chain.enabled) {
 setInterval(() => {
   try {
     engine.tick(Date.now());
+    if (botsAllowed && store.settings.bots) bots.tick(Date.now());
     evaluateVoting(store);
     // Chain-only deployments never auto-spawn paper rounds, regardless of
     // the Live Ops toggle — real rounds cost the operator real gas/liquidity,

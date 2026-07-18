@@ -15,7 +15,7 @@ interface Overview {
   whitelistOn: boolean;
   chainEnabled?: boolean;
   feedbackCount: number;
-  settings: { autoSchedule: boolean; tier: string; leadSeconds: number };
+  settings: { autoSchedule: boolean; tier: string; leadSeconds: number; bots?: boolean };
   log: { id: string; at: number; action: string; detail: string }[];
 }
 
@@ -424,6 +424,17 @@ export default function AdminPage() {
               }`}
             >
               Auto-schedule: {overview.settings.autoSchedule ? "ON" : "OFF"}
+            </button>
+            <button
+              onClick={() => void act("/api/admin/settings", { bots: !overview.settings.bots })}
+              className={`rounded px-3 py-1.5 text-sm font-bold ${
+                overview.settings.bots
+                  ? "bg-emerald-900/60 text-emerald-300"
+                  : "bg-zinc-800 text-zinc-400"
+              }`}
+              title="Paper bot swarm: lobby chat, queue pull-ups, live profit-seeking trading. Paper rounds only; excluded from jackpot payouts."
+            >
+              🤖 Bot swarm: {overview.settings.bots ? "ON" : "OFF"}
             </button>
             <label className="flex items-center gap-2">
               <span className="text-xs text-zinc-500">tier</span>
