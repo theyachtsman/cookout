@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { ChatMessage, Round, TokenConcept } from "@cookout/shared";
 import { api } from "../../lib/api";
+import { useChainOnly } from "../../lib/chainOnly";
 
 interface Overview {
   users: number;
@@ -281,6 +282,7 @@ function FeedbackList({ adminKey }: { adminKey: string }) {
 }
 
 export default function AdminPage() {
+  const chainOnly = useChainOnly();
   const [key, setKey] = useState("");
   const [saved, setSaved] = useState(false);
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -552,16 +554,19 @@ export default function AdminPage() {
                   >
                     ⛓️ Schedule on-chain
                   </button>
-                  {["rookie", "standard", "degen"].map((tier) => (
-                    <button
-                      key={tier}
-                      onClick={() => void act(`/api/admin/concepts/${c.id}/schedule`, { tier, inSeconds: 20 })}
-                      className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-700"
-                      title="paper-money simulation round"
-                    >
-                      paper {tier}
-                    </button>
-                  ))}
+                  {/* Paper simulation rounds don't exist on the chain-only
+                      (dev) deployment — the server refuses them too. */}
+                  {!chainOnly &&
+                    ["rookie", "standard", "degen"].map((tier) => (
+                      <button
+                        key={tier}
+                        onClick={() => void act(`/api/admin/concepts/${c.id}/schedule`, { tier, inSeconds: 20 })}
+                        className="rounded bg-zinc-800 px-2 py-1 text-xs text-zinc-400 hover:bg-zinc-700"
+                        title="paper-money simulation round"
+                      >
+                        paper {tier}
+                      </button>
+                    ))}
                 </div>
               </div>
             ))}

@@ -858,6 +858,10 @@ export function createApp(
     "/api/admin/concepts/:id/schedule",
     admin,
     wrap((req, res) => {
+      // CHAIN_ONLY deployments (the dev/staging stack) never run paper
+      // simulation rounds — every launch goes through the factory.
+      if (process.env.CHAIN_ONLY === "1")
+        throw new Err(403, "this deployment is chain-only — use schedule-chain");
       const concept = store.concepts.get(req.params.id!);
       if (!concept) throw new Err(404, "concept not found");
       const { tier = "rookie", inSeconds = 30, config } = req.body as {
