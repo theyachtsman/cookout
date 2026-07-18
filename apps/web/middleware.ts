@@ -23,7 +23,9 @@ import { NextRequest, NextResponse } from "next/server";
  * access is left as a runtime lookup, so the live deployment env always wins.
  */
 
-const REALM = 'Basic realm="The Cookout — dev", charset="UTF-8"';
+// ASCII only: a non-latin1 char here (e.g. an em dash) gets dropped from the
+// wire header, so the browser never shows its Basic-auth login prompt.
+const REALM = 'Basic realm="The Cookout Dev"';
 
 function env(key: string): string {
   // Trim so a stray trailing newline/space pasted into the Vercel value (a very
