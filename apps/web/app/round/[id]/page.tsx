@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import type {
   AuctionResult,
@@ -428,9 +428,79 @@ function YourBag({
   const pct = position.costBasisEth > 0 ? (unreal / position.costBasisEth) * 100 : 0;
   const up = unreal >= 0;
   const tone = up ? "text-emerald-400" : "text-red-400";
-  // Bar: how much of the cost basis the bag is worth right now (2x caps it).
-  const ratio =
-    position.costBasisEth > 0 ? Math.max(0.01, Math.min(1, valueEth / (position.costBasisEth * 2))) : 0.5;
+
+  // Live PnL sparkline (pump.fun style): sample the unrealized P&L twice a
+  // second and draw it as a line — green above breakeven, red below.
+  const sparkRef = useRef<HTMLCanvasElement>(null);
+  const pnlNowRef = useRef(unrealUsd);
+  pnlNowRef.current = unrealUsd;
+  const historyRef = useRef<number[]>([]);
+  useEffect(() => {
+    const t = setInterval(() => {
+      const h = historyRef.current;
+      h.push(pnlNowRef.current);
+      if (h.length > 240) h.splice(0, h.length - 240); // ~2 minutes of history
+
+      const canvas = sparkRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      const dpr = window.devicePixelRatio || 1;
+      const w = canvas.clientWidth;
+      const ch = canvas.clientHeight;
+      if (canvas.width !== w * dpr) {
+        canvas.width = w * dpr;
+        canvas.height = ch * dpr;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, ch);
+      if (h.length < 2) return;
+
+      let lo = Math.min(0, ...h);
+      let hi = Math.max(0, ...h);
+      if (hi === lo) {
+        hi += 1;
+        lo -= 1;
+      }
+      const pad = (hi - lo) * 0.12;
+      hi += pad;
+      lo -= pad;
+      const xAt = (i: number) => (i / (h.length - 1)) * w;
+      const yAt = (v: number) => ch - ((v - lo) / (hi - lo)) * ch;
+
+      // Faint breakeven line.
+      const zy = yAt(0);
+      ctx.strokeStyle = "#3f3f46";
+      ctx.setLineDash([2, 4]);
+      ctx.beginPath();
+      ctx.moveTo(0, zy);
+      ctx.lineTo(w, zy);
+      ctx.stroke();
+      ctx.setLineDash([]);
+
+      // The PnL line, colored by sign per segment.
+      ctx.lineWidth = 1.8;
+      ctx.lineJoin = "round";
+      for (let i = 1; i < h.length; i++) {
+        ctx.strokeStyle = (h[i]! + h[i - 1]!) / 2 >= 0 ? "#34d399" : "#f87171";
+        ctx.beginPath();
+        ctx.moveTo(xAt(i - 1), yAt(h[i - 1]!));
+        ctx.lineTo(xAt(i), yAt(h[i]!));
+        ctx.stroke();
+      }
+      // Glowing endpoint on the latest sample.
+      const last = h[h.length - 1]!;
+      ctx.fillStyle = last >= 0 ? "#34d399" : "#f87171";
+      ctx.shadowColor = ctx.fillStyle;
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.arc(w - 1.5, yAt(last), 2.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    }, 500);
+    return () => clearInterval(t);
+  }, []);
+
   const fmtUsd = (v: number) =>
     `${v < 0 ? "-" : ""}$${Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(2) + "k" : Math.abs(v).toFixed(2)}`;
   const fmtTokens = (t: number) =>
@@ -471,12 +541,7 @@ function YourBag({
           {up ? "↑" : "↓"} {Math.abs(pct) >= 1000 ? Math.abs(pct).toFixed(0) : Math.abs(pct).toFixed(2)}%
         </span>
       </div>
-      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-zinc-800">
-        <div
-          className={`h-full rounded-full transition-[width] duration-500 ${up ? "bg-gradient-to-r from-emerald-600 to-emerald-400" : "bg-gradient-to-r from-red-600 to-red-400"}`}
-          style={{ width: `${ratio * 100}%` }}
-        />
-      </div>
+      <canvas ref={sparkRef} className="mt-3 h-9 w-full" />
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
         <span className="font-mono font-bold text-zinc-200">
           {fmtTokens(position.tokens)} {symbol}
