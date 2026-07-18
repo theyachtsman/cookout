@@ -22,6 +22,7 @@ import { Countdown } from "../../../components/Countdown";
 import { Feeds } from "../../../components/Feeds";
 import { GraduationProgress } from "../../../components/GraduationProgress";
 import { PhaseBanner } from "../../../components/PhaseBanner";
+import { ChainActions } from "../../../components/ChainActions";
 import { QueuePanel } from "../../../components/QueuePanel";
 import { Results } from "../../../components/Results";
 import { TradePanel } from "../../../components/TradePanel";
@@ -201,6 +202,14 @@ export default function RoundPage() {
           <span className="ml-3 rounded bg-zinc-800 px-1.5 py-0.5 text-xs uppercase text-zinc-300">
             {round.tier}
           </span>
+          {round.chain && (
+            <span
+              className="ml-2 rounded bg-amber-400/15 px-1.5 py-0.5 text-xs font-bold text-amber-300"
+              title={`pool ${round.chain.pool} on chain ${round.chain.chainId}`}
+            >
+              ⛓️ ON-CHAIN
+            </span>
+          )}
           {spectating && (
             <span className="ml-2 rounded bg-sky-500/20 px-1.5 py-0.5 text-xs text-sky-300">
               spectating
@@ -299,9 +308,9 @@ export default function RoundPage() {
               endReason={round.graduated ? undefined : round.endReason}
               graduated={round.graduated}
             />
-            {(round.state === "live" || round.graduated) && (
+            {(round.state === "live" || (round.graduated && !round.chain)) && (
               <TradePanel
-                roundId={round.id}
+                round={round}
                 position={position}
                 onTraded={() => {
                   void loadMe();
@@ -309,6 +318,13 @@ export default function RoundPage() {
                 }}
               />
             )}
+            <ChainActions
+              round={round}
+              onChanged={() => {
+                void loadMe();
+                void refresh();
+              }}
+            />
             {/* fixed-height console-style chat so it shares the screen with the chart */}
             <div className="h-64">
               <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
