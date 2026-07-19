@@ -70,6 +70,15 @@ export function ChartCanvas(props: Props) {
   const liveCandleRef = useRef({ sinceT: 0, hi: 0, lo: Infinity });
   const profileCache = useRef(new Map<string, ProfileTag>());
 
+  // Blast-off: when the opening candle lands while we're watching (the chart
+  // had no candles the frame before), it animates growing upward instead of
+  // popping in fully formed.
+  const blastRef = useRef<{ armed: boolean; t: number; startMs: number }>({
+    armed: false,
+    t: 0,
+    startMs: 0,
+  });
+
   // Pan/zoom (1m/10m views only — 1s stays a locked live feed). While a
   // manual view is active the window stops following the clock; Reset (or
   // switching timeframe) snaps back to auto-follow.
@@ -120,10 +129,16 @@ export function ChartCanvas(props: Props) {
       ctx.clearRect(0, 0, w, h);
 
       if (candles.length === 0) {
+        blastRef.current.armed = true; // we're watching pre-open — animate it
         ctx.fillStyle = "#52525b";
         ctx.font = "13px ui-monospace, monospace";
         ctx.fillText("waiting for the open…", 16, h / 2);
         return;
+      }
+      const blast = blastRef.current;
+      if (blast.armed && blast.t !== candles[0]!.t) {
+        blast.t = candles[0]!.t;
+        blast.startMs = Date.now();
       }
 
       const f = modeRef.current === "mcap" && supply ? supply : 1;
@@ -304,8 +319,23 @@ export function ChartCanvas(props: Props) {
         ctx.fillRect(cx - bodyW / 2, top, bodyW, bh);
         ctx.shadowBlur = 0;
       };
-      for (const c of visible) drawCandle(c, false);
-      if (liveCandle) drawCandle(liveCandle, true);
+      // Blast-off: the opening candle grows upward over ~1.1s (ease-out) with
+      // a live glow, instead of appearing fully formed. The y-scale already
+      // fits its final height, so it launches into pre-cleared airspace.
+      const blastMs = blast.startMs ? Date.now() - blast.startMs : Infinity;
+      const blastP = blast.armed && blastMs < 1100 ? 1 - Math.pow(1 - blastMs / 1100, 3) : 1;
+      const isBlast = (c: Candle) => c.t <= blast.t && blast.t < c.t + tfSec;
+      const grow = (c: Candle): Candle =>
+        blastP >= 1 || !isBlast(c)
+          ? c
+          : {
+              ...c,
+              c: c.o + (c.c - c.o) * blastP,
+              h: c.o + (c.h - c.o) * blastP,
+              l: Math.min(c.o, c.l),
+            };
+      for (const c of visible) drawCandle(grow(c), blastP < 1 && isBlast(c));
+      if (liveCandle) drawCandle(grow(liveCandle), true);
 
       const nowMs = Date.now();
       const threshold = bigTradeEth ?? Infinity;

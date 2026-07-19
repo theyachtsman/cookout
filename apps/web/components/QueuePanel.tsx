@@ -5,7 +5,7 @@ import type { AuctionIntent, Round } from "@cookout/shared";
 import { api } from "../lib/api";
 import { chainCancelIntent, chainSubmitIntent, walletEthBalance } from "../lib/chainTx";
 import { useSession } from "../lib/session";
-import { playDeposit, playPullupPing } from "../lib/sfx";
+import { playDeposit, playPullupNote } from "../lib/sfx";
 
 interface Lobby {
   players: number;
@@ -63,7 +63,14 @@ export function QueuePanel({
       api<{ bids?: Bid[] }>(`/api/rounds/${round.id}/intents`)
         .then((d) => {
           if (!alive || !d.bids) return;
-          if (bidCount.current >= 0 && d.bids.length > bidCount.current) playPullupPing();
+          // Each new pull-up plays the next note of the lobby riff; a burst
+          // of arrivals staggers into a run so the beat stays musical.
+          if (bidCount.current >= 0 && d.bids.length > bidCount.current) {
+            const from = bidCount.current;
+            for (let i = from; i < Math.min(d.bids.length, from + 6); i++) {
+              setTimeout(() => playPullupNote(i), (i - from) * 140);
+            }
+          }
           bidCount.current = d.bids.length;
           setBids(d.bids);
         })

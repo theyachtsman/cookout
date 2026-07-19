@@ -574,6 +574,7 @@ export class RoundEngine {
       holders,
       ageSeconds: Math.floor((now - round.liveAt!) / 1000),
       cooking,
+      athMcap: s.peakMcap,
       ethUsd: this.store.ethUsd,
     });
 
@@ -629,6 +630,7 @@ export class RoundEngine {
       holders,
       ageSeconds: Math.floor((now - round.liveAt!) / 1000),
       cooking: recent30 >= Math.max(0.1, pool.ethReserve * 0.1),
+      athMcap: s.peakMcap,
       ethUsd: this.store.ethUsd,
     });
   }
