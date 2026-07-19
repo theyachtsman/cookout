@@ -304,6 +304,7 @@ export default function RoundPage() {
           unit={unit}
           ethUsd={ticker?.ethUsd ?? 1925}
           breakdown={endResults.breakdown}
+          onChain={!!round.chain}
           onClose={() => setResultsOpen(false)}
         />
       )}

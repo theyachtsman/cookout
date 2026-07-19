@@ -62,6 +62,7 @@ export function RoundResultsOverlay({
   unit,
   ethUsd,
   breakdown,
+  onChain,
   onClose,
 }: {
   summary: RoundSummary;
@@ -71,6 +72,8 @@ export function RoundResultsOverlay({
   unit: string;
   ethUsd: number;
   breakdown: EndBreakdown | null;
+  /** Chain rounds pay out via a claimable on-chain redeem, not auto-credit. */
+  onChain?: boolean;
   onClose: () => void;
 }) {
   const [shareOpen, setShareOpen] = useState(false);
@@ -143,6 +146,47 @@ export function RoundResultsOverlay({
             </dl>
           </div>
         )}
+
+        {/* How the refund works — the trust story, told at the exact moment
+            players are staring at the loss. */}
+        <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-500/[0.04] p-3.5">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-amber-300/90">
+            🏦 How holders get refunded
+          </div>
+          <p className="mt-1.5 text-xs leading-relaxed text-zinc-400">
+            Every {unit} left in the pool is split <b className="text-zinc-200">pro-rata across
+            every token still held</b> — one shared exit price for all remaining holders
+            {breakdown && breakdown.heldTokens > 0 && breakdown.returned > 0 && (
+              <>
+                {" "}
+                (yours: ≈
+                <span className="font-mono text-amber-300">
+                  {(breakdown.returned / breakdown.heldTokens).toExponential(2)}
+                </span>{" "}
+                {unit}/token)
+              </>
+            )}
+            . Being fast or slow after the bell changes nothing — there is no exit race
+            {summary.endReason === "rug_detected" || summary.endReason === "liquidity_removed" ? (
+              <>
+                , and even after the drain, <b className="text-zinc-200">the salvage that remained
+                was split the same fair way</b>
+              </>
+            ) : null}
+            .{" "}
+            {onChain ? (
+              <>
+                Your share is <b className="text-amber-300">claimable from the round&apos;s
+                contract</b> — hit Redeem in &quot;Your on-chain claims&quot; on this page.
+              </>
+            ) : (
+              <>
+                Your share was <b className="text-amber-300">credited to your {unit} balance
+                automatically</b> — nothing to claim.
+              </>
+            )}
+          </p>
+        </div>
 
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           {[
