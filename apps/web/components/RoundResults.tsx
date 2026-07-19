@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import type { RoundSummary } from "@cookout/shared";
+import { PnlShareCard } from "./PnlShareCard";
 
 /**
  * End-of-round results overlay for rounds that rug or miss graduation: the
@@ -55,6 +57,8 @@ const REASON: Record<string, { title: string; emoji: string; note: string; tone:
 export function RoundResultsOverlay({
   summary,
   symbol,
+  artworkUrl,
+  shareName,
   unit,
   ethUsd,
   breakdown,
@@ -62,11 +66,14 @@ export function RoundResultsOverlay({
 }: {
   summary: RoundSummary;
   symbol: string;
+  artworkUrl?: string;
+  shareName?: string;
   unit: string;
   ethUsd: number;
   breakdown: EndBreakdown | null;
   onClose: () => void;
 }) {
+  const [shareOpen, setShareOpen] = useState(false);
   const r = REASON[summary.endReason] ?? REASON.timer!;
   const usd = (v: number) =>
     `${v < 0 ? "-" : ""}$${Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(2) + "k" : Math.abs(v).toFixed(2)}`;
@@ -159,12 +166,39 @@ export function RoundResultsOverlay({
           </div>
         )}
 
-        <button
-          onClick={onClose}
-          className="mt-5 w-full rounded-lg bg-zinc-800 py-2.5 font-black text-zinc-200 hover:bg-zinc-700"
-        >
-          Dismiss
-        </button>
+        <div className="mt-5 flex gap-2">
+          {played && breakdown && (
+            <button
+              onClick={() => setShareOpen(true)}
+              className={`flex-1 rounded-lg py-2.5 font-black text-zinc-950 ${
+                up ? "bg-emerald-500 hover:bg-emerald-400" : "bg-red-500 hover:bg-red-400"
+              }`}
+            >
+              ➦ Share the damage
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="flex-1 rounded-lg bg-zinc-800 py-2.5 font-black text-zinc-200 hover:bg-zinc-700"
+          >
+            Dismiss
+          </button>
+        </div>
+        {shareOpen && breakdown && (
+          <PnlShareCard
+            onClose={() => setShareOpen(false)}
+            data={{
+              symbol,
+              artworkUrl,
+              label: "ROUND P&L",
+              pct: breakdown.invested > 0 ? (breakdown.roundPnl / breakdown.invested) * 100 : 0,
+              pnlUsd: breakdown.roundPnl * ethUsd,
+              valueUsd: breakdown.returned * ethUsd,
+              costUsd: breakdown.invested * ethUsd,
+              name: shareName,
+            }}
+          />
+        )}
       </div>
     </div>
   );

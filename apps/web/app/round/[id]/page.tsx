@@ -83,6 +83,7 @@ export default function RoundPage() {
   // End-of-round overlay: pre-redemption snapshot vs post gives the exact
   // amount the uniform redemption returned.
   const [endResults, setEndResults] = useState<{ summary: RoundSummary; breakdown: EndBreakdown | null } | null>(null);
+  const [resultsOpen, setResultsOpen] = useState(false);
   const positionRef = useRef<typeof position>(null);
 
   // Fresh values for the socket callback without re-subscribing.
@@ -250,6 +251,7 @@ export default function RoundPage() {
               const invested = pre?.costBasisEth ?? 0;
               const returned =
                 held > 0 ? me.position.realizedPnl - (pre?.realizedPnl ?? 0) + invested : 0;
+              setResultsOpen(true);
               setEndResults({
                 summary: sum,
                 breakdown: pre || me.position.realizedPnl !== 0
@@ -262,7 +264,10 @@ export default function RoundPage() {
                   : null,
               });
             })
-            .catch(() => setEndResults({ summary: sum, breakdown: null }));
+            .catch(() => {
+              setResultsOpen(true);
+              setEndResults({ summary: sum, breakdown: null });
+            });
         } else {
           void loadMe();
         }
@@ -287,14 +292,19 @@ export default function RoundPage() {
   return (
     <div className="relative space-y-3">
       <FloatingReactions reactions={reactions} />
-      {endResults && (
+      {endResults && resultsOpen && (
         <RoundResultsOverlay
           summary={endResults.summary}
           symbol={round.token.symbol}
+          artworkUrl={round.token.artworkUrl}
+          shareName={
+            profile?.displayName ??
+            (profile ? `${profile.address.slice(0, 6)}…${profile.address.slice(-4)}` : undefined)
+          }
           unit={unit}
           ethUsd={ticker?.ethUsd ?? 1925}
           breakdown={endResults.breakdown}
-          onClose={() => setEndResults(null)}
+          onClose={() => setResultsOpen(false)}
         />
       )}
       <PhaseBanner round={round} />
@@ -322,6 +332,25 @@ export default function RoundPage() {
             >
               ⛓️ ON-CHAIN
             </span>
+          )}
+          {summary && !summary.graduated && round.state === "results" && (
+            <button
+              onClick={() => {
+                if (!endResults) {
+                  setEndResults({
+                    summary,
+                    breakdown:
+                      position && position.realizedPnl !== 0
+                        ? { invested: 0, heldTokens: 0, returned: 0, roundPnl: position.realizedPnl }
+                        : null,
+                  });
+                }
+                setResultsOpen(true);
+              }}
+              className="ml-2 rounded bg-zinc-800 px-2 py-0.5 text-xs font-bold text-zinc-200 hover:bg-zinc-700"
+            >
+              📊 Results
+            </button>
           )}
           {spectating && (
             <span className="ml-2 rounded bg-sky-500/20 px-1.5 py-0.5 text-xs text-sky-300">
