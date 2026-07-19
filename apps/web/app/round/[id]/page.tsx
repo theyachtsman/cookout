@@ -21,9 +21,9 @@ import { Chart } from "../../../components/Chart";
 import { Chat } from "../../../components/Chat";
 import { TopHolders } from "../../../components/TopHolders";
 import { Countdown } from "../../../components/Countdown";
-import { Feeds } from "../../../components/Feeds";
 import { GraduationProgress } from "../../../components/GraduationProgress";
 import { PhaseBanner } from "../../../components/PhaseBanner";
+import { PnlShareCard } from "../../../components/PnlShareCard";
 import { ArenaWalletPanel } from "../../../components/ArenaWalletPanel";
 import { ChainActions } from "../../../components/ChainActions";
 import { QueuePanel } from "../../../components/QueuePanel";
@@ -265,29 +265,8 @@ export default function RoundPage() {
             />
           </div>
           <div className="flex min-h-0 flex-col gap-3">
-            <div className="scanlines flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/50 p-3">
-              {round.token.artworkUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={round.token.artworkUrl}
-                  alt=""
-                  className="h-12 w-12 rounded-xl border border-zinc-700 object-cover"
-                />
-              ) : (
-                <div className="flex h-12 w-12 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900 text-xl">
-                  🪙
-                </div>
-              )}
-              <div className="min-w-0">
-                <div className="truncate font-black">
-                  {round.token.name} <span className="text-zinc-500">${round.token.symbol}</span>
-                </div>
-                <div className="truncate text-xs text-zinc-400">{round.token.theme}</div>
-              </div>
-              <span className="ml-auto rounded bg-zinc-800 px-1.5 py-0.5 text-xs uppercase">
-                {round.tier}
-              </span>
-            </div>
+            {/* the token card lived here; the top bar already names the round —
+                the trenches get the full column */}
             <div className="min-h-0 flex-1">
               <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
             </div>
@@ -347,6 +326,10 @@ export default function RoundPage() {
                 price={ticker.price}
                 ethUsd={ticker.ethUsd ?? 1925}
                 symbol={round.token.symbol}
+                shareName={
+                  profile?.displayName ??
+                  (profile ? `${profile.address.slice(0, 6)}…${profile.address.slice(-4)}` : undefined)
+                }
                 onSellAll={() => {
                   const run = async () => {
                     if (round.chain) {
@@ -390,7 +373,6 @@ export default function RoundPage() {
                 </div>
               </div>
             )}
-            <Feeds killfeed={killfeed} trades={trades} unit={unit} />
           </div>
         </div>
       )}
@@ -415,14 +397,16 @@ function YourBag({
   ethUsd,
   symbol,
   onSellAll,
+  shareName,
 }: {
   position: { tokens: number; costBasisEth: number; realizedPnl: number };
   price: number;
   ethUsd: number;
   symbol: string;
   onSellAll?: () => void;
+  shareName?: string;
 }) {
-  const [shared, setShared] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const valueEth = position.tokens * price;
   const unreal = valueEth - position.costBasisEth;
   const unrealUsd = unreal * ethUsd;
@@ -507,12 +491,7 @@ function YourBag({
   const fmtTokens = (t: number) =>
     t >= 1_000_000 ? `${(t / 1_000_000).toFixed(2)}M` : t >= 1000 ? `${(t / 1000).toFixed(1)}k` : t.toFixed(2);
 
-  const share = () => {
-    const line = `${up ? "🟢" : "🔴"} ${up ? "+" : ""}${pct.toFixed(1)}% on $${symbol} in The Cookout arena ${window.location.href}`;
-    void navigator.clipboard.writeText(line);
-    setShared(true);
-    setTimeout(() => setShared(false), 1500);
-  };
+
 
   return (
     <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-4">
@@ -553,12 +532,25 @@ function YourBag({
           Cost basis <span className="font-mono font-bold text-zinc-300">{fmtUsd(position.costBasisEth * ethUsd)}</span>
         </span>
         <button
-          onClick={share}
+          onClick={() => setShareOpen(true)}
           className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-1 text-xs font-bold text-emerald-300 hover:bg-emerald-500/30"
         >
-          {shared ? "✓ copied" : "➦ Share"}
+          ➦ Share
         </button>
       </div>
+      {shareOpen && (
+        <PnlShareCard
+          onClose={() => setShareOpen(false)}
+          data={{
+            symbol,
+            pct,
+            pnlUsd: unrealUsd,
+            valueUsd: valueEth * ethUsd,
+            costUsd: position.costBasisEth * ethUsd,
+            name: shareName,
+          }}
+        />
+      )}
     </div>
   );
 }
