@@ -357,6 +357,8 @@ export type ServerEvent =
       roundId: string;
       price: number;
       mcap: number;
+      /** Running all-time-high market cap for the round. */
+      athMcap?: number;
       liquidity: number;
       volume: number;
       holders: number;

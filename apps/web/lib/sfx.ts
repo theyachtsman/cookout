@@ -70,9 +70,26 @@ export function playDeposit(): void {
   tone(783.99, 0.09, 0.6, "sine", 0.07); // G5
 }
 
-/** Someone else pulled up: a lighter single-note ping so a busy queue sings. */
-export function playPullupPing(): void {
-  tone(880, 0, 0.18, "sine", 0.05, 1174.66); // A5 → D6 glide
+/**
+ * Pull-up riff: every deposit landing on the queue board plays the next note
+ * of a pentatonic groove, so a filling lobby literally builds a song. The
+ * note index is the bid count — deterministic, so every spectator hears the
+ * same melody. Loops every 16 pull-ups, one octave up on odd passes.
+ */
+const RIFF = [
+  392.0, 440.0, 523.25, 587.33, // G4 A4 C5 D5 — walk up
+  659.25, 587.33, 523.25, 659.25, // E5 D5 C5 E5 — bounce
+  783.99, 659.25, 587.33, 523.25, // G5 E5 D5 C5 — ride down
+  440.0, 523.25, 587.33, 783.99, // A4 C5 D5 G5 — turnaround
+];
+export function playPullupNote(index: number): void {
+  const step = ((index % RIFF.length) + RIFF.length) % RIFF.length;
+  const octaveUp = Math.floor(index / RIFF.length) % 2 === 1;
+  const freq = RIFF[step]! * (octaveUp ? 2 : 1);
+  tone(freq, 0, 0.22, "triangle", 0.09);
+  tone(freq * 2, 0.01, 0.12, "sine", 0.03); // airy overtone
+  // A soft kick under beat-starting notes gives it a pulse.
+  if (step % 4 === 0) tone(90, 0, 0.1, "sine", 0.1, 55);
 }
 
 /** Achievement unlocked: sparkle arpeggio, console style. */

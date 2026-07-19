@@ -33,6 +33,7 @@ import { TradePanel } from "../../../components/TradePanel";
 interface Ticker {
   price: number;
   mcap: number;
+  athMcap?: number;
   liquidity: number;
   volume: number;
   holders: number;
@@ -231,6 +232,15 @@ export default function RoundPage() {
               label="Market Cap"
               value={`$${((ticker.mcap * (ticker.ethUsd ?? 1925)) / 1000).toFixed(1)}k`}
             />
+            {ticker.athMcap !== undefined && (
+              <Stat
+                label="ATH"
+                value={`$${((ticker.athMcap * (ticker.ethUsd ?? 1925)) / 1000).toFixed(1)}k${
+                  ticker.mcap >= ticker.athMcap * 0.98 ? " 🚀" : ""
+                }`}
+                tone={ticker.mcap >= ticker.athMcap * 0.98 ? "up" : undefined}
+              />
+            )}
             <Stat label="Liquidity" value={`${ticker.liquidity.toFixed(1)} ${unit}`} />
             <Stat label="Volume" value={`${ticker.volume.toFixed(2)} ${unit}`} />
             <Stat label="Age" value={`${ticker.ageSeconds}s`} />
