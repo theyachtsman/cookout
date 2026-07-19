@@ -105,3 +105,58 @@ export function playQuest(): void {
   tone(587.33, 0, 0.14, "sine", 0.11); // D5
   tone(880.0, 0.1, 0.34, "sine", 0.1); // A5
 }
+
+// ---------------- battle soundscape (live arena) ----------------
+
+/** Other players' trades: tiny ticks like distant fire — buys high, sells
+ *  low, volume scaled by size. Quiet enough to be texture, not noise. */
+export function playTradeTick(side: "buy" | "sell", eth: number): void {
+  const gain = Math.min(0.05, 0.012 + eth * 0.08);
+  tone(side === "buy" ? 1318.5 : 587.33, 0, 0.045, "square", gain);
+}
+
+/** Whale entry: a sub-bass depth charge you feel more than hear. */
+export function playWhale(): void {
+  tone(72, 0, 0.7, "sine", 0.22, 44);
+  tone(145, 0.04, 0.35, "triangle", 0.1, 96);
+}
+
+/** Big dump / dev sell: a low body-blow thud. */
+export function playThud(): void {
+  tone(120, 0, 0.22, "sine", 0.16, 62);
+}
+
+/** Rug alarm: two falling sawtooth sirens. */
+export function playRug(): void {
+  tone(620, 0, 0.45, "sawtooth", 0.11, 190);
+  tone(310, 0.28, 0.55, "sawtooth", 0.09, 95);
+}
+
+/** Mcap milestone: quick rising major arpeggio. */
+export function playMilestone(): void {
+  tone(523.25, 0, 0.12, "triangle", 0.11); // C5
+  tone(659.25, 0.07, 0.12, "triangle", 0.11); // E5
+  tone(783.99, 0.14, 0.12, "triangle", 0.11); // G5
+  tone(1046.5, 0.21, 0.3, "sine", 0.11); // C6
+}
+
+/** New PnL leader: two-note battle horn. */
+export function playHorn(): void {
+  tone(392.0, 0, 0.16, "sawtooth", 0.07); // G4
+  tone(523.25, 0.13, 0.3, "sawtooth", 0.08); // C5
+}
+
+/** Fresh all-time high: glassy sparkle glide. */
+export function playAthSparkle(): void {
+  tone(1568, 0, 0.16, "sine", 0.07, 2093);
+  tone(2093, 0.1, 0.26, "sine", 0.05, 2637);
+}
+
+/** Graduation: triumphant chord swell + octave cap. */
+export function playFanfare(): void {
+  tone(523.25, 0, 0.5, "triangle", 0.1); // C5
+  tone(659.25, 0.02, 0.5, "triangle", 0.09); // E5
+  tone(783.99, 0.04, 0.5, "triangle", 0.09); // G5
+  tone(1046.5, 0.22, 0.55, "sine", 0.11); // C6
+  tone(90, 0, 0.3, "sine", 0.12, 55); // floor rumble
+}

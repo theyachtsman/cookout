@@ -118,3 +118,74 @@ body {
   pointer-events: none;
   z-index: 20;
 }
+
+/* ---------- battle FX layer (live arena) ---------- */
+
+@keyframes fx-flash {
+  0% {
+    opacity: 0.45;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.fx-flash {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: 0.75rem;
+  animation: fx-flash 0.65s ease-out forwards;
+  z-index: 30;
+}
+
+@keyframes fx-ring {
+  0% {
+    transform: scale(0.15);
+    opacity: 0.9;
+  }
+  100% {
+    transform: scale(2.8);
+    opacity: 0;
+  }
+}
+.fx-ring {
+  position: absolute;
+  left: 50%;
+  top: 40%;
+  width: 14rem;
+  height: 14rem;
+  margin: -7rem;
+  border-radius: 9999px;
+  border: 4px solid;
+  pointer-events: none;
+  animation: fx-ring 0.9s ease-out forwards;
+  z-index: 30;
+}
+
+@keyframes fx-shake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  15% {
+    transform: translate(-7px, 4px);
+  }
+  30% {
+    transform: translate(6px, -5px);
+  }
+  45% {
+    transform: translate(-5px, 3px);
+  }
+  60% {
+    transform: translate(4px, -3px);
+  }
+  75% {
+    transform: translate(-3px, 2px);
+  }
+  90% {
+    transform: translate(2px, -1px);
+  }
+}
+.fx-shake {
+  animation: fx-shake 0.55s linear;
+}

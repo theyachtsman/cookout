@@ -14,6 +14,7 @@ import { useEffect, useRef, useState } from "react";
 
 export interface PnlCardData {
   symbol: string;
+  artworkUrl?: string;
   pct: number;
   pnlUsd: number;
   valueUsd: number;
@@ -43,7 +44,7 @@ export function PnlShareCard({
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
 
-    const render = (bg: HTMLImageElement | null) => {
+    const render = (bg: HTMLImageElement | null, art: HTMLImageElement | null) => {
       ctx.clearRect(0, 0, W, H);
       if (bg) {
         ctx.drawImage(bg, 0, 0, W, H);
@@ -69,17 +70,46 @@ export function PnlShareCard({
 
       ctx.textAlign = "center";
 
-      // Token
+      // Token: coin image beside the ticker, the pair centered as a group.
       ctx.font = "bold 58px ui-monospace, Menlo, monospace";
       ctx.fillStyle = "#e4e4e7";
-      ctx.fillText(`$${data.symbol}`, CX, 400);
+      const tickerText = `$${data.symbol}`;
+      const tw = ctx.measureText(tickerText).width;
+      if (art) {
+        const size = 84;
+        const gap = 20;
+        const startX = CX - (size + gap + tw) / 2;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(startX + size / 2, 378, size / 2, 0, Math.PI * 2);
+        ctx.clip();
+        ctx.drawImage(art, startX, 378 - size / 2, size, size);
+        ctx.restore();
+        ctx.strokeStyle = "#a3e635";
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.arc(startX + size / 2, 378, size / 2, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.textAlign = "left";
+        ctx.fillText(tickerText, startX + size + gap, 398);
+        ctx.textAlign = "center";
+      } else {
+        ctx.fillText(tickerText, CX, 400);
+      }
 
-      // The big number
-      ctx.font = "900 150px ui-sans-serif, system-ui";
+      // The big number — auto-fit to the panel so it never runs off the card.
+      const pctText = `${up ? "+" : ""}${data.pct.toFixed(2)}%`;
+      let pctSize = 150;
+      const maxPctW = 520;
+      do {
+        ctx.font = `900 ${pctSize}px ui-sans-serif, system-ui`;
+        if (ctx.measureText(pctText).width <= maxPctW) break;
+        pctSize -= 6;
+      } while (pctSize > 60);
       ctx.fillStyle = tone;
       ctx.shadowColor = tone;
       ctx.shadowBlur = 40;
-      ctx.fillText(`${up ? "+" : ""}${data.pct.toFixed(2)}%`, CX, 560);
+      ctx.fillText(pctText, CX, 560);
       ctx.shadowBlur = 0;
 
       // Label + dollar P&L
@@ -109,10 +139,33 @@ export function PnlShareCard({
       ctx.textAlign = "left";
     };
 
+    let bg: HTMLImageElement | null = null;
+    let art: HTMLImageElement | null = null;
+    let loaded = 0;
+    const total = data.artworkUrl ? 2 : 1;
+    const done = () => {
+      loaded += 1;
+      if (loaded >= total) render(bg, art);
+    };
     const img = new Image();
-    img.onload = () => render(img);
-    img.onerror = () => render(null);
+    img.onload = () => {
+      bg = img;
+      done();
+    };
+    img.onerror = done;
     img.src = "/brand/pnl-card.png";
+    if (data.artworkUrl) {
+      const a = new Image();
+      // Coin art is usually a data: URL (canvas-safe); external URLs need
+      // CORS or they'd taint the canvas and break Copy/Download.
+      if (!data.artworkUrl.startsWith("data:")) a.crossOrigin = "anonymous";
+      a.onload = () => {
+        art = a;
+        done();
+      };
+      a.onerror = done;
+      a.src = data.artworkUrl;
+    }
   }, [data]);
 
   const toBlob = () =>
