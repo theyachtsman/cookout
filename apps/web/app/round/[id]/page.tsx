@@ -13,7 +13,7 @@ import type {
 } from "@cookout/shared";
 import { api } from "../../../lib/api";
 import { chainSell, walletTokenBalanceWei } from "../../../lib/chainTx";
-import { playSell } from "../../../lib/sfx";
+import { playAthSparkle, playFanfare, playHorn, playMilestone, playRug, playSell, playThud, playTradeTick, playWhale } from "../../../lib/sfx";
 import { useSession } from "../../../lib/session";
 import { useRoundSocket } from "../../../lib/useRoundSocket";
 import { FloatingReactions, KillFeedTicker } from "../../../components/ArcadeOverlays";
@@ -22,6 +22,7 @@ import { Chat } from "../../../components/Chat";
 import { TopHolders } from "../../../components/TopHolders";
 import { Countdown } from "../../../components/Countdown";
 import { GraduationProgress } from "../../../components/GraduationProgress";
+import { BattleFX, type FxEvent, type FxKind } from "../../../components/BattleFX";
 import { PhaseBanner } from "../../../components/PhaseBanner";
 import { PnlShareCard } from "../../../components/PnlShareCard";
 import { ArenaWalletPanel } from "../../../components/ArenaWalletPanel";
@@ -65,6 +66,24 @@ export default function RoundPage() {
   const [reactions, setReactions] = useState<Array<{ id: number; emoji: string }>>([]);
   const [leaders, setLeaders] = useState<Array<{ address: string; displayName?: string; badge?: string; value: number }>>([]);
   const [position, setPosition] = useState<{ tokens: number; costBasisEth: number; realizedPnl: number } | null>(null);
+
+  // ---- battle FX: flashes/shockwaves + soundscape driven by WS events ----
+  const [fx, setFx] = useState<FxEvent[]>([]);
+  const [shake, setShake] = useState(false);
+  const fireFx = useCallback((kind: FxKind) => {
+    const id = Date.now() + Math.random();
+    setFx((list) => [...list.slice(-8), { id, kind }]);
+    setTimeout(() => setFx((list) => list.filter((f) => f.id !== id)), 1100);
+  }, []);
+  const quake = useCallback(() => {
+    setShake(true);
+    setTimeout(() => setShake(false), 650);
+  }, []);
+  // Fresh values for the socket callback without re-subscribing.
+  const liveRef = useRef(false);
+  const bigEthRef = useRef(0.05);
+  const myAddrRef = useRef<string | undefined>(undefined);
+  const athRef = useRef(0);
 
   const load = useCallback(async () => {
     const data = await api<{
@@ -123,6 +142,10 @@ export default function RoundPage() {
     };
   }, [id, round?.state]);
 
+  liveRef.current = round?.state === "live";
+  bigEthRef.current = Math.max(0.05, (ticker?.liquidity ?? round?.config.initialEthLiquidity ?? 1) * 0.05);
+  myAddrRef.current = profile?.address;
+
   const { sendChat, sendReact } = useRoundSocket(id, (e) => {
     switch (e.type) {
       case "round_state":
@@ -132,9 +155,31 @@ export default function RoundPage() {
       case "candle":
         setCandles((prev) => [...prev.slice(-299), e.candle as Candle]);
         break;
-      case "killfeed":
+      case "killfeed": {
         setKillfeed((prev) => [...prev.slice(-99), e.event as KillFeedEvent]);
+        const kind = (e.event as KillFeedEvent).kind;
+        if (liveRef.current) {
+          if (kind === "whale_entered") {
+            playWhale();
+            fireFx("whale");
+          } else if (kind === "rug_detected") {
+            playRug();
+            fireFx("rug");
+            quake();
+          } else if (kind === "mcap_milestone") {
+            playMilestone();
+            fireFx("milestone");
+          } else if (kind === "new_leader") {
+            playHorn();
+          } else if (kind === "big_sell" || kind === "dev_sell") {
+            playThud();
+          } else if (kind === "graduated") {
+            playFanfare();
+            fireFx("graduated");
+          }
+        }
         break;
+      }
       case "chat":
         setChat((prev) => [...prev.slice(-199), e.message as ChatMessage]);
         break;
@@ -147,16 +192,32 @@ export default function RoundPage() {
       case "prediction_update":
         setPreds({ moon: e.moon as number, rug: e.rug as number });
         break;
-      case "trade":
+      case "trade": {
         // seenAt drives the on-chart tooltip fade for fresh trades.
         setTrades((prev) => [
           ...prev.slice(-199),
           { ...(e.trade as Trade), seenAt: Date.now() } as Trade,
         ]);
+        const t = e.trade as Trade;
+        if (liveRef.current) {
+          // Distant fire: everyone else's trades tick; big ones flash the sky.
+          if (t.userAddress !== myAddrRef.current) playTradeTick(t.side, t.ethAmount);
+          if (t.ethAmount >= bigEthRef.current) fireFx(t.side === "buy" ? "buy" : "sell");
+        }
         break;
-      case "ticker":
-        setTicker(e as unknown as Ticker);
+      }
+      case "ticker": {
+        const tk = e as unknown as Ticker;
+        setTicker(tk);
+        if (tk.athMcap !== undefined) {
+          if (athRef.current > 0 && tk.athMcap > athRef.current * 1.001 && liveRef.current) {
+            playAthSparkle();
+            fireFx("ath");
+          }
+          athRef.current = Math.max(athRef.current, tk.athMcap);
+        }
         break;
+      }
       case "lobby_update":
         setLobby(e as unknown as Lobby);
         break;
@@ -286,7 +347,8 @@ export default function RoundPage() {
 
       {(round.state === "live" || round.state === "ended" || round.state === "results") && (
         <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-          <div className="space-y-4">
+          <div className={`relative space-y-4 ${shake ? "fx-shake" : ""}`}>
+            <BattleFX events={fx} />
             {round.state === "live" && ticker && (
               <GraduationProgress config={round.config} ticker={ticker} />
             )}
@@ -336,6 +398,7 @@ export default function RoundPage() {
                 price={ticker.price}
                 ethUsd={ticker.ethUsd ?? 1925}
                 symbol={round.token.symbol}
+                artworkUrl={round.token.artworkUrl}
                 shareName={
                   profile?.displayName ??
                   (profile ? `${profile.address.slice(0, 6)}…${profile.address.slice(-4)}` : undefined)
@@ -406,6 +469,7 @@ function YourBag({
   price,
   ethUsd,
   symbol,
+  artworkUrl,
   onSellAll,
   shareName,
 }: {
@@ -413,6 +477,7 @@ function YourBag({
   price: number;
   ethUsd: number;
   symbol: string;
+  artworkUrl?: string;
   onSellAll?: () => void;
   shareName?: string;
 }) {
@@ -553,6 +618,7 @@ function YourBag({
           onClose={() => setShareOpen(false)}
           data={{
             symbol,
+            artworkUrl,
             pct,
             pnlUsd: unrealUsd,
             valueUsd: valueEth * ethUsd,
