@@ -10,6 +10,7 @@ import {
   type TokenConcept,
 } from "@cookout/shared";
 import {
+  isDevWallet,
   issueNonce,
   requireAdmin,
   requireAuth,
@@ -129,7 +130,14 @@ export function createApp(
   app.get(
     "/api/me",
     auth,
-    wrap((req, res) => res.json(publicProfile(store.getOrCreateUser(req.userAddress!), true))),
+    wrap((req, res) =>
+      res.json({
+        ...publicProfile(store.getOrCreateUser(req.userAddress!), true),
+        // Dev-wallet flag: the client uses it to gate the admin page UI.
+        // Real authorization stays on ADMIN_KEY for every admin API call.
+        isDev: isDevWallet(req.userAddress!),
+      }),
+    ),
   );
 
   app.patch(
