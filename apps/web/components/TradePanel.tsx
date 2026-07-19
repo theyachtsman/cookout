@@ -5,8 +5,14 @@ import type { Round } from "@cookout/shared";
 import { api } from "../lib/api";
 import { chainBuy, chainSell, walletEthBalance, walletTokenBalanceWei } from "../lib/chainTx";
 import { useSession } from "../lib/session";
-import { playBuy, playSell } from "../lib/sfx";
+import { playBuy, playSell, setSfxMuted, sfxMuted } from "../lib/sfx";
 
+/**
+ * The trade widget (pump.fun-style, Cookout skin): Buy/Sell tabs, a big
+ * centered amount, balance line, one full-width action button, and quick
+ * chips — amounts for buys, percentages for sells. Paper rounds hit the
+ * paper API; chain rounds fire wallet/arena transactions.
+ */
 export function TradePanel({
   round,
   position,
@@ -17,17 +23,22 @@ export function TradePanel({
   onTraded: () => void;
 }) {
   const { profile, signIn } = useSession();
-  const [custom, setCustom] = useState("0.1");
+  const [tab, setTab] = useState<"buy" | "sell">("buy");
+  const [amount, setAmount] = useState("");
+  const [pct, setPct] = useState("");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
+  const [muted, setMuted] = useState(false);
+  useEffect(() => setMuted(sfxMuted()), []);
   const onChain = !!round.chain;
+  const unit = onChain ? "ETH" : "pETH";
 
   // Chain rounds trade from the wallet, so balances come from the chain too.
   const [ethBal, setEthBal] = useState<number | null>(null);
   const [tokenBal, setTokenBal] = useState<bigint | null>(null);
   const refreshChainBalances = useCallback(() => {
     if (!round.chain || !profile) return;
-    walletEthBalance(round.chain?.chainId).then(setEthBal).catch(() => {});
+    walletEthBalance(round.chain.chainId).then(setEthBal).catch(() => {});
     walletTokenBalanceWei(round).then(setTokenBal).catch(() => {});
   }, [round, profile]);
   useEffect(() => {
@@ -37,29 +48,31 @@ export function TradePanel({
     return () => clearInterval(t);
   }, [onChain, refreshChainBalances]);
 
-  const paperTrade = async (side: "buy" | "sell", body: Record<string, number>) => {
-    await api(`/api/rounds/${round.id}/trade`, { body: { side, ...body } });
-  };
-
-  const walletTrade = async (side: "buy" | "sell", body: { eth?: number; pct?: number }) => {
-    if (side === "buy") {
-      await chainBuy(round, String(body.eth ?? 0));
-    } else {
-      const bal = tokenBal ?? (await walletTokenBalanceWei(round));
-      const tokens = (bal * BigInt(Math.round((body.pct ?? 0) * 100))) / 10_000n;
-      if (tokens <= 0n) throw new Error("nothing to sell");
-      await chainSell(round, tokens);
-    }
-  };
-
-  const trade = async (side: "buy" | "sell", body: { eth?: number; pct?: number }) => {
+  const trade = async () => {
     setError("");
     setPending(true);
     try {
-      if (onChain) await walletTrade(side, body);
-      else await paperTrade(side, body as Record<string, number>);
-      if (side === "buy") playBuy();
-      else playSell();
+      if (tab === "buy") {
+        const eth = Number(amount);
+        if (!(eth > 0)) throw new Error("enter an amount");
+        if (onChain) await chainBuy(round, amount);
+        else await api(`/api/rounds/${round.id}/trade`, { body: { side: "buy", eth } });
+        playBuy();
+        setAmount("");
+      } else {
+        const p = Number(pct);
+        if (!(p > 0)) throw new Error("enter a percent");
+        if (onChain) {
+          const bal = tokenBal ?? (await walletTokenBalanceWei(round));
+          const tokens = (bal * BigInt(Math.round(Math.min(100, p) * 100))) / 10_000n;
+          if (tokens <= 0n) throw new Error("nothing to sell");
+          await chainSell(round, tokens);
+        } else {
+          await api(`/api/rounds/${round.id}/trade`, { body: { side: "sell", pct: Math.min(100, p) } });
+        }
+        playSell();
+        setPct("");
+      }
       refreshChainBalances();
       onTraded();
     } catch (e) {
@@ -74,103 +87,131 @@ export function TradePanel({
       <div className="rounded-xl border border-zinc-800 p-4">
         <button
           onClick={() => void signIn()}
-          className="rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300"
+          className="w-full rounded-lg bg-lime-400 px-5 py-2.5 font-black text-zinc-950 hover:bg-lime-300"
         >
           Connect Wallet to Trade
         </button>
       </div>
     );
 
-  const unit = onChain ? "ETH" : "pETH";
+  const balance = onChain ? ethBal : profile.paperBalance;
   const holdingTokens = onChain
     ? tokenBal !== null
       ? Number(tokenBal / 10n ** 18n)
       : null
     : (position?.tokens ?? 0);
-
-  const balText = onChain
-    ? ethBal !== null
-      ? ethBal.toFixed(4)
-      : "…"
-    : profile.paperBalance.toFixed(2);
+  const buying = tab === "buy";
+  const value = buying ? amount : pct;
+  const setValue = buying ? setAmount : setPct;
+  const ready = Number(value) > 0;
+  const quickBuys = onChain ? [0.0005, 0.001, 0.002] : [0.1, 0.5, 1];
 
   return (
-    <div className={`rounded-xl border p-3 ${onChain ? "border-amber-400/40" : "border-zinc-800"}`}>
-      {onChain && (
-        <div className="mb-2 text-[11px] font-bold text-amber-300">
-          ⚡ On-chain round — trades fire from your arena wallet (or your wallet if it&apos;s empty)
+    <div className={`rounded-xl border bg-zinc-900/70 p-3 ${onChain ? "border-amber-400/40" : "border-zinc-800"}`}>
+      {/* tabs + mute */}
+      <div className="flex items-center gap-2">
+        <div className="flex flex-1 overflow-hidden rounded-full bg-zinc-800/80 p-1">
+          <button
+            onClick={() => setTab("buy")}
+            className={`flex-1 rounded-full py-1.5 text-sm font-black transition ${
+              buying ? "bg-emerald-500 text-zinc-950" : "text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            Buy
+          </button>
+          <button
+            onClick={() => setTab("sell")}
+            className={`flex-1 rounded-full py-1.5 text-sm font-black transition ${
+              !buying ? "bg-red-500 text-zinc-950" : "text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            Sell
+          </button>
         </div>
-      )}
-      <div className="grid gap-3 sm:grid-cols-2">
-        {/* -------- BUY -------- */}
-        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/[0.05] p-3">
-          <div className="mb-2 flex items-baseline justify-between">
-            <span className="text-[11px] font-black uppercase tracking-wide text-emerald-300">
-              Buy
+        <button
+          onClick={() => {
+            setSfxMuted(!muted);
+            setMuted(!muted);
+          }}
+          title={muted ? "unmute sounds" : "mute sounds"}
+          className="rounded-lg border border-zinc-800 px-2 py-1.5 text-sm text-zinc-500 hover:text-zinc-200"
+        >
+          {muted ? "🔇" : "🔊"}
+        </button>
+      </div>
+
+      {/* the big amount */}
+      <div className="mt-4 flex items-baseline justify-center gap-2">
+        <input
+          value={value}
+          onChange={(e) => setValue(e.target.value.replace(/[^0-9.]/g, ""))}
+          placeholder="0"
+          inputMode="decimal"
+          className="w-36 bg-transparent text-center font-mono text-5xl font-black text-zinc-100 placeholder-zinc-700 outline-none"
+        />
+        <span className="font-mono text-sm font-bold text-zinc-500">{buying ? unit : "%"}</span>
+      </div>
+
+      {/* balance / holdings line */}
+      <div className="mt-3 flex items-center justify-between text-xs text-zinc-500">
+        {buying ? (
+          <span>
+            Balance{" "}
+            <span className="font-mono font-bold text-zinc-200">
+              {balance !== null && balance !== undefined ? balance.toFixed(onChain ? 4 : 2) : "…"} {unit}
             </span>
-            <span className="font-mono text-[11px] text-zinc-500">
-              bal {balText} {unit}
+          </span>
+        ) : (
+          <span>
+            Holding{" "}
+            <span className="font-mono font-bold text-zinc-200">
+              {holdingTokens !== null ? holdingTokens.toLocaleString() : "…"} {round.token.symbol}
             </span>
-          </div>
-          <div className="flex gap-2">
-            <input
-              value={custom}
-              onChange={(e) => setCustom(e.target.value)}
-              placeholder="amount"
-              className="min-w-0 flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-2 font-mono text-sm"
-            />
-            <button
-              disabled={pending}
-              onClick={() => void trade("buy", { eth: Number(custom) })}
-              className="w-24 rounded-lg bg-emerald-600 py-2 font-black text-white transition hover:bg-emerald-500 active:scale-95 disabled:opacity-50"
-            >
-              {pending ? "…" : "Buy"}
-            </button>
-          </div>
-          <div className="mt-2 grid grid-cols-3 gap-1.5">
-            {(onChain ? [0.0005, 0.001, 0.002] : [0.02, 0.05, 0.1]).map((v) => (
+          </span>
+        )}
+        {onChain && <span className="font-bold text-amber-300">⚡ on-chain</span>}
+      </div>
+
+      {/* action */}
+      <button
+        disabled={pending || !ready}
+        onClick={() => void trade()}
+        className={`mt-3 w-full rounded-lg py-2.5 font-black transition active:scale-[0.98] disabled:opacity-60 ${
+          buying
+            ? "bg-emerald-500 text-zinc-950 hover:bg-emerald-400"
+            : "bg-red-500 text-zinc-950 hover:bg-red-400"
+        }`}
+      >
+        {pending
+          ? "…"
+          : !ready
+            ? "Enter an amount"
+            : buying
+              ? `Buy ${value} ${unit}`
+              : `Sell ${Math.min(100, Number(value))}%`}
+      </button>
+
+      {/* quick chips */}
+      <div className="mt-2 grid grid-cols-3 gap-1.5">
+        {buying
+          ? quickBuys.map((v) => (
               <button
                 key={v}
-                disabled={pending}
-                onClick={() => void trade("buy", { eth: v })}
-                className="rounded bg-emerald-600/20 py-1.5 text-xs font-bold text-emerald-300 transition hover:bg-emerald-600/40 active:scale-95 disabled:opacity-50"
+                onClick={() => setAmount(String(v))}
+                className="rounded-full border border-emerald-500/30 bg-emerald-500/10 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25"
               >
-                +{v}
+                {v} {unit}
               </button>
-            ))}
-          </div>
-        </div>
-
-        {/* -------- SELL -------- */}
-        <div className="rounded-lg border border-red-500/30 bg-red-500/[0.05] p-3">
-          <div className="mb-2 flex items-baseline justify-between">
-            <span className="text-[11px] font-black uppercase tracking-wide text-red-300">
-              Sell
-            </span>
-            <span className="font-mono text-[11px] text-zinc-500">
-              holding {holdingTokens !== null ? holdingTokens.toLocaleString() : "…"}
-            </span>
-          </div>
-          <div className="grid grid-cols-3 gap-1.5">
-            {[25, 50, 75].map((p) => (
+            ))
+          : [25, 50, 100].map((p) => (
               <button
                 key={p}
-                disabled={pending}
-                onClick={() => void trade("sell", { pct: p })}
-                className="rounded bg-red-600/20 py-2 text-xs font-bold text-red-300 transition hover:bg-red-600/40 active:scale-95 disabled:opacity-50"
+                onClick={() => setPct(String(p))}
+                className="rounded-full border border-red-500/30 bg-red-500/10 py-1.5 text-xs font-bold text-red-300 hover:bg-red-500/25"
               >
                 {p}%
               </button>
             ))}
-          </div>
-          <button
-            disabled={pending}
-            onClick={() => void trade("sell", { pct: 100 })}
-            className="mt-2 w-full rounded-lg bg-red-600 py-2 font-black text-white transition hover:bg-red-500 active:scale-95 disabled:opacity-50"
-          >
-            {pending ? "…" : "Sell All"}
-          </button>
-        </div>
       </div>
       {error && <div className="mt-2 text-sm text-red-400">{error}</div>}
     </div>

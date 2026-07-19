@@ -315,17 +315,7 @@ export default function RoundPage() {
               endReason={round.graduated ? undefined : round.endReason}
               graduated={round.graduated}
             />
-            {(round.state === "live" || (round.graduated && !round.chain)) && (
-              <TradePanel
-                round={round}
-                position={position}
-                onTraded={() => {
-                  void loadMe();
-                  void refresh();
-                }}
-              />
-            )}
-            {/* the trenches — fixed-height console chat right under the chart+controls */}
+            {/* the trenches — fixed-height console chat right under the chart */}
             <div className="h-64">
               <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
             </div>
@@ -339,6 +329,17 @@ export default function RoundPage() {
             {summary && <Results round={round} summary={summary} auction={auction} />}
           </div>
           <div className="space-y-4">
+            {/* pump-style layout: the trade widget leads the right column */}
+            {(round.state === "live" || (round.graduated && !round.chain)) && (
+              <TradePanel
+                round={round}
+                position={position}
+                onTraded={() => {
+                  void loadMe();
+                  void refresh();
+                }}
+              />
+            )}
             {round.chain && <ArenaWalletPanel round={round} />}
             {(round.state === "live" || round.graduated) && position && ticker && (
               <YourBag
