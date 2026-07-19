@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ChatMessage, Round, TokenConcept } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useChainOnly } from "../../lib/chainOnly";
+import { useSession } from "../../lib/session";
 
 interface Overview {
   users: number;
@@ -284,6 +285,7 @@ function FeedbackList({ adminKey }: { adminKey: string }) {
 
 export default function AdminPage() {
   const chainOnly = useChainOnly();
+  const { profile } = useSession();
   const [key, setKey] = useState("");
   const [saved, setSaved] = useState(false);
   const [overview, setOverview] = useState<Overview | null>(null);
@@ -346,6 +348,17 @@ export default function AdminPage() {
     setModerating(roundId);
     void loadModChat(roundId);
   };
+
+  // The panel exists only for dev wallets — everyone else (whitelisted or
+  // not) gets a dead end. Real authorization stays on ADMIN_KEY for every
+  // admin API call; this hides the cockpit.
+  if (!(profile as { isDev?: boolean } | null)?.isDev)
+    return (
+      <div className="py-24 text-center text-zinc-600">
+        <div className="text-4xl">🔥</div>
+        <p className="mt-3 text-sm">There&apos;s nothing at this address.</p>
+      </div>
+    );
 
   if (!saved)
     return (
