@@ -15,6 +15,8 @@ import { useEffect, useRef, useState } from "react";
 export interface PnlCardData {
   symbol: string;
   artworkUrl?: string;
+  /** Card headline label, e.g. "ROUND P&L" (default "UNREALIZED P&L"). */
+  label?: string;
   pct: number;
   pnlUsd: number;
   valueUsd: number;
@@ -115,7 +117,11 @@ export function PnlShareCard({
       // Label + dollar P&L
       ctx.font = "bold 30px ui-monospace, Menlo, monospace";
       ctx.fillStyle = "#71717a";
-      ctx.fillText("U N R E A L I Z E D   P & L", CX, 625);
+      const label = (data.label ?? "UNREALIZED P&L")
+        .split(" ")
+        .map((w) => w.split("").join(" "))
+        .join("   ");
+      ctx.fillText(label, CX, 625);
       ctx.font = "900 74px ui-monospace, Menlo, monospace";
       ctx.fillStyle = tone;
       ctx.fillText(`${up ? "+" : ""}${fmt(data.pnlUsd)}`, CX, 710);
