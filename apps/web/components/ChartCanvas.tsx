@@ -70,6 +70,14 @@ export function ChartCanvas(props: Props) {
   const liveCandleRef = useRef({ sinceT: 0, hi: 0, lo: Infinity });
   const profileCache = useRef(new Map<string, ProfileTag>());
 
+  // Pan/zoom (1m/10m views only — 1s stays a locked live feed). While a
+  // manual view is active the window stops following the clock; Reset (or
+  // switching timeframe) snaps back to auto-follow.
+  const viewRef = useRef({ active: false, t0: 0, span: 0 });
+  const autoRef = useRef({ t0: 0, span: 0, nowT: 0, firstT: 0, plotW: 1 });
+  const dragRef = useRef<{ x: number; t0: number } | null>(null);
+  const [panned, setPanned] = useState(false);
+
   const last = props.candles[props.candles.length - 1];
   if (last && last.t > clockRef.current.serverT) {
     clockRef.current = { serverT: last.t, localMs: Date.now() };
@@ -157,8 +165,18 @@ export function ChartCanvas(props: Props) {
         nowT = serverT + Math.min(2, (Date.now() - localMs) / 1000) + tfSec;
         span = (windowSec ?? WINDOW_SEC) * tfSec;
         t0 = nowT - span;
+        const v = viewRef.current;
+        if (v.active && tfSec > 1) {
+          // Manual pan/zoom window, clamped so you can't fly off the data.
+          span = Math.min(Math.max(v.span, 10 * tfSec), span * 4);
+          const firstT = agg[0]!.t;
+          t0 = Math.min(Math.max(v.t0, firstT - span * 0.5), nowT - span * 0.2);
+          v.span = span;
+          v.t0 = t0;
+        }
       }
       const plotW = w - 80;
+      autoRef.current = { t0, span, nowT, firstT: agg[0]!.t, plotW };
       const x = (t: number) => ((t - t0) / span) * plotW;
       const cw = (plotW / span) * tfSec;
 
@@ -405,14 +423,74 @@ export function ChartCanvas(props: Props) {
       }
     };
     raf = requestAnimationFrame(draw);
-    return () => cancelAnimationFrame(raf);
+
+    // ---- pan/zoom interactions (canvas-scoped, 1m/10m only) ----
+    const canvas = ref.current;
+    const canPan = () => tfRef.current > 1 && !propsRef.current.endReason;
+    const activate = () => {
+      const v = viewRef.current;
+      if (!v.active) {
+        v.active = true;
+        v.t0 = autoRef.current.t0;
+        v.span = autoRef.current.span;
+        setPanned(true);
+      }
+      return v;
+    };
+    const onDown = (e: PointerEvent) => {
+      if (!canPan()) return;
+      const v = activate();
+      dragRef.current = { x: e.clientX, t0: v.t0 };
+      canvas?.setPointerCapture(e.pointerId);
+    };
+    const onMove = (e: PointerEvent) => {
+      const d = dragRef.current;
+      if (!d || !canPan()) return;
+      const v = viewRef.current;
+      const { span, plotW } = autoRef.current;
+      v.t0 = d.t0 - ((e.clientX - d.x) / plotW) * span;
+    };
+    const onUp = () => (dragRef.current = null);
+    const onWheel = (e: WheelEvent) => {
+      if (!canPan()) return;
+      e.preventDefault();
+      const v = activate();
+      const { plotW } = autoRef.current;
+      const rect = canvas!.getBoundingClientRect();
+      const frac = Math.min(1, Math.max(0, (e.clientX - rect.left) / plotW));
+      const tCursor = v.t0 + frac * v.span;
+      const factor = Math.pow(1.0015, e.deltaY);
+      v.span = v.span * factor;
+      v.t0 = tCursor - frac * v.span;
+    };
+    canvas?.addEventListener("pointerdown", onDown);
+    canvas?.addEventListener("pointermove", onMove);
+    canvas?.addEventListener("pointerup", onUp);
+    canvas?.addEventListener("pointercancel", onUp);
+    canvas?.addEventListener("wheel", onWheel, { passive: false });
+
+    return () => {
+      cancelAnimationFrame(raf);
+      canvas?.removeEventListener("pointerdown", onDown);
+      canvas?.removeEventListener("pointermove", onMove);
+      canvas?.removeEventListener("pointerup", onUp);
+      canvas?.removeEventListener("pointercancel", onUp);
+      canvas?.removeEventListener("wheel", onWheel);
+    };
   }, []);
+
+  const resetView = () => {
+    viewRef.current.active = false;
+    dragRef.current = null;
+    setPanned(false);
+  };
 
   return (
     <div className={props.fill ? "relative h-full" : "relative"}>
       <canvas
         ref={ref}
         className={props.className ?? "h-80 w-full rounded-xl border border-zinc-800 bg-zinc-950"}
+        style={tf > 1 ? { cursor: "grab", touchAction: "none" } : undefined}
       />
       {props.showTimeframes && (
         <div className="absolute right-2 top-2 flex overflow-hidden rounded-md border border-zinc-800 bg-zinc-950/80 text-[10px] font-bold backdrop-blur">
@@ -423,7 +501,10 @@ export function ChartCanvas(props: Props) {
           ] as const).map(([v, label]) => (
             <button
               key={v}
-              onClick={() => setTf(v)}
+              onClick={() => {
+                setTf(v);
+                resetView();
+              }}
               className={`px-2 py-1 ${
                 tf === v ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
               }`}
@@ -432,6 +513,14 @@ export function ChartCanvas(props: Props) {
             </button>
           ))}
         </div>
+      )}
+      {panned && (
+        <button
+          onClick={resetView}
+          className="absolute bottom-2 right-2 rounded-md border border-zinc-700 bg-zinc-950/80 px-2.5 py-1 text-[11px] font-bold text-zinc-300 backdrop-blur hover:border-zinc-500 hover:text-zinc-100"
+        >
+          ⟲ Reset view
+        </button>
       )}
     </div>
   );
