@@ -163,12 +163,22 @@ export function ChartCanvas(props: Props) {
         span = Math.max(10 * tfSec, nowT - t0);
       } else {
         nowT = serverT + Math.min(2, (Date.now() - localMs) / 1000) + tfSec;
-        span = (windowSec ?? WINDOW_SEC) * tfSec;
+        const defaultSpan = (windowSec ?? WINDOW_SEC) * tfSec;
+        if (tfSec === 1) {
+          // The 1s view is the locked live feed: fixed scrolling window.
+          span = defaultSpan;
+        } else {
+          // Zoomed views fit the data like a real chart: candles fill the
+          // width until there's more history than the standard window holds
+          // — never a mostly-empty screen with a sliver at the right edge.
+          const dataSpan = nowT - agg[0]!.t + tfSec;
+          span = Math.min(defaultSpan, Math.max(4 * tfSec, dataSpan));
+        }
         t0 = nowT - span;
         const v = viewRef.current;
         if (v.active && tfSec > 1) {
           // Manual pan/zoom window, clamped so you can't fly off the data.
-          span = Math.min(Math.max(v.span, 10 * tfSec), span * 4);
+          span = Math.min(Math.max(v.span, 5 * tfSec), span * 4);
           const firstT = agg[0]!.t;
           t0 = Math.min(Math.max(v.t0, firstT - span * 0.5), nowT - span * 0.2);
           v.span = span;
