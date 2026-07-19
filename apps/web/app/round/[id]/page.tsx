@@ -29,6 +29,7 @@ import { ArenaWalletPanel } from "../../../components/ArenaWalletPanel";
 import { ChainActions } from "../../../components/ChainActions";
 import { QueuePanel } from "../../../components/QueuePanel";
 import { Results } from "../../../components/Results";
+import { RoundResultsOverlay, type EndBreakdown } from "../../../components/RoundResults";
 import { TradePanel } from "../../../components/TradePanel";
 
 interface Ticker {
@@ -79,6 +80,11 @@ export default function RoundPage() {
     setShake(true);
     setTimeout(() => setShake(false), 650);
   }, []);
+  // End-of-round overlay: pre-redemption snapshot vs post gives the exact
+  // amount the uniform redemption returned.
+  const [endResults, setEndResults] = useState<{ summary: RoundSummary; breakdown: EndBreakdown | null } | null>(null);
+  const positionRef = useRef<typeof position>(null);
+
   // Fresh values for the socket callback without re-subscribing.
   const liveRef = useRef(false);
   const bigEthRef = useRef(0.05);
@@ -143,6 +149,7 @@ export default function RoundPage() {
   }, [id, round?.state]);
 
   liveRef.current = round?.state === "live";
+  positionRef.current = position;
   bigEthRef.current = Math.max(0.05, (ticker?.liquidity ?? round?.config.initialEthLiquidity ?? 1) * 0.05);
   myAddrRef.current = profile?.address;
 
@@ -226,11 +233,41 @@ export default function RoundPage() {
         void loadMe();
         void refresh();
         break;
-      case "round_end":
-        setSummary((e as { summary?: RoundSummary }).summary ?? null);
+      case "round_end": {
+        const sum = (e as { summary?: RoundSummary }).summary ?? null;
+        setSummary(sum);
         void refresh();
-        void loadMe();
+        // Rugged / non-graduated endings pop the results overlay with the
+        // player's redemption breakdown: pre-end snapshot vs post-end truth.
+        if (sum && !sum.graduated) {
+          const pre = positionRef.current;
+          void api<{ position: { tokens: number; costBasisEth: number; realizedPnl: number } }>(
+            `/api/rounds/${id}/me`,
+          )
+            .then((me) => {
+              setPosition(me.position);
+              const held = pre?.tokens ?? 0;
+              const invested = pre?.costBasisEth ?? 0;
+              const returned =
+                held > 0 ? me.position.realizedPnl - (pre?.realizedPnl ?? 0) + invested : 0;
+              setEndResults({
+                summary: sum,
+                breakdown: pre || me.position.realizedPnl !== 0
+                  ? {
+                      invested,
+                      heldTokens: held,
+                      returned: Math.max(0, returned),
+                      roundPnl: me.position.realizedPnl,
+                    }
+                  : null,
+              });
+            })
+            .catch(() => setEndResults({ summary: sum, breakdown: null }));
+        } else {
+          void loadMe();
+        }
         break;
+      }
     }
   });
 
@@ -250,6 +287,16 @@ export default function RoundPage() {
   return (
     <div className="relative space-y-3">
       <FloatingReactions reactions={reactions} />
+      {endResults && (
+        <RoundResultsOverlay
+          summary={endResults.summary}
+          symbol={round.token.symbol}
+          unit={unit}
+          ethUsd={ticker?.ethUsd ?? 1925}
+          breakdown={endResults.breakdown}
+          onClose={() => setEndResults(null)}
+        />
+      )}
       <PhaseBanner round={round} />
       <KillFeedTicker killfeed={killfeed} />
       {/* Top bar */}
