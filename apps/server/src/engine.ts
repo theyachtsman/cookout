@@ -22,6 +22,7 @@ import {
   type Round,
   type RoundEndReason,
   type ServerEvent,
+  type SystemChatKind,
   type TokenConcept,
   type Trade,
 } from "@cookout/shared";
@@ -63,6 +64,8 @@ interface LiveRoundState {
 }
 
 export type Broadcast = (roundId: string, event: ServerEvent) => void;
+/** Posts an inline system banner into a room's chat. */
+export type SystemChat = (roomId: string, kind: SystemChatKind, text: string) => void;
 
 export class RoundEngine {
   private live = new Map<string, LiveRoundState>();
@@ -72,6 +75,8 @@ export class RoundEngine {
     private broadcast: Broadcast,
     /** Supplies current spectator count for lobby updates. */
     private spectatorCount: (roundId: string) => number = () => 0,
+    /** Match system events land in the round's chat room. */
+    private sys: SystemChat = () => {},
   ) {}
 
   scheduleRound(concept: TokenConcept, tier: RiskTier, scheduledAt: number): Round {
@@ -162,6 +167,11 @@ export class RoundEngine {
           if (now >= round.queueOpensAt!) {
             round.state = "queue_open";
             round.queueClosesAt = round.queueOpensAt! + round.config.queueSeconds * 1000;
+            this.sys(
+              round.id,
+              "queue_open",
+              `Queue is OPEN — pull up. Everyone settles at one price in ${round.config.queueSeconds}s.`,
+            );
             this.emitState(round);
           }
           this.emitLobby(round);
@@ -246,6 +256,7 @@ export class RoundEngine {
   /** Queue closed: settle every intent at one clearing price, atomically. */
   private settle(round: Round, now: number): void {
     round.state = "settling";
+    this.sys(round.id, "queue_closed", "Queue CLOSED — computing the uniform clearing price…");
     this.emitState(round);
     const cfg = round.config;
     const pool: PoolState = {
@@ -306,6 +317,13 @@ export class RoundEngine {
         v: result.totalRaised,
       });
     }
+    this.sys(
+      round.id,
+      "settled",
+      `Settled at ONE price — ${result.totalRaised.toFixed(2)} in from ${result.fills.length} ` +
+        `intent${result.fills.length === 1 ? "" : "s"} (${(result.fillRatio * 100).toFixed(0)}% fill).`,
+    );
+    this.sys(round.id, "live", "TRADING IS LIVE. Good luck.");
     this.broadcast(round.id, { type: "auction_settled", result });
     this.emitState(round);
   }
@@ -737,6 +755,15 @@ export class RoundEngine {
       now,
     });
     this.store.summaries.set(round.id, summary);
+    // The room is frozen, never destroyed — this is the last word in it.
+    this.sys(
+      round.id,
+      graduated ? "graduated" : "ended",
+      graduated
+        ? `SERVED UP — ${round.token.symbol} is out in the wild. Chat is frozen here; see you in The Cookout.`
+        : `Round over (${reason.replace(/_/g, " ")}) — every holder exited at one uniform price. ` +
+            `Chat is frozen here; see you in The Cookout.`,
+    );
     this.broadcast(round.id, { type: "round_end", roundId: round.id, summary });
     round.state = "results";
     this.emitState(round);
@@ -925,6 +952,16 @@ export class RoundEngine {
     }
     list.push(event);
     this.broadcast(round.id, { type: "killfeed", event });
+    // The beats worth interrupting the conversation for also land in chat.
+    const asSystem: Partial<Record<KillFeedKind, SystemChatKind>> = {
+      new_leader: "leader",
+      mcap_milestone: "bond",
+      whale_entered: "whale",
+      rug_detected: "rug",
+      graduated: "graduated",
+    };
+    const kindSys = asSystem[kind];
+    if (kindSys) this.sys(round.id, kindSys, text);
   }
 
   private emitState(round: Round): void {

@@ -3,19 +3,32 @@
 import { useState } from "react";
 import type { ChatMessage } from "@cookout/shared";
 import { useSession } from "../lib/session";
+import { ChatLog } from "./ChatLog";
 
 const CHEERS = ["🔥", "🚀", "😂", "💀", "🧊", "📉"];
 
+/**
+ * Match chat — the room for this round only. It renders through the shared
+ * ChatLog, so system events (queue opened, settled, whale, rug, bond) appear
+ * inline as banners alongside the crowd's messages. Global chat keeps
+ * running in the dock while this room is open, and this room is frozen —
+ * never destroyed — when the match ends.
+ */
 export function Chat({
   messages,
   onSend,
   onReact,
   reactions = [],
+  title = "Match Chat",
+  frozen = false,
 }: {
   messages: ChatMessage[];
   onSend: (text: string) => void;
   onReact?: (emoji: string) => void;
   reactions?: Array<{ id: number; emoji: string }>;
+  title?: string;
+  /** Round is over: the room stays readable but takes no new messages. */
+  frozen?: boolean;
 }) {
   const { profile } = useSession();
   const [text, setText] = useState("");
@@ -28,9 +41,14 @@ export function Chat({
   };
 
   return (
-    <div className="flex h-full flex-col rounded-xl border border-zinc-800 p-4">
-      <div className="mb-2 flex items-center">
-        <h4 className="text-sm font-bold text-zinc-300">Chat</h4>
+    <div className="flex h-full flex-col rounded-xl border border-zinc-800">
+      <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
+        <h4 className="text-sm font-bold text-zinc-300">{title}</h4>
+        {frozen && (
+          <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-bold text-zinc-400">
+            frozen
+          </span>
+        )}
         <div className="ml-auto flex h-6 items-center gap-1 overflow-hidden">
           {reactions.slice(-8).map((r) => (
             <span key={r.id} className="killfeed-item text-base">
@@ -39,20 +57,17 @@ export function Chat({
           ))}
         </div>
       </div>
-      <div className="flex min-h-40 flex-1 flex-col-reverse gap-1 overflow-y-auto text-sm">
-        {[...messages].reverse().map((m) => (
-          <div key={m.id} className="rounded px-1 py-0.5">
-            {m.badge && <span className="mr-1">{m.badge}</span>}
-            <span className="mr-1.5 font-bold" style={{ color: m.color ?? "#f59e0b" }}>
-              {m.displayName ?? `${m.userAddress.slice(0, 6)}…`}
-            </span>
-            <span className="text-zinc-300">{m.text}</span>
-          </div>
-        ))}
-        {messages.length === 0 && <div className="text-xs text-zinc-600">say something…</div>}
-      </div>
-      {onReact && (
-        <div className="mt-2 flex gap-1">
+
+      <ChatLog
+        messages={messages}
+        me={profile?.address}
+        myName={profile?.displayName}
+        className="min-h-32 flex-1"
+        emptyText={frozen ? "No messages in this round." : "The trenches are quiet. Start talking."}
+      />
+
+      {onReact && !frozen && (
+        <div className="flex gap-1 px-2 pb-1">
           {CHEERS.map((e) => (
             <button
               key={e}
@@ -66,19 +81,27 @@ export function Chat({
           ))}
         </div>
       )}
-      <div className="mt-2 flex gap-2">
+
+      <div className="flex gap-2 border-t border-zinc-800 p-2">
         <input
           value={text}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder={profile ? "message…" : "connect wallet to chat"}
-          disabled={!profile}
-          className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm disabled:opacity-50"
+          placeholder={
+            frozen
+              ? "this round is over — chat lives on in The Cookout"
+              : profile
+                ? "message the trenches…"
+                : "connect wallet to chat"
+          }
+          disabled={!profile || frozen}
+          maxLength={280}
+          className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm outline-none focus:border-lime-400/50 disabled:opacity-50"
         />
         <button
           onClick={send}
-          disabled={!profile}
-          className="rounded bg-zinc-800 px-3 py-1.5 text-sm hover:bg-zinc-700 disabled:opacity-50"
+          disabled={!profile || frozen}
+          className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm font-bold hover:bg-zinc-700 disabled:opacity-50"
         >
           Send
         </button>

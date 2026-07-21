@@ -5,6 +5,8 @@ import type { AuctionIntent, Round } from "@cookout/shared";
 import { api } from "../lib/api";
 import { chainCancelIntent, chainSubmitIntent, walletEthBalance } from "../lib/chainTx";
 import { useSession } from "../lib/session";
+import { useSocial } from "../lib/social";
+import { STATUS_META, UserName } from "./UserCard";
 import { playDeposit, playPullupNote } from "../lib/sfx";
 
 interface Lobby {
@@ -39,6 +41,7 @@ export function QueuePanel({
   onChanged: () => void;
 }) {
   const { profile, signIn } = useSession();
+  const { online } = useSocial();
   const onChain = !!round.chain;
   const unit = onChain ? "ETH" : "pETH";
   const [amount, setAmount] = useState(onChain ? "0.001" : "0.1");
@@ -160,6 +163,9 @@ export function QueuePanel({
   };
 
   const queueOpen = round.state === "queue_open";
+  // Who's standing in this specific match room right now.
+  const inRoom = online.filter((u) => u.roundId === round.id);
+  const largestEntry = bids.reduce((m, b) => Math.max(m, b.ethAmount), 0);
   const usdMode = denom === "usd" && peg > 0;
   const typedNum = Number(amount);
   const convertedHint =
@@ -340,12 +346,46 @@ export function QueuePanel({
 
       <div className="space-y-4">
         <div className="rounded-xl border border-zinc-800 p-5">
-          <h4 className="mb-2 text-sm font-bold text-zinc-300">Lobby</h4>
-          <dl className="space-y-1 text-sm">
-            <Row k="Players in queue" v={String(lobby?.players ?? 0)} />
+          <div className="mb-2 flex items-baseline gap-2">
+            <h4 className="text-sm font-bold text-zinc-300">In the room</h4>
+            <span className="font-mono text-xs text-lime-300">{inRoom.length}</span>
+          </div>
+          {/* Players gathering before the game — faces, not a count. */}
+          <div className="mb-3 max-h-40 space-y-0.5 overflow-y-auto">
+            {inRoom.length === 0 && (
+              <div className="text-xs text-zinc-600">nobody here yet — be the first</div>
+            )}
+            {inRoom.map((u) => {
+              const meta = STATUS_META[u.status];
+              return (
+                <div key={u.address} className="flex items-center gap-2 rounded px-1 py-0.5">
+                  {u.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={u.avatarUrl} alt="" className="h-5 w-5 rounded-full object-cover" />
+                  ) : (
+                    <span className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-[9px] font-bold text-zinc-400">
+                      {(u.displayName ?? u.address.slice(2, 4)).slice(0, 2).toUpperCase()}
+                    </span>
+                  )}
+                  <UserName
+                    address={u.address}
+                    name={u.displayName}
+                    badge={u.badge}
+                    className="min-w-0 flex-1 text-left text-xs text-zinc-300"
+                  />
+                  <span className={`shrink-0 text-[10px] ${meta.cls}`} title={meta.label}>
+                    {meta.dot}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+          <dl className="space-y-1 border-t border-zinc-800 pt-2 text-sm">
+            <Row k="Players ready" v={String(lobby?.players ?? 0)} />
             <Row k="Spectators" v={String(lobby?.spectators ?? 0)} />
-            <Row k="Committed liquidity" v={`${(lobby?.committedEth ?? 0).toFixed(2)} ${unit}`} />
+            <Row k="Committed" v={`${(lobby?.committedEth ?? 0).toFixed(2)} ${unit}`} />
             <Row k="Average entry" v={`${(lobby?.avgEntry ?? 0).toFixed(2)} ${unit}`} />
+            <Row k="Largest entry" v={`${largestEntry.toFixed(2)} ${unit}`} />
             <Row k="Auction cap" v={`${round.config.auctionMaxRaise} ${unit}`} />
           </dl>
         </div>

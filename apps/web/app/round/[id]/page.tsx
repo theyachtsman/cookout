@@ -417,7 +417,13 @@ export default function RoundPage() {
             {/* the token card lived here; the top bar already names the round —
                 the trenches get the full column */}
             <div className="min-h-0 flex-1">
-              <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
+              <Chat
+                messages={chat}
+                onSend={sendChat}
+                onReact={sendReact}
+                reactions={reactions}
+                title={`$${round.token.symbol} — the trenches`}
+              />
             </div>
           </div>
         </div>
@@ -444,10 +450,6 @@ export default function RoundPage() {
               endReason={round.graduated ? undefined : round.endReason}
               graduated={round.graduated}
             />
-            {/* the trenches — fixed-height console chat right under the chart */}
-            <div className="h-64">
-              <Chat messages={chat} onSend={sendChat} onReact={sendReact} reactions={reactions} />
-            </div>
             <ChainActions
               round={round}
               onChanged={() => {
@@ -457,8 +459,9 @@ export default function RoundPage() {
             />
             {summary && <Results round={round} summary={summary} auction={auction} />}
           </div>
+          {/* The social column: gameplay lives on the left, the crowd on the
+              right — chat, who's winning, who's holding — all visible at once. */}
           <div className="space-y-4">
-            {/* pump-style layout: the trade widget leads the right column */}
             {(round.state === "live" || (round.graduated && !round.chain)) && (
               <TradePanel
                 round={round}
@@ -470,6 +473,16 @@ export default function RoundPage() {
                 }}
               />
             )}
+            <div className="h-80">
+              <Chat
+                messages={chat}
+                onSend={sendChat}
+                onReact={sendReact}
+                reactions={reactions}
+                title={`$${round.token.symbol} Chat`}
+                frozen={round.state === "results" || round.state === "ended"}
+              />
+            </div>
             {round.chain && <ArenaWalletPanel round={round} />}
             {(round.state === "live" || round.graduated) && position && ticker && (
               <YourBag
