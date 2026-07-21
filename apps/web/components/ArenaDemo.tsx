@@ -23,7 +23,7 @@ import { ChartCanvas } from "./ChartCanvas";
  */
 
 const SCENES = [
-  { key: "launchpad", label: "The Launchpad", blurb: "Submit a coin — metadata only", dur: 7600 },
+  { key: "launchpad", label: "Make a Coin", blurb: "Name it, draw it, send it", dur: 7600 },
   { key: "upvote", label: "Community Upvote", blurb: "Vote coins onto the calendar", dur: 7000 },
   { key: "calendar", label: "The Calendar", blurb: "Queued lobbies + a live match", dur: 5200 },
   { key: "queue", label: "Pre-Launch Queue", blurb: "Place your buy before the open", dur: 8200 },
@@ -139,14 +139,16 @@ export function ArenaDemo() {
   return (
     <section className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-20">
       <div className="text-center">
-        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">Live Demo</div>
-        <h2 className="mt-3 text-3xl font-black md:text-5xl">
-          This is a <span className="text-lime-400">battle arena.</span>
+        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">
+          Play one full match
+        </div>
+        <h2 className="mt-3 text-4xl font-black tracking-tight md:text-5xl">
+          Here&apos;s the whole thing.
         </h2>
         <p className="mx-auto mt-4 max-w-2xl text-zinc-300">
-          The whole loop, start to finish — launch a coin, get voted in, pull up to the queue, trade
-          the live chart, climb the board, and split the jackpot. Simulated with sample data; the
-          real thing runs on paper money in your browser.
+          Somebody&apos;s coin gets voted in, the room queues up, the chart goes live, and one
+          person walks away with it. Click through the tabs. The buy and sell buttons in the live
+          match actually work.
         </p>
       </div>
 
@@ -1502,11 +1504,11 @@ function LaunchpadScene() {
   return (
     <div className="flex h-full animate-[fadein_.4s_ease] flex-col gap-3">
       <div>
-        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">The Launchpad</div>
-        <h3 className="mt-1 text-lg font-black">Submit a Token Concept</h3>
+        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">Make a coin</div>
+        <h3 className="mt-1 text-lg font-black">Put a coin up for a vote</h3>
         <p className="text-xs text-zinc-500">
-          You supply metadata, never code — every token deploys from the platform-audited template.
-          No creator mint, pause, or blacklist controls exist.
+          You pick the name, the art, and the supply. That&apos;s all you get to pick. Every coin
+          comes off the same audited template, so there&apos;s no mint button to abuse.
         </p>
       </div>
 
