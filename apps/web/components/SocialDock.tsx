@@ -23,7 +23,7 @@ export function SocialDock() {
     online,
     messages,
     matchMessages,
-    activeMatch,
+    activeRoom,
     channel,
     setChannel,
     react,
@@ -42,11 +42,11 @@ export function SocialDock() {
   // Walking into a match pops the console open on that match's channel —
   // the trenches were always visible before; they still are.
   useEffect(() => {
-    if (activeMatch && !dismissed) {
+    if (activeRoom && !dismissed) {
       setOpen(true);
       setTab("chat");
     }
-  }, [activeMatch, dismissed]);
+  }, [activeRoom, dismissed]);
   const [text, setText] = useState("");
 
   // Unread only accumulates while the room isn't actually on screen.
@@ -62,7 +62,7 @@ export function SocialDock() {
       .filter((g) => g.users.length > 0);
   }, [online]);
 
-  const inMatch = channel === "match" && !!activeMatch;
+  const inMatch = channel === "match" && !!activeRoom;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -96,7 +96,7 @@ export function SocialDock() {
               }`}
             />
           </span>
-          {activeMatch ? `$${activeMatch.symbol}` : "The Cookout"}
+          {activeRoom ? activeRoom.label : "The Cookout"}
           <span className="font-mono text-xs text-zinc-400">{online.length}</span>
           {unread > 0 && (
             <span className="rounded-full bg-lime-400 px-1.5 text-[10px] font-black text-zinc-950">
@@ -130,7 +130,7 @@ export function SocialDock() {
               >
                 🔥 Cookout
               </button>
-              {activeMatch && (
+              {activeRoom && (
                 <button
                   onClick={() => {
                     setChannel("match");
@@ -142,7 +142,7 @@ export function SocialDock() {
                       : "text-lime-300/80 hover:text-lime-300"
                   }`}
                 >
-                  ${activeMatch.symbol}
+                  {activeRoom.label}
                 </button>
               )}
             </div>
@@ -197,7 +197,7 @@ export function SocialDock() {
                     : "It's quiet in here. Say something."
                 }
               />
-              {inMatch && !activeMatch?.frozen && (
+              {inMatch && !activeRoom?.frozen && (
                 <div className="flex gap-1 px-2 pb-1">
                   {CHEERS.map((e) => (
                     <button
@@ -215,12 +215,12 @@ export function SocialDock() {
                 <input
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  disabled={inMatch && !!activeMatch?.frozen}
+                  disabled={inMatch && !!activeRoom?.frozen}
                   placeholder={
                     inMatch
-                      ? activeMatch?.frozen
+                      ? activeRoom?.frozen
                         ? "this round is over — chat lives on in The Cookout"
-                        : `message $${activeMatch?.symbol} — the trenches…`
+                        : `message ${activeRoom?.label}…`
                       : "say something to the whole cookout…"
                   }
                   maxLength={280}
@@ -228,7 +228,7 @@ export function SocialDock() {
                 />
                 <button
                   type="submit"
-                  disabled={inMatch && !!activeMatch?.frozen}
+                  disabled={inMatch && !!activeRoom?.frozen}
                   className="rounded-lg bg-lime-400 px-3 py-1.5 text-sm font-black text-zinc-950 hover:bg-lime-300 disabled:opacity-50"
                 >
                   Send

@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { VOTE_THRESHOLD, VOTING_WINDOW_MS, type Round, type TokenConcept } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
+import { useSocial } from "../../lib/social";
 
 /**
  * Community Vote — the launchpad's other half. Concepts up for a vote, plus
@@ -27,6 +28,12 @@ const STATUS: Record<
 
 export default function VotePage() {
   const { profile, signIn } = useSession();
+  const { setActiveRoom } = useSocial();
+  // Voting has its own room: creators pitch, everyone else argues about it.
+  useEffect(() => {
+    setActiveRoom({ id: "vote", label: "Vote" });
+    return () => setActiveRoom(null);
+  }, [setActiveRoom]);
   const [concepts, setConcepts] = useState<TokenConcept[]>([]);
   const [rounds, setRounds] = useState<Round[]>([]);
   const [filter, setFilter] = useState<Filter>("voting");

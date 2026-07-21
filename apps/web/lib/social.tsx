@@ -15,10 +15,14 @@ import { useSession } from "./session";
  * flowing while you trade.
  */
 
-export interface ActiveMatch {
+/** The room the current page owns. Matches use the round id; other pages
+ *  use a stable slug ("vote", "calendar"). The dock shows it as a channel
+ *  next to The Cookout and drops it when you navigate away. */
+export interface ActiveRoom {
   id: string;
-  symbol: string;
-  /** Round is over: the room is readable but frozen. */
+  /** Channel label, e.g. "$FDERP" or "Vote". */
+  label: string;
+  /** Readable but closed to new messages (a finished round). */
   frozen?: boolean;
 }
 
@@ -26,11 +30,11 @@ interface SocialValue {
   online: PresenceUser[];
   /** The Cookout (global room). */
   messages: ChatMessage[];
-  /** The match room you're standing in, if any. */
+  /** The page-owned room's messages (match, vote, calendar…). */
   matchMessages: ChatMessage[];
-  /** Set by the round page — drives the dock's channel switch. */
-  activeMatch: ActiveMatch | null;
-  setActiveMatch: (m: ActiveMatch | null) => void;
+  /** Set by whichever page owns a channel — drives the dock's switch. */
+  activeRoom: ActiveRoom | null;
+  setActiveRoom: (r: ActiveRoom | null) => void;
   /** Which channel the dock is showing. */
   channel: "global" | "match";
   setChannel: (c: "global" | "match") => void;
@@ -53,8 +57,8 @@ const Ctx = createContext<SocialValue>({
   online: [],
   messages: [],
   matchMessages: [],
-  activeMatch: null,
-  setActiveMatch: () => {},
+  activeRoom: null,
+  setActiveRoom: () => {},
   channel: "global",
   setChannel: () => {},
   react: () => {},
@@ -74,7 +78,7 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
   const [online, setOnline] = useState<PresenceUser[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [matchMessages, setMatchMessages] = useState<ChatMessage[]>([]);
-  const [activeMatch, setActiveMatchState] = useState<ActiveMatch | null>(null);
+  const [activeRoom, setActiveRoomState] = useState<ActiveRoom | null>(null);
   const [channel, setChannel] = useState<"global" | "match">("global");
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
   const [following, setFollowing] = useState<string[]>([]);
@@ -83,9 +87,9 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
   const wsRef = useRef<WebSocket | null>(null);
   const readingRef = useRef(false);
   // The socket callback is created once; refs keep it reading fresh values.
-  const matchRef = useRef<ActiveMatch | null>(null);
+  const matchRef = useRef<ActiveRoom | null>(null);
   const channelRef = useRef<"global" | "match">("global");
-  matchRef.current = activeMatch;
+  matchRef.current = activeRoom;
   channelRef.current = channel;
 
   // Seed history + roster so the dock is populated before the socket settles.
@@ -177,17 +181,17 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
    * so the dock follows you into the match and drops back to The Cookout when
    * you navigate away — one chat surface, contextual channel.
    */
-  const setActiveMatch = useCallback((m: ActiveMatch | null) => {
+  const setActiveRoom = useCallback((m: ActiveRoom | null) => {
     const prev = matchRef.current;
     if (prev?.id === m?.id) {
       // Same room, updated metadata (e.g. it just froze).
-      if (m) setActiveMatchState(m);
+      if (m) setActiveRoomState(m);
       return;
     }
     const ws = wsRef.current;
     if (prev && ws?.readyState === WebSocket.OPEN)
       ws.send(JSON.stringify({ type: "unsubscribe", roundId: prev.id }));
-    setActiveMatchState(m);
+    setActiveRoomState(m);
     setMatchMessages([]);
     if (m) {
       if (ws?.readyState === WebSocket.OPEN)
@@ -203,9 +207,9 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
 
   // Re-subscribe to the active match after a reconnect.
   useEffect(() => {
-    if (!connected || !activeMatch) return;
-    wsRef.current?.send(JSON.stringify({ type: "subscribe", roundId: activeMatch.id }));
-  }, [connected, activeMatch]);
+    if (!connected || !activeRoom) return;
+    wsRef.current?.send(JSON.stringify({ type: "subscribe", roundId: activeRoom.id }));
+  }, [connected, activeRoom]);
 
   const react = useCallback((emoji: string) => {
     const m = matchRef.current;
@@ -247,8 +251,8 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
         online,
         messages,
         matchMessages,
-        activeMatch,
-        setActiveMatch,
+        activeRoom,
+        setActiveRoom,
         channel,
         setChannel,
         react,
