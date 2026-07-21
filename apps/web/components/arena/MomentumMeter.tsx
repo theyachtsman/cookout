@@ -14,15 +14,35 @@ import type { Trade } from "@cookout/shared";
 
 const WINDOW_MS = 45_000;
 
+/**
+ * States, worst to best. "Balanced" is the resting state and is the only one
+ * that shows without a threshold being crossed — the loud labels have to be
+ * earned, otherwise they stop meaning anything.
+ */
 const BANDS = [
-  { at: -0.6, label: "Panic", cls: "text-red-400" },
-  { at: -0.25, label: "Heavy selling", cls: "text-red-300" },
-  { at: 0.25, label: "Balanced", cls: "text-zinc-300" },
-  { at: 0.6, label: "Buyers in control", cls: "text-lime-300" },
-  { at: 1.01, label: "Mania", cls: "text-emerald-300" },
+  { at: -0.75, label: "Capitulation", cls: "text-red-400", loud: true },
+  { at: -0.45, label: "Sell Pressure", cls: "text-red-300", loud: true },
+  { at: -0.15, label: "Balanced", cls: "text-zinc-300" },
+  { at: 0.15, label: "Balanced", cls: "text-zinc-300" },
+  { at: 0.45, label: "Buy Pressure", cls: "text-lime-300", loud: true },
+  { at: 1.01, label: "Momentum Surge", cls: "text-emerald-300", loud: true },
 ];
 
-export function MomentumMeter({ trades, live }: { trades: Trade[]; live: boolean }) {
+/** A single trade this big flips the read to a whale call. */
+const WHALE_SHARE = 0.45;
+/** Volume jump vs the previous window that counts as a surge. */
+const SURGE_RATIO = 2.2;
+
+export function MomentumMeter({
+  trades,
+  live,
+  urgent,
+}: {
+  trades: Trade[];
+  live: boolean;
+  /** Final minute: the meter glows to match the rest of the arena. */
+  urgent?: boolean;
+}) {
   const [, tick] = useState(0);
   const shownRef = useRef(0);
   const [shown, setShown] = useState(0);
@@ -47,8 +67,29 @@ export function MomentumMeter({ trades, live }: { trades: Trade[]; live: boolean
     if (t.side === "buy") buys += w;
     else sells += w;
   }
+  // Biggest single trade in the window, and the window before it, so we can
+  // tell "one whale moved" apart from "everyone moved".
+  let biggest = 0;
+  let biggestSide: "buy" | "sell" = "buy";
+  let prevVol = 0;
+  for (let i = trades.length - 1; i >= 0; i--) {
+    const t = trades[i]!;
+    const age = now - t.at;
+    if (age > WINDOW_MS * 2) break;
+    if (age > WINDOW_MS) {
+      prevVol += t.ethAmount;
+      continue;
+    }
+    if (t.ethAmount > biggest) {
+      biggest = t.ethAmount;
+      biggestSide = t.side;
+    }
+  }
   const total = buys + sells;
   const target = total > 0 ? (buys - sells) / total : 0;
+  const rawVol = buys + sells;
+  const whale = total > 0 && biggest / total >= WHALE_SHARE;
+  const surging = prevVol > 0 && rawVol / prevVol >= SURGE_RATIO && rawVol > 0.05;
 
   // Ease toward the target so the needle glides.
   useEffect(() => {
@@ -63,16 +104,38 @@ export function MomentumMeter({ trades, live }: { trades: Trade[]; live: boolean
   }, [target]);
 
   const pct = ((shown + 1) / 2) * 100;
-  const band = BANDS.find((b) => shown < b.at) ?? BANDS[2]!;
+  let band = BANDS.find((b) => shown < b.at) ?? BANDS[2]!;
+  // A dominant single trade outranks the aggregate read — that's the story.
+  if (whale && Math.abs(shown) > 0.15)
+    band =
+      biggestSide === "buy"
+        ? { at: 0, label: "Whale Buying", cls: "text-amber-300", loud: true }
+        : { at: 0, label: "Whale Selling", cls: "text-orange-300", loud: true };
+  else if (surging && shown > 0.15)
+    band = { at: 0, label: "Momentum Surge", cls: "text-emerald-300", loud: true };
   const buyShare = total > 0 ? (buys / total) * 100 : 50;
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3">
+    <div
+      className={`rounded-xl border bg-zinc-900/40 p-3 transition-shadow duration-500 ${
+        urgent
+          ? "border-amber-400/50 shadow-[0_0_22px_rgba(252,211,77,0.25)]"
+          : (band as { loud?: boolean }).loud
+            ? "border-zinc-700"
+            : "border-zinc-800"
+      }`}
+    >
       <div className="flex items-baseline justify-between">
         <span className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">
           Momentum
         </span>
-        <span className={`text-xs font-black ${band.cls}`}>{band.label}</span>
+        <span
+          className={`text-xs font-black transition-colors duration-300 ${band.cls} ${
+            (band as { loud?: boolean }).loud ? "animate-[fadein_.3s_ease]" : ""
+          }`}
+        >
+          {band.label}
+        </span>
       </div>
 
       {/* pressure bar */}

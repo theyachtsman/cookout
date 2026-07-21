@@ -24,6 +24,13 @@ interface Props {
   ethUsd?: number;
   /** The viewer's address: their own trades pin as lime-ringed bubbles. */
   highlightAddress?: string;
+  /** Round phase + start, so the Auto timeframe can follow the match. */
+  phase?: string;
+  liveAt?: number;
+  /** Pool depth for the crosshair readout. */
+  liquidity?: number;
+  /** Off during live rounds — edge callouts carry the trade story instead. */
+  bubbleLabels?: boolean;
 }
 
 export function Chart(props: Props) {

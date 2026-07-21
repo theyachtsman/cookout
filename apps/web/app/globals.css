@@ -189,3 +189,78 @@ body {
 .fx-shake {
   animation: fx-shake 0.55s linear;
 }
+
+/* ---- Live Trading V2: announcer banners, edge callouts, urgency ---- */
+
+/* Round banners drop in from above with a bounce, then settle and fade. */
+@keyframes bannerIn {
+  0% {
+    opacity: 0;
+    transform: translateY(-45%) scale(1.5);
+  }
+  55% {
+    opacity: 1;
+    transform: translateY(6%) scale(0.94);
+  }
+  75% {
+    transform: translateY(0) scale(1.03);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Edge callouts slide in from their anchor. */
+@keyframes calloutIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* The final-minute heartbeat: a breathing vignette, never a strobe. */
+@keyframes heartbeat {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* The launch: a single hard flash across the chart as the doors open. */
+@keyframes launchFlash {
+  0% {
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+.launch-flash {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  pointer-events: none;
+  border-radius: 0.75rem;
+  background: radial-gradient(circle at 50% 100%, rgba(163, 230, 53, 0.55), transparent 70%);
+  animation: launchFlash 0.45s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .launch-flash,
+  [class*="animate-[bannerIn"],
+  [class*="animate-[calloutIn"],
+  [class*="animate-[heartbeat"] {
+    animation: none !important;
+  }
+}
