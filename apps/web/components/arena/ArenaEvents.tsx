@@ -11,14 +11,14 @@ import type { KillFeedEvent, KillFeedKind } from "@cookout/shared";
 
 const KIND: Record<KillFeedKind, { icon: string; cls: string; loud?: boolean }> = {
   big_buy: { icon: "🟢", cls: "text-emerald-300" },
-  big_sell: { icon: "🔴", cls: "text-red-300" },
+  big_sell: { icon: "💥", cls: "text-red-300" },
   whale_entered: { icon: "🐋", cls: "text-amber-300", loud: true },
   dev_buy: { icon: "👨‍🍳", cls: "text-lime-300" },
   dev_sell: { icon: "⚠️", cls: "text-orange-300", loud: true },
   rug_detected: { icon: "💀", cls: "text-red-400", loud: true },
-  mcap_milestone: { icon: "🚀", cls: "text-lime-300", loud: true },
+  mcap_milestone: { icon: "🎯", cls: "text-lime-300", loud: true },
   new_leader: { icon: "👑", cls: "text-amber-300", loud: true },
-  graduated: { icon: "🍽️", cls: "text-lime-300", loud: true },
+  graduated: { icon: "🎓", cls: "text-lime-300", loud: true },
 };
 
 const stamp = (at: number, from?: number) => {

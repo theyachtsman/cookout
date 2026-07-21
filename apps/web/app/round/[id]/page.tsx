@@ -23,7 +23,9 @@ import { Countdown } from "../../../components/Countdown";
 import { GraduationProgress } from "../../../components/GraduationProgress";
 import { BattleFX, type FxEvent, type FxKind } from "../../../components/BattleFX";
 import { ArenaHeader } from "../../../components/arena/ArenaHeader";
-import { Callouts, EventStrip, PhaseFlash } from "../../../components/arena/ArenaEvents";
+import { EventStrip, PhaseFlash } from "../../../components/arena/ArenaEvents";
+import { EdgeCallouts } from "../../../components/arena/EdgeCallouts";
+import { RoundOverlays, UrgencyPulse } from "../../../components/arena/RoundOverlays";
 import { LiveLeaders } from "../../../components/arena/LiveLeaders";
 import { MomentumMeter } from "../../../components/arena/MomentumMeter";
 import { PnlShareCard } from "../../../components/PnlShareCard";
@@ -78,6 +80,11 @@ export default function RoundPage() {
     setFx((list) => [...list.slice(-8), { id, kind }]);
     setTimeout(() => setFx((list) => list.filter((f) => f.id !== id)), 1100);
   }, []);
+  /** COOK!: flash the chart, shake the arena, and let the tape start. */
+  const onCook = useCallback(() => {
+    setLaunching(true);
+    setTimeout(() => setLaunching(false), 500);
+  }, []);
   const quake = useCallback(() => {
     setShake(true);
     setTimeout(() => setShake(false), 650);
@@ -88,6 +95,8 @@ export default function RoundPage() {
   const [resultsOpen, setResultsOpen] = useState(false);
   // Short announcement over the chart when the round changes gear.
   const [flash, setFlash] = useState<{ text: string; tone: "go" | "end" | "bad" } | null>(null);
+  // The arena doors opening: one hard flash across the chart on COOK!.
+  const [launching, setLaunching] = useState(false);
   const lastPhase = useRef<string>("");
   const positionRef = useRef<typeof position>(null);
 
@@ -174,12 +183,20 @@ export default function RoundPage() {
       setFlash({ text, tone });
       setTimeout(() => setFlash(null), 1900);
     };
+    // Live and results are announced by RoundOverlays (COOK! / the verdict),
+    // so this only covers the phases it doesn't own.
     if (round.state === "queue_open") show("QUEUE OPEN", "go");
     else if (round.state === "settling") show("SETTLING", "end");
-    else if (round.state === "live") show("TRADING LIVE", "go");
-    else if (round.state === "results")
-      show(round.graduated ? "SERVED UP" : "ROUND OVER", round.graduated ? "end" : "bad");
   }, [round?.state, round?.graduated]);
+
+  // Drives the final-minute mood shift across the arena column.
+  const [finalMinute, setFinalMinute] = useState(false);
+  useEffect(() => {
+    if (round?.state !== "live" || !round.endsAt) return setFinalMinute(false);
+    const endsAt = round.endsAt;
+    const t = setInterval(() => setFinalMinute(endsAt - Date.now() <= 60_000), 500);
+    return () => clearInterval(t);
+  }, [round?.state, round?.endsAt]);
 
   liveRef.current = round?.state === "live";
   positionRef.current = position;
@@ -342,6 +359,8 @@ export default function RoundPage() {
           onClose={() => setResultsOpen(false)}
         />
       )}
+      {/* The announcer: countdowns, MARKET OPEN, the final ten, the verdict. */}
+      <RoundOverlays round={round} onCook={onCook} />
       <ArenaHeader
         round={round}
         ticker={ticker}
@@ -374,10 +393,31 @@ export default function RoundPage() {
           <div className={`relative space-y-4 ${shake ? "fx-shake" : ""}`}>
             <BattleFX events={fx} />
             {round.state === "live" && ticker && (
-              <GraduationProgress config={round.config} ticker={ticker} />
+              <GraduationProgress
+                config={round.config}
+                ticker={ticker}
+                onMilestone={(pct) =>
+                  setKillfeed((f) => [
+                    ...f,
+                    {
+                      id: `bond-${pct}-${Date.now()}`,
+                      roundId: round.id,
+                      kind: "mcap_milestone",
+                      text: `Bonding passed ${pct}%`,
+                      at: Date.now(),
+                    },
+                  ])
+                }
+              />
             )}
             <div className="relative">
-              <Callouts killfeed={killfeed} />
+              <EdgeCallouts
+                trades={trades}
+                killfeed={killfeed}
+                bigTradeEth={bigEthRef.current}
+              />
+              <UrgencyPulse endsAt={round.endsAt} active={round.state === "live"} />
+              {launching && <div className="launch-flash" />}
               {flash && <PhaseFlash text={flash.text} tone={flash.tone} />}
               <Chart
               candles={candles}
@@ -389,12 +429,20 @@ export default function RoundPage() {
               cooking={ticker?.cooking}
               ethUsd={ticker?.ethUsd}
               highlightAddress={profile?.address}
+              phase={round.state}
+              liveAt={round.liveAt}
+              liquidity={ticker?.liquidity}
+              // Edge callouts carry the trade story now, so nothing sits on
+              // top of the candles during a live round.
+              bubbleLabels={false}
               // Served-up coins keep trading — no end overlay, live chart stays.
               endReason={round.graduated ? undefined : round.endReason}
               graduated={round.graduated}
               />
             </div>
-            {round.state === "live" && <MomentumMeter trades={trades} live />}
+            {round.state === "live" && (
+              <MomentumMeter trades={trades} live urgent={finalMinute} />
+            )}
             {round.state === "live" && (
               <TradePanel
                 round={round}
