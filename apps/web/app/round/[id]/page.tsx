@@ -5,7 +5,6 @@ import { useParams } from "next/navigation";
 import type {
   AuctionResult,
   Candle,
-  ChatMessage,
   KillFeedEvent,
   Round,
   RoundSummary,
@@ -15,10 +14,10 @@ import { api } from "../../../lib/api";
 import { chainSell, walletTokenBalanceWei } from "../../../lib/chainTx";
 import { playAthSparkle, playFanfare, playHorn, playMilestone, playRug, playSell, playThud, playTradeTick, playWhale } from "../../../lib/sfx";
 import { useSession } from "../../../lib/session";
+import { useSocial } from "../../../lib/social";
 import { useRoundSocket } from "../../../lib/useRoundSocket";
 import { FloatingReactions, KillFeedTicker } from "../../../components/ArcadeOverlays";
 import { Chart } from "../../../components/Chart";
-import { Chat } from "../../../components/Chat";
 import { TopHolders } from "../../../components/TopHolders";
 import { Countdown } from "../../../components/Countdown";
 import { GraduationProgress } from "../../../components/GraduationProgress";
@@ -54,10 +53,10 @@ interface Lobby {
 export default function RoundPage() {
   const { id } = useParams<{ id: string }>();
   const { profile, refresh } = useSession();
+  const { setActiveMatch } = useSocial();
   const [round, setRound] = useState<Round | null>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [killfeed, setKillfeed] = useState<KillFeedEvent[]>([]);
-  const [chat, setChat] = useState<ChatMessage[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [ticker, setTicker] = useState<Ticker | null>(null);
   const [lobby, setLobby] = useState<Lobby | null>(null);
@@ -96,7 +95,6 @@ export default function RoundPage() {
     const data = await api<{
       round: Round;
       killfeed: KillFeedEvent[];
-      chat: ChatMessage[];
       trades: Trade[];
       candles: Candle[];
       predictions: { moon: number; rug: number };
@@ -105,7 +103,6 @@ export default function RoundPage() {
     }>(`/api/rounds/${id}`);
     setRound(data.round);
     setKillfeed(data.killfeed);
-    setChat(data.chat);
     setTrades(data.trades);
     setCandles(data.candles);
     setPreds(data.predictions);
@@ -149,12 +146,24 @@ export default function RoundPage() {
     };
   }, [id, round?.state]);
 
+  // The chat console follows you: entering a match switches the dock to that
+  // room's channel; leaving drops back to The Cookout.
+  useEffect(() => {
+    if (!round) return;
+    setActiveMatch({
+      id: round.id,
+      symbol: round.token.symbol,
+      frozen: round.state === "results" || round.state === "ended",
+    });
+  }, [round?.id, round?.state, round?.token.symbol, setActiveMatch]);
+  useEffect(() => () => setActiveMatch(null), [setActiveMatch]);
+
   liveRef.current = round?.state === "live";
   positionRef.current = position;
   bigEthRef.current = Math.max(0.05, (ticker?.liquidity ?? round?.config.initialEthLiquidity ?? 1) * 0.05);
   myAddrRef.current = profile?.address;
 
-  const { sendChat, sendReact } = useRoundSocket(id, (e) => {
+  useRoundSocket(id, (e) => {
     switch (e.type) {
       case "round_state":
         setRound(e.round as Round);
@@ -188,12 +197,6 @@ export default function RoundPage() {
         }
         break;
       }
-      case "chat":
-        setChat((prev) => [...prev.slice(-199), e.message as ChatMessage]);
-        break;
-      case "chat_delete":
-        setChat((prev) => prev.filter((m) => m.id !== (e.messageId as string)));
-        break;
       case "reaction":
         setReactions((prev) => [...prev.slice(-15), { id: Date.now() + Math.random(), emoji: e.emoji as string }]);
         break;
@@ -399,7 +402,7 @@ export default function RoundPage() {
 
       {/* ---- pre-launch arcade: everything on one screen ---- */}
       {(round.state === "lobby" || round.state === "queue_open" || round.state === "settling") && (
-        <div className="grid gap-3 lg:h-[calc(100dvh-16rem)] lg:min-h-[34rem] lg:grid-cols-[1fr_340px]">
+        <div className="grid gap-3 lg:min-h-[34rem]">
           <div className={`min-h-0 space-y-3 overflow-y-auto rounded-xl ${round.state === "queue_open" ? "neon" : ""}`}>
             {round.chain && <ArenaWalletPanel round={round} />}
             <QueuePanel
@@ -412,19 +415,6 @@ export default function RoundPage() {
                 void refresh();
               }}
             />
-          </div>
-          <div className="flex min-h-0 flex-col gap-3">
-            {/* the token card lived here; the top bar already names the round —
-                the trenches get the full column */}
-            <div className="min-h-0 flex-1">
-              <Chat
-                messages={chat}
-                onSend={sendChat}
-                onReact={sendReact}
-                reactions={reactions}
-                title={`$${round.token.symbol} — the trenches`}
-              />
-            </div>
           </div>
         </div>
       )}
@@ -486,16 +476,6 @@ export default function RoundPage() {
                 }}
               />
             )}
-            <div className="h-80">
-              <Chat
-                messages={chat}
-                onSend={sendChat}
-                onReact={sendReact}
-                reactions={reactions}
-                title={`$${round.token.symbol} Chat`}
-                frozen={round.state === "results" || round.state === "ended"}
-              />
-            </div>
             {round.chain && <ArenaWalletPanel round={round} />}
             {(round.state === "live" || round.graduated) && position && ticker && (
               <YourBag
