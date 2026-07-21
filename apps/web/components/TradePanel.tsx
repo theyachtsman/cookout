@@ -16,14 +16,20 @@ import { playBuy, playSell, setSfxMuted, sfxMuted } from "../lib/sfx";
 export function TradePanel({
   round,
   position,
+  ethUsd,
   onTraded,
 }: {
   round: Round;
   position: { tokens: number; costBasisEth: number; realizedPnl: number } | null;
+  /** Live ETH/USD peg — enables entering buys in dollars. */
+  ethUsd?: number;
   onTraded: () => void;
 }) {
   const { profile, signIn } = useSession();
   const [tab, setTab] = useState<"buy" | "sell">("buy");
+  // Enter buys in native units or dollars — the widget converts at the peg.
+  const [denom, setDenom] = useState<"native" | "usd">("native");
+  const peg = ethUsd && ethUsd > 0 ? ethUsd : 0;
   const [amount, setAmount] = useState("");
   const [pct, setPct] = useState("");
   const [error, setError] = useState("");
@@ -53,12 +59,15 @@ export function TradePanel({
     setPending(true);
     try {
       if (tab === "buy") {
-        const eth = Number(amount);
+        const typed = Number(amount);
+        if (!(typed > 0)) throw new Error("enter an amount");
+        // USD entry converts at the live peg; native passes straight through.
+        const eth = denom === "usd" && peg ? typed / peg : typed;
         if (!(eth > 0)) throw new Error("enter an amount");
-        if (onChain) await chainBuy(round, amount);
+        if (onChain) await chainBuy(round, eth.toFixed(18).replace(/0+$/, "") || String(eth));
         else await api(`/api/rounds/${round.id}/trade`, { body: { side: "buy", eth } });
         playBuy();
-        setAmount("");
+        // Amount stays put so you can hammer the same size again instantly.
       } else {
         const p = Number(pct);
         if (!(p > 0)) throw new Error("enter a percent");
@@ -71,7 +80,6 @@ export function TradePanel({
           await api(`/api/rounds/${round.id}/trade`, { body: { side: "sell", pct: Math.min(100, p) } });
         }
         playSell();
-        setPct("");
       }
       refreshChainBalances();
       onTraded();
@@ -104,7 +112,21 @@ export function TradePanel({
   const value = buying ? amount : pct;
   const setValue = buying ? setAmount : setPct;
   const ready = Number(value) > 0;
-  const quickBuys = onChain ? [0.0005, 0.001, 0.002] : [0.1, 0.5, 1];
+  const usdMode = buying && denom === "usd" && !!peg;
+  // Small, fast sizes — the arena is about many quick clips, not one big bet.
+  const quickBuys = usdMode
+    ? [1, 5, 10, 25]
+    : onChain
+      ? [0.0005, 0.001, 0.002, 0.005]
+      : [0.01, 0.05, 0.1, 0.25];
+  // What the typed amount is worth in the other denomination.
+  const typedNum = Number(amount);
+  const convertedHint =
+    buying && peg && typedNum > 0
+      ? denom === "usd"
+        ? `≈ ${(typedNum / peg).toFixed(4)} ${unit}`
+        : `≈ $${(typedNum * peg).toFixed(2)}`
+      : "";
 
   return (
     <div className={`rounded-xl border bg-zinc-900/70 p-3 ${onChain ? "border-amber-400/40" : "border-zinc-800"}`}>
@@ -142,6 +164,7 @@ export function TradePanel({
 
       {/* the big amount */}
       <div className="mt-4 flex items-baseline justify-center gap-2">
+        {usdMode && <span className="font-mono text-3xl font-black text-zinc-500">$</span>}
         <input
           value={value}
           onChange={(e) => setValue(e.target.value.replace(/[^0-9.]/g, ""))}
@@ -149,8 +172,45 @@ export function TradePanel({
           inputMode="decimal"
           className="w-36 bg-transparent text-center font-mono text-5xl font-black text-zinc-100 placeholder-zinc-700 outline-none"
         />
-        <span className="font-mono text-sm font-bold text-zinc-500">{buying ? unit : "%"}</span>
+        <span className="font-mono text-sm font-bold text-zinc-500">
+          {buying ? (usdMode ? "USD" : unit) : "%"}
+        </span>
       </div>
+      {/* denomination toggle + live conversion */}
+      {buying && peg > 0 && (
+        <div className="mt-1 flex items-center justify-center gap-2">
+          <div className="flex overflow-hidden rounded-full border border-zinc-800 text-[10px] font-bold">
+            {(
+              [
+                ["native", unit],
+                ["usd", "USD"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => {
+                  // Carry the value across so the size doesn't jump.
+                  const n = Number(amount);
+                  if (n > 0) {
+                    setAmount(
+                      key === "usd"
+                        ? (n * peg).toFixed(2)
+                        : (n / peg).toFixed(unit === "ETH" ? 5 : 4),
+                    );
+                  }
+                  setDenom(key);
+                }}
+                className={`px-2.5 py-1 ${
+                  denom === key ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {convertedHint && <span className="font-mono text-[11px] text-zinc-500">{convertedHint}</span>}
+        </div>
+      )}
 
       {/* balance / holdings line */}
       <div className="mt-3 flex items-center justify-between text-xs text-zinc-500">
@@ -187,20 +247,22 @@ export function TradePanel({
           : !ready
             ? "Enter an amount"
             : buying
-              ? `Buy ${value} ${unit}`
+              ? usdMode
+                ? `Buy $${value}`
+                : `Buy ${value} ${unit}`
               : `Sell ${Math.min(100, Number(value))}%`}
       </button>
 
       {/* quick chips */}
-      <div className="mt-2 grid grid-cols-3 gap-1.5">
+      <div className={`mt-2 grid gap-1.5 ${buying ? "grid-cols-4" : "grid-cols-3"}`}>
         {buying
           ? quickBuys.map((v) => (
               <button
                 key={v}
                 onClick={() => setAmount(String(v))}
-                className="rounded-full border border-emerald-500/30 bg-emerald-500/10 py-1.5 text-xs font-bold text-emerald-300 hover:bg-emerald-500/25"
+                className="rounded-full border border-emerald-500/30 bg-emerald-500/10 py-1.5 text-[11px] font-bold text-emerald-300 hover:bg-emerald-500/25"
               >
-                {v} {unit}
+                {usdMode ? `$${v}` : v}
               </button>
             ))
           : [25, 50, 100].map((p) => (

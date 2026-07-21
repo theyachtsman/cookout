@@ -1,11 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
   CREATOR_FEE_SHARE,
   TIER_CONFIGS,
-  VOTE_THRESHOLD,
-  VOTING_WINDOW_MS,
   type TokenConcept,
 } from "@cookout/shared";
 import { api } from "../../lib/api";
@@ -59,14 +58,6 @@ export default function Submissions() {
     } catch (e) {
       setError((e as Error).message);
     }
-  };
-
-  const statusStyle: Record<string, string> = {
-    submitted: "bg-zinc-800 text-zinc-300",
-    shortlisted: "bg-sky-500/20 text-sky-300",
-    scheduled: "bg-lime-400/20 text-lime-300",
-    launched: "bg-emerald-500/20 text-emerald-300",
-    rejected: "bg-red-500/20 text-red-300",
   };
 
   return (
@@ -165,120 +156,20 @@ export default function Submissions() {
         </div>
       </section>
 
-      <section>
-        <h2 className="mb-1 text-lg font-bold">Voting Now</h2>
-        <p className="mb-3 text-xs text-zinc-500">
-          {VOTE_THRESHOLD} upvotes sends a concept to the committee shortlist. Submissions that
-          don&apos;t hit the threshold within {Math.round(VOTING_WINDOW_MS / 3_600_000)} hours are
-          closed.
+      <section className="rounded-xl border border-lime-400/30 bg-lime-400/[0.05] p-5 text-center">
+        <h2 className="text-lg font-black">Submitted? The crowd decides next.</h2>
+        <p className="mx-auto mt-1 max-w-lg text-sm text-zinc-400">
+          Voting — plus every submission ever made, including the ones that didn&apos;t pass — now
+          lives on its own page.
         </p>
-        <div className="grid gap-3 md:grid-cols-2">
-          {concepts
-            .filter((c) => c.status === "submitted" || c.status === "shortlisted")
-            .map((c) => (
-            <div key={c.id} className="rounded-xl border border-zinc-800 p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex gap-3">
-                  {c.artworkUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={c.artworkUrl}
-                      alt=""
-                      className="h-12 w-12 rounded-lg border border-zinc-700 object-cover"
-                    />
-                  )}
-                  <div>
-                  <div className="font-black">
-                    {c.name} <span className="text-zinc-500">${c.symbol}</span>
-                  </div>
-                  <div className="text-sm text-zinc-400">{c.theme}</div>
-                  {c.pitch && <div className="mt-1 text-xs text-zinc-500">{c.pitch}</div>}
-                  <div className="mt-1 text-xs text-zinc-600">
-                    Launched by{" "}
-                    <a href={`/creator/${c.creatorAddress}`} className="hover:underline">
-                      {c.creatorAddress.slice(0, 6)}…{c.creatorAddress.slice(-4)}
-                    </a>
-                  </div>
-                  </div>
-                </div>
-                <span className={`rounded px-2 py-0.5 text-xs ${statusStyle[c.status]}`}>
-                  {c.status}
-                </span>
-              </div>
-              <div className="mt-2 text-xs text-zinc-500">
-                Supply: <span className="font-mono text-zinc-300">{(c.totalSupply ?? 2_000_000).toLocaleString()}</span>
-              </div>
-              {c.status === "submitted" ? (
-                <>
-                  <div className="mt-2 h-1.5 overflow-hidden rounded bg-zinc-800">
-                    <div
-                      className="h-full bg-lime-400"
-                      style={{ width: `${Math.min(100, (c.votes / VOTE_THRESHOLD) * 100)}%` }}
-                    />
-                  </div>
-                  <div className="mt-1 flex justify-between text-[11px] text-zinc-500">
-                    <span>
-                      {c.votes}/{VOTE_THRESHOLD} votes to shortlist
-                    </span>
-                    <span>{timeLeft(c.createdAt)}</span>
-                  </div>
-                </>
-              ) : (
-                <div className="mt-2 text-xs font-bold text-sky-300">
-                  ✓ Vote passed — awaiting a match slot
-                </div>
-              )}
-              <div className="mt-3 flex items-center gap-3">
-                <button
-                  onClick={() => void vote(c.id)}
-                  disabled={!profile || c.status !== "submitted"}
-                  className="rounded bg-zinc-800 px-3 py-1 text-sm hover:bg-zinc-700 disabled:opacity-40"
-                >
-                  ▲ Upvote
-                </button>
-                <span className="font-mono text-sm text-zinc-400">{c.votes} votes</span>
-              </div>
-            </div>
-          ))}
-          {concepts.filter((c) => c.status === "submitted" || c.status === "shortlisted").length ===
-            0 && <div className="text-sm text-zinc-500">Nothing up for a vote — submit one.</div>}
-        </div>
-      </section>
-
-      <section>
-        <h2 className="mb-3 text-lg font-bold text-zinc-300">Previous Submissions</h2>
-        <div className="grid gap-2 md:grid-cols-3">
-          {concepts
-            .filter((c) => c.status === "scheduled" || c.status === "launched" || c.status === "rejected")
-            .map((c) => (
-              <div key={c.id} className="flex items-center gap-3 rounded-lg border border-zinc-800 p-3 text-sm">
-                {c.artworkUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={c.artworkUrl} alt="" className="h-9 w-9 rounded object-cover" />
-                )}
-                <div className="min-w-0 flex-1">
-                  <div className="truncate font-bold">
-                    {c.name} <span className="text-zinc-500">${c.symbol}</span>
-                  </div>
-                  <div className="text-xs text-zinc-500">{c.votes} votes</div>
-                </div>
-                <span className={`rounded px-2 py-0.5 text-xs ${statusStyle[c.status]}`}>
-                  {c.status === "launched" ? "🎓 launched" : c.status}
-                </span>
-              </div>
-            ))}
-          {concepts.filter((c) => ["scheduled", "launched", "rejected"].includes(c.status)).length ===
-            0 && <div className="text-sm text-zinc-500">No history yet.</div>}
-        </div>
+        <Link
+          href="/vote"
+          className="mt-4 inline-block rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300"
+        >
+          Go to Community Vote →
+        </Link>
       </section>
     </div>
   );
 }
 
-function timeLeft(createdAt: number): string {
-  const ms = createdAt + VOTING_WINDOW_MS - Date.now();
-  if (ms <= 0) return "closing…";
-  const h = Math.floor(ms / 3_600_000);
-  const m = Math.floor((ms % 3_600_000) / 60_000);
-  return h > 0 ? `${h}h ${m}m left` : `${m}m left`;
-}

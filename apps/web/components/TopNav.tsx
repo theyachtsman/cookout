@@ -29,6 +29,9 @@ export function TopNav() {
           <Link href="/submissions" className="text-sm text-zinc-400 hover:text-lime-300">
             Launchpad
           </Link>
+          <Link href="/vote" className="text-sm text-zinc-400 hover:text-lime-300">
+            Vote
+          </Link>
           <Link href="/leaderboard" className="text-sm text-zinc-400 hover:text-lime-300">
             Board
           </Link>

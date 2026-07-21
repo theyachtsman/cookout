@@ -28,17 +28,23 @@ export function QueuePanel({
   round,
   lobby,
   preds,
+  ethUsd,
   onChanged,
 }: {
   round: Round;
   lobby: Lobby | null;
   preds: { moon: number; rug: number };
+  /** Live ETH/USD peg — enables entering the deposit in dollars. */
+  ethUsd?: number;
   onChanged: () => void;
 }) {
   const { profile, signIn } = useSession();
   const onChain = !!round.chain;
   const unit = onChain ? "ETH" : "pETH";
   const [amount, setAmount] = useState(onChain ? "0.001" : "0.1");
+  // Pull up in native units or dollars — converted at the live peg.
+  const [denom, setDenom] = useState<"native" | "usd">("native");
+  const peg = ethUsd && ethUsd > 0 ? ethUsd : 0;
   const [maxPrice, setMaxPrice] = useState("");
   const [intents, setIntents] = useState<AuctionIntent[]>([]);
   const [bids, setBids] = useState<Bid[]>([]);
@@ -100,14 +106,22 @@ export function QueuePanel({
     setError("");
     setPending(true);
     try {
+      const typed = Number(amount);
+      if (!(typed > 0)) throw new Error("enter an amount");
+      // USD entry converts at the live peg before it ever leaves the client.
+      const ethAmount = denom === "usd" && peg ? typed / peg : typed;
       if (onChain) {
         // Real ETH escrows into the round's auction contract; the server
         // mirrors the IntentSubmitted event into the board a tick later.
-        await chainSubmitIntent(round, amount, maxPrice || undefined);
+        await chainSubmitIntent(
+          round,
+          ethAmount.toFixed(18).replace(/0+$/, "") || String(ethAmount),
+          maxPrice || undefined,
+        );
       } else {
         await api(`/api/rounds/${round.id}/intents`, {
           body: {
-            ethAmount: Number(amount),
+            ethAmount,
             maxPrice: maxPrice ? Number(maxPrice) : undefined,
           },
         });
@@ -146,6 +160,14 @@ export function QueuePanel({
   };
 
   const queueOpen = round.state === "queue_open";
+  const usdMode = denom === "usd" && peg > 0;
+  const typedNum = Number(amount);
+  const convertedHint =
+    peg && typedNum > 0
+      ? usdMode
+        ? `≈ ${(typedNum / peg).toFixed(onChain ? 5 : 4)} ${unit}`
+        : `≈ $${(typedNum * peg).toFixed(2)}`
+      : "";
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
@@ -173,12 +195,53 @@ export function QueuePanel({
         ) : queueOpen ? (
           <div className="flex flex-wrap items-end gap-3">
             <label className="text-sm">
-              <div className="mb-1 text-xs text-zinc-500">Amount ({unit})</div>
-              <input
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                className="w-28 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 font-mono"
-              />
+              <div className="mb-1 flex items-center gap-2 text-xs text-zinc-500">
+                <span>Amount</span>
+                {peg > 0 && (
+                  <span className="flex overflow-hidden rounded-full border border-zinc-800 text-[10px] font-bold">
+                    {(
+                      [
+                        ["native", unit],
+                        ["usd", "USD"],
+                      ] as const
+                    ).map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => {
+                          const n = Number(amount);
+                          if (n > 0)
+                            setAmount(
+                              key === "usd"
+                                ? (n * peg).toFixed(2)
+                                : (n / peg).toFixed(onChain ? 5 : 4),
+                            );
+                          setDenom(key);
+                        }}
+                        className={`px-2 py-0.5 ${
+                          denom === key
+                            ? "bg-zinc-700 text-zinc-100"
+                            : "text-zinc-500 hover:text-zinc-300"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </span>
+                )}
+              </div>
+              <div className="flex items-center gap-1">
+                {usdMode && <span className="font-mono text-zinc-500">$</span>}
+                <input
+                  value={amount}
+                  onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+                  inputMode="decimal"
+                  className="w-28 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 font-mono"
+                />
+              </div>
+              {convertedHint && (
+                <div className="mt-1 font-mono text-[11px] text-zinc-500">{convertedHint}</div>
+              )}
             </label>
             <label className="text-sm">
               <div className="mb-1 text-xs text-zinc-500">Max price (optional)</div>
