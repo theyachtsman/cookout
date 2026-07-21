@@ -21,7 +21,7 @@ import { Err, type Broadcast, type RoundEngine } from "./engine.js";
 import { jackpotStatus } from "./jackpot.js";
 import { rateLimit } from "./ratelimit.js";
 import type { Store, StoredUser } from "./store.js";
-import { spotPrice } from "@cookout/shared";
+import { GLOBAL_ROOM, spotPrice } from "@cookout/shared";
 
 const PAUSE_LIMIT = 3;
 const PAUSE_WINDOW_MS = 60 * 60 * 1000;
@@ -32,6 +32,8 @@ export function createApp(
   adminKey: string,
   broadcast: Broadcast = () => {},
   chain?: import("./chain.js").ChainService,
+  /** Live social layer: who's online and what they're doing. */
+  presence: () => import("@cookout/shared").PresenceUser[] = () => [],
 ): Express {
   const app = express();
   // Body limit covers client-downscaled data-URL images (coin art, avatars).
@@ -557,6 +559,25 @@ export function createApp(
   );
 
   // ---- calendar & rounds ----
+  // ---- the social layer ----
+
+  /** The always-on community room's recent history. */
+  app.get(
+    "/api/social/global",
+    wrap((_req, res) => {
+      res.json({
+        messages: (store.chat.get(GLOBAL_ROOM) ?? []).slice(-120),
+        online: presence(),
+      });
+    }),
+  );
+
+  /** Who's online right now, with what they're doing. */
+  app.get(
+    "/api/social/online",
+    wrap((_req, res) => res.json({ online: presence() })),
+  );
+
   app.get(
     "/api/calendar",
     wrap((_req, res) => {

@@ -30,9 +30,9 @@ if (snapshot) {
 }
 
 const hub = new Hub(store);
-const engine = new RoundEngine(store, hub.broadcast, hub.spectatorCount);
+const engine = new RoundEngine(store, hub.broadcast, hub.spectatorCount, hub.system);
 const chain = new ChainService(store, engine);
-const app = createApp(store, engine, ADMIN_KEY, hub.broadcast, chain);
+const app = createApp(store, engine, ADMIN_KEY, hub.broadcast, chain, hub.presence);
 // The paper bot swarm: a crowd to trade against on the paper beta. Hard-off
 // on chain-only deployments and via BOTS=0; otherwise the admin Live Ops
 // toggle (store.settings.bots) turns it on and off at runtime.

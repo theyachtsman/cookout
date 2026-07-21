@@ -1,5 +1,8 @@
 import type { Metadata } from "next";
 import { SessionProvider } from "../lib/session";
+import { SocialProvider } from "../lib/social";
+import { SocialDock } from "../components/SocialDock";
+import { UserCardProvider } from "../components/UserCard";
 import { DevBanner } from "../components/DevBanner";
 import { UnlockToasts } from "../components/UnlockToasts";
 import { BetaGate } from "../components/BetaGate";
@@ -40,12 +43,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body className="min-h-screen">
         <DevBanner />
         <SessionProvider>
-          <TopNav />
-          <main className="mx-auto max-w-6xl px-3 py-6 sm:px-4">
-            <BetaGate>{children}</BetaGate>
-          </main>
-          <UnlockToasts />
-          <FeedbackWidget />
+          {/* The persistent social layer wraps the whole app: one always-on
+              connection to The Cookout, and a player card reachable from any
+              username on any page. */}
+          <SocialProvider>
+            <UserCardProvider>
+              <TopNav />
+              <main className="mx-auto max-w-6xl px-3 py-6 sm:px-4">
+                <BetaGate>{children}</BetaGate>
+              </main>
+              <SocialDock />
+              <UnlockToasts />
+              <FeedbackWidget />
+            </UserCardProvider>
+          </SocialProvider>
         </SessionProvider>
       </body>
     </html>

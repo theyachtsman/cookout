@@ -205,6 +205,7 @@ export interface KillFeedEvent {
 
 export interface ChatMessage {
   id: string;
+  /** Room the message belongs to: GLOBAL_ROOM or a round id. */
   roundId: string;
   userAddress: Address;
   displayName?: string;
@@ -213,6 +214,48 @@ export interface ChatMessage {
   /** Equipped cosmetics resolved at send time (emoji badge, hex color). */
   badge?: string;
   color?: string;
+  /** Level at send time — drives the rank chip beside the name. */
+  level?: number;
+  /** Match system events (queue opened, bond complete, rug…) render as
+   *  inline banners rather than player messages. */
+  system?: boolean;
+  systemKind?: SystemChatKind;
+}
+
+export type SystemChatKind =
+  | "queue_open"
+  | "queue_closed"
+  | "settled"
+  | "live"
+  | "leader"
+  | "bond"
+  | "whale"
+  | "rug"
+  | "graduated"
+  | "ended";
+
+/** The always-on community room every connected player sits in. */
+export const GLOBAL_ROOM = "global";
+
+/** Where a player is right now — drives presence dots across the site. */
+export type PresenceStatus =
+  | "hanging"
+  | "queue"
+  | "trading"
+  | "spectating"
+  | "finished";
+
+export interface PresenceUser {
+  address: Address;
+  displayName?: string;
+  avatarUrl?: string;
+  level: number;
+  title: string;
+  badge?: string;
+  status: PresenceStatus;
+  /** Round they're currently in, when the status is match-scoped. */
+  roundId?: string;
+  roundSymbol?: string;
 }
 
 export interface Prediction {
@@ -352,6 +395,7 @@ export type ServerEvent =
   | { type: "auction_settled"; result: AuctionResult }
   | { type: "trade"; trade: Trade }
   | { type: "candle"; roundId: string; candle: Candle }
+  | { type: "presence"; online: PresenceUser[] }
   | {
       type: "ticker";
       roundId: string;
