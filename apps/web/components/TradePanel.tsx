@@ -17,12 +17,16 @@ export function TradePanel({
   round,
   position,
   ethUsd,
+  variant = "widget",
   onTraded,
 }: {
   round: Round;
   position: { tokens: number; costBasisEth: number; realizedPnl: number } | null;
   /** Live ETH/USD peg — enables entering buys in dollars. */
   ethUsd?: number;
+  /** "bar" is the horizontal strip under the live chart (fast, one row);
+   *  "widget" is the tabbed card used for graduated coins in the wild. */
+  variant?: "bar" | "widget";
   onTraded: () => void;
 }) {
   const { profile, signIn } = useSession();
@@ -53,6 +57,39 @@ export function TradePanel({
     const t = setInterval(refreshChainBalances, 10_000);
     return () => clearInterval(t);
   }, [onChain, refreshChainBalances]);
+
+  /** One-shot trade used by the horizontal bar's buttons. */
+  const fire = async (side: "buy" | "sell", opts: { eth?: number; pct?: number }) => {
+    setError("");
+    setPending(true);
+    try {
+      if (side === "buy") {
+        const eth = opts.eth ?? 0;
+        if (!(eth > 0)) throw new Error("enter an amount");
+        if (onChain) await chainBuy(round, String(eth));
+        else await api(`/api/rounds/${round.id}/trade`, { body: { side: "buy", eth } });
+        playBuy();
+      } else {
+        const p = Math.min(100, opts.pct ?? 0);
+        if (!(p > 0)) throw new Error("nothing to sell");
+        if (onChain) {
+          const bal = tokenBal ?? (await walletTokenBalanceWei(round));
+          const tokens = (bal * BigInt(Math.round(p * 100))) / 10_000n;
+          if (tokens <= 0n) throw new Error("nothing to sell");
+          await chainSell(round, tokens);
+        } else {
+          await api(`/api/rounds/${round.id}/trade`, { body: { side: "sell", pct: p } });
+        }
+        playSell();
+      }
+      refreshChainBalances();
+      onTraded();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setPending(false);
+    }
+  };
 
   const trade = async () => {
     setError("");
@@ -127,6 +164,106 @@ export function TradePanel({
         ? `≈ ${(typedNum / peg).toFixed(4)} ${unit}`
         : `≈ $${(typedNum * peg).toFixed(2)}`
       : "";
+
+  // ---- the bar: one fast horizontal row under the live chart ----
+  if (variant === "bar") {
+    const buyNow = () => void fire("buy", { eth: usdMode && peg ? Number(amount) / peg : Number(amount) });
+    return (
+      <div
+        className={`rounded-xl border bg-zinc-900/70 p-2.5 ${
+          onChain ? "border-amber-400/40" : "border-zinc-800"
+        }`}
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          {/* amount + denom */}
+          <div className="flex items-center gap-1">
+            {usdMode && <span className="font-mono text-sm text-zinc-500">$</span>}
+            <input
+              value={amount}
+              onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+              onKeyDown={(e) => e.key === "Enter" && ready && buyNow()}
+              placeholder="0"
+              inputMode="decimal"
+              className="w-20 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-center font-mono text-sm outline-none focus:border-emerald-400/60"
+            />
+            {peg > 0 && (
+              <button
+                onClick={() => {
+                  const n = Number(amount);
+                  const next = denom === "usd" ? "native" : "usd";
+                  if (n > 0)
+                    setAmount(
+                      next === "usd" ? (n * peg).toFixed(2) : (n / peg).toFixed(onChain ? 5 : 4),
+                    );
+                  setDenom(next);
+                }}
+                title="switch between dollars and coins"
+                className="rounded border border-zinc-800 px-1.5 py-1 font-mono text-[10px] font-bold text-zinc-400 hover:text-zinc-200"
+              >
+                {usdMode ? "USD" : unit}
+              </button>
+            )}
+          </div>
+
+          <button
+            disabled={pending || !ready}
+            onClick={buyNow}
+            className="rounded-lg bg-emerald-600 px-5 py-2 text-sm font-black text-white transition hover:bg-emerald-500 active:scale-95 disabled:opacity-50"
+          >
+            {pending ? "…" : "Buy"}
+          </button>
+          {quickBuys.slice(0, 3).map((v) => (
+            <button
+              key={v}
+              disabled={pending}
+              onClick={() => void fire("buy", { eth: usdMode && peg ? v / peg : v })}
+              className="rounded bg-emerald-600/20 px-2.5 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-600/40 active:scale-95 disabled:opacity-50"
+            >
+              +{usdMode ? `$${v}` : v}
+            </button>
+          ))}
+
+          <div className="mx-1 h-7 w-px bg-zinc-800" />
+
+          {[25, 50, 75].map((p) => (
+            <button
+              key={p}
+              disabled={pending}
+              onClick={() => void fire("sell", { pct: p })}
+              className="rounded bg-red-600/20 px-2.5 py-2 text-xs font-bold text-red-300 transition hover:bg-red-600/40 active:scale-95 disabled:opacity-50"
+            >
+              {p}%
+            </button>
+          ))}
+          <button
+            disabled={pending}
+            onClick={() => void fire("sell", { pct: 100 })}
+            className="rounded-lg bg-red-600 px-4 py-2 text-sm font-black text-white transition hover:bg-red-500 active:scale-95 disabled:opacity-50"
+          >
+            Sell All
+          </button>
+
+          <button
+            onClick={() => {
+              setSfxMuted(!muted);
+              setMuted(!muted);
+            }}
+            title={muted ? "unmute sounds" : "mute sounds"}
+            className="ml-auto rounded px-1.5 py-1 text-sm text-zinc-500 hover:text-zinc-200"
+          >
+            {muted ? "🔇" : "🔊"}
+          </button>
+          <span className="font-mono text-[11px] text-zinc-500">
+            {balance !== null && balance !== undefined ? balance.toFixed(onChain ? 4 : 2) : "…"}{" "}
+            {unit} · {holdingTokens !== null ? holdingTokens.toLocaleString() : "…"}{" "}
+            {round.token.symbol}
+          </span>
+        </div>
+        {convertedHint && <div className="mt-1 font-mono text-[10px] text-zinc-500">{convertedHint}</div>}
+        {error && <div className="mt-1 text-xs text-red-400">{error}</div>}
+      </div>
+    );
+  }
 
   return (
     <div className={`rounded-xl border bg-zinc-900/70 p-3 ${onChain ? "border-amber-400/40" : "border-zinc-800"}`}>
