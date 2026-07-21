@@ -10,6 +10,8 @@ import {
   registerArenaAddress,
   type ArenaTxEntry,
 } from "../../lib/arenaWallet";
+import { api } from "../../lib/api";
+import { useChainOnly } from "../../lib/chainOnly";
 import { fundArenaWallet } from "../../lib/chainTx";
 import { useSession } from "../../lib/session";
 import { playDeposit } from "../../lib/sfx";
@@ -30,6 +32,118 @@ const KIND_META: Record<ArenaTxEntry["kind"], { icon: string; label: string; cls
 };
 
 export default function WalletPage() {
+  const chainOnly = useChainOnly();
+  if (!chainOnly) return <PaperWalletPage />;
+  return <ChainWalletPage />;
+}
+
+/**
+ * Paper beta: the same arena-wallet habit, denominated in pETH. Money in the
+ * bank is safe and unplayable; money in the arena is what matches spend.
+ */
+function PaperWalletPage() {
+  const { profile, signIn, refresh } = useSession();
+  const [amount, setAmount] = useState("1");
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+
+  if (!profile)
+    return (
+      <div className="mx-auto max-w-3xl py-16 text-center">
+        <h1 className="text-2xl font-black">⚡ Arena Wallet</h1>
+        <p className="mt-2 text-sm text-zinc-500">Sign in to stake your pETH.</p>
+        <button
+          onClick={() => void signIn()}
+          className="mt-4 rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300"
+        >
+          Connect
+        </button>
+      </div>
+    );
+
+  const bank = profile.paperBalance;
+  const arena = profile.arenaBalance ?? 0;
+
+  const move = async (direction: "deposit" | "withdraw") => {
+    setError("");
+    setBusy(direction);
+    try {
+      await api("/api/me/arena/transfer", { body: { amount: Number(amount), direction } });
+      if (direction === "deposit") playDeposit();
+      refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  };
+
+  return (
+    <div className="mx-auto max-w-3xl space-y-6">
+      <header>
+        <h1 className="text-2xl font-black">
+          ⚡ Arena Wallet
+          {arena > 0 && (
+            <span className="ml-2 rounded bg-lime-400/15 px-2 py-0.5 text-xs font-bold text-lime-300">
+              READY
+            </span>
+          )}
+        </h1>
+        <p className="mt-1 text-sm text-zinc-500">
+          Matches spend your arena balance, never your bank. It works exactly like the real
+          thing will — get the habit here, where it&apos;s only paper.
+        </p>
+      </header>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="rounded-xl border border-lime-400/40 bg-lime-400/5 p-5">
+          <div className="text-xs uppercase tracking-wide text-zinc-500">In the arena</div>
+          <div className="mt-1 font-mono text-3xl font-black text-lime-300">{arena.toFixed(3)}</div>
+          <div className="text-xs text-zinc-500">pETH · playable now</div>
+        </div>
+        <div className="rounded-xl border border-zinc-800 p-5">
+          <div className="text-xs uppercase tracking-wide text-zinc-500">In the bank</div>
+          <div className="mt-1 font-mono text-3xl font-black text-zinc-200">{bank.toFixed(3)}</div>
+          <div className="text-xs text-zinc-500">pETH · safe, can&apos;t trade</div>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-zinc-800 p-5">
+        <h2 className="mb-3 text-sm font-black text-zinc-200">Move money</h2>
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            value={amount}
+            onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+            inputMode="decimal"
+            className="w-24 rounded border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono"
+          />
+          <span className="text-sm text-zinc-500">pETH</span>
+          <button
+            disabled={busy !== ""}
+            onClick={() => void move("deposit")}
+            className="rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300 disabled:opacity-50"
+          >
+            {busy === "deposit" ? "…" : "Bank → Arena"}
+          </button>
+          <button
+            disabled={busy !== ""}
+            onClick={() => void move("withdraw")}
+            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-bold text-zinc-300 hover:border-zinc-500 disabled:opacity-50"
+          >
+            {busy === "withdraw" ? "…" : "Arena → Bank"}
+          </button>
+        </div>
+        <p className="mt-3 text-xs text-zinc-600">
+          Winnings, creator fees, and jackpot payouts land in the bank. Stake what you want to
+          play with; pull the rest back out any time you&apos;re not in a queue.
+        </p>
+        {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
+      </div>
+    </div>
+  );
+}
+
+function ChainWalletPage() {
   const { profile, signIn } = useSession();
   const [bal, setBal] = useState<number | null>(null);
   const [history, setHistory] = useState<ArenaTxEntry[]>([]);

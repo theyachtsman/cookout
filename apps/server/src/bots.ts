@@ -179,7 +179,13 @@ export class BotSwarm {
     // Fresh round: everyone gets exactly 10 pETH — a level swarm every time.
     if (!this.normalized.has(round.id)) {
       this.normalized.add(round.id);
-      for (const p of PERSONAS) this.store.getOrCreateUser(p.address).paperBalance = 10;
+      // Bots run the same rails as players: 10 pETH, all of it staked into
+      // the arena balance so they can actually pull up.
+      for (const p of PERSONAS) {
+        const u = this.store.getOrCreateUser(p.address);
+        u.paperBalance = 0;
+        u.arenaBalance = 10;
+      }
       if (this.normalized.size > 50) this.normalized.clear();
     }
     for (const p of PERSONAS) {
@@ -253,8 +259,9 @@ export class BotSwarm {
         const dip = peak > 0 && price < peak * (1 - p.dipBuy);
         const chase = momentum > 0.04 && Math.random() < p.fomo;
         const cold = pos.tokens === 0 && Math.random() < 0.12;
-        if ((dip || chase || cold) && user.paperBalance > 0.05 && progress < 0.9) {
-          const size = Math.min(rand(p.clip[0], p.clip[1]), user.paperBalance * 0.5);
+        const funds = user.arenaBalance ?? 0;
+        if ((dip || chase || cold) && funds > 0.05 && progress < 0.9) {
+          const size = Math.min(rand(p.clip[0], p.clip[1]), funds * 0.5);
           this.engine.trade(round.id, p.address, "buy", { eth: Number(size.toFixed(3)) }, now);
           if (chase && Math.random() < p.chatty * 0.4) this.say(round, p, pick(PUMP_LINES));
           if (dip && Math.random() < p.chatty * 0.4) this.say(round, p, pick(DUMP_LINES));

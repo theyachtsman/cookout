@@ -190,6 +190,26 @@ export class Store {
     this.onActivity(event);
   }
 
+  /** Move paper money into the arena balance (what matches spend). */
+  arenaDeposit(address: Address, amount: number): StoredUser {
+    const u = this.getOrCreateUser(address);
+    const amt = Math.min(Math.max(0, amount), u.paperBalance);
+    if (amt <= 0) return u;
+    u.paperBalance -= amt;
+    u.arenaBalance = (u.arenaBalance ?? 0) + amt;
+    return u;
+  }
+
+  /** Pull it back out. Only what isn't currently escrowed in a queue. */
+  arenaWithdraw(address: Address, amount: number): StoredUser {
+    const u = this.getOrCreateUser(address);
+    const amt = Math.min(Math.max(0, amount), u.arenaBalance ?? 0);
+    if (amt <= 0) return u;
+    u.arenaBalance = (u.arenaBalance ?? 0) - amt;
+    u.paperBalance += amt;
+    return u;
+  }
+
   /** Follow / unfollow. Returns the follower's current list. */
   setFollowing(follower: Address, target: Address, on: boolean): Address[] {
     const u = this.getOrCreateUser(follower);
@@ -241,6 +261,8 @@ export class Store {
         level: 1,
         title: titleForLevel(1),
         paperBalance: STARTING_PAPER_BALANCE,
+        // Nothing is playable until you move it into the arena.
+        arenaBalance: 0,
         achievements: [],
         referralCode: key.slice(2, 8),
         referredBy,
@@ -588,6 +610,7 @@ export class Store {
       u.referralCount ??= 0;
       u.referralEarnings ??= 0;
       u.weeklyXp ??= {};
+      u.arenaBalance ??= 0;
       u.jackpotWinnings ??= 0;
       u.jackpotWins ??= [];
       this.users.set(u.address, u);

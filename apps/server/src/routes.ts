@@ -167,6 +167,25 @@ export function createApp(
     }),
   );
 
+  /** Move pETH between the bank and the arena balance matches spend. */
+  app.post(
+    "/api/me/arena/transfer",
+    auth,
+    wrap((req, res) => {
+      const { amount, direction } = req.body as {
+        amount?: number;
+        direction?: "deposit" | "withdraw";
+      };
+      const amt = Number(amount);
+      if (!(amt > 0)) throw new Err(400, "amount must be positive");
+      const u =
+        direction === "withdraw"
+          ? store.arenaWithdraw(req.userAddress!, amt)
+          : store.arenaDeposit(req.userAddress!, amt);
+      res.json(publicProfile(u, true));
+    }),
+  );
+
   app.get(
     "/api/missions",
     auth,
@@ -657,7 +676,7 @@ export function createApp(
       res.json({
         position: pos,
         intents,
-        balance: store.getOrCreateUser(req.userAddress!).paperBalance,
+        balance: store.getOrCreateUser(req.userAddress!).arenaBalance ?? 0,
         prediction: store.predictions.get(round.id)?.get(req.userAddress!)?.call ?? null,
       });
     }),
@@ -785,7 +804,7 @@ export function createApp(
       );
       const user = store.getOrCreateUser(req.userAddress!);
       const pos = store.position(req.params.id!, req.userAddress!);
-      res.json({ trade, balance: user.paperBalance, position: pos });
+      res.json({ trade, balance: user.arenaBalance ?? 0, position: pos });
     }),
   );
 
@@ -1110,6 +1129,7 @@ function publicProfile(u: StoredUser, self = false) {
     missionsDone,
     history,
     paperBalance,
+    arenaBalance,
     referralCode,
     referredBy,
     referralCount,
@@ -1129,6 +1149,7 @@ function publicProfile(u: StoredUser, self = false) {
   return {
     ...base,
     paperBalance,
+    arenaBalance: arenaBalance ?? 0,
     referralCode,
     referredBy,
     referralCount,

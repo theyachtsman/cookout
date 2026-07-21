@@ -82,7 +82,7 @@ export function SocialDock() {
             setOpen(true);
             setDismissed(false);
           }}
-          className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/95 px-4 py-2.5 text-sm font-black shadow-2xl shadow-black/60 backdrop-blur transition hover:border-lime-400/60"
+          className="fixed bottom-4 left-4 z-40 flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/95 px-4 py-2.5 text-sm font-black shadow-2xl shadow-black/60 backdrop-blur transition hover:border-lime-400/60"
         >
           <span className="relative flex h-2 w-2">
             <span
@@ -108,7 +108,7 @@ export function SocialDock() {
 
       {/* open dock */}
       {open && (
-        <div className="fixed bottom-4 right-4 z-40 flex h-[min(30rem,70vh)] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-zinc-700 bg-zinc-950/95 shadow-2xl shadow-black/60 backdrop-blur">
+        <div className="fixed bottom-4 left-4 z-40 flex h-[min(30rem,70vh)] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-zinc-700 bg-zinc-950/95 shadow-2xl shadow-black/60 backdrop-blur">
           <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
             <span
               className={`h-1.5 w-1.5 shrink-0 rounded-full ${connected ? "bg-lime-400" : "bg-zinc-600"}`}

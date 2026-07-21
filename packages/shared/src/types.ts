@@ -297,7 +297,11 @@ export interface UserProfile {
   xp: number;
   level: number;
   title: string;
+  /** The bank: everything not staked into the arena. */
   paperBalance: number;
+  /** The hot balance matches actually spend. You deposit into it, the same
+   *  way the on-chain arena wallet works, so the habit carries to mainnet. */
+  arenaBalance?: number;
   achievements: string[];
   referralCode: string;
   referredBy?: Address;

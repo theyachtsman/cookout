@@ -37,8 +37,10 @@ test("full round: lobby → queue → uniform settle → trades → timer end �
   engine.tick(round.queueOpensAt!);
   assert.equal(round.state, "queue_open");
 
-  const a = store.getOrCreateUser(A);
-  const b = store.getOrCreateUser(B);
+  // Matches spend the arena balance, so stake the bank first — same as a
+  // player depositing before they pull up.
+  const a = store.arenaDeposit(A, 10);
+  const b = store.arenaDeposit(B, 10);
   engine.submitIntent(round.id, A, 0.2, undefined, round.queueOpensAt! + 1000);
   engine.submitIntent(round.id, B, 0.1, undefined, round.queueOpensAt! + 2000);
   // The position cap constrains the fair-open queue: nobody pre-loads the bond.
@@ -46,8 +48,9 @@ test("full round: lobby → queue → uniform settle → trades → timer end �
     () => engine.submitIntent(round.id, B, round.config.maxPositionEth, undefined, round.queueOpensAt! + 3000),
     /position cap/,
   );
-  assert.ok(Math.abs(a.paperBalance - 9.8) < 1e-9, "intent escrows balance");
-  assert.ok(Math.abs(b.paperBalance - 9.9) < 1e-9);
+  assert.ok(Math.abs((a.arenaBalance ?? 0) - 9.8) < 1e-9, "intent escrows arena balance");
+  assert.ok(Math.abs((b.arenaBalance ?? 0) - 9.9) < 1e-9);
+  assert.equal(a.paperBalance, 0, "the bank is untouched by the match");
 
   engine.tick(round.queueClosesAt!);
   assert.equal(round.state, "live");
@@ -89,7 +92,7 @@ test("full round: lobby → queue → uniform settle → trades → timer end �
   assert.ok(a.xp > 0, "participation XP awarded");
   assert.ok(a.stats.roundsPlayed === 1);
   // Paper money conservation-ish: balances are back to cash, nobody minted value.
-  const total = a.paperBalance + b.paperBalance;
+  const total = (a.arenaBalance ?? 0) + (b.arenaBalance ?? 0);
   assert.ok(total < 20, "players in aggregate paid fees + auction premium into the pool");
 });
 
@@ -101,8 +104,8 @@ test("rug detection: creator dump drains pool and ends the round", () => {
   engine.tick(t0);
   engine.tick(round.queueOpensAt!);
   const creator = store.getOrCreateUser(concept.creatorAddress);
-  creator.paperBalance = 100;
-  store.getOrCreateUser(A).paperBalance = 100;
+  creator.arenaBalance = 100;
+  store.getOrCreateUser(A).arenaBalance = 100;
   engine.submitIntent(round.id, concept.creatorAddress, 0.3, undefined, round.queueOpensAt! + 1);
   engine.submitIntent(round.id, A, 0.05, undefined, round.queueOpensAt! + 2);
   engine.tick(round.queueClosesAt!);
@@ -134,8 +137,8 @@ test("graduation: criteria met migrates instead of redeeming", () => {
   round.config.graduationMinVolume = 1;
   engine.tick(t0);
   engine.tick(round.queueOpensAt!);
-  store.getOrCreateUser(A).paperBalance = 100;
-  store.getOrCreateUser(B).paperBalance = 100;
+  store.getOrCreateUser(A).arenaBalance = 100;
+  store.getOrCreateUser(B).arenaBalance = 100;
   engine.submitIntent(round.id, A, 0.3, undefined, round.queueOpensAt! + 1);
   engine.submitIntent(round.id, B, 0.3, undefined, round.queueOpensAt! + 2);
   engine.tick(round.queueClosesAt!);
@@ -158,6 +161,7 @@ test("low-volume trigger ends a quiet round", () => {
   const round = engine.scheduleRound(concept, "rookie", t0);
   engine.tick(t0);
   engine.tick(round.queueOpensAt!);
+  store.arenaDeposit(A, 10);
   engine.submitIntent(round.id, A, 0.1, undefined, round.queueOpensAt! + 1);
   engine.tick(round.queueClosesAt!);
   assert.equal(round.state, "live");
@@ -173,6 +177,7 @@ test("pause blocks trading, extends the clock, and admin liquidity pull ends rou
   const round = engine.scheduleRound(concept, "rookie", t0);
   engine.tick(t0);
   engine.tick(round.queueOpensAt!);
+  store.arenaDeposit(A, 10);
   engine.submitIntent(round.id, A, 0.2, undefined, round.queueOpensAt! + 1);
   engine.tick(round.queueClosesAt!);
 
@@ -196,13 +201,14 @@ test("limit intents below clearing are refunded in full at settlement", () => {
   const round = engine.scheduleRound(concept, "rookie", t0);
   engine.tick(t0);
   engine.tick(round.queueOpensAt!);
-  const a = store.getOrCreateUser(A);
+  const a = store.arenaDeposit(A, 10);
+  store.arenaDeposit(B, 10);
   const spot = round.config.initialEthLiquidity / round.config.initialTokenLiquidity;
   engine.submitIntent(round.id, A, 0.2, spot * 1.000001, round.queueOpensAt! + 1); // too tight
   engine.submitIntent(round.id, B, 0.25, undefined, round.queueOpensAt! + 2);
-  assert.ok(Math.abs(a.paperBalance - 9.8) < 1e-9);
+  assert.ok(Math.abs((a.arenaBalance ?? 0) - 9.8) < 1e-9);
   engine.tick(round.queueClosesAt!);
-  assert.ok(Math.abs(a.paperBalance - 10) < 1e-9, "excluded limit intent fully refunded");
+  assert.ok(Math.abs((a.arenaBalance ?? 0) - 10) < 1e-9, "excluded limit intent fully refunded");
   assert.equal(store.position(round.id, A).tokens, 0);
   assert.ok(store.position(round.id, B).tokens > 0);
 });

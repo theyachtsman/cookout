@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import type { Round } from "@cookout/shared";
 import { arenaAddress, arenaBalance, arenaWithdraw, hasArenaWallet, registerArenaAddress } from "../lib/arenaWallet";
+import { api } from "../lib/api";
 import { fundArenaWallet } from "../lib/chainTx";
 import { playDeposit } from "../lib/sfx";
 import { useSession } from "../lib/session";
@@ -16,7 +17,7 @@ import { useSession } from "../lib/session";
  * wallet. Non-custodial: the key never leaves the browser.
  */
 export function ArenaWalletPanel({ round }: { round: Round }) {
-  const { profile } = useSession();
+  const { profile, refresh: refreshProfile } = useSession();
   const [bal, setBal] = useState<number | null>(null);
   const [amount, setAmount] = useState("0.005");
   const [busy, setBusy] = useState("");
@@ -39,7 +40,12 @@ export function ArenaWalletPanel({ round }: { round: Round }) {
     if (profile && hasArenaWallet()) void registerArenaAddress();
   }, [profile]);
 
-  if (!round.chain || !profile) return null;
+  if (!profile) return null;
+
+  // Paper rounds run the same flow with pETH so the habit transfers: money
+  // sitting in your bank can't trade until you stake it into the arena.
+  if (!round.chain) return <PaperArena profile={profile} refresh={refreshProfile} />;
+
   const hot = (bal ?? 0) > 0.0002;
 
   const run = async (key: string, fn: () => Promise<unknown>) => {
@@ -112,6 +118,93 @@ export function ArenaWalletPanel({ round }: { round: Round }) {
           {arenaAddress().slice(0, 10)}…{arenaAddress().slice(-6)}
         </p>
       )}
+      {error && <div className="mt-2 text-sm text-red-400">{error}</div>}
+    </div>
+  );
+}
+
+
+/** Paper-beta arena wallet: deposit pETH from the bank to make it playable. */
+function PaperArena({
+  profile,
+  refresh,
+}: {
+  profile: { paperBalance: number; arenaBalance?: number };
+  refresh: () => void;
+}) {
+  const [amount, setAmount] = useState("1");
+  const [busy, setBusy] = useState("");
+  const [error, setError] = useState("");
+  const bank = profile.paperBalance;
+  const arena = profile.arenaBalance ?? 0;
+  const hot = arena > 0;
+
+  const move = async (direction: "deposit" | "withdraw") => {
+    setError("");
+    setBusy(direction);
+    try {
+      await api("/api/me/arena/transfer", { body: { amount: Number(amount), direction } });
+      if (direction === "deposit") playDeposit();
+      refresh();
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  };
+
+  return (
+    <div className={`rounded-xl border p-4 ${hot ? "border-lime-400/50" : "border-amber-400/50"}`}>
+      <div className="mb-1 flex items-center justify-between">
+        <h4 className="text-sm font-black text-zinc-200">
+          ⚡ Arena Wallet{" "}
+          {hot ? (
+            <span className="ml-1 rounded bg-lime-400/15 px-1.5 py-0.5 text-[10px] font-bold text-lime-300">
+              READY
+            </span>
+          ) : (
+            <span className="ml-1 rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
+              EMPTY
+            </span>
+          )}
+        </h4>
+        <span className="font-mono text-sm font-bold text-zinc-200">{arena.toFixed(3)} pETH</span>
+      </div>
+      <p className="mb-3 text-[11px] leading-snug text-zinc-500">
+        {hot
+          ? "This is what you can pull up and trade with. Anything left in the bank is safe."
+          : "Nothing here yet. Move some pETH in and you can pull up. This is how it'll work with real ETH later."}
+      </p>
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          value={amount}
+          onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+          inputMode="decimal"
+          className="w-20 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 font-mono text-sm"
+        />
+        <button
+          disabled={busy !== ""}
+          onClick={() => void move("deposit")}
+          className="rounded-lg bg-lime-400 px-4 py-1.5 text-sm font-black text-zinc-950 hover:bg-lime-300 disabled:opacity-50"
+        >
+          {busy === "deposit" ? "…" : "Deposit"}
+        </button>
+        {hot && (
+          <button
+            disabled={busy !== ""}
+            onClick={() => void move("withdraw")}
+            className="rounded border border-zinc-700 px-3 py-1.5 text-xs font-bold text-zinc-300 hover:border-zinc-500 disabled:opacity-50"
+          >
+            {busy === "withdraw" ? "…" : "Withdraw"}
+          </button>
+        )}
+        <button
+          onClick={() => setAmount(String(Math.floor(bank * 100) / 100))}
+          className="text-[11px] text-zinc-500 hover:text-zinc-300"
+        >
+          bank {bank.toFixed(2)} pETH · max
+        </button>
+      </div>
       {error && <div className="mt-2 text-sm text-red-400">{error}</div>}
     </div>
   );

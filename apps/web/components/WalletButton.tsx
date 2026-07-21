@@ -60,8 +60,9 @@ export function WalletButton() {
               ⚡ {arenaBal !== null ? `${arenaBal.toFixed(4)} ETH` : "arena"}
             </span>
           ) : (
-            <span className="font-mono text-xs text-zinc-400">
-              {profile.paperBalance.toFixed(2)} pETH
+            <span className="flex items-baseline gap-1.5 font-mono text-xs">
+              <span className="text-lime-300">⚡ {(profile.arenaBalance ?? 0).toFixed(2)}</span>
+              <span className="text-zinc-500">/ {profile.paperBalance.toFixed(2)} pETH</span>
             </span>
           )}
           <span className="text-xs text-zinc-500">▾</span>
