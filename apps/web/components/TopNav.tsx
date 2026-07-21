@@ -27,7 +27,7 @@ export function TopNav() {
             Matches
           </Link>
           <Link href="/submissions" className="text-sm text-zinc-400 hover:text-lime-300">
-            Launchpad
+            Make a Coin
           </Link>
           <Link href="/vote" className="text-sm text-zinc-400 hover:text-lime-300">
             Vote

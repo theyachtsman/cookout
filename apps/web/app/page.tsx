@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { api } from "../lib/api";
 import { useBrandAsset } from "../lib/useBrandAsset";
 import { ArenaDemo } from "../components/ArenaDemo";
 
 /**
- * Marketing landing + beta funnel. The whitelist is earned on X (@hoodcookout):
- * follow, like, repost, and comment your wallet — the team imports eligible
- * wallets via CSV in the admin. Scroll-reveal sections cover the product as it
- * stands: fair-open PvP arena, XP quests, and the real-ETH Weekly Jackpot.
+ * The front door. Reads as a game, not a launchpad: curiosity, then the
+ * crowd, then why people come back, then gameplay, then the pot, then how
+ * the open stays fair, then a seat.
+ *
+ * Whitelist is earned on X (@hoodcookout): follow, like, repost, comment
+ * your wallet. Eligible wallets are imported by CSV in the admin.
  */
 
 const X_URL = "https://x.com/hoodcookout";
@@ -19,16 +22,19 @@ export default function Landing() {
   return (
     <div className="-mx-4 -my-6">
       <Hero />
-      <Positioning />
-      <FairOpen />
+      <LiveNow />
+      <TheCrowd />
+      <WhyComeBack />
       <ArenaDemo />
       <RoundFlow />
       <Jackpot />
+      <FairOpen />
       <Pillars />
+      <FoundingPlayers />
       <Access />
       <footer className="border-t border-zinc-800 px-6 py-8 text-center text-xs text-zinc-600">
-        The Cookout · paper-money beta — simulated balances, no real funds at risk · the house only
-        ever earns fees · <Link href="/docs" className="underline hover:text-zinc-400">menu</Link>
+        The Cookout · paper-money beta, so nothing here is real money yet · we only ever make money
+        on fees · <Link href="/docs" className="underline hover:text-zinc-400">the menu</Link>
       </footer>
     </div>
   );
@@ -247,10 +253,11 @@ function Hero() {
           </span>
         </h1>
         <p className="mx-auto mt-4 text-2xl font-black tracking-tight text-zinc-50 md:text-4xl">
-          The Multiplayer Trading Arena.
+          Every chart is a multiplayer match.
         </p>
         <p className="mx-auto mt-3 max-w-xl text-base text-zinc-400 md:text-lg">
-          Every launch is a battle. Everyone enters together — the best trader wins.
+          A room full of people piles into the same coin at the same second. You get a few
+          minutes to out-trade all of them. Then we run it back.
         </p>
 
         {/* the promise, readable in one glance */}
@@ -271,7 +278,7 @@ function Hero() {
             href="#access"
             className="rounded-xl bg-lime-400 px-8 py-4 text-lg font-black text-zinc-950 shadow-lg shadow-lime-400/30 transition hover:scale-105 hover:bg-lime-300"
           >
-            Get Beta Access
+            Claim Your Seat
           </a>
           <Link
             href="/docs"
@@ -283,8 +290,8 @@ function Hero() {
         <div className="mx-auto mt-7 inline-flex max-w-xl items-center gap-3 rounded-xl border border-lime-400/30 bg-lime-400/[0.06] px-5 py-2.5">
           <span className="text-xl">🎮</span>
           <p className="text-left text-sm text-zinc-200">
-            <span className="font-black text-lime-300">100% paper money.</span> Trade simulated pETH —
-            <b> no deposits, zero risk.</b>
+            <span className="font-black text-lime-300">It&apos;s all paper money right now.</span>{" "}
+            Nothing to deposit, nothing to lose. The competition is the real part.
           </p>
         </div>
       </div>
@@ -292,56 +299,193 @@ function Hero() {
   );
 }
 
-/* ---------------- positioning: why Cookout exists ---------------- */
+/* ---------------- the room, right now ---------------- */
 
-function Positioning() {
+const TICKER_LINES = [
+  "🐋 someone walked in with 0.8 and moved the whole chart",
+  "🏆 DiamondDan took the PnL lead with 40 seconds left",
+  "💀 RUGRAT went to zero. eight people got out first.",
+  "🔥 queue filled in under a minute",
+  "🍽️ WAGYU served up. holders kept their bags.",
+  "📈 fomo_fred doubled his position at the top. bold.",
+  "🎰 the pot went up again",
+];
+
+/**
+ * A pulse under the hero. Player count, pot, and matches are real when the
+ * API answers; the ticker is flavor from actual round events. Nothing here
+ * is load-bearing, so a cold API just shows fewer numbers.
+ */
+function LiveNow() {
+  const [online, setOnline] = useState<number | null>(null);
+  const [pot, setPot] = useState<number | null>(null);
+  const [matches, setMatches] = useState<number | null>(null);
+  const [line, setLine] = useState(0);
+
+  useEffect(() => {
+    const load = () => {
+      api<{ online: unknown[] }>("/api/social/online")
+        .then((d) => setOnline(d.online?.length ?? 0))
+        .catch(() => {});
+      api<{ poolUsd?: number; poolEth?: number }>("/api/jackpot")
+        .then((d) => setPot(d.poolUsd ?? null))
+        .catch(() => {});
+      api<Array<{ state: string }>>("/api/calendar")
+        .then((r) => setMatches(r.length))
+        .catch(() => {});
+    };
+    load();
+    const t = setInterval(load, 20_000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    const t = setInterval(() => setLine((n) => (n + 1) % TICKER_LINES.length), 3400);
+    return () => clearInterval(t);
+  }, []);
+
+  const stats: Array<[string, string]> = [
+    ["in the room", online === null ? "—" : String(online)],
+    ["this week's pot", pot === null ? "—" : `$${Math.round(pot).toLocaleString()}`],
+    ["matches run", matches === null ? "—" : String(matches)],
+    ["a match takes", "~10 min"],
+  ];
+
+  return (
+    <section className="border-y border-zinc-800 bg-zinc-900/30">
+      <div className="mx-auto max-w-5xl px-6 py-5">
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          {stats.map(([k, v]) => (
+            <div key={k} className="text-center">
+              <div className="font-mono text-2xl font-black text-lime-300">{v}</div>
+              <div className="text-[11px] uppercase tracking-wide text-zinc-500">{k}</div>
+            </div>
+          ))}
+        </div>
+        <div className="mt-4 flex items-center justify-center gap-2 border-t border-zinc-800 pt-3">
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-lime-400 opacity-70" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-lime-400" />
+          </span>
+          <span key={line} className="animate-[fadein_.4s_ease] truncate text-sm text-zinc-400">
+            {TICKER_LINES[line]}
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+/* ---------------- the crowd ---------------- */
+
+function TheCrowd() {
   return (
     <section className="mx-auto max-w-5xl px-6 py-20">
       <Reveal className="text-center">
-        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">Why we exist</div>
+        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">The crowd</div>
         <h2 className="mt-3 text-4xl font-black tracking-tight md:text-6xl">
-          Not another{" "}
-          <span className="text-zinc-600 line-through decoration-red-500/70 decoration-4">
-            launchpad.
-          </span>
+          The chart is just the scoreboard.
         </h2>
-        <p className="mx-auto mt-4 max-w-xl text-lg text-zinc-300">
-          Launchpads reward whoever shows up fastest. We reward whoever trades best.
+        <p className="mx-auto mt-4 max-w-2xl text-lg text-zinc-300">
+          The actual game is forty people watching the same candles and losing their minds about
+          it. You&apos;ll know the regulars by your third match.
         </p>
       </Reveal>
 
-      <div className="mt-12 grid gap-5 md:grid-cols-2">
-        <Reveal>
-          <div className="h-full rounded-2xl border border-zinc-800 bg-zinc-900/40 p-7">
-            <div className="text-sm font-black uppercase tracking-wide text-zinc-500">
-              Every other launch rewards
+      <div className="mt-12 grid gap-4 md:grid-cols-3">
+        {[
+          ["💬", "Chat runs the whole match", "Before the open, during the dump, after somebody gets rugged. It doesn't stop."],
+          ["👀", "People watch you trade", "Spectators see the entries. Big buys get your name on the chart."],
+          ["🔮", "Call it before it happens", "Moon or rug. Say it out loud in front of everyone and find out."],
+          ["🏆", "Names start meaning something", "You'll learn who holds, who panics, and who always shows up late."],
+          ["⚔️", "Grudges are a feature", "Somebody dumped on you. They're in the next lobby too."],
+          ["🔁", "Nobody leaves after one", "Rounds run minutes. There's always another one starting."],
+        ].map(([icon, title, body], i) => (
+          <Reveal key={title} delay={i * 70}>
+            <div className="h-full rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5">
+              <div className="text-2xl">{icon}</div>
+              <h3 className="mt-2 font-black">{title}</h3>
+              <p className="mt-1.5 text-sm text-zinc-400">{body}</p>
             </div>
-            <ul className="mt-5 space-y-3">
-              {["Bots", "Snipers", "The fastest transaction"].map((x) => (
-                <li key={x} className="flex items-center gap-3 text-lg font-bold text-zinc-500">
-                  <span className="text-red-500/80">✕</span>
-                  <span className="line-through decoration-zinc-700">{x}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+          </Reveal>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+/* ---------------- why people come back ---------------- */
+
+function WhyComeBack() {
+  return (
+    <section className="border-y border-zinc-800 bg-gradient-to-b from-lime-400/[0.05] to-transparent py-20">
+      <div className="mx-auto max-w-4xl px-6">
+        <Reveal className="text-center">
+          <h2 className="text-4xl font-black tracking-tight md:text-5xl">
+            Nobody comes back because a new coin launched.
+          </h2>
         </Reveal>
-        <Reveal delay={100}>
-          <div className="h-full rounded-2xl border border-lime-400/40 bg-gradient-to-b from-lime-400/[0.08] to-transparent p-7">
-            <div className="text-sm font-black uppercase tracking-wide text-lime-300">
-              The Cookout rewards
-            </div>
-            <ul className="mt-5 space-y-3">
-              {["Better trading", "Better timing", "Better decisions"].map((x) => (
-                <li key={x} className="flex items-center gap-3 text-lg font-black text-zinc-100">
-                  <span className="text-lime-400">✓</span>
-                  {x}
-                </li>
-              ))}
-            </ul>
-          </div>
+        <Reveal delay={90} className="mt-10">
+          <ul className="mx-auto max-w-2xl space-y-4 text-lg text-zinc-300">
+            {[
+              "They come back because they finished 4th and it's been eating at them all day.",
+              "Because the guy who dumped on them yesterday is in the next lobby.",
+              "Because they know half the names in chat now.",
+              "The pot's still sitting there, and Monday's coming.",
+              "And a match only takes ten minutes. It's never just one.",
+            ].map((line) => (
+              <li key={line} className="flex gap-3">
+                <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-lime-400" />
+                <span>{line}</span>
+              </li>
+            ))}
+          </ul>
         </Reveal>
       </div>
+    </section>
+  );
+}
+
+/* ---------------- founding players ---------------- */
+
+function FoundingPlayers() {
+  return (
+    <section className="mx-auto max-w-4xl px-6 py-20">
+      <Reveal className="text-center">
+        <div className="text-xs font-bold uppercase tracking-[0.3em] text-amber-400">
+          Before everyone else
+        </div>
+        <h2 className="mt-3 text-4xl font-black tracking-tight md:text-5xl">
+          Become a founding player.
+        </h2>
+        <p className="mx-auto mt-4 max-w-2xl text-lg text-zinc-300">
+          Right now the whole thing fits in one room. The people here are deciding what this turns
+          into, and most of that has nothing to do with us.
+        </p>
+      </Reveal>
+      <Reveal delay={90} className="mt-10">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {[
+            "The first rivalries",
+            "The first champion nobody can catch",
+            "The inside jokes that stop making sense to outsiders",
+            "The rounds people still bring up months later",
+            "The names that end up meaning something",
+            "The way the room talks",
+          ].map((x) => (
+            <div
+              key={x}
+              className="rounded-xl border border-zinc-800 bg-zinc-900/40 px-4 py-3 text-sm text-zinc-300"
+            >
+              {x}
+            </div>
+          ))}
+        </div>
+        <p className="mt-6 text-center text-sm text-zinc-500">
+          Later on there&apos;ll be a leaderboard full of names. Some of them get to say they were
+          here for match #4.
+        </p>
+      </Reveal>
     </section>
   );
 }
@@ -352,22 +496,22 @@ const STEPS = [
   {
     icon: "🚪",
     title: "Pull Up",
-    body: "A fresh community-made token drops on the match calendar every few minutes. Hit the lobby, size up the crowd, and make your Moon-or-Rug call.",
+    body: "Somebody's coin comes up on the calendar. You walk into the lobby, see who else is here, and call it: moon or rug.",
   },
   {
     icon: "⚖️",
     title: "Fair Open",
-    body: "No sniping, no gas wars. Buy intents queue until a fixed close, then everyone settles at ONE clearing price — oversubscribed rounds fill pro-rata. Every settlement is auditable.",
+    body: "Everyone puts in their buy before the bell. Nobody gets filled early. When it closes, the whole room gets the exact same price.",
   },
   {
     icon: "📈",
     title: "Trade Live",
-    body: "A real market: your buys push price up, sells push it down. One-second candles, a kill feed, whales, and a chat losing its mind. Scalp it or diamond-hand to the bell.",
+    body: "Now it's a real market and everyone can see what you're doing. Scalp it, ride it, or panic. Chat will have opinions either way.",
   },
   {
     icon: "🎓",
     title: "Graduate or Burn",
-    body: "Hit the bonding targets and it graduates into an Arena Alumni that trades forever. Fall short and everyone exits at one fair redemption price. Get rugged and… that's the game.",
+    body: "Hit the targets and the coin lives on. Fall short and everybody cashes out at the same price. Get rugged and, well, that happened.",
   },
 ];
 
@@ -375,10 +519,11 @@ function RoundFlow() {
   return (
     <section className="mx-auto max-w-6xl px-6 py-20">
       <Reveal>
-        <h2 className="text-center text-3xl font-black md:text-4xl">A full launch. Every few minutes.</h2>
+        <h2 className="text-center text-4xl font-black tracking-tight md:text-5xl">
+          How a match works
+        </h2>
         <p className="mx-auto mt-3 max-w-xl text-center text-sm text-zinc-400">
-          Rounds run minutes, not weeks. Bounded exposure, guaranteed exits, and an open no bot can
-          snipe.
+          Ten minutes, start to finish. Then the next one.
         </p>
       </Reveal>
       <div className="mt-12 grid gap-6 md:grid-cols-4">
@@ -404,33 +549,27 @@ function RoundFlow() {
 function FairOpen() {
   return (
     <section className="border-y border-zinc-800 bg-gradient-to-b from-emerald-500/[0.06] to-transparent py-20">
-      <div className="mx-auto max-w-5xl px-6">
+      <div className="mx-auto max-w-3xl px-6">
         <Reveal className="text-center">
-          <div className="text-xs font-bold uppercase tracking-[0.3em] text-emerald-400">The Fair Open</div>
+          <div className="text-xs font-bold uppercase tracking-[0.3em] text-emerald-400">
+            The one rule
+          </div>
           <h2 className="mt-3 text-4xl font-black tracking-tight md:text-6xl">
-            Speed buys you <span className="text-emerald-400">nothing.</span>
+            Nobody gets in first.
           </h2>
           <Slogan className="mt-6 text-2xl md:text-4xl" />
-          <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-300">
-            Every launch opens as one uniform-price batch auction. The first bid and the last bid pay
-            the exact same price. There is no line to cut.
+          <p className="mx-auto mt-6 max-w-xl text-lg text-zinc-300">
+            Buys don&apos;t fill as they come in. They pile up until the bell, then the whole room
+            gets one price. Being fast doesn&apos;t help. Neither does a bot.
+          </p>
+          <p className="mx-auto mt-3 max-w-xl text-sm text-zinc-500">
+            If more money shows up than the round can take, everyone gets cut back by the same
+            percentage. You can rebuild the math yourself from the public bids.{" "}
+            <Link href="/docs#auction" className="text-emerald-400 underline hover:text-emerald-300">
+              It&apos;s all in the menu.
+            </Link>
           </p>
         </Reveal>
-        <div className="mt-12 grid gap-6 md:grid-cols-3">
-          {[
-            ["⏱️", "One clearing price", "Bids queue until a fixed close, then settle in a single shot at one price for everyone. Arrival order is irrelevant."],
-            ["🪢", "Pro-rata fills", "Oversubscribed? Every bid is filled proportionally — never first-come, never by who paid more gas."],
-            ["🔍", "Recompute it yourself", "Each settlement ships with an audit hash you can rebuild from the public bids and our open-source math."],
-          ].map(([icon, title, body], i) => (
-            <Reveal key={title} delay={i * 90}>
-              <div className="h-full rounded-2xl border border-zinc-800 bg-zinc-950/40 p-6">
-                <div className="text-3xl">{icon}</div>
-                <h3 className="mt-3 font-black">{title}</h3>
-                <p className="mt-2 text-sm text-zinc-400">{body}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
       </div>
     </section>
   );
@@ -519,14 +658,19 @@ function Jackpot() {
             The Weekly Jackpot
           </div>
           <h2 className="mt-3 text-4xl font-black tracking-tight md:text-6xl">
-            Funded by the crowd. <span className="text-amber-400">Won by the best.</span>
+            Every match feeds the same pot.
           </h2>
           <div className="mt-9">
             <GrowingPot />
           </div>
           <p className="mx-auto mt-6 max-w-2xl text-lg text-zinc-300">
-            Every trade feeds one shared pot — no cap, no house money. The top 10 by weekly XP split
-            it in <b className="text-amber-300">real ETH</b>.
+            A slice of every trade goes in and stays in. Monday it pays out to the ten players who
+            earned the most XP that week, in <b className="text-amber-300">real ETH</b>. Then it
+            starts over and everybody&apos;s chasing it again.
+          </p>
+          <p className="mx-auto mt-3 max-w-xl text-sm text-zinc-500">
+            It&apos;s the thing that turns a good night into a good week. You&apos;re not grinding
+            for points, you&apos;re grinding for a spot on Monday.
           </p>
         </Reveal>
 
@@ -553,9 +697,9 @@ function Jackpot() {
 
         <div className="mt-12 grid gap-6 md:grid-cols-3">
           {[
-            ["Real ETH, every week", "A slice of every trading fee builds the pot. The top 10 split it, paid out automatically. No cap."],
-            ["Earned by playing", "Daily quests, weekly challenges, streaks, milestones, a season pass. Everything you do earns XP."],
-            ["Bots earn nothing", "Wash-trading and spam decay to almost zero. The pot rewards skill, timing, and consistency."],
+            ["No cap on it", "Busy week, bigger pot. Nothing is minted for it and the house doesn't top it up. It's just fees."],
+            ["XP is how you climb", "Quests, streaks, podium finishes, milestones. Playing well moves you up; showing up daily keeps you there."],
+            ["Spam gets you nowhere", "Wash trading decays to nothing on purpose. You can't grind your way past somebody who plays better."],
           ].map(([title, body], i) => (
             <Reveal key={title} delay={i * 90}>
               <div className="h-full rounded-2xl border border-amber-400/30 bg-gradient-to-b from-amber-500/[0.08] to-transparent p-6">
@@ -567,7 +711,7 @@ function Jackpot() {
         </div>
         <Reveal className="mt-10 text-center">
           <Link href="/docs#quests" className="text-sm font-bold text-amber-400 underline hover:text-amber-300">
-            See exactly how XP &amp; the jackpot work →
+            The full XP and payout breakdown →
           </Link>
         </Reveal>
       </div>
@@ -578,10 +722,10 @@ function Jackpot() {
 /* ---------------- trust pillars ---------------- */
 
 const PILLARS = [
-  ["🏦", "The house only earns fees", "Every pETH a player loses, another player won. We never touch principal — the fee schedule is published per round."],
-  ["🔍", "Auditable by anyone", "Every auction settlement ships with a hash you can recompute from public bids using our open-source math."],
-  ["🚫", "No pay-to-win. Ever.", "XP, levels, quests, cosmetics — all earned by playing. Nothing that affects gameplay is for sale."],
-  ["🧱", "Template-only launches", "Creators supply a name, art, and supply. No creator mint, pause, or blacklist functions exist."],
+  ["🏦", "We only make money on fees", "If you lose, another player took it. We never touch the pot in the middle. Fees are published per round."],
+  ["🔍", "Check our work", "Every settlement ships with a hash. Rebuild it from the public bids and our math and see for yourself."],
+  ["🚫", "Nothing's for sale", "XP, levels, cosmetics, all of it is earned. There's no version of this where money makes you better."],
+  ["🧱", "Coins can't be rigged", "Creators pick a name, art, and supply. That's it. No mint button, no pause, no blacklist. Those functions don't exist."],
 ];
 
 function Pillars() {
@@ -603,24 +747,24 @@ function Pillars() {
 /* ---------------- beta access via X ---------------- */
 
 const ACCESS_STEPS = [
-  ["Follow " + X_HANDLE, "It's the one and only official account. Everything — waves, announcements, drops — happens there first."],
-  ["Like & Repost the posts", "Boost the signal. Engagement is how you get on our radar for the next wave."],
-  ["Comment your wallet address", "Drop your Robinhood wallet (0x…) in the replies. That exact address is the one we whitelist."],
-  ["Watch for the beta announcement", "When the official beta-test tweet goes out, your wave is live — connect that wallet and pull up."],
+  ["Follow " + X_HANDLE, "One account, and it's the only one. Waves get announced there before anywhere else."],
+  ["Like and repost", "This is how you end up on our radar when we cut the next wave."],
+  ["Comment your wallet", "Drop your Robinhood address (0x…) in the replies. That's the one we add, so paste it carefully."],
+  ["Wait for the word", "When your wave goes live we say so. Connect that wallet and pull up to a lobby."],
 ];
 
 function Access() {
   return (
     <section id="access" className="relative mx-auto max-w-4xl scroll-mt-20 px-6 py-24">
       <Reveal className="text-center">
-        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">Getting In</div>
-        <h2 className="mt-3 text-4xl font-black md:text-5xl">
-          The whitelist is earned on <span className="text-lime-400">X.</span>
+        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">Getting in</div>
+        <h2 className="mt-3 text-4xl font-black tracking-tight md:text-5xl">
+          Seats go out in waves.
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-zinc-400">
-          The Cookout opens in rolling waves — no form, no gas, nothing to sign. It&apos;s a
-          <b className="text-zinc-200"> paper-money beta</b> (simulated pETH, zero risk); you claim a
-          seat by showing up for {X_HANDLE} and dropping your wallet.
+          There&apos;s no form and nothing to sign. We hand out seats to people who show up on X,
+          and we add the wallets by hand. Everything is paper money for now, so the only thing
+          you&apos;re risking is your ego.
         </p>
       </Reveal>
 
@@ -643,9 +787,9 @@ function Access() {
       <Reveal className="mt-8 text-center">
         <div className="rounded-2xl border border-lime-400/40 bg-lime-400/[0.06] p-6">
           <p className="text-sm text-zinc-300">
-            You must <b className="text-lime-300">like, repost, and comment your wallet</b> to be
-            eligible. Eligible wallets are added to the whitelist by hand — watch for the official
-            beta-test tweet to know when your wave goes live.
+            You need all three: <b className="text-lime-300">like, repost, comment your wallet</b>.
+            We add them by hand, so give it a minute. The people getting in now are the ones who
+            get to say they were here first.
           </p>
           <a
             href={X_URL}
