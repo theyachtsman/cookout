@@ -77,22 +77,18 @@ export function UserName({
 }
 
 function UserCard({ address, onClose }: { address: string; onClose: () => void }) {
-  const { online } = useSocial();
+  const { online, following: followList, setFollow } = useSocial();
   const [p, setP] = useState<Profile | null>(null);
   const [muted, setMuted] = useState(false);
-  const [following, setFollowing] = useState(false);
+  const following = followList.some((a) => a.toLowerCase() === address.toLowerCase());
 
   useEffect(() => {
     api<Profile>(`/api/profile/${address}`)
       .then(setP)
       .catch(() => {});
-    // Follows/mutes are local for now — the graph lands with the feed.
+    // Mute is a local view filter; follow lives on the server (it drives
+    // the feed, so it has to travel with the account).
     try {
-      setFollowing(
-        (JSON.parse(localStorage.getItem("cookout:following") ?? "[]") as string[]).includes(
-          address.toLowerCase(),
-        ),
-      );
       setMuted(
         (JSON.parse(localStorage.getItem("cookout:muted-users") ?? "[]") as string[]).includes(
           address.toLowerCase(),
@@ -207,11 +203,7 @@ function UserCard({ address, onClose }: { address: string; onClose: () => void }
 
         <div className="mt-4 flex flex-wrap gap-2">
           <button
-            onClick={() => {
-              const next = !following;
-              setFollowing(next);
-              toggleList("cookout:following", next);
-            }}
+            onClick={() => void setFollow(address, !following)}
             className={`flex-1 rounded-lg py-2 text-sm font-black ${
               following
                 ? "bg-zinc-800 text-zinc-300 hover:bg-zinc-700"
@@ -240,7 +232,7 @@ function UserCard({ address, onClose }: { address: string; onClose: () => void }
           </button>
         </div>
         <p className="mt-2 text-center text-[10px] text-zinc-600">
-          Follows and mutes are saved in this browser.
+          Following feeds your activity tab. Mute hides them from chat on this device.
         </p>
       </div>
     </div>

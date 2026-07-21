@@ -35,7 +35,10 @@ export class Hub {
   private clients = new Set<Client>();
   private presenceTimer: NodeJS.Timeout | null = null;
 
-  constructor(private store: Store) {}
+  constructor(private store: Store) {
+    // Activity recorded anywhere in the app fans out to everyone hanging out.
+    store.onActivity = (event) => this.broadcast(GLOBAL_ROOM, { type: "activity", event });
+  }
 
   attach(server: Server): void {
     const wss = new WebSocketServer({ server, path: "/ws" });

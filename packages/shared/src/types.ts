@@ -258,6 +258,31 @@ export interface PresenceUser {
   roundSymbol?: string;
 }
 
+/** Things worth telling the crowd about — the live activity feed. */
+export type ActivityKind =
+  | "joined"
+  | "pulled_up"
+  | "won"
+  | "rekt"
+  | "graduated"
+  | "level_up"
+  | "achievement"
+  | "jackpot"
+  | "submitted";
+
+export interface ActivityEvent {
+  id: string;
+  kind: ActivityKind;
+  address: Address;
+  displayName?: string;
+  avatarUrl?: string;
+  /** Pre-rendered line, e.g. "reached Level 15". */
+  text: string;
+  at: number;
+  roundId?: string;
+  roundSymbol?: string;
+}
+
 export interface Prediction {
   roundId: string;
   userAddress: Address;
@@ -396,6 +421,7 @@ export type ServerEvent =
   | { type: "trade"; trade: Trade }
   | { type: "candle"; roundId: string; candle: Candle }
   | { type: "presence"; online: PresenceUser[] }
+  | { type: "activity"; event: ActivityEvent }
   | {
       type: "ticker";
       roundId: string;
