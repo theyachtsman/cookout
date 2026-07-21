@@ -16,13 +16,16 @@ import { playAthSparkle, playFanfare, playHorn, playMilestone, playRug, playSell
 import { useSession } from "../../../lib/session";
 import { useSocial } from "../../../lib/social";
 import { useRoundSocket } from "../../../lib/useRoundSocket";
-import { FloatingReactions, KillFeedTicker } from "../../../components/ArcadeOverlays";
+import { FloatingReactions } from "../../../components/ArcadeOverlays";
 import { Chart } from "../../../components/Chart";
 import { TopHolders } from "../../../components/TopHolders";
 import { Countdown } from "../../../components/Countdown";
 import { GraduationProgress } from "../../../components/GraduationProgress";
 import { BattleFX, type FxEvent, type FxKind } from "../../../components/BattleFX";
-import { PhaseBanner } from "../../../components/PhaseBanner";
+import { ArenaHeader } from "../../../components/arena/ArenaHeader";
+import { Callouts, EventStrip, PhaseFlash } from "../../../components/arena/ArenaEvents";
+import { LiveLeaders } from "../../../components/arena/LiveLeaders";
+import { MomentumMeter } from "../../../components/arena/MomentumMeter";
 import { PnlShareCard } from "../../../components/PnlShareCard";
 import { ArenaWalletPanel } from "../../../components/ArenaWalletPanel";
 import { ChainActions } from "../../../components/ChainActions";
@@ -53,7 +56,7 @@ interface Lobby {
 export default function RoundPage() {
   const { id } = useParams<{ id: string }>();
   const { profile, refresh } = useSession();
-  const { setActiveMatch } = useSocial();
+  const { setActiveRoom } = useSocial();
   const [round, setRound] = useState<Round | null>(null);
   const [candles, setCandles] = useState<Candle[]>([]);
   const [killfeed, setKillfeed] = useState<KillFeedEvent[]>([]);
@@ -83,6 +86,9 @@ export default function RoundPage() {
   // amount the uniform redemption returned.
   const [endResults, setEndResults] = useState<{ summary: RoundSummary; breakdown: EndBreakdown | null } | null>(null);
   const [resultsOpen, setResultsOpen] = useState(false);
+  // Short announcement over the chart when the round changes gear.
+  const [flash, setFlash] = useState<{ text: string; tone: "go" | "end" | "bad" } | null>(null);
+  const lastPhase = useRef<string>("");
   const positionRef = useRef<typeof position>(null);
 
   // Fresh values for the socket callback without re-subscribing.
@@ -150,13 +156,30 @@ export default function RoundPage() {
   // room's channel; leaving drops back to The Cookout.
   useEffect(() => {
     if (!round) return;
-    setActiveMatch({
+    setActiveRoom({
       id: round.id,
-      symbol: round.token.symbol,
+      label: `$${round.token.symbol}`,
       frozen: round.state === "results" || round.state === "ended",
     });
-  }, [round?.id, round?.state, round?.token.symbol, setActiveMatch]);
-  useEffect(() => () => setActiveMatch(null), [setActiveMatch]);
+  }, [round?.id, round?.state, round?.token.symbol, setActiveRoom]);
+  useEffect(() => () => setActiveRoom(null), [setActiveRoom]);
+
+  // Phase transitions announce themselves once.
+  useEffect(() => {
+    if (!round) return;
+    const prev = lastPhase.current;
+    lastPhase.current = round.state;
+    if (!prev || prev === round.state) return;
+    const show = (text: string, tone: "go" | "end" | "bad") => {
+      setFlash({ text, tone });
+      setTimeout(() => setFlash(null), 1900);
+    };
+    if (round.state === "queue_open") show("QUEUE OPEN", "go");
+    else if (round.state === "settling") show("SETTLING", "end");
+    else if (round.state === "live") show("TRADING LIVE", "go");
+    else if (round.state === "results")
+      show(round.graduated ? "SERVED UP" : "ROUND OVER", round.graduated ? "end" : "bad");
+  }, [round?.state, round?.graduated]);
 
   liveRef.current = round?.state === "live";
   positionRef.current = position;
@@ -288,6 +311,14 @@ export default function RoundPage() {
   if (!round)
     return <div className="p-10 text-center text-zinc-500">Loading round…</div>;
 
+  const myRank = profile
+    ? (() => {
+        const i = leaders.findIndex(
+          (l) => l.address.toLowerCase() === profile.address.toLowerCase(),
+        );
+        return i === -1 ? null : i + 1;
+      })()
+    : null;
   const teaser = round.state === "scheduled";
   const spectating = round.state === "live" && (!position || position.tokens === 0);
   const unit = round.chain ? "ETH" : "pETH";
@@ -311,95 +342,14 @@ export default function RoundPage() {
           onClose={() => setResultsOpen(false)}
         />
       )}
-      <PhaseBanner round={round} />
-      <KillFeedTicker killfeed={killfeed} />
-      {/* Top bar */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl border border-zinc-800 bg-zinc-900/50 px-5 py-3">
-        <div className="flex items-center gap-3">
-          {round.token.artworkUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={round.token.artworkUrl}
-              alt=""
-              className={`h-10 w-10 rounded-lg border border-zinc-700 object-cover ${teaser ? "blur-md" : ""}`}
-            />
-          )}
-          <span className="text-xl font-black">{teaser ? "???" : round.token.name}</span>{" "}
-          {!teaser && <span className="text-zinc-500">${round.token.symbol}</span>}
-          <span className="ml-3 rounded bg-zinc-800 px-1.5 py-0.5 text-xs uppercase text-zinc-300">
-            {round.tier}
-          </span>
-          {round.chain && (
-            <span
-              className="ml-2 rounded bg-amber-400/15 px-1.5 py-0.5 text-xs font-bold text-amber-300"
-              title={`pool ${round.chain.pool} on chain ${round.chain.chainId}`}
-            >
-              ⛓️ ON-CHAIN
-            </span>
-          )}
-          {summary && !summary.graduated && round.state === "results" && (
-            <button
-              onClick={() => {
-                if (!endResults) {
-                  setEndResults({
-                    summary,
-                    breakdown:
-                      position && position.realizedPnl !== 0
-                        ? { invested: 0, heldTokens: 0, returned: 0, roundPnl: position.realizedPnl }
-                        : null,
-                  });
-                }
-                setResultsOpen(true);
-              }}
-              className="ml-2 rounded bg-zinc-800 px-2 py-0.5 text-xs font-bold text-zinc-200 hover:bg-zinc-700"
-            >
-              📊 Results
-            </button>
-          )}
-          {spectating && (
-            <span className="ml-2 rounded bg-sky-500/20 px-1.5 py-0.5 text-xs text-sky-300">
-              spectating
-            </span>
-          )}
-        </div>
-        {ticker && round.state === "live" && (
-          <>
-            {ticker.cooking && (
-              <span className="animate-pulse rounded bg-orange-500/20 px-2 py-1 text-xs font-black text-orange-300">
-                🔥 Cooking
-              </span>
-            )}
-            <Stat
-              label="Market Cap"
-              value={`$${((ticker.mcap * (ticker.ethUsd ?? 1925)) / 1000).toFixed(1)}k`}
-            />
-            {ticker.athMcap !== undefined && (
-              <Stat
-                label="ATH"
-                value={`$${((ticker.athMcap * (ticker.ethUsd ?? 1925)) / 1000).toFixed(1)}k${
-                  ticker.mcap >= ticker.athMcap * 0.98 ? " 🚀" : ""
-                }`}
-                tone={ticker.mcap >= ticker.athMcap * 0.98 ? "up" : undefined}
-              />
-            )}
-            <Stat label="Liquidity" value={`${ticker.liquidity.toFixed(1)} ${unit}`} />
-            <Stat label="Volume" value={`${ticker.volume.toFixed(2)} ${unit}`} />
-            <Stat label="Age" value={`${ticker.ageSeconds}s`} />
-            <Stat label="Holders" value={String(ticker.holders)} />
-            <Stat
-              label="Your PnL"
-              value={`${pnl >= 0 ? "+" : ""}${pnl.toFixed(3)} ${unit}`}
-              tone={pnl >= 0 ? "up" : "down"}
-            />
-          </>
-        )}
-        {round.state === "live" && round.endsAt && (
-          <div className="text-sm text-zinc-400">
-            max timer <Countdown to={round.endsAt} />
-          </div>
-        )}
-      </div>
-
+      <ArenaHeader
+        round={round}
+        ticker={ticker}
+        position={position}
+        rank={myRank}
+        players={lobby?.players}
+      />
+      <EventStrip killfeed={killfeed} since={round.liveAt} live={round.state === "live"} />
       {/* ---- pre-launch arcade: everything on one screen ---- */}
       {(round.state === "lobby" || round.state === "queue_open" || round.state === "settling") && (
         <div className="grid gap-3 lg:min-h-[34rem]">
@@ -426,7 +376,10 @@ export default function RoundPage() {
             {round.state === "live" && ticker && (
               <GraduationProgress config={round.config} ticker={ticker} />
             )}
-            <Chart
+            <div className="relative">
+              <Callouts killfeed={killfeed} />
+              {flash && <PhaseFlash text={flash.text} tone={flash.tone} />}
+              <Chart
               candles={candles}
               trades={trades}
               livePrice={ticker?.price}
@@ -439,7 +392,9 @@ export default function RoundPage() {
               // Served-up coins keep trading — no end overlay, live chart stays.
               endReason={round.graduated ? undefined : round.endReason}
               graduated={round.graduated}
-            />
+              />
+            </div>
+            {round.state === "live" && <MomentumMeter trades={trades} live />}
             {round.state === "live" && (
               <TradePanel
                 round={round}
@@ -507,29 +462,8 @@ export default function RoundPage() {
               />
             )}
             <TopHolders roundId={round.id} ethUsd={ticker?.ethUsd} />
-            {round.state === "live" && leaders.length > 0 && (
-              <div className="rounded-xl border border-zinc-800 p-4">
-                <h4 className="mb-2 text-sm font-bold text-zinc-300">Round Leaders</h4>
-                <div className="space-y-1 text-sm">
-                  {leaders.map((l, i) => (
-                    <a
-                      key={l.address}
-                      href={`/profile/${l.address}`}
-                      className="flex justify-between rounded bg-zinc-900 px-2 py-1 hover:bg-zinc-800"
-                    >
-                      <span>
-                        <span className="mr-1.5 font-mono text-zinc-500">{i + 1}</span>
-                        {l.badge && <span className="mr-1">{l.badge}</span>}
-                        {l.displayName ?? `${l.address.slice(0, 6)}…${l.address.slice(-4)}`}
-                      </span>
-                      <span className={`font-mono ${l.value >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                        {l.value >= 0 ? "+" : ""}
-                        {l.value.toFixed(3)}
-                      </span>
-                    </a>
-                  ))}
-                </div>
-              </div>
+            {(round.state === "live" || round.state === "results") && (
+              <LiveLeaders rows={leaders} me={profile?.address} ethUsd={ticker?.ethUsd} />
             )}
           </div>
         </div>

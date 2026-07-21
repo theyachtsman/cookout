@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Round } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { Countdown } from "../../components/Countdown";
+import { useSocial } from "../../lib/social";
 
 const LIVEISH = ["lobby", "queue_open", "settling", "live"];
 
@@ -16,6 +17,11 @@ const isRug = (r: Round) =>
 export default function Home() {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [filter, setFilter] = useState<ResultFilter>("all");
+  const { setActiveRoom } = useSocial();
+  useEffect(() => {
+    setActiveRoom({ id: "calendar", label: "Calendar" });
+    return () => setActiveRoom(null);
+  }, [setActiveRoom]);
 
   useEffect(() => {
     let alive = true;
