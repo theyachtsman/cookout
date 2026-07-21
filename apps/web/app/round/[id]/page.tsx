@@ -450,6 +450,18 @@ export default function RoundPage() {
               endReason={round.graduated ? undefined : round.endReason}
               graduated={round.graduated}
             />
+            {round.state === "live" && (
+              <TradePanel
+                round={round}
+                position={position}
+                ethUsd={ticker?.ethUsd}
+                variant="bar"
+                onTraded={() => {
+                  void loadMe();
+                  void refresh();
+                }}
+              />
+            )}
             <ChainActions
               round={round}
               onChanged={() => {
@@ -462,11 +474,12 @@ export default function RoundPage() {
           {/* The social column: gameplay lives on the left, the crowd on the
               right — chat, who's winning, who's holding — all visible at once. */}
           <div className="space-y-4">
-            {(round.state === "live" || (round.graduated && !round.chain)) && (
+            {round.graduated && !round.chain && (
               <TradePanel
                 round={round}
                 position={position}
                 ethUsd={ticker?.ethUsd}
+                variant="widget"
                 onTraded={() => {
                   void loadMe();
                   void refresh();
