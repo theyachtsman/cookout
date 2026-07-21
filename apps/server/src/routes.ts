@@ -572,6 +572,14 @@ export function createApp(
     }),
   );
 
+  /** Any room's recent history (global or a match room). */
+  app.get(
+    "/api/chat/:roomId",
+    wrap((req, res) => {
+      res.json({ messages: (store.chat.get(req.params.roomId!) ?? []).slice(-200) });
+    }),
+  );
+
   /** Who's online right now, with what they're doing. */
   /** The activity feed. scope=following filters to who you follow. */
   app.get(

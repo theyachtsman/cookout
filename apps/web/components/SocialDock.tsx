@@ -8,6 +8,8 @@ import { useSocial } from "../lib/social";
 import { ChatLog } from "./ChatLog";
 import { STATUS_META, UserName } from "./UserCard";
 
+const CHEERS = ["🔥", "🚀", "😂", "💀", "🧊", "📉"];
+
 /**
  * The Cookout dock — the persistent social layer, present on every page.
  *
@@ -17,17 +19,41 @@ import { STATUS_META, UserName } from "./UserCard";
  */
 export function SocialDock() {
   const { profile } = useSession();
-  const { online, messages, activity, following, connected, unread, setReading, send } = useSocial();
+  const {
+    online,
+    messages,
+    matchMessages,
+    activeMatch,
+    channel,
+    setChannel,
+    react,
+    activity,
+    following,
+    connected,
+    unread,
+    setReading,
+    send,
+  } = useSocial();
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"chat" | "feed" | "people">("chat");
   const [feedScope, setFeedScope] = useState<"all" | "following">("all");
+  const [dismissed, setDismissed] = useState(false);
+
+  // Walking into a match pops the console open on that match's channel —
+  // the trenches were always visible before; they still are.
+  useEffect(() => {
+    if (activeMatch && !dismissed) {
+      setOpen(true);
+      setTab("chat");
+    }
+  }, [activeMatch, dismissed]);
   const [text, setText] = useState("");
 
   // Unread only accumulates while the room isn't actually on screen.
   useEffect(() => {
     setReading(open && tab === "chat");
     return () => setReading(false);
-  }, [open, tab, setReading]);
+  }, [open, tab, channel, setReading]);
 
   const grouped = useMemo(() => {
     const order: PresenceUser["status"][] = ["trading", "queue", "spectating", "finished", "hanging"];
@@ -35,6 +61,8 @@ export function SocialDock() {
       .map((status) => ({ status, users: online.filter((o) => o.status === status) }))
       .filter((g) => g.users.length > 0);
   }, [online]);
+
+  const inMatch = channel === "match" && !!activeMatch;
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,7 +78,10 @@ export function SocialDock() {
       {/* collapsed tab */}
       {!open && (
         <button
-          onClick={() => setOpen(true)}
+          onClick={() => {
+            setOpen(true);
+            setDismissed(false);
+          }}
           className="fixed bottom-4 right-4 z-40 flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/95 px-4 py-2.5 text-sm font-black shadow-2xl shadow-black/60 backdrop-blur transition hover:border-lime-400/60"
         >
           <span className="relative flex h-2 w-2">
@@ -65,7 +96,7 @@ export function SocialDock() {
               }`}
             />
           </span>
-          The Cookout
+          {activeMatch ? `$${activeMatch.symbol}` : "The Cookout"}
           <span className="font-mono text-xs text-zinc-400">{online.length}</span>
           {unread > 0 && (
             <span className="rounded-full bg-lime-400 px-1.5 text-[10px] font-black text-zinc-950">
@@ -79,11 +110,42 @@ export function SocialDock() {
       {open && (
         <div className="fixed bottom-4 right-4 z-40 flex h-[min(30rem,70vh)] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-2xl border border-zinc-700 bg-zinc-950/95 shadow-2xl shadow-black/60 backdrop-blur">
           <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
-            <span className="text-sm font-black">🔥 The Cookout</span>
             <span
-              className={`h-1.5 w-1.5 rounded-full ${connected ? "bg-lime-400" : "bg-zinc-600"}`}
+              className={`h-1.5 w-1.5 shrink-0 rounded-full ${connected ? "bg-lime-400" : "bg-zinc-600"}`}
               title={connected ? "connected" : "reconnecting…"}
             />
+            {/* Channels: the global room is always there; the match channel
+                appears while you're in a match and leaves when you navigate away. */}
+            <div className="flex min-w-0 gap-1 text-[11px] font-black">
+              <button
+                onClick={() => {
+                  setChannel("global");
+                  setTab("chat");
+                }}
+                className={`shrink-0 rounded-full px-2 py-0.5 ${
+                  channel === "global" && tab === "chat"
+                    ? "bg-zinc-700 text-zinc-100"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                🔥 Cookout
+              </button>
+              {activeMatch && (
+                <button
+                  onClick={() => {
+                    setChannel("match");
+                    setTab("chat");
+                  }}
+                  className={`min-w-0 truncate rounded-full px-2 py-0.5 ${
+                    channel === "match" && tab === "chat"
+                      ? "bg-lime-400 text-zinc-950"
+                      : "text-lime-300/80 hover:text-lime-300"
+                  }`}
+                >
+                  ${activeMatch.symbol}
+                </button>
+              )}
+            </div>
             <div className="ml-auto flex overflow-hidden rounded-full bg-zinc-900 p-0.5 text-[11px] font-bold">
               <button
                 onClick={() => setTab("chat")}
@@ -111,8 +173,11 @@ export function SocialDock() {
               </button>
             </div>
             <button
-              onClick={() => setOpen(false)}
-              className="ml-1 px-1 text-zinc-500 hover:text-zinc-200"
+              onClick={() => {
+                setOpen(false);
+                setDismissed(true);
+              }}
+              className="ml-1 shrink-0 px-1 text-zinc-500 hover:text-zinc-200"
               title="minimize"
             >
               ✕
@@ -121,18 +186,50 @@ export function SocialDock() {
 
           {tab === "chat" ? (
             <>
-              <ChatLog messages={messages} me={profile.address} className="flex-1" />
+              <ChatLog
+                messages={inMatch ? matchMessages : messages}
+                me={profile.address}
+                myName={profile.displayName}
+                className="flex-1"
+                emptyText={
+                  inMatch
+                    ? "The trenches are quiet. Start talking."
+                    : "It's quiet in here. Say something."
+                }
+              />
+              {inMatch && !activeMatch?.frozen && (
+                <div className="flex gap-1 px-2 pb-1">
+                  {CHEERS.map((e) => (
+                    <button
+                      key={e}
+                      onClick={() => react(e)}
+                      className="rounded bg-zinc-900 px-1.5 py-1 text-sm hover:bg-zinc-800"
+                      title="cheer"
+                    >
+                      {e}
+                    </button>
+                  ))}
+                </div>
+              )}
               <form onSubmit={submit} className="flex gap-2 border-t border-zinc-800 p-2">
                 <input
                   value={text}
                   onChange={(e) => setText(e.target.value)}
-                  placeholder="say something to the whole cookout…"
+                  disabled={inMatch && !!activeMatch?.frozen}
+                  placeholder={
+                    inMatch
+                      ? activeMatch?.frozen
+                        ? "this round is over — chat lives on in The Cookout"
+                        : `message $${activeMatch?.symbol} — the trenches…`
+                      : "say something to the whole cookout…"
+                  }
                   maxLength={280}
-                  className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm outline-none focus:border-lime-400/50"
+                  className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm outline-none focus:border-lime-400/50 disabled:opacity-50"
                 />
                 <button
                   type="submit"
-                  className="rounded-lg bg-lime-400 px-3 py-1.5 text-sm font-black text-zinc-950 hover:bg-lime-300"
+                  disabled={inMatch && !!activeMatch?.frozen}
+                  className="rounded-lg bg-lime-400 px-3 py-1.5 text-sm font-black text-zinc-950 hover:bg-lime-300 disabled:opacity-50"
                 >
                   Send
                 </button>
