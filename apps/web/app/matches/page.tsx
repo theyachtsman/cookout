@@ -1,15 +1,21 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { Round } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { Countdown } from "../../components/Countdown";
 
 const LIVEISH = ["lobby", "queue_open", "settling", "live"];
 
+type ResultFilter = "all" | "graduated" | "failed" | "burnt";
+
+const isRug = (r: Round) =>
+  r.endReason === "rug_detected" || r.endReason === "liquidity_removed";
+
 export default function Home() {
   const [rounds, setRounds] = useState<Round[]>([]);
+  const [filter, setFilter] = useState<ResultFilter>("all");
 
   useEffect(() => {
     let alive = true;
@@ -27,7 +33,32 @@ export default function Home() {
 
   const live = rounds.filter((r) => LIVEISH.includes(r.state));
   const upcoming = rounds.filter((r) => r.state === "scheduled");
-  const done = rounds.filter((r) => r.state === "results" || r.state === "ended").slice(-6);
+  // Every finished round, newest first — the full archive, not a slice.
+  const finished = useMemo(
+    () =>
+      rounds
+        .filter((r) => r.state === "results" || r.state === "ended")
+        .sort((a, b) => (b.endedAt ?? b.scheduledAt) - (a.endedAt ?? a.scheduledAt)),
+    [rounds],
+  );
+  const counts = useMemo(
+    () => ({
+      all: finished.length,
+      graduated: finished.filter((r) => r.graduated).length,
+      failed: finished.filter((r) => !r.graduated).length,
+      burnt: finished.filter((r) => !r.graduated && isRug(r)).length,
+    }),
+    [finished],
+  );
+  const done = finished.filter((r) =>
+    filter === "all"
+      ? true
+      : filter === "graduated"
+        ? r.graduated
+        : filter === "burnt"
+          ? !r.graduated && isRug(r)
+          : !r.graduated,
+  );
 
   return (
     <div className="space-y-8">
@@ -52,9 +83,42 @@ export default function Home() {
         </div>
       </section>
 
-      {done.length > 0 && (
+      {finished.length > 0 && (
         <section>
-          <h2 className="mb-3 text-lg font-bold text-zinc-300">Recent Results</h2>
+          <div className="mb-3 flex flex-wrap items-center gap-3">
+            <h2 className="text-lg font-bold text-zinc-300">Past Results</h2>
+            <div className="flex flex-wrap gap-1 text-xs font-bold">
+              {(
+                [
+                  ["all", "All"],
+                  ["graduated", "🍽️ Served up"],
+                  ["failed", "Didn't graduate"],
+                  ["burnt", "🔥 Burnt"],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  onClick={() => setFilter(key)}
+                  className={`rounded-full px-3 py-1 transition ${
+                    filter === key
+                      ? "bg-lime-400 text-zinc-950"
+                      : "border border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
+                  }`}
+                >
+                  {label}
+                  <span className={filter === key ? "ml-1.5 text-zinc-800" : "ml-1.5 text-zinc-600"}>
+                    {counts[key]}
+                  </span>
+                </button>
+              ))}
+            </div>
+            <span className="ml-auto text-xs text-zinc-600">newest first</span>
+          </div>
+          {done.length === 0 && (
+            <div className="rounded-lg border border-zinc-800 p-6 text-sm text-zinc-500">
+              No rounds in this filter yet.
+            </div>
+          )}
           <div className="grid gap-3 md:grid-cols-3">
             {done.map((r) => {
               const art = r.token.artworkUrl;
@@ -102,7 +166,12 @@ export default function Home() {
                         {r.token.name} <span className="text-zinc-500">${r.token.symbol}</span>
                       </div>
                       <div className="text-[11px] text-zinc-500">
-                        {r.graduated ? "still trading in the wild" : `ended: ${r.endReason?.replace(/_/g, " ")}`}
+                        {r.graduated
+                          ? "still trading in the wild"
+                          : `ended: ${r.endReason?.replace(/_/g, " ")}`}
+                        {r.endedAt && (
+                          <span className="ml-1 text-zinc-700">· {ago(r.endedAt)}</span>
+                        )}
                       </div>
                     </div>
                     <span
@@ -125,6 +194,17 @@ export default function Home() {
       )}
     </div>
   );
+}
+
+/** Compact relative time for the results archive. */
+function ago(at: number): string {
+  const secs = Math.max(0, Math.floor((Date.now() - at) / 1000));
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
 }
 
 function RoundCard({ round, highlight }: { round: Round; highlight?: boolean }) {

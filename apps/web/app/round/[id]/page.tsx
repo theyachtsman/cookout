@@ -406,6 +406,7 @@ export default function RoundPage() {
               round={round}
               lobby={lobby}
               preds={preds}
+              ethUsd={ticker?.ethUsd}
               onChanged={() => {
                 void loadMe();
                 void refresh();
@@ -462,6 +463,7 @@ export default function RoundPage() {
               <TradePanel
                 round={round}
                 position={position}
+                ethUsd={ticker?.ethUsd}
                 onTraded={() => {
                   void loadMe();
                   void refresh();
