@@ -86,9 +86,11 @@ export default function ProfilePage() {
             ) : (
               <>
                 <div className="text-2xl font-black text-lime-400">
-                  {profile.paperBalance.toFixed(3)} pETH
+                  ⚡ {(profile.arenaBalance ?? 0).toFixed(3)} pETH
                 </div>
-                <div className="text-xs text-zinc-500">paper balance</div>
+                <div className="text-xs text-zinc-500">
+                  arena wallet · {profile.paperBalance.toFixed(3)} in the bank
+                </div>
               </>
             )}
           </div>

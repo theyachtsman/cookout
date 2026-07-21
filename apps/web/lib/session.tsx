@@ -10,6 +10,8 @@ export interface Profile {
   level: number;
   title: string;
   paperBalance: number;
+  /** Staked into the arena — the only money matches can spend. */
+  arenaBalance?: number;
   achievements: string[];
   referralCode: string;
   creatorReputation: number;

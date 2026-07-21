@@ -354,7 +354,7 @@ export default function RoundPage() {
       {(round.state === "lobby" || round.state === "queue_open" || round.state === "settling") && (
         <div className="grid gap-3 lg:min-h-[34rem]">
           <div className={`min-h-0 space-y-3 overflow-y-auto rounded-xl ${round.state === "queue_open" ? "neon" : ""}`}>
-            {round.chain && <ArenaWalletPanel round={round} />}
+            <ArenaWalletPanel round={round} />
             <QueuePanel
               round={round}
               lobby={lobby}
@@ -431,7 +431,7 @@ export default function RoundPage() {
                 }}
               />
             )}
-            {round.chain && <ArenaWalletPanel round={round} />}
+            <ArenaWalletPanel round={round} />
             {(round.state === "live" || round.graduated) && position && ticker && (
               <YourBag
                 position={position}

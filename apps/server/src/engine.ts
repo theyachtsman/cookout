@@ -222,8 +222,9 @@ export class RoundEngine {
     const committed = mine.reduce((s, i) => s + i.ethAmount, 0);
     if (cap > 0 && committed + ethAmount > cap)
       throw new Err(400, `queue position cap is ${cap} paper ETH for this tier — live trading is uncapped`);
-    if (user.paperBalance < ethAmount) throw new Err(400, "insufficient paper balance");
-    user.paperBalance -= ethAmount; // escrow until settlement
+    if ((user.arenaBalance ?? 0) < ethAmount)
+      throw new Err(400, "not enough in your arena wallet — deposit pETH to pull up");
+    user.arenaBalance = (user.arenaBalance ?? 0) - ethAmount; // escrow until settlement
     if (mine.length === 0) this.store.trackActivity(user.address, "auctions_entered", 1, now);
     const intent = {
       id: this.store.id(),
@@ -254,7 +255,8 @@ export class RoundEngine {
     );
     if (idx === -1) throw new Err(404, "intent not found");
     const [intent] = intents.splice(idx, 1);
-    this.store.getOrCreateUser(address).paperBalance += intent!.ethAmount;
+    const back = this.store.getOrCreateUser(address);
+    back.arenaBalance = (back.arenaBalance ?? 0) + intent!.ethAmount;
     this.emitLobby(round);
   }
 
@@ -280,7 +282,7 @@ export class RoundEngine {
     });
     for (const fill of result.fills) {
       const user = this.store.getOrCreateUser(fill.userAddress);
-      user.paperBalance += fill.refund; // unfilled escrow back
+      user.arenaBalance = (user.arenaBalance ?? 0) + fill.refund; // unfilled escrow back
       if (fill.tokensOut > 0) {
         const pos = this.store.position(round.id, fill.userAddress);
         pos.tokens += fill.tokensOut;
@@ -357,12 +359,13 @@ export class RoundEngine {
     if (side === "buy") {
       const ethIn = amount.eth ?? 0;
       if (!(ethIn > 0)) throw new Err(400, "eth amount required");
-      if (user.paperBalance < ethIn) throw new Err(400, "insufficient paper balance");
+      if ((user.arenaBalance ?? 0) < ethIn)
+        throw new Err(400, "not enough in your arena wallet — deposit pETH to trade");
       // Live trading is uncapped — bet the whole bag if you dare. The
       // position cap (maxPositionEth) constrains ONLY the fair-open queue
       // (submitIntent), so nobody can pre-load the bond before the open.
       const r = buy(pool, ethIn, round.config.tradeFeeBps);
-      user.paperBalance -= ethIn;
+      user.arenaBalance = (user.arenaBalance ?? 0) - ethIn;
       round.pool = r.pool;
       pos.tokens += r.amountOut;
       pos.costBasisEth += ethIn;
@@ -401,7 +404,7 @@ export class RoundEngine {
       pos.tokens -= tokens;
       pos.costBasisEth -= costShare;
       pos.realizedPnl += pnl;
-      user.paperBalance += r.amountOut;
+      user.arenaBalance = (user.arenaBalance ?? 0) + r.amountOut;
       m.bestSellPnl = Math.max(m.bestSellPnl, pnl);
       m.tokensSoldBeforeEnd += tokens;
       if (r.price >= s.peakPrice * 0.95) m.soldNearPeak = true;
@@ -738,7 +741,10 @@ export class RoundEngine {
         const ethOut = (pool.ethReserve * outstanding) / (pool.tokenReserve + outstanding);
         for (const p of holdersAtEnd) {
           const share = ethOut * (p.tokens / outstanding);
-          if (!round.chain) this.store.getOrCreateUser(p.userAddress).paperBalance += share;
+          if (!round.chain) {
+            const holder = this.store.getOrCreateUser(p.userAddress);
+            holder.arenaBalance = (holder.arenaBalance ?? 0) + share;
+          }
           p.realizedPnl += share - p.costBasisEth;
           p.tokens = 0;
           p.costBasisEth = 0;

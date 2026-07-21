@@ -139,7 +139,9 @@ export function TradePanel({
       </div>
     );
 
-  const balance = onChain ? ethBal : profile.paperBalance;
+  // Paper rounds spend the arena balance, same as chain rounds spend the
+  // arena wallet. The bank balance isn't playable.
+  const balance = onChain ? ethBal : (profile.arenaBalance ?? 0);
   const holdingTokens = onChain
     ? tokenBal !== null
       ? Number(tokenBal / 10n ** 18n)

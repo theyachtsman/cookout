@@ -269,7 +269,7 @@ export function QueuePanel({
               balance:{" "}
               {onChain
                 ? `${ethBal !== null ? ethBal.toFixed(4) : "…"} ${unit}`
-                : `${profile.paperBalance.toFixed(2)} ${unit}`}
+                : `${(profile.arenaBalance ?? 0).toFixed(2)} ${unit}`}
               {round.config.maxPositionEth > 0 && ` · cap ${round.config.maxPositionEth} ${unit}`}
             </span>
           </div>
