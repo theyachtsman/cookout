@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { PresenceUser } from "@cookout/shared";
+import type { ActivityEvent, ActivityKind, PresenceUser } from "@cookout/shared";
 import { useSession } from "../lib/session";
 import { useSocial } from "../lib/social";
 import { ChatLog } from "./ChatLog";
@@ -17,9 +17,10 @@ import { STATUS_META, UserName } from "./UserCard";
  */
 export function SocialDock() {
   const { profile } = useSession();
-  const { online, messages, connected, unread, setReading, send } = useSocial();
+  const { online, messages, activity, following, connected, unread, setReading, send } = useSocial();
   const [open, setOpen] = useState(false);
-  const [tab, setTab] = useState<"chat" | "people">("chat");
+  const [tab, setTab] = useState<"chat" | "feed" | "people">("chat");
+  const [feedScope, setFeedScope] = useState<"all" | "following">("all");
   const [text, setText] = useState("");
 
   // Unread only accumulates while the room isn't actually on screen.
@@ -93,12 +94,20 @@ export function SocialDock() {
                 Chat
               </button>
               <button
+                onClick={() => setTab("feed")}
+                className={`rounded-full px-2.5 py-0.5 ${
+                  tab === "feed" ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                Feed
+              </button>
+              <button
                 onClick={() => setTab("people")}
                 className={`rounded-full px-2.5 py-0.5 ${
                   tab === "people" ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
                 }`}
               >
-                {online.length} here
+                {online.length}
               </button>
             </div>
             <button
@@ -129,6 +138,14 @@ export function SocialDock() {
                 </button>
               </form>
             </>
+          ) : tab === "feed" ? (
+            <ActivityFeed
+              events={activity}
+              following={following}
+              scope={feedScope}
+              onScope={setFeedScope}
+              onNavigate={() => setOpen(false)}
+            />
           ) : (
             <OnlineList grouped={grouped} onNavigate={() => setOpen(false)} />
           )}
@@ -201,6 +218,95 @@ export function OnlineList({
           </div>
         );
       })}
+    </div>
+  );
+}
+
+
+const FEED_ICON: Record<ActivityKind, string> = {
+  joined: "🚪",
+  pulled_up: "🔥",
+  won: "🏆",
+  rekt: "💀",
+  graduated: "🍽️",
+  level_up: "⬆️",
+  achievement: "🏅",
+  jackpot: "🎰",
+  submitted: "🪙",
+};
+
+const ago = (at: number) => {
+  const s = Math.max(0, Math.floor((Date.now() - at) / 1000));
+  if (s < 60) return `${s}s`;
+  if (s < 3600) return `${Math.floor(s / 60)}m`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h`;
+  return `${Math.floor(s / 86400)}d`;
+};
+
+/** Live activity — what the people you care about are doing right now. */
+export function ActivityFeed({
+  events,
+  following,
+  scope,
+  onScope,
+  onNavigate,
+}: {
+  events: ActivityEvent[];
+  following: string[];
+  scope: "all" | "following";
+  onScope: (s: "all" | "following") => void;
+  onNavigate?: () => void;
+}) {
+  const follows = new Set(following.map((f) => f.toLowerCase()));
+  const shown =
+    scope === "following" ? events.filter((e) => follows.has(e.address.toLowerCase())) : events;
+
+  return (
+    <div className="flex flex-1 flex-col overflow-hidden">
+      <div className="flex gap-1 border-b border-zinc-800 px-2 py-1.5 text-[10px] font-bold">
+        {(["all", "following"] as const).map((sc) => (
+          <button
+            key={sc}
+            onClick={() => onScope(sc)}
+            className={`rounded-full px-2.5 py-0.5 ${
+              scope === sc ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            {sc === "all" ? "Everyone" : `Following ${follows.size || ""}`}
+          </button>
+        ))}
+      </div>
+      <div className="flex-1 space-y-0.5 overflow-y-auto p-2">
+        {shown.length === 0 && (
+          <div className="p-4 text-center text-xs text-zinc-600">
+            {scope === "following"
+              ? "You're not following anyone yet — tap a name and hit Follow."
+              : "Nothing has happened yet. Be the first."}
+          </div>
+        )}
+        {shown.map((e) => (
+          <div key={e.id} className="flex items-baseline gap-1.5 rounded px-1.5 py-1 text-[12px] hover:bg-zinc-900">
+            <span className="shrink-0">{FEED_ICON[e.kind]}</span>
+            <UserName
+              address={e.address}
+              name={e.displayName}
+              className="shrink-0 text-[12px] text-zinc-200"
+            />
+            <span className="min-w-0 break-words text-zinc-400">{e.text}</span>
+            {e.roundId && (
+              <Link
+                href={`/round/${e.roundId}`}
+                onClick={onNavigate}
+                className="shrink-0 text-[10px] text-lime-300 hover:underline"
+                title="open the round"
+              >
+                ↗
+              </Link>
+            )}
+            <span className="ml-auto shrink-0 font-mono text-[9px] text-zinc-700">{ago(e.at)}</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

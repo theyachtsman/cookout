@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { GLOBAL_ROOM, type ChatMessage, type PresenceUser } from "@cookout/shared";
+import { GLOBAL_ROOM, type ActivityEvent, type ChatMessage, type PresenceUser } from "@cookout/shared";
 import { api, getToken, wsUrl } from "./api";
 import { useSession } from "./session";
 
@@ -18,6 +18,11 @@ import { useSession } from "./session";
 interface SocialValue {
   online: PresenceUser[];
   messages: ChatMessage[];
+  /** Site-wide activity, newest first. */
+  activity: ActivityEvent[];
+  /** Addresses the signed-in player follows. */
+  following: string[];
+  setFollow: (address: string, follow: boolean) => Promise<void>;
   connected: boolean;
   /** Messages that arrived while the dock was closed. */
   unread: number;
@@ -29,6 +34,9 @@ interface SocialValue {
 const Ctx = createContext<SocialValue>({
   online: [],
   messages: [],
+  activity: [],
+  following: [],
+  setFollow: async () => {},
   connected: false,
   unread: 0,
   setReading: () => {},
@@ -41,6 +49,8 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
   const { profile } = useSession();
   const [online, setOnline] = useState<PresenceUser[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [activity, setActivity] = useState<ActivityEvent[]>([]);
+  const [following, setFollowing] = useState<string[]>([]);
   const [connected, setConnected] = useState(false);
   const [unread, setUnread] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
@@ -55,6 +65,17 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
       })
       .catch(() => {});
   }, []);
+
+  // Feed + follow list: refetched when the session changes (following is
+  // per-player) and topped up live by the socket.
+  useEffect(() => {
+    api<{ events: ActivityEvent[]; following: string[] }>("/api/social/feed")
+      .then((d) => {
+        setActivity(d.events ?? []);
+        setFollowing(d.following ?? []);
+      })
+      .catch(() => {});
+  }, [profile?.address]);
 
   // One long-lived connection to the global room. Reconnects on drop, and
   // re-opens when the session changes so the server sees the right identity.
@@ -77,6 +98,8 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
           const ev = JSON.parse(e.data) as { type: string } & Record<string, unknown>;
           if (ev.type === "presence") {
             setOnline((ev.online as PresenceUser[]) ?? []);
+          } else if (ev.type === "activity") {
+            setActivity((prev) => [ev.event as ActivityEvent, ...prev].slice(0, 120));
           } else if (ev.type === "chat") {
             const m = ev.message as ChatMessage;
             // Global room only — match rooms render inside the match page.
@@ -118,6 +141,21 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
     wsRef.current.send(JSON.stringify({ type: "chat", roundId: GLOBAL_ROOM, text: body }));
   }, []);
 
+  const setFollow = useCallback(async (address: string, follow: boolean) => {
+    // Optimistic — the card flips instantly, the server is the record.
+    setFollowing((prev) =>
+      follow
+        ? [...new Set([...prev, address.toLowerCase()])]
+        : prev.filter((a) => a !== address.toLowerCase()),
+    );
+    try {
+      const r = await api<{ following: string[] }>("/api/me/follow", { body: { address, follow } });
+      setFollowing(r.following ?? []);
+    } catch {
+      /* keep the optimistic state; next fetch reconciles */
+    }
+  }, []);
+
   const setReading = useCallback((reading: boolean) => {
     readingRef.current = reading;
     if (reading) setUnread(0);
@@ -128,6 +166,9 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
       value={{
         online,
         messages,
+        activity,
+        following,
+        setFollow,
         connected,
         unread,
         setReading,

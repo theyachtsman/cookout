@@ -573,6 +573,37 @@ export function createApp(
   );
 
   /** Who's online right now, with what they're doing. */
+  /** The activity feed. scope=following filters to who you follow. */
+  app.get(
+    "/api/social/feed",
+    wrap((req, res) => {
+      const scope = String(req.query.scope ?? "all");
+      const token = (req.headers.authorization ?? "").replace(/^Bearer /, "");
+      const me = token ? store.sessionAddress(token) : undefined;
+      let events = store.activity;
+      if (scope === "following" && me) {
+        const follows = new Set(store.getOrCreateUser(me).following ?? []);
+        events = events.filter((e) => follows.has(e.address) || e.address === me);
+      }
+      res.json({
+        events: events.slice(-80).reverse(),
+        following: me ? (store.getOrCreateUser(me).following ?? []) : [],
+      });
+    }),
+  );
+
+  /** Follow / unfollow a player. */
+  app.post(
+    "/api/me/follow",
+    auth,
+    wrap((req, res) => {
+      const { address, follow } = req.body as { address?: string; follow?: boolean };
+      if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) throw new Err(400, "bad address");
+      const following = store.setFollowing(req.userAddress!, address, follow !== false);
+      res.json({ following });
+    }),
+  );
+
   app.get(
     "/api/social/online",
     wrap((_req, res) => res.json({ online: presence() })),

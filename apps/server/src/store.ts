@@ -8,6 +8,7 @@ import {
   STREAK_FREEZE_MAX,
   WEEKLY_MISSIONS,
   WEEKLY_SET_BONUS_XP,
+  ACHIEVEMENTS,
   achievementXp,
   activeDailyMissions,
   dailyStreakReward,
@@ -22,6 +23,8 @@ import {
   type EquippedCosmetics,
   type MissionMetric,
   type RoundHistoryEntry,
+  type ActivityEvent,
+  type ActivityKind,
   type Address,
   type AuctionIntent,
   type AuctionResult,
@@ -73,6 +76,8 @@ export interface SeasonStats {
 }
 
 export interface StoredUser extends UserProfile {
+  /** Wallets this player follows — drives their activity feed. */
+  following?: Address[];
   /** The user's arena (burner session) wallet for on-chain rounds. Chain
    *  events from this address credit the owner's profile — XP, positions,
    *  quests — while the funds themselves stay in the burner on-chain. */
@@ -156,6 +161,46 @@ export class Store {
 
   /** arena (burner) wallet address → owner profile address. */
   private arenaIndex = new Map<string, Address>();
+
+  /** Recent site-wide activity (newest last), capped. */
+  activity: ActivityEvent[] = [];
+  /** Set by the hub so activity streams to the global room live. */
+  onActivity: (e: ActivityEvent) => void = () => {};
+
+  /** Record something the crowd should see. Bots are excluded by the caller. */
+  pushActivity(
+    address: Address,
+    kind: ActivityKind,
+    text: string,
+    extra: { roundId?: string; roundSymbol?: string } = {},
+  ): void {
+    const u = this.users.get(address.toLowerCase());
+    const event: ActivityEvent = {
+      id: this.id(),
+      kind,
+      address: address.toLowerCase(),
+      displayName: u?.displayName,
+      avatarUrl: u?.avatarUrl,
+      text,
+      at: Date.now(),
+      ...extra,
+    };
+    this.activity.push(event);
+    if (this.activity.length > 300) this.activity.splice(0, this.activity.length - 300);
+    this.onActivity(event);
+  }
+
+  /** Follow / unfollow. Returns the follower's current list. */
+  setFollowing(follower: Address, target: Address, on: boolean): Address[] {
+    const u = this.getOrCreateUser(follower);
+    const t = target.toLowerCase();
+    const list = new Set(u.following ?? []);
+    if (t === u.address) return [...list]; // no self-follow
+    if (on) list.add(t);
+    else list.delete(t);
+    u.following = [...list];
+    return u.following;
+  }
 
   id(): string {
     return randomUUID();
@@ -255,9 +300,12 @@ export class Store {
       u.floorXpWeek = (u.floorXpWeek ?? 0) + give;
     }
     if (give <= 0) return u;
+    const beforeLevel = u.level;
     u.xp += give;
     u.level = levelForXp(u.xp);
     u.title = titleForLevel(u.level);
+    if (u.level > beforeLevel)
+      this.pushActivity(u.address, "level_up", `reached Level ${u.level} · ${u.title}`);
     const season = (u.seasons[this.seasonKey()] ??= { pnl: 0, xp: 0, wins: 0, trades: 0 });
     season.xp += give;
     const wk = weekKey();
@@ -269,6 +317,8 @@ export class Store {
     const u = this.getOrCreateUser(address);
     if (u.achievements.includes(id)) return false;
     u.achievements.push(id);
+    const def = ACHIEVEMENTS.find((a) => a.id === id);
+    if (def) this.pushActivity(u.address, "achievement", `unlocked ${def.name} (${def.rarity})`);
     // One-time XP by rarity — turns the badge wall into a progression track.
     const xp = achievementXp(id);
     if (xp > 0) this.addXp(address, xp);

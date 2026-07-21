@@ -234,6 +234,11 @@ export class RoundEngine {
       submittedAt: now,
     };
     existing.push(intent);
+    if (!user.address.startsWith("0xb07"))
+      this.store.pushActivity(user.address, "pulled_up", `pulled up to $${round.token.symbol}`, {
+        roundId: round.id,
+        roundSymbol: round.token.symbol,
+      });
     this.emitLobby(round);
     return intent;
   }
@@ -755,6 +760,30 @@ export class RoundEngine {
       now,
     });
     this.store.summaries.set(round.id, summary);
+    // Feed-worthy outcomes. Bots (0xb07…) stay out of the feed.
+    const feedOk = (a: string) => !a.startsWith("0xb07");
+    if (summary.winner && feedOk(summary.winner.address))
+      this.store.pushActivity(
+        summary.winner.address,
+        "won",
+        // Sign-aware: the top finisher can still be down after fees.
+        `topped $${round.token.symbol} at ${summary.winner.pnl >= 0 ? "+" : ""}${summary.winner.pnl.toFixed(3)}`,
+        { roundId: round.id, roundSymbol: round.token.symbol },
+      );
+    if (graduated && feedOk(round.creatorAddress))
+      this.store.pushActivity(
+        round.creatorAddress,
+        "graduated",
+        `bonded $${round.token.symbol} — served up 🍽️`,
+        { roundId: round.id, roundSymbol: round.token.symbol },
+      );
+    if (!graduated && (reason === "rug_detected" || reason === "liquidity_removed"))
+      for (const p of holdersAtEnd.slice(0, 3))
+        if (feedOk(p.userAddress))
+          this.store.pushActivity(p.userAddress, "rekt", `got burnt in $${round.token.symbol}`, {
+            roundId: round.id,
+            roundSymbol: round.token.symbol,
+          });
     // The room is frozen, never destroyed — this is the last word in it.
     this.sys(
       round.id,
