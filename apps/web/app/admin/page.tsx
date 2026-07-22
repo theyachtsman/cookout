@@ -616,6 +616,29 @@ export default function AdminPage() {
         <FeedbackList adminKey={key} />
       </section>
 
+      <section>
+        <h2 className="mb-2 font-bold text-red-400">Danger Zone</h2>
+        <div className="rounded-lg border border-red-500/40 bg-red-500/[0.04] p-3">
+          <p className="mb-2 text-xs text-zinc-400">
+            Fresh-start reset for a new public phase: wipes <b>every player profile</b> (XP,
+            levels, balances, stats), all sessions, all chat logs, and the jackpot. Coins, match
+            history, and the calendar are kept. Bots and Privy players re-create their accounts
+            automatically.
+          </p>
+          <button
+            onClick={() => {
+              if (!confirm("Reset ALL players, chat, and the jackpot? This cannot be undone."))
+                return;
+              if (prompt('Type RESET to confirm the fresh start:') !== "RESET") return;
+              void act("/api/admin/reset-players");
+            }}
+            className="rounded bg-red-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-red-500"
+          >
+            💥 Reset players, chat &amp; jackpot
+          </button>
+        </div>
+      </section>
+
       {overview && (
         <section>
           <h2 className="mb-2 font-bold">Audit Log</h2>
