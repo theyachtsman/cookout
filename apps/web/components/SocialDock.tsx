@@ -6,6 +6,7 @@ import type { ActivityEvent, ActivityKind, PresenceUser } from "@cookout/shared"
 import { useSession } from "../lib/session";
 import { useSocial } from "../lib/social";
 import { ChatLog } from "./ChatLog";
+import { EmojiPicker } from "./EmojiPicker";
 import { STATUS_META, UserName } from "./UserCard";
 
 const CHEERS = ["🔥", "🚀", "😂", "💀", "🧊", "📉"];
@@ -64,11 +65,29 @@ export function SocialDock() {
 
   const inMatch = channel === "match" && !!activeRoom;
 
+  const inputRef = useRef<HTMLInputElement>(null);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!text.trim()) return;
     send(text);
     setText("");
+  };
+
+  // Drop an emoji in at the cursor and keep focus, so a Twitch-style 🔥🔥🔥
+  // spam is just repeated clicks without ever leaving the box.
+  const insertEmoji = (emoji: string) => {
+    const el = inputRef.current;
+    const start = el?.selectionStart ?? text.length;
+    const end = el?.selectionEnd ?? text.length;
+    const next = (text.slice(0, start) + emoji + text.slice(end)).slice(0, 280);
+    setText(next);
+    requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      const caret = Math.min(start + emoji.length, next.length);
+      el.setSelectionRange(caret, caret);
+    });
   };
 
   if (!profile) return null; // the dock is for players who are actually in
@@ -211,8 +230,9 @@ export function SocialDock() {
                   ))}
                 </div>
               )}
-              <form onSubmit={submit} className="flex gap-2 border-t border-zinc-800 p-2">
+              <form onSubmit={submit} className="flex items-center gap-1.5 border-t border-zinc-800 p-2">
                 <input
+                  ref={inputRef}
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   disabled={inMatch && !!activeRoom?.frozen}
@@ -226,6 +246,7 @@ export function SocialDock() {
                   maxLength={280}
                   className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm outline-none focus:border-lime-400/50 disabled:opacity-50"
                 />
+                {!(inMatch && activeRoom?.frozen) && <EmojiPicker onPick={insertEmoji} />}
                 <button
                   type="submit"
                   disabled={inMatch && !!activeRoom?.frozen}
