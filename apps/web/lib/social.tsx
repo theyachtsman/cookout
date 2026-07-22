@@ -123,6 +123,7 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
 
     const connect = () => {
       const base = wsUrl();
+      setConnected(false); // a fresh socket is CONNECTING — nobody should send yet
       ws = new WebSocket(token ? `${base}?token=${token}` : base);
       wsRef.current = ws;
       ws.onopen = () => {
@@ -205,10 +206,14 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  // Re-subscribe to the active match after a reconnect.
+  // Re-subscribe to the active match after a reconnect. Guard on OPEN: during a
+  // reconnect `connected` can still read true while wsRef points at a socket
+  // that's only CONNECTING, and send() on a CONNECTING socket throws.
   useEffect(() => {
     if (!connected || !activeRoom) return;
-    wsRef.current?.send(JSON.stringify({ type: "subscribe", roundId: activeRoom.id }));
+    const ws = wsRef.current;
+    if (ws?.readyState === WebSocket.OPEN)
+      ws.send(JSON.stringify({ type: "subscribe", roundId: activeRoom.id }));
   }, [connected, activeRoom]);
 
   const react = useCallback((emoji: string) => {
