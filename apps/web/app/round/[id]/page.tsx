@@ -26,6 +26,7 @@ import { BattleFX, type FxEvent, type FxKind } from "../../../components/BattleF
 import { ArenaHeader } from "../../../components/arena/ArenaHeader";
 import { EventStrip, PhaseFlash } from "../../../components/arena/ArenaEvents";
 import { EdgeCallouts } from "../../../components/arena/EdgeCallouts";
+import { FirstMatchCelebration } from "../../../components/arena/FirstMatchCelebration";
 import { RoundOverlays, UrgencyPulse } from "../../../components/arena/RoundOverlays";
 import { LiveLeaders } from "../../../components/arena/LiveLeaders";
 import { MomentumMeter } from "../../../components/arena/MomentumMeter";
@@ -398,6 +399,8 @@ export default function RoundPage() {
       )}
       {/* The announcer: countdowns, MARKET OPEN, the final ten, the verdict. */}
       <RoundOverlays round={round} onCook={onCook} />
+      {/* The welcome mat: fires once, after their very first match settles. */}
+      <FirstMatchCelebration round={round} />
       {(round.state === "results" || round.state === "ended") && (
         <button
           onClick={() => void openResults()}
