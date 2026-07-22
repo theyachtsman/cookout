@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Round } from "@cookout/shared";
-import { playFanfare, playHorn, playRug, playThud, playTradeTick } from "../../lib/sfx";
+import { audio } from "../../lib/audio";
 
 /**
  * The round's announcer. Counter-Strike round banners, not a dashboard: a
@@ -82,7 +82,7 @@ export function RoundOverlays({
           if (left >= 1 && left <= 5) {
             once(`cd-${left}`, () => {
               s(String(left), left <= 2 ? "warn" : "go", 850, true);
-              if (!muted) playTradeTick("buy", 0.02);
+              if (!muted) audio.play(`countdown.${left}`);
             });
           }
         }
@@ -93,7 +93,7 @@ export function RoundOverlays({
       if (round.state === "live") {
         if (witnessed) once("cook", () => {
           s("COOK!", "go", 1000);
-          if (!muted) playHorn();
+          if (!muted) audio.play("countdown.cook");
           onCook?.();
         });
         // MARKET OPEN lands right behind COOK! so the two read as one beat.
@@ -105,13 +105,14 @@ export function RoundOverlays({
           const left = Math.ceil((endsAt - now) / 1000);
           if (left <= 60 && left > 55) once("final-minute", () => {
             s("FINAL MINUTE", "warn", 1000);
-            if (!muted) playThud();
+            if (!muted) audio.play("round.over");
           });
           if (left <= 30 && left > 27) once("final-30", () => s("30 SECONDS", "warn", 900));
           if (left >= 1 && left <= 10)
             once(`end-${left}`, () => {
               s(String(left), left <= 3 ? "bad" : "warn", 750, true);
-              if (!muted) playTradeTick(left <= 3 ? "sell" : "buy", 0.02);
+              // The last five reuse the escalating countdown impacts; 10–6 tick lighter.
+              if (!muted) audio.play(left <= 5 ? `countdown.${left}` : "ui.click");
             });
         }
       }
@@ -120,14 +121,17 @@ export function RoundOverlays({
       if (witnessed && (round.state === "results" || round.state === "ended")) {
         if (round.graduated) once("verdict", () => {
           s("SERVED UP", "win", 1400);
-          if (!muted) playFanfare();
+          if (!muted) audio.play("round.graduated");
         });
         else if (round.endReason === "rug_detected" || round.endReason === "liquidity_removed")
           once("verdict", () => {
             s("RUGGED", "bad", 1400);
-            if (!muted) playRug();
+            if (!muted) audio.play("round.rug");
           });
-        else once("verdict", () => s("ROUND OVER", "warn", 1200));
+        else once("verdict", () => {
+          s("ROUND OVER", "warn", 1200);
+          if (!muted) audio.play("round.over");
+        });
       }
     };
 

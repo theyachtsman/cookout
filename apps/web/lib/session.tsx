@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useEffect, useState } from "react";
 import { api } from "./api";
+import { audio } from "./audio";
 
 export interface Profile {
   address: string;
@@ -112,6 +113,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       );
       localStorage.setItem("cookout_token", token);
       setProfile(profile);
+      audio.play("ui.walletConnect"); // secure locking click on a fresh sign-in
     } catch (e) {
       // 403 during the beta = wallet not whitelisted; surface the server copy.
       setAuthError((e as Error).message || "Sign-in failed. Please try again.");

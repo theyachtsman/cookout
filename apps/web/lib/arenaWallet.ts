@@ -69,6 +69,37 @@ export function logArenaTx(entry: ArenaTxEntry): void {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(-200)));
 }
 
+/**
+ * Paper arena ledger — the pETH beta has no chain, so its deposits/withdrawals
+ * are logged here per-browser (same shape, minus the chain fields). It gives
+ * the paper wallet the same "here's your history" habit the mainnet one will.
+ */
+export interface PaperArenaTxEntry {
+  kind: "deposit" | "withdraw";
+  amount: number;
+  /** Bank balance immediately after the move, for a running column. */
+  bankAfter: number;
+  arenaAfter: number;
+  at: number;
+}
+
+const PAPER_HISTORY_KEY = "cookout:paper-arena-history";
+
+export function paperArenaHistory(): PaperArenaTxEntry[] {
+  if (typeof window === "undefined") return [];
+  try {
+    return JSON.parse(localStorage.getItem(PAPER_HISTORY_KEY) ?? "[]") as PaperArenaTxEntry[];
+  } catch {
+    return [];
+  }
+}
+
+export function logPaperArenaTx(entry: PaperArenaTxEntry): void {
+  const list = paperArenaHistory();
+  list.push(entry);
+  localStorage.setItem(PAPER_HISTORY_KEY, JSON.stringify(list.slice(-200)));
+}
+
 /** Chain registry (mirror of chainTx's) — RPC the burner talks to directly. */
 const CHAINS: Record<number, { name: string; rpc: string }> = {
   46630: { name: "Robinhood Chain Testnet", rpc: "https://rpc.testnet.chain.robinhood.com" },

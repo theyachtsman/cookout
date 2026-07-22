@@ -7,8 +7,11 @@ import {
   arenaHistory,
   arenaWithdraw,
   hasArenaWallet,
+  logPaperArenaTx,
+  paperArenaHistory,
   registerArenaAddress,
   type ArenaTxEntry,
+  type PaperArenaTxEntry,
 } from "../../lib/arenaWallet";
 import { api } from "../../lib/api";
 import { useChainOnly } from "../../lib/chainOnly";
@@ -46,6 +49,8 @@ function PaperWalletPage() {
   const [amount, setAmount] = useState("1");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
+  const [history, setHistory] = useState<PaperArenaTxEntry[]>([]);
+  useEffect(() => setHistory(paperArenaHistory().slice().reverse()), []);
 
   if (!profile)
     return (
@@ -68,7 +73,23 @@ function PaperWalletPage() {
     setError("");
     setBusy(direction);
     try {
-      await api("/api/me/arena/transfer", { body: { amount: Number(amount), direction } });
+      const p = await api<{ paperBalance: number; arenaBalance?: number }>(
+        "/api/me/arena/transfer",
+        { body: { amount: Number(amount), direction } },
+      );
+      // The server clamps to available balance, so log the amount that actually
+      // moved (the balance delta), not what was typed.
+      const moved = Math.abs((p.arenaBalance ?? 0) - arena);
+      if (moved > 0) {
+        logPaperArenaTx({
+          kind: direction,
+          amount: moved,
+          bankAfter: p.paperBalance,
+          arenaAfter: p.arenaBalance ?? 0,
+          at: Date.now(),
+        });
+        setHistory(paperArenaHistory().slice().reverse());
+      }
       if (direction === "deposit") playDeposit();
       refresh();
     } catch (e) {
@@ -139,8 +160,54 @@ function PaperWalletPage() {
         </p>
         {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
       </div>
+
+      <div className="rounded-xl border border-zinc-800 p-5">
+        <h2 className="mb-3 text-sm font-black text-zinc-200">History</h2>
+        {history.length === 0 ? (
+          <p className="text-sm text-zinc-600">
+            No moves yet. Your deposits and withdrawals show up here.
+          </p>
+        ) : (
+          <div className="divide-y divide-zinc-800/70">
+            {history.map((h, i) => {
+              const deposit = h.kind === "deposit";
+              return (
+                <div key={i} className="flex items-center gap-3 py-2.5 text-sm">
+                  <span className="text-lg">{deposit ? "⬇️" : "⬆️"}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className={`font-bold ${deposit ? "text-lime-300" : "text-zinc-300"}`}>
+                      {deposit ? "Bank → Arena" : "Arena → Bank"}
+                    </div>
+                    <div className="text-[11px] text-zinc-600">{when(h.at)}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className={`font-mono font-bold ${deposit ? "text-lime-300" : "text-zinc-300"}`}>
+                      {deposit ? "+" : "−"}
+                      {h.amount.toFixed(3)} pETH
+                    </div>
+                    <div className="font-mono text-[11px] text-zinc-600">
+                      arena {h.arenaAfter.toFixed(2)} · bank {h.bankAfter.toFixed(2)}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
+}
+
+/** Compact relative time for the wallet ledger. */
+function when(at: number): string {
+  const secs = Math.max(0, Math.floor((Date.now() - at) / 1000));
+  if (secs < 60) return `${secs}s ago`;
+  const mins = Math.floor(secs / 60);
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return new Date(at).toLocaleDateString();
 }
 
 function ChainWalletPage() {

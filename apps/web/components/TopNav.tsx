@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { AudioSettings } from "./AudioSettings";
 import { BrandLogo } from "./BrandLogo";
 import { JackpotPill } from "./JackpotPill";
 import { WalletButton } from "./WalletButton";
@@ -44,6 +45,7 @@ export function TopNav() {
       <Link href="/docs" className="text-sm text-zinc-400 hover:text-lime-300">
         Menu
       </Link>
+      <AudioSettings />
       <WalletButton />
     </nav>
   );
