@@ -347,7 +347,7 @@ function ChainWalletPage() {
                   No transactions yet — deposit and pull up to an on-chain round.
                 </div>
               ) : (
-                <table className="w-full text-sm">
+                <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[30rem] text-sm">
                   <tbody>
                     {history.map((h) => {
                       const m = KIND_META[h.kind];
@@ -379,7 +379,7 @@ function ChainWalletPage() {
                       );
                     })}
                   </tbody>
-                </table>
+                </table></div>
               )}
             </div>
             <p className="mt-2 text-[11px] text-zinc-600">

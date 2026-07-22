@@ -52,7 +52,7 @@ export function WalletButton() {
           ) : (
             <span className="h-2 w-2 rounded-full bg-lime-400" />
           )}
-          <span className="font-bold">
+          <span className="hidden max-w-[7rem] truncate font-bold sm:inline">
             {profile.displayName ?? `${profile.address.slice(0, 6)}…${profile.address.slice(-4)}`}
           </span>
           {chainOnly ? (
@@ -62,7 +62,10 @@ export function WalletButton() {
           ) : (
             <span className="flex items-baseline gap-1.5 font-mono text-xs">
               <span className="text-lime-300">⚡ {(profile.arenaBalance ?? 0).toFixed(2)}</span>
-              <span className="text-zinc-500">/ {(profile.paperBalance ?? 0).toFixed(2)} pETH</span>
+              {/* the bank total is secondary — drop it on the tightest screens */}
+              <span className="hidden text-zinc-500 sm:inline">
+                / {(profile.paperBalance ?? 0).toFixed(2)} pETH
+              </span>
             </span>
           )}
           <span className="text-xs text-zinc-500">▾</span>

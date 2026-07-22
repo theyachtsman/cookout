@@ -189,7 +189,7 @@ export default function Docs() {
 
         <Section id="tiers" title="Risk Tiers">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[30rem] text-sm">
               <thead className="text-left text-xs uppercase text-zinc-500">
                 <tr>
                   <th className="py-2 pr-4">Tier</th>
@@ -213,7 +213,7 @@ export default function Docs() {
                   );
                 })}
               </tbody>
-            </table>
+            </table></div>
           </div>
           <p className="text-zinc-400">
             Deep liquidity means gentle moves; thin liquidity means violence. Degen Arena is earned,
@@ -232,7 +232,7 @@ export default function Docs() {
           </p>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[30rem] text-sm">
               <thead className="text-left text-xs uppercase text-zinc-500">
                 <tr>
                   <th className="py-2 pr-4">Title</th>
@@ -266,7 +266,7 @@ export default function Docs() {
                     );
                   })}
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           <p>
@@ -335,7 +335,7 @@ export default function Docs() {
           </p>
 
           <div className="overflow-x-auto">
-            <table className="w-full text-sm">
+            <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[30rem] text-sm">
               <thead className="text-left text-xs uppercase text-zinc-500">
                 <tr>
                   <th className="py-2 pr-4">Source</th>
@@ -437,7 +437,7 @@ export default function Docs() {
                   </td>
                 </tr>
               </tbody>
-            </table>
+            </table></div>
           </div>
 
           <h3 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-300">

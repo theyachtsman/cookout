@@ -49,8 +49,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <SocialProvider>
             <UserCardProvider>
               <TopNav />
-              {/* pb clears the fixed social dock so it never covers page content */}
-              <main className="mx-auto max-w-6xl px-3 pb-24 pt-6 sm:px-4">
+              {/* pb clears the fixed social dock so it never covers page content;
+                  overflow-x-clip is a mobile safety net against any stray wide child */}
+              <main className="mx-auto max-w-6xl overflow-x-clip px-3 pb-24 pt-6 sm:px-4">
                 <BetaGate>{children}</BetaGate>
               </main>
               <SocialDock />
