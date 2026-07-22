@@ -111,7 +111,7 @@ export function TopNav() {
         />
         {/* panel */}
         <div
-          className={`absolute left-0 top-0 flex h-full w-72 max-w-[82vw] flex-col border-r border-zinc-800 bg-zinc-950 shadow-2xl transition-transform duration-200 ${
+          className={`absolute left-0 top-0 flex h-full w-72 max-w-[82vw] flex-col border-r border-zinc-800 bg-black/90 shadow-2xl backdrop-blur-xl transition-transform duration-200 ${
             open ? "translate-x-0" : "-translate-x-full"
           }`}
         >
