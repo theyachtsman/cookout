@@ -7,13 +7,14 @@ import { DevBanner } from "../components/DevBanner";
 import { UnlockToasts } from "../components/UnlockToasts";
 import { BetaGate } from "../components/BetaGate";
 import { FeedbackWidget } from "../components/FeedbackWidget";
+import { PlayNowModal } from "../components/PlayNowModal";
 import { TopNav } from "../components/TopNav";
 import "./globals.css";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.thecookout.fun";
 const TITLE = "The Cookout — Live Trading Arena";
 const DESCRIPTION =
-  "A live multiplayer trading arena: fair-open PvP token rounds, XP quests, and a weekly ETH jackpot. Paper-money beta — get whitelisted on X @hoodcookout.";
+  "A live multiplayer trading arena: fair-open PvP token rounds, XP quests, and a weekly ETH jackpot. Open beta — play instantly with paper money. No wallet, no deposit.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
@@ -57,6 +58,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <SocialDock />
               <UnlockToasts />
               <FeedbackWidget />
+              <PlayNowModal />
             </UserCardProvider>
           </SocialProvider>
         </SessionProvider>

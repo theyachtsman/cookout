@@ -83,7 +83,7 @@ export default function Image() {
               letterSpacing: 4,
             }}
           >
-            OPEN BETA · @hoodcookout
+            OPEN BETA · PAPER MONEY
           </div>
         </div>
 
@@ -103,7 +103,7 @@ export default function Image() {
         <div style={{ display: "flex", alignItems: "center", position: "relative" }}>
           <div style={{ display: "flex", width: 14, height: 46, background: "#a3e635", borderRadius: 4, marginRight: 22 }} />
           <div style={{ display: "flex", fontSize: 36, color: "#fafafa" }}>
-            Get whitelisted on X → @hoodcookout
+            Play now → no wallet, no deposit, just paper money
           </div>
         </div>
       </div>

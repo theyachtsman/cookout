@@ -70,9 +70,9 @@ export async function verifyAndCreateSession(
   });
   if (!valid) throw Object.assign(new Error("invalid signature"), { status: 401 });
   store.nonces.delete(key);
-  // Beta-period gate: with BETA_WHITELIST=1, only dev wallets, approved
-  // whitelist wallets, or wallets that already have profiles may create
-  // sessions. Collected-but-unapproved signups are held out until launch.
+  // Invite gate (dev / mainnet-staging only): with BETA_WHITELIST=1, only dev
+  // wallets, approved wallets, or wallets that already have profiles may create
+  // sessions. The public paper site runs with this OFF — anyone can play.
   if (
     process.env.BETA_WHITELIST === "1" &&
     !isDevWallet(key) &&
@@ -81,8 +81,8 @@ export async function verifyAndCreateSession(
   ) {
     throw Object.assign(
       new Error(
-        "The Cookout is in open beta (paper money). To get whitelisted, follow @hoodcookout on X and " +
-          "comment your wallet address on a post — details on the home page. Watch for the beta announcement.",
+        "This environment is invite-only. Play the open beta at the public site, or connect an " +
+          "approved wallet here.",
       ),
       { status: 403 },
     );

@@ -3,6 +3,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { audio } from "./audio";
+import { accountAddress, signWithAccount } from "./accountKey";
 
 export interface Profile {
   address: string;
@@ -23,7 +24,11 @@ export interface Profile {
 
 interface Session {
   profile: Profile | null;
+  /** Option B: sign in with an existing injected wallet (MetaMask/Robinhood). */
   signIn: () => Promise<void>;
+  /** Default onboarding: mint (or reuse) a local arena account and sign in as
+   *  it, with no wallet popup. Optionally sets the chosen username. */
+  signInLocal: (username?: string) => Promise<void>;
   signOut: () => void;
   refresh: () => Promise<void>;
   busy: boolean;
@@ -32,30 +37,43 @@ interface Session {
   /** Human-readable sign-in problem (no wallet / not whitelisted). */
   authError: string;
   clearAuthError: () => void;
+  /** Whether the "Play Now" onboarding modal is open, and how to toggle it.
+   *  Any gated action (queue/trade/chat) calls promptPlayNow() when signed out. */
+  playNowOpen: boolean;
+  promptPlayNow: () => void;
+  closePlayNow: () => void;
 }
 
 const Ctx = createContext<Session>({
   profile: null,
   signIn: async () => {},
+  signInLocal: async () => {},
   signOut: () => {},
   refresh: async () => {},
   busy: false,
   ready: false,
   authError: "",
   clearAuthError: () => {},
+  playNowOpen: false,
+  promptPlayNow: () => {},
+  closePlayNow: () => {},
 });
 
 /**
- * Wallet-based auth. Requires a real injected wallet (window.ethereum) — there
- * is no burner/guest fallback: during the private beta only whitelisted (and
- * dev) wallets may sign in, so a self-generated key would be pointless. The
- * server only ever sees address + signature.
+ * Auth with two paths onto the same SIWE surface (address + signature):
+ *  - signInLocal(): the default. Mints a self-custodied arena account in this
+ *    browser (accountKey.ts) and signs the login challenge with it — no wallet,
+ *    no popup, no whitelist. This is the Open Beta "create account & play" flow.
+ *  - signIn(): Option B, an existing injected wallet (window.ethereum) for
+ *    players who'd rather bring their own key (and, at mainnet, deposit from it).
+ * The server only ever sees an address + signature and can't tell the two apart.
  */
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [authError, setAuthError] = useState("");
+  const [playNowOpen, setPlayNowOpen] = useState(false);
   // Kept in sync so the wallet event listener can read the current address
   // without re-subscribing on every profile change.
   const profileRef = useRef<Profile | null>(null);
@@ -153,16 +171,74 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
+  // Default onboarding: mint (or reuse) the browser's arena account and sign in
+  // as it with no wallet prompt. The address is deterministic per browser, so
+  // signing out and back in lands on the same profile; a fresh username just
+  // renames it. This is the "create account & play" path the Open Beta leads with.
+  const signInLocal = useCallback(async (username?: string) => {
+    setBusy(true);
+    setAuthError("");
+    try {
+      const address = accountAddress();
+      const { message } = await api<{ message: string }>("/api/auth/nonce", { body: { address } });
+      const signature = await signWithAccount(message);
+      const ref = new URLSearchParams(window.location.search).get("ref") ?? undefined;
+      const { token, profile: signed } = await api<{ token: string; profile: Profile }>(
+        "/api/auth/verify",
+        { body: { address, signature, referralCode: ref } },
+      );
+      localStorage.setItem("cookout_token", token);
+      let next = signed;
+      const name = username?.trim().slice(0, 24);
+      // Only (re)name when a handle was supplied and actually differs — a
+      // returning account keeps the name it already chose.
+      if (name && name !== signed.displayName) {
+        try {
+          next = await api<Profile>("/api/me", { method: "PATCH", body: { displayName: name } });
+        } catch {
+          /* keep the auto profile if the rename fails — they're already in */
+        }
+      }
+      setProfile(next);
+      setPlayNowOpen(false);
+      audio.play("ui.walletConnect");
+    } catch (e) {
+      // On the dev/whitelist site a fresh account hits the 403 gate; surface it.
+      setAuthError((e as Error).message || "Couldn't start your account. Please try again.");
+      throw e;
+    } finally {
+      setBusy(false);
+    }
+  }, []);
+
+  // Sign out drops the session but KEEPS the local account key, so "Play Now"
+  // signs back in as the same player. (The key is the account; wiping it would
+  // orphan their XP/history.)
   const signOut = useCallback(() => {
     localStorage.removeItem("cookout_token");
     setProfile(null);
   }, []);
 
   const clearAuthError = useCallback(() => setAuthError(""), []);
+  const promptPlayNow = useCallback(() => setPlayNowOpen(true), []);
+  const closePlayNow = useCallback(() => setPlayNowOpen(false), []);
 
   return (
     <Ctx.Provider
-      value={{ profile, signIn, signOut, refresh, busy, ready, authError, clearAuthError }}
+      value={{
+        profile,
+        signIn,
+        signInLocal,
+        signOut,
+        refresh,
+        busy,
+        ready,
+        authError,
+        clearAuthError,
+        playNowOpen,
+        promptPlayNow,
+        closePlayNow,
+      }}
     >
       {children}
     </Ctx.Provider>

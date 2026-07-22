@@ -30,7 +30,7 @@ export function Chat({
   /** Round is over: the room stays readable but takes no new messages. */
   frozen?: boolean;
 }) {
-  const { profile } = useSession();
+  const { profile, promptPlayNow } = useSession();
   const [text, setText] = useState("");
 
   const send = () => {
@@ -82,30 +82,38 @@ export function Chat({
         </div>
       )}
 
-      <div className="flex gap-2 border-t border-zinc-800 p-2">
-        <input
-          value={text}
-          onChange={(e) => setText(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && send()}
-          placeholder={
-            frozen
-              ? "this round is over — chat lives on in The Cookout"
-              : profile
-                ? "message the trenches…"
-                : "connect wallet to chat"
-          }
-          disabled={!profile || frozen}
-          maxLength={280}
-          className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm outline-none focus:border-lime-400/50 disabled:opacity-50"
-        />
-        <button
-          onClick={send}
-          disabled={!profile || frozen}
-          className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm font-bold hover:bg-zinc-700 disabled:opacity-50"
-        >
-          Send
-        </button>
-      </div>
+      {!profile && !frozen ? (
+        // Logged-out visitors can read the trenches; joining creates an account.
+        <div className="border-t border-zinc-800 p-2">
+          <button
+            onClick={promptPlayNow}
+            className="w-full rounded-lg bg-lime-400/90 px-3 py-2 text-sm font-black text-zinc-950 hover:bg-lime-300"
+          >
+            Play to join the chat →
+          </button>
+        </div>
+      ) : (
+        <div className="flex gap-2 border-t border-zinc-800 p-2">
+          <input
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && send()}
+            placeholder={
+              frozen ? "this round is over — chat lives on in The Cookout" : "message the trenches…"
+            }
+            disabled={!profile || frozen}
+            maxLength={280}
+            className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm outline-none focus:border-lime-400/50 disabled:opacity-50"
+          />
+          <button
+            onClick={send}
+            disabled={!profile || frozen}
+            className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm font-bold hover:bg-zinc-700 disabled:opacity-50"
+          >
+            Send
+          </button>
+        </div>
+      )}
     </div>
   );
 }
