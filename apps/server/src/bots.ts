@@ -65,6 +65,15 @@ export const PERSONAS: Persona[] = [
   P(12, "moon_mama", { chatty: 0.85, joinFrac: 0.25, intent: [0.12, 0.25], clip: [0.05, 0.1], takeProfit: 0.6, stopLoss: -0.45, dipBuy: 0.15, fomo: 0.35, pace: [6, 12] }),
   P(13, "rugdar", { chatty: 0.55, joinFrac: 0.45, intent: [0.06, 0.15], clip: [0.03, 0.08], takeProfit: 0.2, stopLoss: -0.15, dipBuy: 0.08, fomo: 0.1, pace: [5, 10] }),
   P(14, "chef_curry", { chatty: 0.6, joinFrac: 0.55, intent: [0.1, 0.22], clip: [0.04, 0.1], takeProfit: 0.28, stopLoss: -0.3, dipBuy: 0.12, fomo: 0.3, pace: [4, 9] }),
+  // ---- crowd personas ----
+  // Loud, near-broke spectators. They fill the room and keep chat alive in the
+  // quiet regimes (fade/dead) where few real traders pull up — but they carry
+  // tiny size, so they add atmosphere without tilting the graduation math.
+  P(15, "grill_groupie", { chatty: 0.98, joinFrac: 0.2, intent: [0.02, 0.05], clip: [0.02, 0.04], takeProfit: 0.2, stopLoss: -0.2, dipBuy: 0.06, fomo: 0.4, pace: [3, 7] }),
+  P(16, "sauce_boss", { chatty: 0.92, joinFrac: 0.35, intent: [0.02, 0.06], clip: [0.02, 0.05], takeProfit: 0.25, stopLoss: -0.25, dipBuy: 0.08, fomo: 0.35, pace: [3, 8] }),
+  P(17, "nocoiner_carl", { chatty: 0.88, joinFrac: 0.9, intent: [0.02, 0.04], clip: [0.02, 0.03], takeProfit: 0.15, stopLoss: -0.15, dipBuy: 0.05, fomo: 0.15, pace: [4, 9] }),
+  P(18, "hype_hazel", { chatty: 0.97, joinFrac: 0.15, intent: [0.03, 0.06], clip: [0.02, 0.05], takeProfit: 0.35, stopLoss: -0.4, dipBuy: 0.1, fomo: 0.6, pace: [3, 6] }),
+  P(19, "backseat_ben", { chatty: 0.95, joinFrac: 0.6, intent: [0.02, 0.05], clip: [0.02, 0.04], takeProfit: 0.2, stopLoss: -0.18, dipBuy: 0.07, fomo: 0.2, pace: [3, 7] }),
 ];
 
 /** For jackpot/leaderboard filters: the swarm never wins real rewards. */
@@ -141,33 +150,59 @@ const LOBBY_LINES = [
   "chart gonna be a heater i can feel it", "last round rugged me, revenge arc time",
   "everybody in? don't be late to the queue", "theme is fire ngl", "wallet warmed up lets go",
   "i said i'd take a break. i lied", "first candle decides everything, watch",
+  "gm degens ☕", "what's the vibe this round", "i've got a good feeling about this one",
+  "deposited, locked, loaded", "who's the dev, do we trust them 👀", "ticker actually goes hard",
+  "back to back sessions, no sleep", "art is clean, i'm in", "praying for green candles fr",
+  "someone talk me OUT of aping", "the lobby is buzzing tonight", "i'm not early i'm... on time",
+  "chat let's get rowdy", "10 pETH says this runs", "new round who dis",
 ];
 const QUEUE_LINES = [
   "pulled up 🫡", "im in. size = conviction", "limit set, not chasing", "locked in ✅",
   "fair open means nobody front-runs me, love it", "who else is in the queue rn",
   "pro rata me harder", "this queue filling FAST", "small entry, big dreams",
+  "in at the open, no regrets", "queue looking THICC", "everyone settles same price, i love this game",
+  "position set, hands washed", "not chasing the top this time i swear", "fair open >>> sniper bots",
+  "we all in this together lets go", "committed. no takebacks.", "see you on the other side of settlement",
 ];
 const PUMP_LINES = [
   "IT'S COOKING 🔥", "up only szn", "told y'all", "chart going vertical lmaooo",
   "whoever just market bought — respect", "printing. simply printing.", "don't you dare sell",
   "mcap about to break the target watch", "green candles taste better at night",
+  "SEND IT 🚀", "we are SO back", "candles fatter than my portfolio", "bulls in full control",
+  "i'm never selling (i will sell)", "this is financial advice, buy", "vertical. absolutely vertical.",
+  "who's still not in?? ngmi", "momentum is INSANE rn", "bonding curve go brrr", "green dildo incoming 📈",
+  "my hands? diamond. 💎🙌",
 ];
 const DUMP_LINES = [
   "who is DUMPING", "chill chill chill", "buying this dip, thank me later",
   "paper hands everywhere smh", "this is the shakeout, hold", "pain.", "someone got liquidated fr",
   "exit liquidity? not me", "down bad but not out",
+  "RED. so much red.", "why is everyone selling omg", "the dip is a gift, allegedly", "hold the line 🛡️",
+  "my stop loss is my therapist", "who dropped the anvil on this chart", "blood in the streets rn",
+  "i'm not panicking YOU'RE panicking", "this is fine 🔥🐶", "sell button looking real tempting",
+  "capitulation station, all aboard 🚂", "down horrendous",
 ];
 const WIN_LINES = [
   "secured the bag 💰", "and THAT'S how it's done", "profit is profit", "gg pay me",
   "sold the top, kissed the sky", "green. as. always.", "that's lunch money right there",
   "took profit, no regrets", "exit game strong today", "scalped it clean 🔪",
+  "in and out, twenty minute adventure", "ty for the exit liquidity 🫶", "up only, as promised",
+  "bought the fear, sold the greed", "textbook. absolutely textbook.", "another one for the highlight reel",
+  "paid. moving on.", "called it in chat, screenshot it",
 ];
 const LOSS_LINES = [
   "it's paper money it's paper money it's paper money", "charging that one to the game",
   "next round i'm him, watch", "rugged again. classic.", "stop loss said enough",
   "i was early, market was wrong", "down bad. still here.", "who sold on me 😤",
+  "held too long, tale as old as time", "that's a paper cut, i'll live", "revenge trade loading...",
+  "bought the top like a champion 🏆", "my conviction was a lie", "gg to whoever faded me",
+  "lesson learned (it wasn't)", "back to the drawing board",
 ];
-const GG_LINES = ["gg wp", "good round, run it back", "next lobby same energy", "that ending was cinema"];
+const GG_LINES = [
+  "gg wp", "good round, run it back", "next lobby same energy", "that ending was cinema",
+  "gg everyone 🫡", "well played chat", "same time next round?", "loved the chaos, do it again",
+  "respect to the winners", "onto the next one",
+];
 
 const pick = <T,>(a: T[]): T => a[Math.floor(Math.random() * a.length)]!;
 const rand = (min: number, max: number) => min + Math.random() * (max - min);

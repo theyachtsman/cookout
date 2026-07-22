@@ -7,9 +7,8 @@ import { useSession } from "../lib/session";
 import { useSocial } from "../lib/social";
 import { ChatLog } from "./ChatLog";
 import { EmojiPicker } from "./EmojiPicker";
+import { SpeedEmojiBar } from "./SpeedEmojiBar";
 import { STATUS_META, UserName } from "./UserCard";
-
-const CHEERS = ["🔥", "🚀", "😂", "💀", "🧊", "📉"];
 
 /**
  * The Cookout dock — the persistent social layer, present on every page.
@@ -27,7 +26,6 @@ export function SocialDock() {
     activeRoom,
     channel,
     setChannel,
-    react,
     activity,
     following,
     connected,
@@ -216,20 +214,7 @@ export function SocialDock() {
                     : "It's quiet in here. Say something."
                 }
               />
-              {inMatch && !activeRoom?.frozen && (
-                <div className="flex gap-1 px-2 pb-1">
-                  {CHEERS.map((e) => (
-                    <button
-                      key={e}
-                      onClick={() => react(e)}
-                      className="rounded bg-zinc-900 px-1.5 py-1 text-sm hover:bg-zinc-800"
-                      title="cheer"
-                    >
-                      {e}
-                    </button>
-                  ))}
-                </div>
-              )}
+              {!(inMatch && activeRoom?.frozen) && <SpeedEmojiBar onSpam={insertEmoji} />}
               <form onSubmit={submit} className="flex items-center gap-1.5 border-t border-zinc-800 p-2">
                 <input
                   ref={inputRef}
