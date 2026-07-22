@@ -5,8 +5,9 @@ import { EmojiPicker } from "./EmojiPicker";
 
 /**
  * The speed-emoji bar above the chat input — the user's own macro row. Pick the
- * emoji you want parked here, then click one over and over to spam it into your
- * message (🔥🔥🔥) before you send. Your set persists per browser.
+ * emoji you want parked here, then click one over and over to fire it straight
+ * into chat: every tap sends its own message and the server's rate limit does
+ * the throttling, Twitch-style. Your set persists per browser.
  */
 
 const STORE_KEY = "cookout:speed-emoji";
@@ -52,7 +53,7 @@ export function SpeedEmojiBar({ onSpam }: { onSpam: (emoji: string) => void }) {
               ? "bg-red-500/15 ring-1 ring-red-500/40 hover:bg-red-500/25"
               : "bg-zinc-900 hover:bg-zinc-800 active:scale-90"
           }`}
-          title={editing ? "remove" : "click to spam — hold nothing back"}
+          title={editing ? "remove" : "click to send — spam away"}
         >
           {e}
           {editing && (
