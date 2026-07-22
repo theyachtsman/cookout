@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { BrandLogo } from "./BrandLogo";
 import { JackpotPill } from "./JackpotPill";
 import { WalletButton } from "./WalletButton";
@@ -35,8 +36,10 @@ const LINKS: NavLink[] = [
 export function TopNav() {
   const { profile } = useSession();
   const [open, setOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
 
+  useEffect(() => setMounted(true), []);
   // Close the drawer on navigation.
   useEffect(() => setOpen(false), [pathname]);
   // Lock body scroll while the drawer is open.
@@ -97,58 +100,66 @@ export function TopNav() {
         <WalletButton />
       </div>
 
-      {/* mobile slide-in drawer */}
-      <div
-        className={`fixed inset-0 z-50 md:hidden ${open ? "" : "pointer-events-none"}`}
-        aria-hidden={!open}
-      >
-        {/* backdrop */}
-        <div
-          onClick={() => setOpen(false)}
-          className={`absolute inset-0 bg-black/60 transition-opacity duration-200 ${
-            open ? "opacity-100" : "opacity-0"
-          }`}
-        />
-        {/* panel */}
-        <div
-          className={`absolute left-0 top-0 flex h-full w-72 max-w-[82vw] flex-col border-r border-zinc-800 bg-black/90 shadow-2xl backdrop-blur-xl transition-transform duration-200 ${
-            open ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
-          <div className="flex h-14 items-center justify-between border-b border-zinc-800 px-4">
-            <span className="text-sm font-black text-zinc-200">The Cookout</span>
-            <button
+      {/* Mobile slide-in drawer — portaled to <body> so it isn't confined by
+          the nav's backdrop-filter, which (like transform) makes an ancestor
+          the containing block for fixed children. Inside the nav it only
+          covered the 56px bar, so the panel's black background stopped there
+          and the links overflowed onto the page with nothing behind them. */}
+      {mounted &&
+        createPortal(
+          <div
+            className={`fixed inset-0 z-[60] md:hidden ${open ? "" : "pointer-events-none"}`}
+            aria-hidden={!open}
+          >
+            {/* backdrop */}
+            <div
               onClick={() => setOpen(false)}
-              className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800"
-              aria-label="Close menu"
+              className={`absolute inset-0 bg-black/60 transition-opacity duration-200 ${
+                open ? "opacity-100" : "opacity-0"
+              }`}
+            />
+            {/* panel */}
+            <div
+              className={`absolute left-0 top-0 flex h-full w-72 max-w-[82vw] flex-col border-r border-zinc-800 bg-black/90 shadow-2xl backdrop-blur-xl transition-transform duration-200 ${
+                open ? "translate-x-0" : "-translate-x-full"
+              }`}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <line x1="6" y1="6" x2="18" y2="18" />
-                <line x1="18" y1="6" x2="6" y2="18" />
-              </svg>
-            </button>
-          </div>
-          <div className="flex flex-col gap-1 p-3">
-            {links.map((l) => (
-              <Link
-                key={l.href}
-                href={l.href}
-                onClick={() => setOpen(false)}
-                className={`rounded-lg px-3 py-2.5 text-base font-bold hover:bg-zinc-800 ${
-                  l.accent ? "text-amber-300" : "text-zinc-200"
-                }`}
-              >
-                {l.label}
-              </Link>
-            ))}
-          </div>
-          {profile && (
-            <div className="mt-auto border-t border-zinc-800 p-4">
-              <JackpotPill />
+              <div className="flex h-14 items-center justify-between border-b border-zinc-800 px-4">
+                <span className="text-sm font-black text-zinc-200">The Cookout</span>
+                <button
+                  onClick={() => setOpen(false)}
+                  className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800"
+                  aria-label="Close menu"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                  </svg>
+                </button>
+              </div>
+              <div className="flex flex-col gap-1 p-3">
+                {links.map((l) => (
+                  <Link
+                    key={l.href}
+                    href={l.href}
+                    onClick={() => setOpen(false)}
+                    className={`rounded-lg px-3 py-2.5 text-base font-bold hover:bg-zinc-800 ${
+                      l.accent ? "text-amber-300" : "text-zinc-200"
+                    }`}
+                  >
+                    {l.label}
+                  </Link>
+                ))}
+              </div>
+              {profile && (
+                <div className="mt-auto border-t border-zinc-800 p-4">
+                  <JackpotPill />
+                </div>
+              )}
             </div>
-          )}
-        </div>
-      </div>
+          </div>,
+          document.body,
+        )}
     </nav>
   );
 }
