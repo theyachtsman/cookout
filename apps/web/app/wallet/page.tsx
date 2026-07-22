@@ -13,7 +13,6 @@ import {
   type ArenaTxEntry,
   type PaperArenaTxEntry,
 } from "../../lib/arenaWallet";
-import { accountAddress, exportAccountKey, hasAccount } from "../../lib/accountKey";
 import { api } from "../../lib/api";
 import { useChainOnly } from "../../lib/chainOnly";
 import { fundArenaWallet } from "../../lib/chainTx";
@@ -162,8 +161,6 @@ function PaperWalletPage() {
         {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
       </div>
 
-      <AccountBackup />
-
       <div className="rounded-xl border border-zinc-800 p-5">
         <h2 className="mb-3 text-sm font-black text-zinc-200">History</h2>
         {history.length === 0 ? (
@@ -196,74 +193,6 @@ function PaperWalletPage() {
               );
             })}
           </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-/**
- * The self-custodied identity behind a locally-minted account: its address, and
- * a one-tap key export so players can back up (or move) their account. Hidden
- * for wallet-connected players, whose key already lives in their own wallet.
- */
-function AccountBackup() {
-  const [copied, setCopied] = useState(false);
-  const [revealed, setRevealed] = useState(false);
-  if (typeof window === "undefined" || !hasAccount()) return null;
-  const addr = accountAddress();
-  const key = exportAccountKey();
-
-  return (
-    <div className="rounded-xl border border-zinc-800 p-5">
-      <h2 className="mb-1 text-sm font-black text-zinc-200">Your account</h2>
-      <p className="mb-3 text-xs text-zinc-500">
-        This browser holds your account key — it&apos;s how you sign in without a wallet. Back it up
-        to keep your account if you clear this browser or switch devices.
-      </p>
-      <button
-        onClick={() => {
-          void navigator.clipboard.writeText(addr);
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1500);
-        }}
-        className="font-mono text-xs text-zinc-400 hover:text-zinc-200"
-        title="copy address"
-      >
-        {addr} {copied ? "✓ copied" : "⧉"}
-      </button>
-      <div className="mt-3 border-t border-zinc-800 pt-3">
-        {revealed && key ? (
-          <div className="space-y-2">
-            <div className="break-all rounded-lg border border-amber-500/40 bg-amber-500/5 p-2 font-mono text-[11px] text-amber-200">
-              {key}
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => void navigator.clipboard.writeText(key)}
-                className="rounded bg-zinc-800 px-2 py-1 text-[11px] font-bold hover:bg-zinc-700"
-              >
-                Copy key
-              </button>
-              <button
-                onClick={() => setRevealed(false)}
-                className="text-[11px] text-zinc-500 hover:text-zinc-300"
-              >
-                Hide
-              </button>
-            </div>
-            <p className="text-[11px] text-amber-300/80">
-              Anyone with this key controls your account. Never share it. It&apos;s paper money for
-              now, but the habit matters.
-            </p>
-          </div>
-        ) : (
-          <button
-            onClick={() => setRevealed(true)}
-            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-xs font-bold text-zinc-300 hover:border-zinc-500"
-          >
-            Export account key
-          </button>
         )}
       </div>
     </div>

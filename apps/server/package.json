@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@cookout/shared": "*",
+    "@privy-io/server-auth": "^1.32.5",
     "express": "^4.21.0",
     "pg": "^8.13.0",
     "viem": "^2.21.0",

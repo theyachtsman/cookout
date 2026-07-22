@@ -70,6 +70,22 @@ export async function verifyAndCreateSession(
   });
   if (!valid) throw Object.assign(new Error("invalid signature"), { status: 401 });
   store.nonces.delete(key);
+  return { token: createSessionForAddress(store, key, referralCode).token };
+}
+
+/**
+ * Issue a session for an already-authenticated address — the shared tail of
+ * every login path (SIWE signature, Privy token). Applies the invite gate,
+ * creates the profile (crediting a referrer on first sign-in), and mints a
+ * session token. The caller is responsible for having PROVEN ownership of
+ * `address` first; this function trusts it.
+ */
+export function createSessionForAddress(
+  store: Store,
+  address: string,
+  referralCode?: string,
+): { token: string; isNew: boolean } {
+  const key = address.toLowerCase();
   // Invite gate (dev / mainnet-staging only): with BETA_WHITELIST=1, only dev
   // wallets, approved wallets, or wallets that already have profiles may create
   // sessions. The public paper site runs with this OFF — anyone can play.
@@ -93,7 +109,7 @@ export async function verifyAndCreateSession(
   if (isNew && referrer && referrer.address !== key) referrer.referralCount++;
   const token = randomBytes(24).toString("hex");
   store.sessions.set(token, { address: key, expiresAt: Date.now() + SESSION_TTL_MS });
-  return { token };
+  return { token, isNew };
 }
 
 export interface AuthedRequest extends Request {

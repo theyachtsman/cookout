@@ -10,6 +10,7 @@ import {
   type TokenConcept,
 } from "@cookout/shared";
 import {
+  createSessionForAddress,
   isDevWallet,
   issueNonce,
   requireAdmin,
@@ -17,6 +18,7 @@ import {
   verifyAndCreateSession,
   type AuthedRequest,
 } from "./auth.js";
+import { resolvePrivyLogin, type PrivyResolver } from "./privy.js";
 import { Err, type Broadcast, type RoundEngine } from "./engine.js";
 import { jackpotStatus } from "./jackpot.js";
 import { rateLimit } from "./ratelimit.js";
@@ -34,6 +36,8 @@ export function createApp(
   chain?: import("./chain.js").ChainService,
   /** Live social layer: who's online and what they're doing. */
   presence: () => import("@cookout/shared").PresenceUser[] = () => [],
+  /** Verifies a Privy access token → account address. Injectable for tests. */
+  resolvePrivy: PrivyResolver = resolvePrivyLogin,
 ): Express {
   const app = express();
   // Body limit covers client-downscaled data-URL images (coin art, avatars).
@@ -126,6 +130,23 @@ export function createApp(
       if (!address || !signature) throw new Err(400, "address and signature required");
       const { token } = await verifyAndCreateSession(store, address, signature, referralCode);
       res.json({ token, profile: publicProfile(store.getOrCreateUser(address), true) });
+    }),
+  );
+
+  /** Privy login: the browser proves identity to Privy (email/social/wallet),
+   *  we verify the returned access token server-side and issue our session,
+   *  keyed to the account's embedded wallet. This is the primary auth path. */
+  app.post(
+    "/api/auth/privy",
+    wrap(async (req, res) => {
+      const { token, referralCode } = req.body as { token?: string; referralCode?: string };
+      if (!token) throw new Err(400, "token required");
+      const { address, displayName } = await resolvePrivy(token);
+      const { token: sessionToken, isNew } = createSessionForAddress(store, address, referralCode);
+      const u = store.getOrCreateUser(address);
+      // Seed a friendly handle from their Privy login on first sign-in only.
+      if (isNew && displayName && !u.displayName) u.displayName = displayName;
+      res.json({ token: sessionToken, profile: publicProfile(u, true) });
     }),
   );
 
