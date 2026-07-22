@@ -12,8 +12,8 @@ import { ArenaDemo } from "../components/ArenaDemo";
  * crowd, then why people come back, then gameplay, then the pot, then how
  * the open stays fair, then straight into a match.
  *
- * Open Beta: no whitelist, no wallet, no deposit. "Play Now" mints a browser
- * account and drops you into a paper match (see PlayNowModal / accountKey).
+ * Open Beta: no whitelist, no deposit. "Play Now" opens Privy auth (email /
+ * social / wallet) and drops you into a paper match (see session.tsx).
  */
 
 const X_HANDLE = "@hoodcookout";

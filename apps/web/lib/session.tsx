@@ -1,9 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { api } from "./api";
 import { audio } from "./audio";
-import { accountAddress, signWithAccount } from "./accountKey";
 
 export interface Profile {
   address: string;
@@ -24,60 +25,45 @@ export interface Profile {
 
 interface Session {
   profile: Profile | null;
-  /** Option B: sign in with an existing injected wallet (MetaMask/Robinhood). */
+  /** Open the Privy login (email / social / wallet). Alias: promptPlayNow. */
   signIn: () => Promise<void>;
-  /** Default onboarding: mint (or reuse) a local arena account and sign in as
-   *  it, with no wallet popup. Optionally sets the chosen username. */
-  signInLocal: (username?: string) => Promise<void>;
+  /** Same as signIn — the name action gates use when nudging a guest to play. */
+  promptPlayNow: () => void;
   signOut: () => void;
   refresh: () => Promise<void>;
   busy: boolean;
-  /** True once the initial token check has resolved (gate waits on this). */
+  /** True once the initial auth check has resolved (gate waits on this). */
   ready: boolean;
-  /** Human-readable sign-in problem (no wallet / not whitelisted). */
+  /** Human-readable sign-in problem. */
   authError: string;
   clearAuthError: () => void;
-  /** Whether the "Play Now" onboarding modal is open, and how to toggle it.
-   *  Any gated action (queue/trade/chat) calls promptPlayNow() when signed out. */
-  playNowOpen: boolean;
-  promptPlayNow: () => void;
-  closePlayNow: () => void;
 }
 
 const Ctx = createContext<Session>({
   profile: null,
   signIn: async () => {},
-  signInLocal: async () => {},
+  promptPlayNow: () => {},
   signOut: () => {},
   refresh: async () => {},
   busy: false,
   ready: false,
   authError: "",
   clearAuthError: () => {},
-  playNowOpen: false,
-  promptPlayNow: () => {},
-  closePlayNow: () => {},
 });
 
+const PRIVY_ENABLED = !!process.env.NEXT_PUBLIC_PRIVY_APP_ID;
+
 /**
- * Auth with two paths onto the same SIWE surface (address + signature):
- *  - signInLocal(): the default. Mints a self-custodied arena account in this
- *    browser (accountKey.ts) and signs the login challenge with it — no wallet,
- *    no popup, no whitelist. This is the Open Beta "create account & play" flow.
- *  - signIn(): Option B, an existing injected wallet (window.ethereum) for
- *    players who'd rather bring their own key (and, at mainnet, deposit from it).
- * The server only ever sees an address + signature and can't tell the two apart.
+ * Shared session state used by both provider variants: our own token/profile,
+ * loaded from the API on mount if a session already exists. Auth identity comes
+ * from Privy (the server verifies the token and keys the account to the embedded
+ * wallet), so there is no wallet/keypair handling in the client anymore.
  */
-export function SessionProvider({ children }: { children: React.ReactNode }) {
+function useSessionCore() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [authError, setAuthError] = useState("");
-  const [playNowOpen, setPlayNowOpen] = useState(false);
-  // Kept in sync so the wallet event listener can read the current address
-  // without re-subscribing on every profile change.
-  const profileRef = useRef<Profile | null>(null);
-  profileRef.current = profile;
 
   const refresh = useCallback(async () => {
     try {
@@ -98,146 +84,163 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     void refresh();
   }, [refresh]);
 
-  // Wallet account switching: the old token belongs to the old address, so a
-  // switch leaves a mismatched session that can crash on the next render. Drop
-  // it cleanly the moment the wallet's account changes, so the user just
-  // re-connects as whoever they switched to.
+  const clearAuthError = useCallback(() => setAuthError(""), []);
+
+  return {
+    profile,
+    setProfile,
+    busy,
+    setBusy,
+    ready,
+    setReady,
+    authError,
+    setAuthError,
+    refresh,
+    clearAuthError,
+  };
+}
+
+export function SessionProvider({ children }: { children: React.ReactNode }) {
+  // The choice is a build-time constant, so this branch is stable across renders
+  // (never violates the rules of hooks) — PrivySession calls usePrivy, which is
+  // only valid under a PrivyProvider, which only exists when the app id is set.
+  return PRIVY_ENABLED ? (
+    <PrivySession>{children}</PrivySession>
+  ) : (
+    <InertSession>{children}</InertSession>
+  );
+}
+
+/** Real provider: bridges Privy auth → our session. */
+function PrivySession({ children }: { children: React.ReactNode }) {
+  const core = useSessionCore();
+  const { setProfile, setBusy, setAuthError, refresh } = core;
+  const router = useRouter();
+  const { ready: privyReady, authenticated, login, logout, getAccessToken } = usePrivy();
+  const { wallets } = useWallets();
+  const exchanging = useRef(false);
+
+  // The embedded wallet is created asynchronously right after a fresh social /
+  // email login (Privy shows a "creating wallet" step). It's the account's
+  // identity, so we must wait for it before calling our API — otherwise the
+  // server looks the user up before the wallet exists and rejects the login.
+  const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
+
+  // When Privy reports an authenticated user WITH their embedded wallet ready,
+  // and we don't yet hold our own session, exchange the Privy access token for
+  // our session token, stake the starter pETH, and drop them into a match.
   useEffect(() => {
-    const eth = (
-      window as unknown as {
-        ethereum?: {
-          on?: (e: string, cb: (a: string[]) => void) => void;
-          removeListener?: (e: string, cb: (a: string[]) => void) => void;
-        };
-      }
-    ).ethereum;
-    if (!eth?.on) return;
-    const onAccounts = (accounts: string[]) => {
-      const next = accounts[0]?.toLowerCase();
-      const current = profileRef.current?.address.toLowerCase();
-      // Ignore the echo from our own connect (same account we're signed in as).
-      if (next && current && next === current) return;
-      localStorage.removeItem("cookout_token");
-      setProfile(null);
+    if (!privyReady || !authenticated || !embeddedWallet) return;
+    if (core.profile || localStorage.getItem("cookout_token")) return; // already in
+    if (exchanging.current) return;
+    exchanging.current = true;
+
+    void (async () => {
+      setBusy(true);
       setAuthError("");
-    };
-    eth.on("accountsChanged", onAccounts);
-    return () => eth.removeListener?.("accountsChanged", onAccounts);
-  }, []);
+      try {
+        const token = await getAccessToken();
+        if (!token) throw new Error("No Privy session token.");
+        const ref = new URLSearchParams(window.location.search).get("ref") ?? undefined;
+        const { token: sessionToken, profile } = await api<{ token: string; profile: Profile }>(
+          "/api/auth/privy",
+          { body: { token, referralCode: ref } },
+        );
+        localStorage.setItem("cookout_token", sessionToken);
+        setProfile(profile);
+        // Stake the starter into the arena so they can play immediately (server
+        // caps at the available bank; failure is non-fatal).
+        try {
+          await api("/api/me/arena/transfer", { body: { amount: 1e9, direction: "deposit" } });
+          setProfile(await api<Profile>("/api/me"));
+        } catch {
+          /* they're in; they can stake manually */
+        }
+        audio.play("ui.walletConnect");
+        // Send them into the arena only if they started at the front door; a
+        // silent re-auth (expired session, Privy still logged in) or a login
+        // triggered from a specific page leaves them where they are.
+        if (window.location.pathname === "/") router.push("/matches");
+      } catch (e) {
+        setAuthError((e as Error).message || "Sign-in failed. Please try again.");
+      } finally {
+        setBusy(false);
+        exchanging.current = false;
+      }
+    })();
+  }, [
+    privyReady,
+    authenticated,
+    embeddedWallet,
+    core.profile,
+    getAccessToken,
+    router,
+    setBusy,
+    setAuthError,
+    setProfile,
+  ]);
 
   const signIn = useCallback(async () => {
-    setBusy(true);
     setAuthError("");
-    try {
-      const eth = (window as unknown as { ethereum?: { request: (a: unknown) => Promise<unknown> } })
-        .ethereum;
-      if (!eth) {
-        setAuthError(
-          "No wallet detected. Install a browser wallet (e.g. MetaMask, Rabby) to sign in.",
-        );
-        return;
-      }
-      const accounts = (await eth.request({ method: "eth_requestAccounts" })) as string[];
-      const address = accounts[0];
-      if (!address) {
-        setAuthError("No account selected in your wallet.");
-        return;
-      }
-      const sign = async (message: string) => {
-        const hex = Array.from(new TextEncoder().encode(message))
-          .map((b) => b.toString(16).padStart(2, "0"))
-          .join("");
-        return (await eth.request({
-          method: "personal_sign",
-          params: [`0x${hex}`, address],
-        })) as string;
-      };
+    login();
+  }, [login, setAuthError]);
 
-      const { message } = await api<{ message: string }>("/api/auth/nonce", { body: { address } });
-      const signature = await sign(message);
-      const ref = new URLSearchParams(window.location.search).get("ref") ?? undefined;
-      const { token, profile } = await api<{ token: string; profile: Profile }>(
-        "/api/auth/verify",
-        { body: { address, signature, referralCode: ref } },
-      );
-      localStorage.setItem("cookout_token", token);
-      setProfile(profile);
-      audio.play("ui.walletConnect"); // secure locking click on a fresh sign-in
-    } catch (e) {
-      // 403 during the beta = wallet not whitelisted; surface the server copy.
-      setAuthError((e as Error).message || "Sign-in failed. Please try again.");
-    } finally {
-      setBusy(false);
-    }
-  }, []);
-
-  // Default onboarding: mint (or reuse) the browser's arena account and sign in
-  // as it with no wallet prompt. The address is deterministic per browser, so
-  // signing out and back in lands on the same profile; a fresh username just
-  // renames it. This is the "create account & play" path the Open Beta leads with.
-  const signInLocal = useCallback(async (username?: string) => {
-    setBusy(true);
+  const promptPlayNow = useCallback(() => {
     setAuthError("");
-    try {
-      const address = accountAddress();
-      const { message } = await api<{ message: string }>("/api/auth/nonce", { body: { address } });
-      const signature = await signWithAccount(message);
-      const ref = new URLSearchParams(window.location.search).get("ref") ?? undefined;
-      const { token, profile: signed } = await api<{ token: string; profile: Profile }>(
-        "/api/auth/verify",
-        { body: { address, signature, referralCode: ref } },
-      );
-      localStorage.setItem("cookout_token", token);
-      let next = signed;
-      const name = username?.trim().slice(0, 24);
-      // Only (re)name when a handle was supplied and actually differs — a
-      // returning account keeps the name it already chose.
-      if (name && name !== signed.displayName) {
-        try {
-          next = await api<Profile>("/api/me", { method: "PATCH", body: { displayName: name } });
-        } catch {
-          /* keep the auto profile if the rename fails — they're already in */
-        }
-      }
-      setProfile(next);
-      setPlayNowOpen(false);
-      audio.play("ui.walletConnect");
-    } catch (e) {
-      // On the dev/whitelist site a fresh account hits the 403 gate; surface it.
-      setAuthError((e as Error).message || "Couldn't start your account. Please try again.");
-      throw e;
-    } finally {
-      setBusy(false);
-    }
-  }, []);
+    login();
+  }, [login, setAuthError]);
 
-  // Sign out drops the session but KEEPS the local account key, so "Play Now"
-  // signs back in as the same player. (The key is the account; wiping it would
-  // orphan their XP/history.)
   const signOut = useCallback(() => {
     localStorage.removeItem("cookout_token");
     setProfile(null);
-  }, []);
-
-  const clearAuthError = useCallback(() => setAuthError(""), []);
-  const promptPlayNow = useCallback(() => setPlayNowOpen(true), []);
-  const closePlayNow = useCallback(() => setPlayNowOpen(false), []);
+    void logout();
+  }, [logout, setProfile]);
 
   return (
     <Ctx.Provider
       value={{
-        profile,
+        profile: core.profile,
         signIn,
-        signInLocal,
+        promptPlayNow,
         signOut,
         refresh,
-        busy,
-        ready,
-        authError,
-        clearAuthError,
-        playNowOpen,
-        promptPlayNow,
-        closePlayNow,
+        busy: core.busy,
+        ready: core.ready && privyReady,
+        authError: core.authError,
+        clearAuthError: core.clearAuthError,
+      }}
+    >
+      {children}
+    </Ctx.Provider>
+  );
+}
+
+/** Fallback when Privy isn't configured: sessions still load from an existing
+ *  token, but there's no way to log in. Keeps local dev / early builds working. */
+function InertSession({ children }: { children: React.ReactNode }) {
+  const core = useSessionCore();
+  const notConfigured = useCallback(
+    () => core.setAuthError("Login isn't configured in this environment."),
+    [core],
+  );
+  const signIn = useCallback(async () => notConfigured(), [notConfigured]);
+  const signOut = useCallback(() => {
+    localStorage.removeItem("cookout_token");
+    core.setProfile(null);
+  }, [core]);
+
+  return (
+    <Ctx.Provider
+      value={{
+        profile: core.profile,
+        signIn,
+        promptPlayNow: notConfigured,
+        signOut,
+        refresh: core.refresh,
+        busy: core.busy,
+        ready: core.ready,
+        authError: core.authError,
+        clearAuthError: core.clearAuthError,
       }}
     >
       {children}

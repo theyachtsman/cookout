@@ -7,7 +7,7 @@ import { DevBanner } from "../components/DevBanner";
 import { UnlockToasts } from "../components/UnlockToasts";
 import { BetaGate } from "../components/BetaGate";
 import { FeedbackWidget } from "../components/FeedbackWidget";
-import { PlayNowModal } from "../components/PlayNowModal";
+import { Providers } from "../components/Providers";
 import { TopNav } from "../components/TopNav";
 import "./globals.css";
 
@@ -43,25 +43,27 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en">
       <body className="min-h-screen">
         <DevBanner />
-        <SessionProvider>
-          {/* The persistent social layer wraps the whole app: one always-on
-              connection to The Cookout, and a player card reachable from any
-              username on any page. */}
-          <SocialProvider>
-            <UserCardProvider>
-              <TopNav />
-              {/* pb clears the fixed social dock so it never covers page content;
-                  overflow-x-clip is a mobile safety net against any stray wide child */}
-              <main className="mx-auto max-w-6xl overflow-x-clip px-3 pb-24 pt-6 sm:px-4">
-                <BetaGate>{children}</BetaGate>
-              </main>
-              <SocialDock />
-              <UnlockToasts />
-              <FeedbackWidget />
-              <PlayNowModal />
-            </UserCardProvider>
-          </SocialProvider>
-        </SessionProvider>
+        {/* Privy wraps auth; SessionProvider bridges it to our session. */}
+        <Providers>
+          <SessionProvider>
+            {/* The persistent social layer wraps the whole app: one always-on
+                connection to The Cookout, and a player card reachable from any
+                username on any page. */}
+            <SocialProvider>
+              <UserCardProvider>
+                <TopNav />
+                {/* pb clears the fixed social dock so it never covers page content;
+                    overflow-x-clip is a mobile safety net against any stray wide child */}
+                <main className="mx-auto max-w-6xl overflow-x-clip px-3 pb-24 pt-6 sm:px-4">
+                  <BetaGate>{children}</BetaGate>
+                </main>
+                <SocialDock />
+                <UnlockToasts />
+                <FeedbackWidget />
+              </UserCardProvider>
+            </SocialProvider>
+          </SessionProvider>
+        </Providers>
       </body>
     </html>
   );
