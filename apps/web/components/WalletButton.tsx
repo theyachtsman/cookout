@@ -110,17 +110,34 @@ export function WalletButton() {
       </div>
     );
   }
-  // Signed out. On the public paper site the primary action is "Play Now" (opens
-  // the onboarding modal — no wallet needed). On the invite-only chain site we
-  // keep the direct wallet connect and surface the gate message inline.
+  // Signed out. On the public paper site the primary action is "Play Now"
+  // (opens Privy — no wallet needed). On the invite-only chain site we keep
+  // the "Connect Wallet" framing. Both surface sign-in problems inline —
+  // a silent failure here strands the player with a button that "does nothing".
   if (!chainOnly) {
     return (
-      <button
-        onClick={promptPlayNow}
-        className="rounded bg-lime-400 px-3 py-1 text-sm font-black text-zinc-950 hover:bg-lime-300"
-      >
-        Play Now
-      </button>
+      <div ref={ref} className="relative">
+        <button
+          onClick={promptPlayNow}
+          disabled={busy}
+          className="rounded bg-lime-400 px-3 py-1 text-sm font-black text-zinc-950 hover:bg-lime-300 disabled:opacity-50"
+        >
+          {busy ? "Starting…" : "Play Now"}
+        </button>
+        {authError && (
+          <div className="absolute right-0 top-full z-30 mt-1 w-72 rounded-lg border border-amber-500/40 bg-zinc-900 p-3 text-xs shadow-2xl">
+            <p className="text-amber-200">{authError}</p>
+            <div className="mt-2 flex items-center justify-end">
+              <button
+                onClick={clearAuthError}
+                className="text-[11px] text-zinc-500 hover:text-zinc-300"
+              >
+                dismiss
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     );
   }
   return (

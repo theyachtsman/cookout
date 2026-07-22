@@ -126,69 +126,68 @@ function PrivySession({ children }: { children: React.ReactNode }) {
   // server looks the user up before the wallet exists and rejects the login.
   const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
 
+  // Trade the Privy access token for our session token, stake the starter
+  // pETH, and (from the front door) head into the arena. Runs from the effect
+  // below on login, and again from Play Now if a previous attempt failed —
+  // e.g. the API was briefly unreachable — so users are never stuck.
+  const exchangeSession = useCallback(async () => {
+    if (exchanging.current) return;
+    exchanging.current = true;
+    setBusy(true);
+    setAuthError("");
+    try {
+      const token = await getAccessToken();
+      if (!token) throw new Error("No Privy session token.");
+      const ref = new URLSearchParams(window.location.search).get("ref") ?? undefined;
+      const { token: sessionToken, profile } = await api<{ token: string; profile: Profile }>(
+        "/api/auth/privy",
+        { body: { token, referralCode: ref } },
+      );
+      localStorage.setItem("cookout_token", sessionToken);
+      setProfile(profile);
+      // Stake the starter into the arena so they can play immediately (server
+      // caps at the available bank; failure is non-fatal).
+      try {
+        await api("/api/me/arena/transfer", { body: { amount: 1e9, direction: "deposit" } });
+        setProfile(await api<Profile>("/api/me"));
+      } catch {
+        /* they're in; they can stake manually */
+      }
+      audio.play("ui.walletConnect");
+      // Send them into the arena only if they started at the front door; a
+      // silent re-auth (expired session, Privy still logged in) or a login
+      // triggered from a specific page leaves them where they are.
+      if (window.location.pathname === "/") router.push("/matches");
+    } catch (e) {
+      setAuthError((e as Error).message || "Sign-in failed. Please try again.");
+    } finally {
+      setBusy(false);
+      exchanging.current = false;
+    }
+  }, [getAccessToken, router, setBusy, setAuthError, setProfile]);
+
   // When Privy reports an authenticated user WITH their embedded wallet ready,
-  // and we don't yet hold our own session, exchange the Privy access token for
-  // our session token, stake the starter pETH, and drop them into a match.
+  // and we don't yet hold our own session, run the exchange.
   useEffect(() => {
     if (!privyReady || !authenticated || !embeddedWallet) return;
     if (core.profile || localStorage.getItem("cookout_token")) return; // already in
-    if (exchanging.current) return;
-    exchanging.current = true;
+    void exchangeSession();
+  }, [privyReady, authenticated, embeddedWallet, core.profile, exchangeSession]);
 
-    void (async () => {
-      setBusy(true);
-      setAuthError("");
-      try {
-        const token = await getAccessToken();
-        if (!token) throw new Error("No Privy session token.");
-        const ref = new URLSearchParams(window.location.search).get("ref") ?? undefined;
-        const { token: sessionToken, profile } = await api<{ token: string; profile: Profile }>(
-          "/api/auth/privy",
-          { body: { token, referralCode: ref } },
-        );
-        localStorage.setItem("cookout_token", sessionToken);
-        setProfile(profile);
-        // Stake the starter into the arena so they can play immediately (server
-        // caps at the available bank; failure is non-fatal).
-        try {
-          await api("/api/me/arena/transfer", { body: { amount: 1e9, direction: "deposit" } });
-          setProfile(await api<Profile>("/api/me"));
-        } catch {
-          /* they're in; they can stake manually */
-        }
-        audio.play("ui.walletConnect");
-        // Send them into the arena only if they started at the front door; a
-        // silent re-auth (expired session, Privy still logged in) or a login
-        // triggered from a specific page leaves them where they are.
-        if (window.location.pathname === "/") router.push("/matches");
-      } catch (e) {
-        setAuthError((e as Error).message || "Sign-in failed. Please try again.");
-      } finally {
-        setBusy(false);
-        exchanging.current = false;
-      }
-    })();
-  }, [
-    privyReady,
-    authenticated,
-    embeddedWallet,
-    core.profile,
-    getAccessToken,
-    router,
-    setBusy,
-    setAuthError,
-    setProfile,
-  ]);
-
-  const signIn = useCallback(async () => {
+  // Privy's login() no-ops (with a console warning) when the user is already
+  // authenticated — so if they're authed but our exchange failed, clicking
+  // Play Now must RETRY the exchange rather than reopen the login modal.
+  const startPlay = useCallback(() => {
     setAuthError("");
+    if (authenticated) {
+      if (!core.profile && embeddedWallet) void exchangeSession();
+      return;
+    }
     login();
-  }, [login, setAuthError]);
+  }, [authenticated, core.profile, embeddedWallet, exchangeSession, login, setAuthError]);
 
-  const promptPlayNow = useCallback(() => {
-    setAuthError("");
-    login();
-  }, [login, setAuthError]);
+  const signIn = useCallback(async () => startPlay(), [startPlay]);
+  const promptPlayNow = startPlay;
 
   const signOut = useCallback(() => {
     localStorage.removeItem("cookout_token");
