@@ -32,6 +32,7 @@ import {
 
 const SECTIONS = [
   ["what", "What is The Cookout?"],
+  ["account", "Getting In & Your Account"],
   ["round", "Anatomy of a Round"],
   ["auction", "The Fair Open"],
   ["trading", "Live Trading"],
@@ -87,8 +88,51 @@ export default function Docs() {
             (pETH), so the competition is real and the risk is zero.
           </p>
           <p>
-            Your wallet is your whole identity — no emails, no passwords, no deposits. Signing a
-            message proves the wallet is yours; that&apos;s it.
+            Getting in takes under a minute: sign in with an email, Google, X, or your own wallet
+            and you&apos;re on the calendar. No whitelist, nothing to deposit — the beta is free to
+            play. <a href="#account" className="text-lime-400 underline">How accounts work →</a>
+          </p>
+        </Section>
+
+        <Section id="account" title="Getting In & Your Account">
+          <p>
+            The Cookout is in <b>open beta</b> — no whitelist, no waves, no crypto knowledge
+            required. Hit <b>Play Now</b> and sign in with an email, Google, X, or an existing
+            wallet (login is handled by{" "}
+            <a href="https://privy.io" target="_blank" rel="noreferrer" className="text-lime-400 underline">
+              Privy
+            </a>
+            ). That&apos;s the whole onboarding.
+          </p>
+          <p>
+            Every account comes with its own <b>wallet address</b> under the hood — created
+            automatically and secured by your login. That address is your identity: your XP, level,
+            match history, and leaderboard runs all hang off it. You never sign transactions or
+            manage keys to play; the blockchain stays in the background.
+          </p>
+          <p>
+            Your money lives in your <b>⚡ Arena Account</b> (in the profile menu):
+          </p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>
+              <b>Arena balance</b> — the stake matches can spend. Your starter 10 pETH is staked
+              here automatically on sign-up so you can walk straight into a lobby.
+            </li>
+            <li>
+              <b>Bank</b> — the rest of your paper money. Safe, can&apos;t trade. Move funds
+              between bank and arena any time you&apos;re not queued into a match.
+            </li>
+            <li>
+              <b>Your wallet</b> — the real on-chain address behind your login, shown with its live
+              balance. Real deposits, withdrawals, and funding the arena with real ETH open at
+              mainnet; during the beta everything you play with is pETH.
+            </li>
+          </ul>
+          <p className="text-zinc-400">
+            One more thing you should know: during the beta, matches are kept busy by our{" "}
+            <b>Swarm</b> — house traders that behave differently every round, so there&apos;s always
+            a market to out-trade. As real players fill the lobbies, they take the Swarm&apos;s
+            seats.
           </p>
         </Section>
 
@@ -320,8 +364,8 @@ export default function Docs() {
             all on the{" "}
             <Link href="/jackpot" className="text-amber-400 underline">
               Jackpot page
-            </Link>{" "}
-            (open once you&apos;re in the beta).
+            </Link>
+            .
           </p>
         </Section>
 
@@ -644,13 +688,23 @@ export default function Docs() {
               The clearing price landed above your max. That&apos;s the limit doing its job — full
               refund, no fill.
             </Faq>
-            <Faq q="How do I get whitelisted for the beta?">
-              The whitelist is earned on X. Follow{" "}
-              <a href="https://x.com/hoodcookout" target="_blank" rel="noreferrer" className="text-lime-400 underline">@hoodcookout</a>,
-              like and repost the posts, and comment your Robinhood wallet address (0x…). Eligible
-              wallets are added by hand — watch for the official beta-test announcement to know when
-              your wave goes live. Full steps on the{" "}
-              <Link href="/#access" className="text-lime-400 underline">home page</Link>.
+            <Faq q="How do I start playing?">
+              Hit <b>Play Now</b> and sign in with an email, Google, X, or your own wallet — under
+              a minute, free, no whitelist, no deposit. Your starter pETH is staked into the arena
+              for you, so you can pull up to the next match immediately. Details in{" "}
+              <a href="#account" className="text-lime-400 underline">Getting In &amp; Your Account</a>.
+            </Faq>
+            <Faq q="Do I need a crypto wallet?">
+              No. Signing in creates a secure wallet address for you automatically — that&apos;s
+              your account. If you already live on-chain you can connect your own wallet instead.
+              Either way, you never sign transactions or touch keys to play.
+            </Faq>
+            <Faq q="Who am I playing against?">
+              Real players, plus our <b>Swarm</b> — house traders that keep every beta match active
+              and behave differently each round. They can win or lose just like you. As the
+              community grows, real players take their seats. Follow{" "}
+              <a href="https://x.com/hoodcookout" target="_blank" rel="noreferrer" className="text-lime-400 underline">@hoodcookout</a>{" "}
+              for match events and announcements.
             </Faq>
             <Faq q="How does the Weekly Jackpot work?">
               A slice of every trading fee builds a shared pot that pays the top{" "}
