@@ -21,7 +21,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
       appId={APP_ID}
       config={{
         appearance: { theme: "dark", accentColor: "#a3e635", logo: "/brand/mascot.png" },
-        embeddedWallets: { createOnLogin: "all-users" },
+        // v3 nests wallet creation per-chain; give every login an EVM embedded wallet.
+        embeddedWallets: { ethereum: { createOnLogin: "all-users" } },
       }}
     >
       {children}
