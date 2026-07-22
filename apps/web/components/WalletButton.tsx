@@ -7,7 +7,7 @@ import { useChainOnly } from "../lib/chainOnly";
 import { useSession } from "../lib/session";
 
 export function WalletButton() {
-  const { profile, signIn, signOut, busy, authError, clearAuthError } = useSession();
+  const { profile, signIn, signOut, busy, authError, clearAuthError, promptPlayNow } = useSession();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const chainOnly = useChainOnly();
@@ -87,7 +87,7 @@ export function WalletButton() {
               onClick={() => setOpen(false)}
               className="block px-3 py-2 text-sm hover:bg-zinc-800"
             >
-              ⚡ Arena Wallet
+              ⚡ Arena Account
             </Link>
             <Link
               href={`/profile/${profile.address}`}
@@ -110,6 +110,19 @@ export function WalletButton() {
       </div>
     );
   }
+  // Signed out. On the public paper site the primary action is "Play Now" (opens
+  // the onboarding modal — no wallet needed). On the invite-only chain site we
+  // keep the direct wallet connect and surface the gate message inline.
+  if (!chainOnly) {
+    return (
+      <button
+        onClick={promptPlayNow}
+        className="rounded bg-lime-400 px-3 py-1 text-sm font-black text-zinc-950 hover:bg-lime-300"
+      >
+        Play Now
+      </button>
+    );
+  }
   return (
     <div ref={ref} className="relative">
       <button
@@ -122,14 +135,7 @@ export function WalletButton() {
       {authError && (
         <div className="absolute right-0 top-full z-30 mt-1 w-72 rounded-lg border border-amber-500/40 bg-zinc-900 p-3 text-xs shadow-2xl">
           <p className="text-amber-200">{authError}</p>
-          <div className="mt-2 flex items-center gap-3">
-            <a
-              href="/#access"
-              onClick={clearAuthError}
-              className="rounded bg-lime-400 px-2 py-1 text-[11px] font-bold text-zinc-950 hover:bg-lime-300"
-            >
-              How to get access →
-            </a>
+          <div className="mt-2 flex items-center justify-end">
             <button
               onClick={clearAuthError}
               className="text-[11px] text-zinc-500 hover:text-zinc-300"

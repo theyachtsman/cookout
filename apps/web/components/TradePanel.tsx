@@ -29,7 +29,7 @@ export function TradePanel({
   variant?: "bar" | "widget";
   onTraded: () => void;
 }) {
-  const { profile, signIn } = useSession();
+  const { profile, signIn, promptPlayNow } = useSession();
   const [tab, setTab] = useState<"buy" | "sell">("buy");
   // Enter buys in native units or dollars — the widget converts at the peg.
   const [denom, setDenom] = useState<"native" | "usd">("native");
@@ -131,10 +131,10 @@ export function TradePanel({
     return (
       <div className="rounded-xl border border-zinc-800 p-4">
         <button
-          onClick={() => void signIn()}
+          onClick={() => (onChain ? void signIn() : promptPlayNow())}
           className="w-full rounded-lg bg-lime-400 px-5 py-2.5 font-black text-zinc-950 hover:bg-lime-300"
         >
-          Connect Wallet to Trade
+          {onChain ? "Connect Wallet to Trade" : "Play to Trade"}
         </button>
       </div>
     );

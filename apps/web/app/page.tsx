@@ -4,19 +4,29 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useBrandAsset } from "../lib/useBrandAsset";
+import { useSession } from "../lib/session";
 import { ArenaDemo } from "../components/ArenaDemo";
 
 /**
  * The front door. Reads as a game, not a launchpad: curiosity, then the
  * crowd, then why people come back, then gameplay, then the pot, then how
- * the open stays fair, then a seat.
+ * the open stays fair, then straight into a match.
  *
- * Whitelist is earned on X (@hoodcookout): follow, like, repost, comment
- * your wallet. Eligible wallets are imported by CSV in the admin.
+ * Open Beta: no whitelist, no wallet, no deposit. "Play Now" mints a browser
+ * account and drops you into a paper match (see PlayNowModal / accountKey).
  */
 
-const X_URL = "https://x.com/hoodcookout";
 const X_HANDLE = "@hoodcookout";
+
+/** Primary call-to-action — opens the one-step Play Now onboarding. */
+function PlayNowButton({ className = "", children }: { className?: string; children: React.ReactNode }) {
+  const { promptPlayNow } = useSession();
+  return (
+    <button onClick={promptPlayNow} className={className}>
+      {children}
+    </button>
+  );
+}
 
 export default function Landing() {
   return (
@@ -236,16 +246,13 @@ function Hero() {
           alt=""
           className="mx-auto mb-4 h-36 w-36 object-contain drop-shadow-[0_0_35px_rgba(163,230,53,0.45)] md:h-44 md:w-44"
         />
-        <a
-          href="#access"
-          className="mb-5 inline-flex items-center gap-2 rounded-full border border-lime-400/40 bg-lime-400/10 px-4 py-1 text-xs font-bold tracking-widest text-lime-300 transition hover:bg-lime-400/20"
-        >
+        <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-lime-400/40 bg-lime-400/10 px-4 py-1 text-xs font-bold tracking-widest text-lime-300">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-lime-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-lime-400" />
           </span>
-          OPEN BETA · 100% PAPER MONEY
-        </a>
+          OPEN BETA · 100% PAPER MONEY · NO WALLET NEEDED
+        </span>
         <h1 className="text-5xl font-black tracking-tight md:text-8xl">
           <span className="text-lime-400">THE</span>{" "}
           <span className="text-zinc-50 [text-shadow:0_0_2px_#a3e635,0_0_18px_rgba(163,230,53,0.5)]">
@@ -274,24 +281,21 @@ function Hero() {
         <Slogan className="mt-6 text-xl md:text-3xl" />
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
-          <a
-            href="#access"
-            className="rounded-xl bg-lime-400 px-8 py-4 text-lg font-black text-zinc-950 shadow-lg shadow-lime-400/30 transition hover:scale-105 hover:bg-lime-300"
-          >
-            Claim Your Seat
-          </a>
+          <PlayNowButton className="rounded-xl bg-lime-400 px-8 py-4 text-lg font-black text-zinc-950 shadow-lg shadow-lime-400/30 transition hover:scale-105 hover:bg-lime-300">
+            Play Now
+          </PlayNowButton>
           <Link
-            href="/docs"
+            href="/matches"
             className="rounded-xl border border-zinc-700 px-8 py-4 text-lg font-bold text-zinc-200 transition hover:border-zinc-500"
           >
-            Menu
+            Watch a match
           </Link>
         </div>
         <div className="mx-auto mt-7 inline-flex max-w-xl items-center gap-3 rounded-xl border border-lime-400/30 bg-lime-400/[0.06] px-5 py-2.5">
           <span className="text-xl">🎮</span>
           <p className="text-left text-sm text-zinc-200">
-            <span className="font-black text-lime-300">It&apos;s all paper money right now.</span>{" "}
-            Nothing to deposit, nothing to lose. The competition is the real part.
+            <span className="font-black text-lime-300">Pick a name and play.</span>{" "}
+            Paper money, no deposit, no wallet — you&apos;re in a match in under a minute.
           </p>
         </div>
       </div>
@@ -744,64 +748,66 @@ function Pillars() {
   );
 }
 
-/* ---------------- beta access via X ---------------- */
+/* ---------------- open beta: just play ---------------- */
 
-const ACCESS_STEPS = [
-  ["Follow " + X_HANDLE, "One account, and it's the only one. Waves get announced there before anywhere else."],
-  ["Like and repost", "This is how you end up on our radar when we cut the next wave."],
-  ["Comment your wallet", "Drop your Robinhood address (0x…) in the replies. That's the one we add, so paste it carefully."],
-  ["Wait for the word", "When your wave goes live we say so. Connect that wallet and pull up to a lobby."],
+const HOW_INSTANT = [
+  ["🎮", "Pick a name", "No email, no wallet, no forms. Choose a handle and you have an account."],
+  ["⚡", "Get your paper stack", "We stake your starter pETH into your Arena Account automatically. It's paper — nothing to deposit, nothing at risk."],
+  ["🔥", "Walk into a match", "There's always one running. You're trading against the room in under a minute."],
 ];
 
 function Access() {
   return (
     <section id="access" className="relative mx-auto max-w-4xl scroll-mt-20 px-6 py-24">
       <Reveal className="text-center">
-        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">Getting in</div>
+        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">Open beta</div>
         <h2 className="mt-3 text-4xl font-black tracking-tight md:text-5xl">
-          Seats go out in waves.
+          Just play. Right now.
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-zinc-400">
-          There&apos;s no form and nothing to sign. We hand out seats to people who show up on X,
-          and we add the wallets by hand. Everything is paper money for now, so the only thing
-          you&apos;re risking is your ego.
+          No whitelist, no waves, no wallet. It&apos;s all paper money while we&apos;re in beta, so
+          the only thing you&apos;re risking is your ego. Bring a wallet later if you want — you
+          don&apos;t need one to play.
         </p>
       </Reveal>
 
-      <div className="mt-12 space-y-3">
-        {ACCESS_STEPS.map(([title, body], i) => (
-          <Reveal key={i} delay={i * 80}>
-            <div className="flex items-start gap-4 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 transition hover:border-lime-400/40">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-lime-400 font-black text-zinc-950">
-                {i + 1}
-              </div>
-              <div>
-                <h3 className="font-black">{title}</h3>
-                <p className="mt-1 text-sm text-zinc-400">{body}</p>
-              </div>
+      <div className="mt-12 grid gap-4 md:grid-cols-3">
+        {HOW_INSTANT.map(([icon, title, body], i) => (
+          <Reveal key={title} delay={i * 80}>
+            <div className="h-full rounded-2xl border border-zinc-800 bg-zinc-900/40 p-5 transition hover:border-lime-400/40">
+              <div className="text-3xl">{icon}</div>
+              <h3 className="mt-2 font-black">{title}</h3>
+              <p className="mt-1 text-sm text-zinc-400">{body}</p>
             </div>
           </Reveal>
         ))}
       </div>
 
-      <Reveal className="mt-8 text-center">
-        <div className="rounded-2xl border border-lime-400/40 bg-lime-400/[0.06] p-6">
-          <p className="text-sm text-zinc-300">
-            You need all three: <b className="text-lime-300">like, repost, comment your wallet</b>.
-            We add them by hand, so give it a minute. The people getting in now are the ones who
-            get to say they were here first.
+      <Reveal className="mt-10 text-center">
+        <div className="rounded-2xl border border-lime-400/40 bg-lime-400/[0.06] p-8">
+          <PlayNowButton className="inline-flex items-center gap-2 rounded-xl bg-lime-400 px-10 py-4 text-xl font-black text-zinc-950 shadow-lg shadow-lime-400/30 transition hover:scale-105 hover:bg-lime-300">
+            Play Now →
+          </PlayNowButton>
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
+            {["No whitelist", "No deposit", "No wallet needed", "Instant"].map((p) => (
+              <span
+                key={p}
+                className="rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-300"
+              >
+                {p}
+              </span>
+            ))}
+          </div>
+
+          {/* the Swarm, explained honestly rather than hidden */}
+          <p className="mx-auto mt-6 max-w-xl border-t border-lime-400/20 pt-5 text-sm text-zinc-400">
+            <b className="text-zinc-200">Where&apos;s everyone?</b> Every match is kept busy by our
+            Swarm while the community grows — it trades differently every round, so no two games feel
+            the same. As real players fill the lobby, they take the Swarm&apos;s seats.
           </p>
-          <a
-            href={X_URL}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-5 inline-flex items-center gap-2 rounded-xl bg-lime-400 px-8 py-4 text-lg font-black text-zinc-950 shadow-lg shadow-lime-400/30 transition hover:scale-105 hover:bg-lime-300"
-          >
-            Follow {X_HANDLE} on X →
-          </a>
           <p className="mt-4 text-xs text-zinc-600">
-            Safety: {X_HANDLE} is the only official account. We will never DM you first, never ask
-            for a seed phrase, and never charge you to join.
+            Safety: {X_HANDLE} is our only official account. We will never DM you first, never ask
+            for a seed phrase, and never charge you to play.
           </p>
         </div>
       </Reveal>

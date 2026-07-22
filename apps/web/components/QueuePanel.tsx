@@ -40,7 +40,7 @@ export function QueuePanel({
   ethUsd?: number;
   onChanged: () => void;
 }) {
-  const { profile, signIn } = useSession();
+  const { profile, signIn, promptPlayNow } = useSession();
   const { online } = useSocial();
   const onChain = !!round.chain;
   const unit = onChain ? "ETH" : "pETH";
@@ -193,10 +193,10 @@ export function QueuePanel({
         </p>
         {!profile ? (
           <button
-            onClick={() => void signIn()}
+            onClick={() => (onChain ? void signIn() : promptPlayNow())}
             className="rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300"
           >
-            Connect Wallet to Pull Up
+            {onChain ? "Connect Wallet to Pull Up" : "Play to Pull Up"}
           </button>
         ) : queueOpen ? (
           <div className="flex flex-wrap items-end gap-3">

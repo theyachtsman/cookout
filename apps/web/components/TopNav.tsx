@@ -7,13 +7,14 @@ import { createPortal } from "react-dom";
 import { BrandLogo } from "./BrandLogo";
 import { JackpotPill } from "./JackpotPill";
 import { WalletButton } from "./WalletButton";
+import { useChainOnly } from "../lib/chainOnly";
 import { useSession } from "../lib/session";
 
 /**
  * Top navigation. A short fixed-height bar; on desktop the links sit inline, on
- * mobile they collapse into a hamburger that opens a slide-in drawer. During
- * the open beta the app links only appear for signed-in (whitelisted/dev)
- * wallets; the Menu (docs) is always public.
+ * mobile they collapse into a hamburger that opens a slide-in drawer. On the
+ * public paper site the app links are always browseable (visitors explore
+ * logged-out); on the invite-only chain site they appear only once signed in.
  */
 
 interface NavLink {
@@ -35,6 +36,7 @@ const LINKS: NavLink[] = [
 
 export function TopNav() {
   const { profile } = useSession();
+  const chainOnly = useChainOnly();
   const [open, setOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
   const pathname = usePathname();
@@ -52,7 +54,9 @@ export function TopNav() {
     };
   }, [open]);
 
-  const links = LINKS.filter((l) => !l.auth || profile);
+  // Public paper site: everything is browseable logged-out, so show every link.
+  // Invite-only chain site: hide the app links until there's a session.
+  const links = LINKS.filter((l) => !l.auth || profile || !chainOnly);
 
   return (
     <nav className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur">
