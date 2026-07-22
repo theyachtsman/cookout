@@ -131,7 +131,7 @@ export default function PublicProfilePage() {
       <div>
         <h2 className="mb-2 text-lg font-bold">Trading History</h2>
         <div className="overflow-hidden rounded-xl border border-zinc-800">
-          <table className="w-full text-sm">
+          <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[30rem] text-sm">
             <thead className="bg-zinc-900 text-left text-xs uppercase text-zinc-500">
               <tr>
                 <th className="px-4 py-2">Round</th>
@@ -168,7 +168,7 @@ export default function PublicProfilePage() {
                 </tr>
               )}
             </tbody>
-          </table>
+          </table></div>
         </div>
       </div>
     </div>

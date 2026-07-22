@@ -443,8 +443,10 @@ export default function RoundPage() {
       )}
 
       {(round.state === "live" || round.state === "ended" || round.state === "results") && (
-        <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
-          <div className={`relative space-y-4 ${shake ? "fx-shake" : ""}`}>
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
+          {/* min-w-0 lets the column shrink below the canvas's intrinsic width
+              on mobile — without it the chart overflows the viewport. */}
+          <div className={`relative min-w-0 space-y-4 ${shake ? "fx-shake" : ""}`}>
             <BattleFX events={fx} />
             {round.state === "live" && ticker && (
               <GraduationProgress
@@ -520,7 +522,7 @@ export default function RoundPage() {
           </div>
           {/* The social column: gameplay lives on the left, the crowd on the
               right — chat, who's winning, who's holding — all visible at once. */}
-          <div className="space-y-4">
+          <div className="min-w-0 space-y-4">
             {round.graduated && !round.chain && (
               <TradePanel
                 round={round}
