@@ -168,8 +168,12 @@ export function ArenaHeader({
 
   const skin = skinFor(round);
   const remaining = skin.until ? Math.max(0, skin.until - now) : null;
-  const mm = remaining !== null ? Math.floor(remaining / 60000) : 0;
-  const ss = remaining !== null ? Math.floor((remaining % 60000) / 1000) : 0;
+  // Ceil the whole remaining, matching the RoundOverlays countdown so the top
+  // timer and the big 5-4-3-2-1 overlay read the same number at the same time
+  // (a floor here vs the overlay's ceil left them ~1s apart).
+  const totalSec = remaining !== null ? Math.ceil(remaining / 1000) : 0;
+  const mm = Math.floor(totalSec / 60);
+  const ss = totalSec % 60;
   const urgent = remaining !== null && remaining < 15_000;
   const progress =
     skin.until && skin.from

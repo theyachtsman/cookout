@@ -106,6 +106,17 @@ setInterval(() => {
   }
 }, 1000);
 
+// Phase transitions on a tight cadence so a countdown hitting zero lands the
+// next phase — above all queue → live — within ~200ms instead of up to a full
+// second late. Cheap: it only advances due state edges, no candles or bots.
+setInterval(() => {
+  try {
+    engine.tickTransitions(Date.now());
+  } catch (e) {
+    console.error("transition tick error", e);
+  }
+}, 200);
+
 let saving = false;
 setInterval(() => {
   if (saving) return;

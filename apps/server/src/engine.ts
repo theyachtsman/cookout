@@ -152,41 +152,68 @@ export class RoundEngine {
     return m;
   }
 
-  /** Advance every round's state machine. Call once per second. */
+  /**
+   * A time-gated phase advance for one round. Returns true if it changed state.
+   * Split out from tick() so a tight transition pass (tickTransitions) can fire
+   * the same edges — especially queue → live — the instant they're due, instead
+   * of up to a full engine tick late. Idempotent: whichever pass reaches a due
+   * edge first advances it; the other sees the new state and does nothing.
+   */
+  private advance(round: Round, now: number): boolean {
+    switch (round.state) {
+      case "scheduled":
+        if (now >= round.scheduledAt) {
+          round.state = "lobby";
+          round.queueOpensAt = round.scheduledAt + round.config.lobbySeconds * 1000;
+          this.emitState(round);
+          return true;
+        }
+        return false;
+      case "lobby":
+        if (now >= round.queueOpensAt!) {
+          round.state = "queue_open";
+          round.queueClosesAt = round.queueOpensAt! + round.config.queueSeconds * 1000;
+          this.sys(
+            round.id,
+            "queue_open",
+            `Queue is OPEN — pull up. Everyone settles at one price in ${round.config.queueSeconds}s.`,
+          );
+          this.emitState(round);
+          return true;
+        }
+        return false;
+      case "queue_open":
+        // Chain rounds settle on-chain (ChainService), never here.
+        if (!round.chain && now >= round.queueClosesAt!) {
+          this.settle(round, now); // → settling → live, same call
+          return true;
+        }
+        return false;
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Fast transition pass — runs on a tight interval (see index.ts) so the
+   * launch lands right as the countdown hits zero. Only advances the pre-live
+   * edges; the 1s tick still owns lobby refreshes and live candle generation.
+   */
+  tickTransitions(now: number): void {
+    for (const round of this.store.rounds.values()) this.advance(round, now);
+  }
+
+  /** Advance every round's state machine + per-phase work. Call once per second. */
   tick(now: number): void {
     for (const round of this.store.rounds.values()) {
+      if (this.advance(round, now)) continue; // transitioned this pass
       switch (round.state) {
-        case "scheduled":
-          if (now >= round.scheduledAt) {
-            round.state = "lobby";
-            round.queueOpensAt = round.scheduledAt + round.config.lobbySeconds * 1000;
-            this.emitState(round);
-          }
-          break;
         case "lobby":
-          if (now >= round.queueOpensAt!) {
-            round.state = "queue_open";
-            round.queueClosesAt = round.queueOpensAt! + round.config.queueSeconds * 1000;
-            this.sys(
-              round.id,
-              "queue_open",
-              `Queue is OPEN — pull up. Everyone settles at one price in ${round.config.queueSeconds}s.`,
-            );
-            this.emitState(round);
-          }
           this.emitLobby(round);
           break;
         case "queue_open":
-          if (round.chain) {
-            // Chain rounds settle on-chain; the ChainService fires settle()
-            // and mirrors the result. The paper tick only keeps the lobby UI
-            // fresh here.
-            this.emitLobby(round);
-          } else if (now >= round.queueClosesAt!) {
-            this.settle(round, now);
-          } else {
-            this.emitLobby(round);
-          }
+          // Keep the lobby/queue board fresh (chain and paper alike).
+          this.emitLobby(round);
           break;
         case "live":
           if (!round.chain) this.tickLive(round, now);
