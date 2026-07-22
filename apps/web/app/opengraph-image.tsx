@@ -1,7 +1,15 @@
+import { readFile } from "node:fs/promises";
+import { join } from "node:path";
 import { ImageResponse } from "next/og";
 
-// Branded social card generated at build time (Vercel-native, no binary asset).
-export const alt = "The Cookout — live multiplayer trading arena with a weekly ETH jackpot";
+/**
+ * The social link card (X / Discord / Telegram embeds). Mascot-forward: the
+ * grill master anchors the right side over a lime glow, brand + "just play"
+ * promise on the left, candlestick motif underneath. Generated at build time;
+ * if the mascot asset can't be read the card still renders without it.
+ */
+export const alt =
+  "The Cookout — every chart is a multiplayer match. Open beta: play free, no wallet needed.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -12,7 +20,17 @@ const BARS = [
   [95, 0], [210, 1], [75, 0], [145, 1], [115, 1], [85, 0], [165, 1], [125, 1],
 ] as const;
 
-export default function Image() {
+async function mascotSrc(): Promise<string | null> {
+  try {
+    const data = await readFile(join(process.cwd(), "public", "brand", "mascot.png"));
+    return `data:image/png;base64,${data.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+
+export default async function Image() {
+  const mascot = await mascotSrc();
   return new ImageResponse(
     (
       <div
@@ -20,10 +38,8 @@ export default function Image() {
           width: "100%",
           height: "100%",
           display: "flex",
-          flexDirection: "column",
-          justifyContent: "space-between",
           background: "#0b0d0b",
-          padding: "76px 84px",
+          padding: "56px 72px",
           position: "relative",
           fontFamily: "sans-serif",
         }}
@@ -35,9 +51,9 @@ export default function Image() {
             top: 0,
             left: 0,
             right: 0,
-            height: 320,
+            height: 300,
             display: "flex",
-            background: "linear-gradient(180deg, rgba(163,230,53,0.16), rgba(163,230,53,0))",
+            background: "linear-gradient(180deg, rgba(163,230,53,0.14), rgba(163,230,53,0))",
           }}
         />
         {/* candlestick motif along the bottom */}
@@ -47,12 +63,12 @@ export default function Image() {
             bottom: 0,
             left: 0,
             right: 0,
-            height: 240,
+            height: 220,
             display: "flex",
             alignItems: "flex-end",
             justifyContent: "space-between",
-            padding: "0 40px",
-            opacity: 0.22,
+            padding: "0 36px",
+            opacity: 0.18,
           }}
         >
           {BARS.map(([h, up], i) => (
@@ -60,7 +76,7 @@ export default function Image() {
               key={i}
               style={{
                 display: "flex",
-                width: 26,
+                width: 24,
                 height: h,
                 borderRadius: 5,
                 background: up ? "#22c55e" : "#ef4444",
@@ -69,43 +85,94 @@ export default function Image() {
           ))}
         </div>
 
-        {/* chip */}
-        <div style={{ display: "flex", position: "relative" }}>
+        {/* left column: the pitch */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            justifyContent: "center",
+            flex: 1,
+            position: "relative",
+            gap: 26,
+          }}
+        >
+          <div style={{ display: "flex" }}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                border: "2px solid rgba(163,230,53,0.55)",
+                borderRadius: 999,
+                padding: "8px 22px",
+                color: "#bef264",
+                fontSize: 24,
+                letterSpacing: 4,
+                fontWeight: 700,
+              }}
+            >
+              🔥 OPEN BETA · 100% PAPER MONEY
+            </div>
+          </div>
+
+          <div
+            style={{ display: "flex", gap: 22, fontSize: 100, letterSpacing: -4, lineHeight: 1, fontWeight: 800 }}
+          >
+            <span style={{ color: "#a3e635" }}>THE</span>
+            <span style={{ color: "#fafafa" }}>COOKOUT</span>
+          </div>
+
+          <div style={{ display: "flex", fontSize: 34, color: "#e4e4e7", fontWeight: 700 }}>
+            Every chart is a multiplayer match.
+          </div>
+
+          <div style={{ display: "flex", fontSize: 29, fontWeight: 800, gap: 14 }}>
+            <span style={{ color: "#f4f4f5" }}>Same price.</span>
+            <span style={{ color: "#34d399" }}>Same second.</span>
+            <span style={{ color: "#a3e635" }}>Everyone.</span>
+          </div>
+
+          <div style={{ display: "flex", alignItems: "center", marginTop: 8, gap: 16 }}>
+            <div
+              style={{
+                display: "flex",
+                width: 12,
+                height: 36,
+                background: "#a3e635",
+                borderRadius: 4,
+              }}
+            />
+            <div style={{ display: "flex", fontSize: 26, color: "#fafafa" }}>
+              Play free in under a minute → thecookout.fun
+            </div>
+          </div>
+        </div>
+
+        {/* right: the grill master over a lime glow */}
+        {mascot && (
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              border: "2px solid rgba(163,230,53,0.55)",
-              borderRadius: 999,
-              padding: "10px 24px",
-              color: "#bef264",
-              fontSize: 26,
-              letterSpacing: 4,
+              justifyContent: "center",
+              width: 460,
+              position: "relative",
             }}
           >
-            OPEN BETA · PAPER MONEY
+            <div
+              style={{
+                position: "absolute",
+                width: 460,
+                height: 460,
+                display: "flex",
+                borderRadius: 999,
+                background:
+                  "radial-gradient(circle, rgba(163,230,53,0.30) 0%, rgba(163,230,53,0.10) 45%, rgba(163,230,53,0) 70%)",
+              }}
+            />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={mascot} alt="" width={430} height={430} style={{ position: "relative" }} />
           </div>
-        </div>
-
-        {/* title + tagline */}
-        <div style={{ display: "flex", flexDirection: "column", position: "relative" }}>
-          <div style={{ display: "flex", fontSize: 158, letterSpacing: -5, lineHeight: 1 }}>
-            <span style={{ color: "#a3e635", marginRight: 26 }}>THE</span>
-            <span style={{ color: "#fafafa" }}>COOKOUT</span>
-          </div>
-          <div style={{ display: "flex", marginTop: 30, fontSize: 40, color: "#d4d4d8", maxWidth: 920 }}>
-            The live multiplayer trading arena — fair-open PvP rounds, XP quests, and a weekly ETH
-            jackpot.
-          </div>
-        </div>
-
-        {/* cta */}
-        <div style={{ display: "flex", alignItems: "center", position: "relative" }}>
-          <div style={{ display: "flex", width: 14, height: 46, background: "#a3e635", borderRadius: 4, marginRight: 22 }} />
-          <div style={{ display: "flex", fontSize: 36, color: "#fafafa" }}>
-            Play now → no wallet, no deposit, just paper money
-          </div>
-        </div>
+        )}
       </div>
     ),
     { ...size },
