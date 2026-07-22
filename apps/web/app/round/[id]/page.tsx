@@ -193,14 +193,9 @@ export default function RoundPage() {
     else if (round.state === "settling") show("SETTLING", "end");
   }, [round?.state, round?.graduated]);
 
-  // Ambience bed follows the phase: warm/quiet in the lobby, tense/electronic
-  // once the market's live. Stops when you leave the round.
-  useEffect(() => {
-    const st = round?.state;
-    if (st === "lobby" || st === "queue_open" || st === "settling") audio.startAmbience("lobby");
-    else if (st === "live") audio.startAmbience("live");
-    else audio.stopAmbience();
-  }, [round?.state]);
+  // Ambience is off for now — the queue "low roar" bed wasn't wanted. The
+  // system stays wired (audio.startAmbience) so a better bed can drop in later;
+  // we just don't invoke it. Still stop any bed on leave, for safety.
   useEffect(() => () => audio.stopAmbience(), []);
 
   // Drives the final-minute mood shift across the arena column.

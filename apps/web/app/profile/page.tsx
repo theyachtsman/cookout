@@ -7,6 +7,7 @@ import { api } from "../../lib/api";
 import { DEFAULT_CHAIN_ID, arenaBalance, hasArenaWallet } from "../../lib/arenaWallet";
 import { useChainOnly, useUnit } from "../../lib/chainOnly";
 import { useSession } from "../../lib/session";
+import { AudioMixer } from "../../components/AudioSettings";
 import { CosmeticsLocker } from "../../components/CosmeticsLocker";
 import { ImagePicker } from "../../components/ImagePicker";
 import { Missions } from "../../components/Missions";
@@ -189,6 +190,8 @@ export default function ProfilePage() {
       <Progress />
 
       <CosmeticsLocker />
+
+      <AudioMixer />
 
       <div>
         <h2 className="mb-3 text-lg font-bold">Achievements</h2>
