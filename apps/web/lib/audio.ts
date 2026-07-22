@@ -324,26 +324,48 @@ class AudioManager {
 // Synthesis primitives (operate on a RenderCtx)
 // ---------------------------------------------------------------------------
 
+/**
+ * Soft-clip curve for saturation. Pushing a signal through this (via a drive
+ * pre-gain) adds harmonic grit and glue — the single biggest thing that stops
+ * a synth voice sounding like a bare beep. Cached; one curve serves every voice.
+ */
+let SAT_CURVE: Float32Array<ArrayBuffer> | null = null;
+function satCurve(): Float32Array<ArrayBuffer> {
+  if (SAT_CURVE) return SAT_CURVE;
+  const n = 2048;
+  const c = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i / (n - 1)) * 2 - 1;
+    c[i] = Math.tanh(x * 2.2);
+  }
+  SAT_CURVE = c;
+  return c;
+}
+
 interface VoiceOpts {
   at?: number;
   dur?: number;
   type?: OscillatorType;
   gain?: number;
   glideTo?: number;
+  /** How long the pitch glide takes (s). Short = a punchy percussive drop. */
+  pitchDur?: number;
   cutoff?: number;
   cutoffTo?: number;
   q?: number;
   detune?: number;
   send?: number;
   attack?: number;
+  /** Saturation drive (0 = clean). ~2–3 warms, ~5–8 bites. */
+  drive?: number;
 }
 
-/** Filtered, enveloped oscillator (optionally detuned/stacked). */
+/** Filtered, enveloped oscillator (optionally detuned/stacked/saturated). */
 function voice(c: RenderCtx, freq: number, o: VoiceOpts = {}): void {
   const { a, out, reverb } = c;
   const {
-    at = 0, dur = 0.2, type = "triangle", gain = 0.12, glideTo,
-    cutoff = 3200, cutoffTo, q = 0.9, detune = 0, send = 0, attack = 0.006,
+    at = 0, dur = 0.2, type = "triangle", gain = 0.12, glideTo, pitchDur,
+    cutoff = 3200, cutoffTo, q = 0.9, detune = 0, send = 0, attack = 0.006, drive = 0,
   } = o;
   const t = c.t + at;
   const filter = a.createBiquadFilter();
@@ -360,12 +382,23 @@ function voice(c: RenderCtx, freq: number, o: VoiceOpts = {}): void {
     osc.type = type;
     osc.detune.value = d;
     osc.frequency.setValueAtTime(freq, t);
-    if (glideTo) osc.frequency.exponentialRampToValueAtTime(glideTo, t + dur);
+    if (glideTo) osc.frequency.exponentialRampToValueAtTime(Math.max(20, glideTo), t + (pitchDur ?? dur));
     osc.connect(filter);
     osc.start(t);
     osc.stop(t + dur + 0.05);
   }
-  filter.connect(g).connect(out);
+  // filter → [drive → saturate] → gain → out
+  let head: AudioNode = filter;
+  if (drive > 0) {
+    const pre = a.createGain();
+    pre.gain.value = drive;
+    const ws = a.createWaveShaper();
+    ws.curve = satCurve();
+    ws.oversample = "2x";
+    filter.connect(pre).connect(ws);
+    head = ws;
+  }
+  head.connect(g).connect(out);
   if (send > 0) {
     const s = a.createGain();
     s.gain.value = send;
@@ -437,22 +470,62 @@ function noiseBurst(
   src.stop(t + dur + 0.02);
 }
 
-/** Sub-bass thump you feel — sine dropping in pitch under an impact. */
-function sub(c: RenderCtx, freq: number, o: { at?: number; dur?: number; gain?: number; drop?: number } = {}): void {
+/**
+ * Sub-bass thump you feel. The pitch drop is what gives it punch — it snaps
+ * down fast (dropDur) while the amplitude rings out longer (dur), the same
+ * envelope trick a kick drum uses. A touch of saturation adds body on speakers
+ * too small to reproduce the fundamental.
+ */
+function sub(
+  c: RenderCtx,
+  freq: number,
+  o: { at?: number; dur?: number; gain?: number; drop?: number; dropDur?: number; drive?: number } = {},
+): void {
   const { a, out } = c;
-  const { at = 0, dur = 0.22, gain = 0.16, drop = freq * 0.55 } = o;
+  const { at = 0, dur = 0.22, gain = 0.16, drop = freq * 0.5, dropDur, drive = 1.4 } = o;
   const t = c.t + at;
   const osc = a.createOscillator();
   osc.type = "sine";
   osc.frequency.setValueAtTime(freq, t);
-  osc.frequency.exponentialRampToValueAtTime(Math.max(30, drop), t + dur);
+  osc.frequency.exponentialRampToValueAtTime(Math.max(28, drop), t + (dropDur ?? dur * 0.4));
   const g = a.createGain();
   g.gain.setValueAtTime(0, t);
-  g.gain.linearRampToValueAtTime(gain, t + 0.006);
+  g.gain.linearRampToValueAtTime(gain, t + 0.005);
   g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-  osc.connect(g).connect(out);
+  let head: AudioNode = osc;
+  if (drive > 1) {
+    const pre = a.createGain();
+    pre.gain.value = drive;
+    const ws = a.createWaveShaper();
+    ws.curve = satCurve();
+    osc.connect(pre).connect(ws);
+    head = ws;
+  }
+  head.connect(g).connect(out);
   osc.start(t);
   osc.stop(t + dur + 0.05);
+}
+
+/**
+ * A tactile click — the tight noise transient + micro pitched tick that makes
+ * a UI action feel mechanical and satisfying rather than like a tone. `bright`
+ * shifts it up for confirms/buys, down for cancels/sells.
+ */
+function click(c: RenderCtx, o: { at?: number; gain?: number; bright?: number; body?: number } = {}): void {
+  const { at = 0, gain = 1, bright = 1, body = 1 } = o;
+  // The snap: very short filtered noise, the "tick".
+  noiseBurst(c, { at, dur: 0.018, gain: 0.09 * gain, type: "highpass", cutoff: 2600 * bright });
+  // A micro tonal body with a fast downward pitch drop = the "chunk".
+  voice(c, 420 * bright, {
+    at,
+    dur: 0.05 * body,
+    type: "square",
+    gain: 0.07 * gain,
+    glideTo: 240 * bright,
+    pitchDur: 0.03,
+    cutoff: 2200 * bright,
+    drive: 3,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -563,39 +636,42 @@ function register(): void {
   });
 
   // ---------------- Trading (Mechanical + Electronic) ----------------
+  // Buy: a tactile confirm — a crisp click over a saturated "vwip" that snaps
+  // upward, with a sub tap for weight. Reads as an action, not a note.
   R("trade.buy", {
     category: "trading",
     cooldownMs: 45,
     render: (c) => {
-      noiseBurst(c, { dur: 0.028, gain: 0.07, type: "highpass", cutoff: 2800 }); // mechanical snap
-      voice(c, 523.25, { dur: 0.13, type: "triangle", gain: 0.12, glideTo: 660, cutoff: 1600, cutoffTo: 5200, send: 0.1 });
-      sub(c, 170, { dur: 0.08, gain: 0.07 });
+      click(c, { gain: 1, bright: 1.15 });
+      voice(c, 300, { dur: 0.11, type: "sawtooth", gain: 0.1, glideTo: 470, pitchDur: 0.08, cutoff: 900, cutoffTo: 3600, q: 1.2, drive: 4, send: 0.08 });
+      sub(c, 150, { dur: 0.11, gain: 0.11, drop: 90, dropDur: 0.05 });
     },
   });
+  // Sell: same gesture, darker filter, pitch snapping down.
   R("trade.sell", {
     category: "trading",
     cooldownMs: 45,
     render: (c) => {
-      noiseBurst(c, { dur: 0.026, gain: 0.05, type: "highpass", cutoff: 1900 });
-      voice(c, 493.88, { dur: 0.15, type: "triangle", gain: 0.12, glideTo: 349, cutoff: 3200, cutoffTo: 900, send: 0.1 });
-      sub(c, 140, { dur: 0.09, gain: 0.06 });
+      click(c, { gain: 0.9, bright: 0.8 });
+      voice(c, 360, { dur: 0.13, type: "sawtooth", gain: 0.1, glideTo: 185, pitchDur: 0.09, cutoff: 2700, cutoffTo: 650, q: 1.2, drive: 4, send: 0.08 });
+      sub(c, 140, { dur: 0.12, gain: 0.1, drop: 80, dropDur: 0.06 });
     },
   });
-  // Other players' fills — quiet distant ticks. Size scales level via variants.
+  // Other players' fills — tiny crisp ticks. Frequent, so short and quiet.
   R("trade.tickBuy", {
     category: "trading",
     cooldownMs: 25,
     render: (c) => {
-      noiseBurst(c, { dur: 0.03, gain: 0.03, type: "highpass", cutoff: 3200 });
-      voice(c, 1046, { dur: 0.05, type: "triangle", gain: 0.045, cutoff: 5000, glideTo: 1250 });
+      noiseBurst(c, { dur: 0.018, gain: 0.03, type: "highpass", cutoff: 3800 });
+      voice(c, 900, { dur: 0.04, type: "square", gain: 0.04, glideTo: 1180, pitchDur: 0.03, cutoff: 5200, drive: 2 });
     },
   });
   R("trade.tickSell", {
     category: "trading",
     cooldownMs: 25,
     render: (c) => {
-      noiseBurst(c, { dur: 0.03, gain: 0.025, type: "bandpass", cutoff: 1400, q: 1.2 });
-      voice(c, 523, { dur: 0.06, type: "triangle", gain: 0.045, cutoff: 1800, glideTo: 392 });
+      noiseBurst(c, { dur: 0.018, gain: 0.025, type: "bandpass", cutoff: 1300, q: 1.4 });
+      voice(c, 520, { dur: 0.05, type: "square", gain: 0.04, glideTo: 330, pitchDur: 0.035, cutoff: 1800, drive: 2 });
     },
   });
   R("trade.deposit", {
@@ -609,27 +685,29 @@ function register(): void {
   });
 
   // ---------------- Market events (Impact) ----------------
+  // Whale buy: a deep punchy hit that rises into saturated power. It should
+  // land in your chest and grab attention.
   R("market.whaleBuy", {
     category: "market",
     priority: 5,
     duck: true,
     cooldownMs: 300,
     render: (c) => {
-      sub(c, 82, { dur: 0.8, gain: 0.24, drop: 42 }); // deep cinematic bass
-      voice(c, 300, { at: 0.02, dur: 0.5, type: "sawtooth", gain: 0.07, glideTo: 620, cutoff: 400, cutoffTo: 2600, q: 2, send: 0.3 }); // rising synth
-      noiseBurst(c, { dur: 0.4, gain: 0.05, type: "lowpass", cutoff: 500, cutoffTo: 120, send: 0.35 });
+      sub(c, 95, { dur: 0.8, gain: 0.26, drop: 45, dropDur: 0.08, drive: 2 });
+      voice(c, 180, { at: 0.01, dur: 0.55, type: "sawtooth", gain: 0.1, glideTo: 520, pitchDur: 0.4, cutoff: 300, cutoffTo: 2900, q: 2.2, detune: 12, drive: 5, send: 0.3 });
+      noiseBurst(c, { dur: 0.45, gain: 0.06, type: "bandpass", cutoff: 200, cutoffTo: 4200, q: 0.5, send: 0.4 }); // rising air
     },
   });
+  // Whale sell: heavy and dark — a distorted metallic fall. Danger.
   R("market.whaleSell", {
     category: "market",
     priority: 5,
     duck: true,
     cooldownMs: 300,
     render: (c) => {
-      sub(c, 90, { dur: 0.7, gain: 0.24, drop: 38 });
-      // Low metallic decay — danger.
-      fm(c, 160, { at: 0.02, dur: 0.6, gain: 0.09, ratio: 3.5, index: 200, send: 0.4 });
-      noiseBurst(c, { dur: 0.3, gain: 0.06, type: "lowpass", cutoff: 700, cutoffTo: 150 });
+      sub(c, 100, { dur: 0.75, gain: 0.26, drop: 36, dropDur: 0.1, drive: 2 });
+      voice(c, 220, { at: 0.01, dur: 0.6, type: "sawtooth", gain: 0.1, glideTo: 70, pitchDur: 0.5, cutoff: 1400, cutoffTo: 220, q: 3, detune: 14, drive: 5, send: 0.35 });
+      noiseBurst(c, { dur: 0.3, gain: 0.06, type: "lowpass", cutoff: 800, cutoffTo: 140 });
     },
   });
   R("market.milestone", {
@@ -637,10 +715,11 @@ function register(): void {
     priority: 3,
     cooldownMs: 200,
     render: (c) => {
+      sub(c, 120, { dur: 0.12, gain: 0.08, drop: 80, dropDur: 0.05 }); // a tap so it lands
       fm(c, 523.25, { dur: 0.16, gain: 0.1, ratio: 2, index: 130, send: 0.28 });
-      fm(c, 659.25, { at: 0.08, dur: 0.16, gain: 0.1, ratio: 2, index: 130, send: 0.28 });
-      fm(c, 783.99, { at: 0.16, dur: 0.16, gain: 0.1, ratio: 2, index: 130, send: 0.28 });
-      fm(c, 1046.5, { at: 0.24, dur: 0.45, gain: 0.11, ratio: 2, index: 120, send: 0.4 });
+      fm(c, 659.25, { at: 0.07, dur: 0.16, gain: 0.1, ratio: 2, index: 130, send: 0.28 });
+      fm(c, 783.99, { at: 0.14, dur: 0.16, gain: 0.1, ratio: 2, index: 130, send: 0.28 });
+      fm(c, 1046.5, { at: 0.21, dur: 0.45, gain: 0.11, ratio: 2, index: 120, send: 0.4 });
     },
   });
   R("market.ath", {
@@ -656,16 +735,16 @@ function register(): void {
 
   // ---------------- Countdown (Impact, escalating) ----------------
   for (const n of [5, 4, 3, 2, 1] as const) {
-    // Each tick is a deep impact; pitch and bite climb as it approaches COOK.
+    // Each tick is a punchy percussive impact; pitch and bite climb toward COOK.
     const climb = (6 - n) / 5; // 0.2 → 1.0
     R(`countdown.${n}`, {
       category: "countdown",
       priority: 6,
       duck: n === 1,
       render: (c) => {
-        sub(c, 70 + climb * 40, { dur: 0.16, gain: 0.14 + climb * 0.06, drop: 45 });
-        noiseBurst(c, { dur: 0.05 + climb * 0.03, gain: 0.05 + climb * 0.04, type: "bandpass", cutoff: 800 + climb * 900, q: 1.2 });
-        voice(c, 200 + climb * 160, { dur: 0.1, type: "triangle", gain: 0.06 + climb * 0.05, cutoff: 1400 + climb * 1600 });
+        sub(c, 80 + climb * 45, { dur: 0.14, gain: 0.15 + climb * 0.07, drop: 50, dropDur: 0.05, drive: 2 });
+        noiseBurst(c, { dur: 0.03 + climb * 0.02, gain: 0.06 + climb * 0.05, type: "bandpass", cutoff: 900 + climb * 1300, q: 1.4 });
+        voice(c, 220 + climb * 180, { dur: 0.09, type: "square", gain: 0.06 + climb * 0.05, glideTo: 140 + climb * 120, pitchDur: 0.05, cutoff: 1600 + climb * 2200, drive: 3 });
       },
     });
   }
@@ -674,11 +753,11 @@ function register(): void {
     priority: 10,
     duck: true,
     render: (c) => {
-      // The defining moment: a massive cinematic impact + air rush + fire lift.
-      sub(c, 60, { dur: 0.9, gain: 0.28, drop: 42 });
-      noiseBurst(c, { dur: 0.6, gain: 0.1, type: "bandpass", cutoff: 300, cutoffTo: 7000, q: 0.6, send: 0.5 }); // air rush up
-      voice(c, 220, { dur: 0.5, type: "sawtooth", gain: 0.1, glideTo: 880, cutoff: 600, cutoffTo: 4000, q: 2, detune: 12, send: 0.4 });
-      fm(c, 523.25, { at: 0.05, dur: 0.7, gain: 0.1, ratio: 2, index: 140, send: 0.45 }); // bell cap
+      // The defining moment: a massive saturated impact + air rush + bright lift.
+      sub(c, 65, { dur: 0.95, gain: 0.3, drop: 42, dropDur: 0.12, drive: 2.2 });
+      noiseBurst(c, { dur: 0.6, gain: 0.11, type: "bandpass", cutoff: 250, cutoffTo: 8000, q: 0.5, send: 0.5 }); // air rush up
+      voice(c, 180, { dur: 0.55, type: "sawtooth", gain: 0.11, glideTo: 900, pitchDur: 0.4, cutoff: 500, cutoffTo: 4500, q: 2, detune: 14, drive: 5, send: 0.4 });
+      fm(c, 523.25, { at: 0.06, dur: 0.7, gain: 0.1, ratio: 2, index: 150, send: 0.45 }); // bright stab
     },
   });
   R("round.launch", {
@@ -687,9 +766,9 @@ function register(): void {
     priority: 9,
     duck: true,
     render: (c) => {
-      sub(c, 55, { dur: 0.8, gain: 0.26, drop: 40 });
-      noiseBurst(c, { dur: 0.5, gain: 0.09, type: "bandpass", cutoff: 400, cutoffTo: 6500, q: 0.7, send: 0.45 });
-      voice(c, 261, { at: 0.03, dur: 0.5, type: "sawtooth", gain: 0.08, glideTo: 523, cutoff: 700, cutoffTo: 3600, q: 1.6, detune: 10, send: 0.35 });
+      sub(c, 58, { dur: 0.85, gain: 0.27, drop: 40, dropDur: 0.1, drive: 2 });
+      noiseBurst(c, { dur: 0.5, gain: 0.1, type: "bandpass", cutoff: 350, cutoffTo: 7000, q: 0.6, send: 0.45 });
+      voice(c, 220, { at: 0.02, dur: 0.5, type: "sawtooth", gain: 0.09, glideTo: 560, pitchDur: 0.35, cutoff: 600, cutoffTo: 3800, q: 1.6, detune: 12, drive: 4, send: 0.35 });
     },
   });
 
@@ -699,13 +778,13 @@ function register(): void {
     priority: 8,
     duck: true,
     render: (c) => {
-      // Deep impact → metallic shimmer → short orchestral rise → crowd swell.
-      sub(c, 60, { dur: 0.5, gain: 0.16, drop: 45 });
-      voice(c, 523.25, { dur: 0.75, type: "sawtooth", gain: 0.08, cutoff: 1000, cutoffTo: 3200, q: 1.4, detune: 12, attack: 0.05, send: 0.35 });
-      voice(c, 659.25, { dur: 0.75, type: "sawtooth", gain: 0.07, cutoff: 1000, cutoffTo: 3200, q: 1.4, detune: 12, attack: 0.06, send: 0.35 });
-      voice(c, 783.99, { dur: 0.8, type: "sawtooth", gain: 0.07, cutoff: 1000, cutoffTo: 3400, q: 1.4, detune: 12, attack: 0.06, send: 0.35 });
+      // Deep impact → saturated brass rise → metallic shimmer → crowd swell.
+      sub(c, 62, { dur: 0.55, gain: 0.17, drop: 46, dropDur: 0.1, drive: 2 });
+      voice(c, 523.25, { dur: 0.75, type: "sawtooth", gain: 0.08, cutoff: 900, cutoffTo: 3200, q: 1.4, detune: 12, attack: 0.04, drive: 4, send: 0.35 });
+      voice(c, 659.25, { dur: 0.75, type: "sawtooth", gain: 0.07, cutoff: 900, cutoffTo: 3200, q: 1.4, detune: 12, attack: 0.05, drive: 4, send: 0.35 });
+      voice(c, 783.99, { dur: 0.8, type: "sawtooth", gain: 0.07, cutoff: 900, cutoffTo: 3400, q: 1.4, detune: 12, attack: 0.05, drive: 4, send: 0.35 });
       fm(c, 1046.5, { at: 0.28, dur: 0.7, gain: 0.11, ratio: 3, index: 130, send: 0.5 }); // metallic shimmer
-      noiseBurst(c, { at: 0.15, dur: 0.5, gain: 0.05, type: "bandpass", cutoff: 500, cutoffTo: 5000, q: 0.7, send: 0.5 }); // crowd swell
+      noiseBurst(c, { at: 0.1, dur: 0.5, gain: 0.05, type: "bandpass", cutoff: 400, cutoffTo: 5500, q: 0.6, send: 0.5 }); // crowd swell
     },
   });
   R("round.rug", {
@@ -713,19 +792,19 @@ function register(): void {
     priority: 8,
     duck: true,
     render: (c) => {
-      // Silence handled by the caller. Bass drop → wood crack → extinguish → echo.
-      sub(c, 95, { dur: 0.5, gain: 0.2, drop: 34 }); // heavy bass drop
-      noiseBurst(c, { at: 0.06, dur: 0.04, gain: 0.12, type: "bandpass", cutoff: 2400, q: 3 }); // wood crack
-      noiseBurst(c, { at: 0.14, dur: 0.5, gain: 0.08, type: "lowpass", cutoff: 1600, cutoffTo: 200, send: 0.4 }); // fire extinguish hiss
-      voice(c, 320, { at: 0.1, dur: 0.7, type: "sawtooth", gain: 0.07, glideTo: 80, cutoff: 1400, cutoffTo: 240, q: 5, detune: 12, send: 0.4 }); // low echo down
+      // Silence handled by the caller. Bass drop → crack → extinguish → dark fall.
+      sub(c, 100, { dur: 0.55, gain: 0.22, drop: 32, dropDur: 0.12, drive: 2.5 });
+      noiseBurst(c, { at: 0.05, dur: 0.035, gain: 0.13, type: "bandpass", cutoff: 2400, q: 3 }); // wood crack
+      noiseBurst(c, { at: 0.13, dur: 0.5, gain: 0.08, type: "lowpass", cutoff: 1600, cutoffTo: 180, send: 0.4 }); // extinguish hiss
+      voice(c, 300, { at: 0.09, dur: 0.75, type: "sawtooth", gain: 0.08, glideTo: 60, pitchDur: 0.6, cutoff: 1400, cutoffTo: 200, q: 5, detune: 14, drive: 5, send: 0.4 }); // dark fall
     },
   });
   R("round.over", {
     category: "round",
     priority: 6,
     render: (c) => {
-      sub(c, 110, { dur: 0.3, gain: 0.14, drop: 55 });
-      voice(c, 330, { dur: 0.4, type: "triangle", gain: 0.08, glideTo: 247, cutoff: 1400, send: 0.2 });
+      sub(c, 110, { dur: 0.3, gain: 0.14, drop: 55, dropDur: 0.08 });
+      voice(c, 300, { dur: 0.4, type: "triangle", gain: 0.08, glideTo: 210, pitchDur: 0.3, cutoff: 1400, drive: 2, send: 0.2 });
     },
   });
 
