@@ -189,10 +189,18 @@ function PrivySession({ children }: { children: React.ReactNode }) {
   const signIn = useCallback(async () => startPlay(), [startPlay]);
   const promptPlayNow = startPlay;
 
+  // Privy logout FIRST, then drop our session. Clearing ours first re-triggers
+  // the auto-exchange (Privy still reports authenticated until logout resolves),
+  // which silently signed the player back in — sign-out "took two presses".
   const signOut = useCallback(() => {
-    localStorage.removeItem("cookout_token");
-    setProfile(null);
-    void logout();
+    void (async () => {
+      try {
+        await logout();
+      } finally {
+        localStorage.removeItem("cookout_token");
+        setProfile(null);
+      }
+    })();
   }, [logout, setProfile]);
 
   return (
