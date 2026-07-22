@@ -70,6 +70,70 @@ export const PERSONAS: Persona[] = [
 /** For jackpot/leaderboard filters: the swarm never wins real rewards. */
 export const BOT_ADDRESSES = new Set(PERSONAS.map((p) => p.address));
 
+// ---------------- per-round market regime ----------------
+
+/**
+ * The reason every round used to feel the same: the swarm was structurally
+ * net-long (fomo chasers + dip buyers + diamond hands), so mcap crept to the
+ * bond target almost every time and a human just had to sit there.
+ *
+ * A regime is rolled once per round and biases the WHOLE swarm — how many pull
+ * up, how hard they buy, how fast they take profit, and how much they
+ * distribute into strength regardless of P&L. Bearish regimes genuinely fail
+ * to bond, so holding is now a real bet, not a formality.
+ */
+interface Regime {
+  key: string;
+  /** A kickoff read one bot drops in the lobby, so the mood is legible. */
+  tell: string;
+  /** Multiplier on buy triggers (fomo, cold entries, dip buys). */
+  buyBias: number;
+  /** Multiplier on buy clip size. */
+  sizeBias: number;
+  /** Multiplier on take-profit target (＜1 = sell sooner). */
+  tpBias: number;
+  /** Multiplier on stop distance (＜1 = tighter stops, panic sooner). */
+  slBias: number;
+  /** Per-decision chance a holder trims into the book regardless of P&L. */
+  distribute: number;
+  /** Fraction of the swarm that actually pulls up this round. */
+  joinRate: number;
+  /** Selection weight. */
+  weight: number;
+}
+
+const REGIMES: Regime[] = [
+  // Sometimes it really does run — but now it's the minority case.
+  { key: "runner", tell: "this one smells like a RUNNER 🏃💨 faders gonna cry", buyBias: 1.45, sizeBias: 1.3, tpBias: 1.7, slBias: 1.4, distribute: 0.02, joinRate: 0.95, weight: 18 },
+  { key: "grind", tell: "coin-flip vibes, gonna be a grind", buyBias: 1.05, sizeBias: 1.0, tpBias: 1.0, slBias: 1.0, distribute: 0.06, joinRate: 0.85, weight: 24 },
+  { key: "chop", tell: "scalpers out in force, chop city today 🔪", buyBias: 0.9, sizeBias: 0.8, tpBias: 0.5, slBias: 0.75, distribute: 0.15, joinRate: 0.8, weight: 20 },
+  { key: "fade", tell: "sell pressure looks heavy, mind your entries", buyBias: 0.6, sizeBias: 0.72, tpBias: 0.42, slBias: 0.6, distribute: 0.26, joinRate: 0.68, weight: 22 },
+  { key: "dead", tell: "thin book, low energy lobby ngl", buyBias: 0.45, sizeBias: 0.6, tpBias: 0.5, slBias: 0.7, distribute: 0.16, joinRate: 0.48, weight: 16 },
+];
+
+const rollRegime = (): Regime => {
+  const total = REGIMES.reduce((s, r) => s + r.weight, 0);
+  let x = Math.random() * total;
+  for (const r of REGIMES) if ((x -= r.weight) < 0) return r;
+  return REGIMES[1]!;
+};
+
+/** Per-persona per-round multipliers so the same bot isn't identical each time. */
+interface Jitter {
+  tp: number;
+  sl: number;
+  fomo: number;
+  clip: number;
+  /** Distribution eagerness — scalper-ish bots sell into strength more. */
+  distribute: number;
+}
+
+interface RoundPlan {
+  regime: Regime;
+  jitter: Map<string, Jitter>;
+  toldMood: boolean;
+}
+
 // ---------------- chat flavor ----------------
 
 const LOBBY_LINES = [
@@ -123,6 +187,8 @@ export class BotSwarm {
   /** roundId → persona.address → state */
   private state = new Map<string, Map<string, BotRoundState>>();
   private normalized = new Set<string>();
+  /** roundId → the regime + per-persona jitter rolled for that round. */
+  private plans = new Map<string, RoundPlan>();
 
   constructor(
     private store: Store,
@@ -148,9 +214,34 @@ export class BotSwarm {
       const r = this.store.rounds.get(id);
       if (!r || r.state === "results" || r.state === "ended") {
         const endedAt = r?.endedAt ?? 0;
-        if (!r || now - endedAt > 60_000) this.state.delete(id);
+        if (!r || now - endedAt > 60_000) {
+          this.state.delete(id);
+          this.plans.delete(id);
+        }
       }
     }
+  }
+
+  /** The regime + jitter for a round, rolled once and cached. */
+  private plan(round: Round): RoundPlan {
+    let plan = this.plans.get(round.id);
+    if (!plan) {
+      const jitter = new Map<string, Jitter>();
+      for (const p of PERSONAS) {
+        // Natural sellers (low base take-profit) distribute more eagerly.
+        const sellerish = p.takeProfit < 0.2 ? 1.6 : 1;
+        jitter.set(p.address, {
+          tp: rand(0.75, 1.3),
+          sl: rand(0.8, 1.25),
+          fomo: rand(0.6, 1.45),
+          clip: rand(0.7, 1.4),
+          distribute: rand(0.6, 1.5) * sellerish,
+        });
+      }
+      plan = { regime: rollRegime(), jitter, toldMood: false };
+      this.plans.set(round.id, plan);
+    }
+    return plan;
   }
 
   private botState(round: Round, p: Persona, now: number): BotRoundState {
@@ -164,8 +255,8 @@ export class BotSwarm {
       s = {
         planQueueAt: 0,
         joined: false,
-        nextActAt: now + rand(2, 12) * 1000,
-        nextChatAt: now + rand(3, 25) * 1000,
+        nextActAt: now + rand(0.5, 5) * 1000,
+        nextChatAt: now + rand(2, 18) * 1000,
         saidGg: false,
         lastPhase: "",
       };
@@ -188,23 +279,46 @@ export class BotSwarm {
       }
       if (this.normalized.size > 50) this.normalized.clear();
     }
+    const plan = this.plan(round);
+
+    // One bot reads the room at the open so the mood is visible in chat.
+    if (round.state === "queue_open" && !plan.toldMood) {
+      plan.toldMood = true;
+      const crier = PERSONAS.filter((p) => p.chatty > 0.6);
+      if (crier.length) this.say(round, pick(crier), plan.regime.tell);
+    }
+
     for (const p of PERSONAS) {
       const s = this.botState(round, p, now);
       // Chat: lobby hype, queue talk once they're in.
       if (now >= s.nextChatAt && Math.random() < p.chatty * 0.5) {
         this.say(round, p, s.joined ? pick(QUEUE_LINES) : pick(LOBBY_LINES));
-        s.nextChatAt = now + rand(20, 70) * 1000;
+        s.nextChatAt = now + rand(15, 55) * 1000;
       }
       // Pull up at each persona's planned point in the queue window.
       if (round.state === "queue_open" && !s.joined) {
         if (!s.planQueueAt && round.queueOpensAt && round.queueClosesAt) {
-          const span = round.queueClosesAt - round.queueOpensAt;
-          s.planQueueAt = round.queueOpensAt + span * (p.joinFrac + rand(-0.05, 0.05));
+          // Whether this bot shows up at all is a regime call — a dead lobby
+          // has far fewer entries, which is a big part of why it won't bond.
+          const jit = plan.jitter.get(p.address)!;
+          if (Math.random() > plan.regime.joinRate) {
+            s.joined = true; // "decided to sit this one out" — never queues
+            s.planQueueAt = Infinity;
+          } else {
+            // Pack the pull-ups into the first ~55% of the window so the board
+            // fills fast and visibly, instead of trickling in to the bell.
+            const span = round.queueClosesAt! - round.queueOpensAt!;
+            const frac = Math.min(0.6, Math.max(0.01, p.joinFrac * 0.55 + rand(0, 0.08)));
+            s.planQueueAt = round.queueOpensAt! + span * frac;
+            void jit;
+          }
         }
-        if (s.planQueueAt && now >= s.planQueueAt) {
+        if (s.planQueueAt && s.planQueueAt !== Infinity && now >= s.planQueueAt) {
           s.joined = true;
           try {
-            const size = Math.min(rand(p.intent[0], p.intent[1]), round.config.maxPositionEth || 1);
+            const jit = plan.jitter.get(p.address)!;
+            const raw = rand(p.intent[0], p.intent[1]) * plan.regime.sizeBias * jit.clip;
+            const size = Math.min(raw, round.config.maxPositionEth || 1);
             this.engine.submitIntent(round.id, p.address, Number(size.toFixed(3)), undefined, now);
             if (Math.random() < p.chatty * 0.6) this.say(round, p, pick(QUEUE_LINES));
           } catch {
@@ -215,7 +329,7 @@ export class BotSwarm {
     }
   }
 
-  /** Live trading: profit-seeking decisions per persona. */
+  /** Live trading: profit-seeking decisions per persona, tinted by the regime. */
   private live(round: Round, now: number): void {
     const pool = round.pool;
     if (!pool || !round.liveAt || !round.endsAt) return;
@@ -224,11 +338,18 @@ export class BotSwarm {
     const peak = Math.max(price, ...(s0?.slice(-90).map((c) => c.h) ?? [price]));
     const momentum = this.momentum(round.id, price);
     const progress = (now - round.liveAt) / (round.endsAt - round.liveAt);
+    const { regime, jitter } = this.plan(round);
 
     for (const p of PERSONAS) {
       const s = this.botState(round, p, now);
       if (now < s.nextActAt) continue;
       s.nextActAt = now + rand(p.pace[0], p.pace[1]) * 1000;
+
+      const jit = jitter.get(p.address)!;
+      // Effective, regime-tinted thresholds for this bot this round.
+      const takeProfit = p.takeProfit * regime.tpBias * jit.tp;
+      const stopLoss = p.stopLoss * regime.slBias * jit.sl; // negative; ×＜1 = tighter
+      const fomo = Math.min(0.95, p.fomo * regime.buyBias * jit.fomo);
 
       const pos = this.store.position(round.id, p.address);
       const entry = pos.tokens > 0 ? pos.costBasisEth / pos.tokens : 0;
@@ -236,16 +357,27 @@ export class BotSwarm {
         if (pos.tokens > 0 && entry > 0) {
           const pnlFrac = price / entry - 1;
           const lastStretch = progress > 0.82;
-          if (pnlFrac <= p.stopLoss) {
+          if (pnlFrac <= stopLoss) {
             this.engine.trade(round.id, p.address, "sell", { pct: 100 }, now);
             if (Math.random() < p.chatty * 0.5) this.say(round, p, pick(LOSS_LINES));
             continue;
           }
-          const tp = p.diamond && !lastStretch ? Infinity : p.takeProfit;
+          const tp = p.diamond && !lastStretch ? Infinity : takeProfit;
           if (pnlFrac >= tp) {
             const pct = Math.random() < 0.5 ? 50 : 100;
             this.engine.trade(round.id, p.address, "sell", { pct }, now);
             if (Math.random() < p.chatty * 0.6) this.say(round, p, pick(WIN_LINES));
+            continue;
+          }
+          // Distribution: the crowd taking chips off the table regardless of
+          // P&L. This is the sell pressure that stops every round bonding —
+          // heavy in fade/chop regimes, almost nothing in a runner. Diamond
+          // hands abstain until the final stretch.
+          const distribute = p.diamond && !lastStretch ? 0 : regime.distribute * jit.distribute;
+          if (Math.random() < distribute) {
+            const pct = pnlFrac > 0.15 ? (Math.random() < 0.5 ? 50 : 33) : 25;
+            this.engine.trade(round.id, p.address, "sell", { pct }, now);
+            if (pnlFrac > 0 && Math.random() < p.chatty * 0.3) this.say(round, p, pick(WIN_LINES));
             continue;
           }
           // Scalpers trim into strength late in the round.
@@ -254,14 +386,15 @@ export class BotSwarm {
             continue;
           }
         }
-        // Entries: dips, momentum, or plain conviction.
+        // Entries: dips, momentum, or plain conviction — all gated by how
+        // much the regime wants to buy.
         const user = this.store.getOrCreateUser(p.address);
-        const dip = peak > 0 && price < peak * (1 - p.dipBuy);
-        const chase = momentum > 0.04 && Math.random() < p.fomo;
-        const cold = pos.tokens === 0 && Math.random() < 0.12;
+        const dip = peak > 0 && price < peak * (1 - p.dipBuy) && Math.random() < 0.35 + regime.buyBias * 0.35;
+        const chase = momentum > 0.04 && Math.random() < fomo;
+        const cold = pos.tokens === 0 && Math.random() < 0.1 * regime.buyBias;
         const funds = user.arenaBalance ?? 0;
         if ((dip || chase || cold) && funds > 0.05 && progress < 0.9) {
-          const size = Math.min(rand(p.clip[0], p.clip[1]), funds * 0.5);
+          const size = Math.min(rand(p.clip[0], p.clip[1]) * regime.sizeBias * jit.clip, funds * 0.5);
           this.engine.trade(round.id, p.address, "buy", { eth: Number(size.toFixed(3)) }, now);
           if (chase && Math.random() < p.chatty * 0.4) this.say(round, p, pick(PUMP_LINES));
           if (dip && Math.random() < p.chatty * 0.4) this.say(round, p, pick(DUMP_LINES));
