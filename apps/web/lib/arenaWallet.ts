@@ -156,6 +156,12 @@ export async function arenaBalance(chainId: number): Promise<number> {
   return Number(bal) / 1e18;
 }
 
+/** Native-token balance of any address (e.g. the player's Privy wallet). */
+export async function balanceOf(chainId: number, address: string): Promise<number> {
+  const bal = await pub(chainId).getBalance({ address: address as `0x${string}` });
+  return Number(bal) / 1e18;
+}
+
 /**
  * Sign + send a call from the arena wallet — no wallet prompt. Returns once
  * the tx is confirmed so callers can refresh state.

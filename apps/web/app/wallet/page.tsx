@@ -6,6 +6,7 @@ import {
   arenaBalance,
   arenaHistory,
   arenaWithdraw,
+  balanceOf,
   hasArenaWallet,
   logPaperArenaTx,
   paperArenaHistory,
@@ -116,6 +117,8 @@ function PaperWalletPage() {
         </p>
       </header>
 
+      <PrivyWalletCard address={profile.address} />
+
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-lime-400/40 bg-lime-400/5 p-5">
           <div className="text-xs uppercase tracking-wide text-zinc-500">In the arena</div>
@@ -199,6 +202,72 @@ function PaperWalletPage() {
   );
 }
 
+/**
+ * The player's Privy wallet — the real on-chain account behind their identity.
+ * Shows the address (copyable) and its live native-token balance so the account
+ * feels real. On the paper beta this reads ~0 until real deposits open at
+ * mainnet; funding the arena from it and on-chain history are mainnet-phase.
+ */
+function PrivyWalletCard({ address }: { address: string }) {
+  const [bal, setBal] = useState<number | null>(null);
+  const [tried, setTried] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    const load = () =>
+      balanceOf(CHAIN_ID, address)
+        .then((b) => {
+          if (alive) setBal(b);
+        })
+        .catch(() => {})
+        .finally(() => {
+          if (alive) setTried(true);
+        });
+    load();
+    const t = setInterval(load, 15_000);
+    return () => {
+      alive = false;
+      clearInterval(t);
+    };
+  }, [address]);
+
+  return (
+    <div className="rounded-xl border border-zinc-800 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-sm font-black text-zinc-200">Your wallet</h2>
+          <p className="mt-0.5 text-xs text-zinc-500">
+            Your Privy account — the real on-chain wallet behind your login.
+          </p>
+        </div>
+        <div className="text-right">
+          <div className="font-mono text-2xl font-black text-zinc-100">
+            {bal !== null ? bal.toFixed(4) : tried ? "—" : "…"}{" "}
+            <span className="text-sm font-bold text-zinc-500">ETH</span>
+          </div>
+          <div className="text-[11px] text-zinc-600">real balance</div>
+        </div>
+      </div>
+      <button
+        onClick={() => {
+          void navigator.clipboard.writeText(address);
+          setCopied(true);
+          setTimeout(() => setCopied(false), 1500);
+        }}
+        className="mt-3 break-all text-left font-mono text-xs text-zinc-500 hover:text-zinc-300"
+        title="copy address"
+      >
+        {address} {copied ? "✓ copied" : "⧉"}
+      </button>
+      <p className="mt-3 border-t border-zinc-800 pt-3 text-[11px] text-zinc-600">
+        Depositing real ETH here and funding your arena from it open at mainnet — the beta is paper
+        money, so this stays near 0 for now.
+      </p>
+    </div>
+  );
+}
+
 /** Compact relative time for the wallet ledger. */
 function when(at: number): string {
   const secs = Math.max(0, Math.floor((Date.now() - at) / 1000));
@@ -277,6 +346,8 @@ function ChainWalletPage() {
         </button>
       ) : (
         <>
+          <PrivyWalletCard address={profile.address} />
+
           <section className="rounded-xl border border-zinc-800 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
