@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Round } from "@cookout/shared";
-import { arenaAddress, arenaBalance, arenaWithdraw, hasArenaWallet, registerArenaAddress } from "../lib/arenaWallet";
+import { arenaAddress, arenaBalance, arenaWithdraw, hasArenaWallet, logPaperArenaTx, registerArenaAddress } from "../lib/arenaWallet";
 import { api } from "../lib/api";
 import { fundArenaWallet } from "../lib/chainTx";
 import { playDeposit } from "../lib/sfx";
@@ -143,7 +143,20 @@ function PaperArena({
     setError("");
     setBusy(direction);
     try {
-      await api("/api/me/arena/transfer", { body: { amount: Number(amount), direction } });
+      const p = await api<{ paperBalance: number; arenaBalance?: number }>(
+        "/api/me/arena/transfer",
+        { body: { amount: Number(amount), direction } },
+      );
+      // Log the real delta so the /wallet ledger records deposits made here too.
+      const moved = Math.abs((p.arenaBalance ?? 0) - arena);
+      if (moved > 0)
+        logPaperArenaTx({
+          kind: direction,
+          amount: moved,
+          bankAfter: p.paperBalance,
+          arenaAfter: p.arenaBalance ?? 0,
+          at: Date.now(),
+        });
       if (direction === "deposit") playDeposit();
       refresh();
     } catch (e) {

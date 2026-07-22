@@ -13,6 +13,7 @@ import type {
 import { api } from "../../../lib/api";
 import { chainSell, walletTokenBalanceWei } from "../../../lib/chainTx";
 import { playAthSparkle, playFanfare, playHorn, playMilestone, playRug, playSell, playThud, playTradeTick, playWhale } from "../../../lib/sfx";
+import { audio } from "../../../lib/audio";
 import { useSession } from "../../../lib/session";
 import { useSocial } from "../../../lib/social";
 import { useRoundSocket } from "../../../lib/useRoundSocket";
@@ -54,6 +55,9 @@ interface Lobby {
   committedEth: number;
   avgEntry: number;
 }
+
+const isRugRound = (r: Round) =>
+  r.endReason === "rug_detected" || r.endReason === "liquidity_removed";
 
 export default function RoundPage() {
   const { id } = useParams<{ id: string }>();
@@ -188,6 +192,16 @@ export default function RoundPage() {
     if (round.state === "queue_open") show("QUEUE OPEN", "go");
     else if (round.state === "settling") show("SETTLING", "end");
   }, [round?.state, round?.graduated]);
+
+  // Ambience bed follows the phase: warm/quiet in the lobby, tense/electronic
+  // once the market's live. Stops when you leave the round.
+  useEffect(() => {
+    const st = round?.state;
+    if (st === "lobby" || st === "queue_open" || st === "settling") audio.startAmbience("lobby");
+    else if (st === "live") audio.startAmbience("live");
+    else audio.stopAmbience();
+  }, [round?.state]);
+  useEffect(() => () => audio.stopAmbience(), []);
 
   // Drives the final-minute mood shift across the arena column.
   const [finalMinute, setFinalMinute] = useState(false);
@@ -325,6 +339,34 @@ export default function RoundPage() {
     return position.realizedPnl + position.tokens * price - position.costBasisEth;
   }, [position, ticker]);
 
+  // Open the results overlay on demand. The live path already caches
+  // `endResults` from the round_end event; this rebuilds it for a round you
+  // arrive at already finished (from the calendar) or one that graduated —
+  // so "See match results" always works, not just if you watched the bell.
+  const openResults = useCallback(async () => {
+    if (endResults) return setResultsOpen(true);
+    if (!summary) return;
+    let breakdown: EndBreakdown | null = null;
+    try {
+      const me = await api<{
+        position: { tokens: number; costBasisEth: number; realizedPnl: number };
+      }>(`/api/rounds/${id}/me`);
+      setPosition(me.position);
+      if (me.position.costBasisEth > 0 || me.position.realizedPnl !== 0) {
+        breakdown = {
+          invested: me.position.costBasisEth,
+          heldTokens: me.position.tokens,
+          returned: 0, // settled rounds hold no bag; redemption already realized
+          roundPnl: me.position.realizedPnl,
+        };
+      }
+    } catch {
+      // Not signed in / never played — the overlay still shows the round story.
+    }
+    setEndResults({ summary, breakdown });
+    setResultsOpen(true);
+  }, [endResults, summary, id]);
+
   if (!round)
     return <div className="p-10 text-center text-zinc-500">Loading round…</div>;
 
@@ -361,6 +403,23 @@ export default function RoundPage() {
       )}
       {/* The announcer: countdowns, MARKET OPEN, the final ten, the verdict. */}
       <RoundOverlays round={round} onCook={onCook} />
+      {(round.state === "results" || round.state === "ended") && (
+        <button
+          onClick={() => void openResults()}
+          className={`flex w-full items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-black transition ${
+            round.graduated
+              ? "border-lime-400/50 bg-lime-400/10 text-lime-300 hover:bg-lime-400/20"
+              : isRugRound(round)
+                ? "border-red-500/50 bg-red-500/10 text-red-300 hover:bg-red-500/20"
+                : "border-zinc-700 bg-zinc-900/60 text-zinc-200 hover:border-zinc-500"
+          }`}
+        >
+          {round.graduated ? "🍽️" : isRugRound(round) ? "🔥" : "📊"} See match results
+          <span className="font-normal opacity-70">
+            {round.graduated ? "— how the pre-bond battle played out" : "— PnL & payouts"}
+          </span>
+        </button>
+      )}
       <ArenaHeader
         round={round}
         ticker={ticker}

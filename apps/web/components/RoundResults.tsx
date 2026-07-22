@@ -77,7 +77,16 @@ export function RoundResultsOverlay({
   onClose: () => void;
 }) {
   const [shareOpen, setShareOpen] = useState(false);
-  const r = REASON[summary.endReason] ?? REASON.timer!;
+  // Graduated coins bonded out — the overlay tells the pre-bond battle story
+  // regardless of which end reason tripped the migration.
+  const r = summary.graduated
+    ? {
+        title: "SERVED UP",
+        emoji: "🍽️",
+        note: "Bonded out and released into the wild — it keeps trading. Below is how the pre-bond battle played out.",
+        tone: "text-lime-300",
+      }
+    : (REASON[summary.endReason] ?? REASON.timer!);
   const usd = (v: number) =>
     `${v < 0 ? "-" : ""}$${Math.abs(v) >= 1000 ? (Math.abs(v) / 1000).toFixed(2) + "k" : Math.abs(v).toFixed(2)}`;
   const played = breakdown && (breakdown.invested > 0 || breakdown.roundPnl !== 0);
