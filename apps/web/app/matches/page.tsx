@@ -18,9 +18,10 @@ export default function Home() {
   const [rounds, setRounds] = useState<Round[]>([]);
   const [filter, setFilter] = useState<ResultFilter>("all");
   const { setActiveRoom } = useSocial();
+  // The calendar has no chat of its own — you're in the global Cookout chat
+  // while browsing it. Clear any match room left over from where you came from.
   useEffect(() => {
-    setActiveRoom({ id: "calendar", label: "Calendar" });
-    return () => setActiveRoom(null);
+    setActiveRoom(null);
   }, [setActiveRoom]);
 
   useEffect(() => {
