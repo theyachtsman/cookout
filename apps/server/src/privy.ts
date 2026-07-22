@@ -87,8 +87,16 @@ export const resolvePrivyLogin: PrivyResolver = async (accessToken) => {
   } catch {
     throw Object.assign(new Error("invalid or expired Privy session"), { status: 401 });
   }
-  const user = (await privy.getUser(userId)) as unknown as PrivyUserShape;
-  const address = embeddedAddressFromUser(user);
+  // The embedded wallet is provisioned right after first login. The client
+  // waits for it before calling us, but if we still catch the account a beat
+  // early, re-fetch once before giving up (belt-and-suspenders with the client).
+  let user = (await privy.getUser(userId)) as unknown as PrivyUserShape;
+  let address = embeddedAddressFromUser(user);
+  if (!address) {
+    await new Promise((r) => setTimeout(r, 1200));
+    user = (await privy.getUser(userId)) as unknown as PrivyUserShape;
+    address = embeddedAddressFromUser(user);
+  }
   if (!/^0x[0-9a-f]{40}$/.test(address)) {
     throw Object.assign(new Error("no wallet on this Privy account"), { status: 400 });
   }

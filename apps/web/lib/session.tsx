@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { usePrivy } from "@privy-io/react-auth";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { api } from "./api";
 import { audio } from "./audio";
 
@@ -117,13 +117,20 @@ function PrivySession({ children }: { children: React.ReactNode }) {
   const { setProfile, setBusy, setAuthError, refresh } = core;
   const router = useRouter();
   const { ready: privyReady, authenticated, login, logout, getAccessToken } = usePrivy();
+  const { wallets } = useWallets();
   const exchanging = useRef(false);
 
-  // When Privy reports an authenticated user and we don't yet hold our own
-  // session, exchange the Privy access token for our session token, stake the
-  // starter pETH, and drop them into a match.
+  // The embedded wallet is created asynchronously right after a fresh social /
+  // email login (Privy shows a "creating wallet" step). It's the account's
+  // identity, so we must wait for it before calling our API — otherwise the
+  // server looks the user up before the wallet exists and rejects the login.
+  const embeddedWallet = wallets.find((w) => w.walletClientType === "privy");
+
+  // When Privy reports an authenticated user WITH their embedded wallet ready,
+  // and we don't yet hold our own session, exchange the Privy access token for
+  // our session token, stake the starter pETH, and drop them into a match.
   useEffect(() => {
-    if (!privyReady || !authenticated) return;
+    if (!privyReady || !authenticated || !embeddedWallet) return;
     if (core.profile || localStorage.getItem("cookout_token")) return; // already in
     if (exchanging.current) return;
     exchanging.current = true;
@@ -164,6 +171,7 @@ function PrivySession({ children }: { children: React.ReactNode }) {
   }, [
     privyReady,
     authenticated,
+    embeddedWallet,
     core.profile,
     getAccessToken,
     router,
