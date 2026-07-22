@@ -29,10 +29,9 @@ const STATUS: Record<
 export default function VotePage() {
   const { profile, signIn } = useSession();
   const { setActiveRoom } = useSocial();
-  // Voting has its own room: creators pitch, everyone else argues about it.
+  // No dedicated vote chat — you're in the global Cookout chat while voting.
   useEffect(() => {
-    setActiveRoom({ id: "vote", label: "Vote" });
-    return () => setActiveRoom(null);
+    setActiveRoom(null);
   }, [setActiveRoom]);
   const [concepts, setConcepts] = useState<TokenConcept[]>([]);
   const [rounds, setRounds] = useState<Round[]>([]);

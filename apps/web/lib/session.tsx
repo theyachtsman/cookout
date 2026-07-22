@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { api } from "./api";
 import { audio } from "./audio";
 
@@ -56,6 +56,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [ready, setReady] = useState(false);
   const [authError, setAuthError] = useState("");
+  // Kept in sync so the wallet event listener can read the current address
+  // without re-subscribing on every profile change.
+  const profileRef = useRef<Profile | null>(null);
+  profileRef.current = profile;
 
   const refresh = useCallback(async () => {
     try {
@@ -75,6 +79,33 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // Wallet account switching: the old token belongs to the old address, so a
+  // switch leaves a mismatched session that can crash on the next render. Drop
+  // it cleanly the moment the wallet's account changes, so the user just
+  // re-connects as whoever they switched to.
+  useEffect(() => {
+    const eth = (
+      window as unknown as {
+        ethereum?: {
+          on?: (e: string, cb: (a: string[]) => void) => void;
+          removeListener?: (e: string, cb: (a: string[]) => void) => void;
+        };
+      }
+    ).ethereum;
+    if (!eth?.on) return;
+    const onAccounts = (accounts: string[]) => {
+      const next = accounts[0]?.toLowerCase();
+      const current = profileRef.current?.address.toLowerCase();
+      // Ignore the echo from our own connect (same account we're signed in as).
+      if (next && current && next === current) return;
+      localStorage.removeItem("cookout_token");
+      setProfile(null);
+      setAuthError("");
+    };
+    eth.on("accountsChanged", onAccounts);
+    return () => eth.removeListener?.("accountsChanged", onAccounts);
+  }, []);
 
   const signIn = useCallback(async () => {
     setBusy(true);
