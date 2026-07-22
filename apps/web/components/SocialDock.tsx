@@ -214,7 +214,11 @@ export function SocialDock() {
                     : "It's quiet in here. Say something."
                 }
               />
-              {!(inMatch && activeRoom?.frozen) && <SpeedEmojiBar onSpam={insertEmoji} />}
+              {!(inMatch && activeRoom?.frozen) && (
+                // Each tap fires its own message; the server's per-connection
+                // rate limit does the throttling, Twitch-style.
+                <SpeedEmojiBar onSpam={(e) => send(e)} />
+              )}
               <form onSubmit={submit} className="flex items-center gap-1.5 border-t border-zinc-800 p-2">
                 <input
                   ref={inputRef}
