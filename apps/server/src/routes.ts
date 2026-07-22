@@ -5,6 +5,7 @@ import {
   MIN_TOKEN_SUPPLY,
   TIER_UNLOCK_LEVEL,
   unlockedCosmetics,
+  weekKey,
   type CosmeticType,
   type RiskTier,
   type TokenConcept,
@@ -950,6 +951,38 @@ export function createApp(
         settings: store.settings,
         log: store.adminLog.slice(-50),
       });
+    }),
+  );
+
+  /** DANGER — fresh-start reset for a new public phase. Wipes every player
+   *  profile (XP, levels, balances, stats), all sessions, all chat logs, and
+   *  the jackpot (pool, history, lifetime). Coins, match history, and the
+   *  calendar are KEPT. Safe while live: bots re-seed their profiles on their
+   *  next action, and Privy-authed players get a fresh account automatically
+   *  on their next page load (the token exchange re-runs). */
+  app.post(
+    "/api/admin/reset-players",
+    admin,
+    wrap((_req, res) => {
+      const cleared = {
+        users: store.users.size,
+        chatRooms: store.chat.size,
+        jackpotPool: store.jackpotPool,
+      };
+      store.users.clear();
+      store.sessions.clear();
+      store.nonces.clear();
+      store.chat.clear();
+      store.jackpotPool = 0;
+      store.jackpotHistory = [];
+      store.jackpotLifetimeEth = 0;
+      store.jackpotWeekKey = weekKey();
+      store.logAdmin(
+        "reset-players",
+        `fresh start: ${cleared.users} users, ${cleared.chatRooms} chat rooms, ` +
+          `${cleared.jackpotPool.toFixed(4)} jackpot pool cleared`,
+      );
+      res.json({ ok: true, cleared });
     }),
   );
 
