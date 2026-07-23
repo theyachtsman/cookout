@@ -84,6 +84,8 @@ export class RoundEngine {
     const config = { ...TIER_CONFIGS[tier] };
     // Bond pegged to $40k mcap at the live ETH price, frozen per round.
     config.graduationMcap = BOND_TARGET_USD / this.store.ethUsd;
+    // Creator-chosen match length (10/5/1 min) overrides the tier default.
+    if (concept.matchMinutes) config.maxDurationSeconds = concept.matchMinutes * 60;
     if (concept.totalSupply) {
       // Creator tokenomics: keep the tier's pool-share ratio at the new supply.
       const poolShare = config.initialTokenLiquidity / config.totalSupply;

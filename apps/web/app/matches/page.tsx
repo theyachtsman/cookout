@@ -150,7 +150,11 @@ export default function Home() {
                   className="block transition hover:-translate-y-0.5"
                 >
                   <CoinCard
-                    coin={{ ...r.token, tier: r.tier }}
+                    coin={{
+                      ...r.token,
+                      tier: r.tier,
+                      matchMinutes: Math.round(r.config.maxDurationSeconds / 60),
+                    }}
                     borderClass={
                       r.graduated
                         ? "border-lime-400/40 hover:border-lime-400/80"
@@ -211,7 +215,11 @@ function RoundCard({ round, highlight }: { round: Round; highlight?: boolean }) 
   };
   return (
     <CoinCard
-      coin={{ ...round.token, tier: round.tier }}
+      coin={{
+        ...round.token,
+        tier: round.tier,
+        matchMinutes: Math.round(round.config.maxDurationSeconds / 60),
+      }}
       teaser={teaser}
       borderClass={highlight ? "border-lime-400/60" : "border-zinc-800"}
       corner={

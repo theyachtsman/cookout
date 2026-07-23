@@ -47,6 +47,9 @@ export interface TokenConcept {
   bannerUrl?: string;
   /** Creator-chosen risk tier (level-gated); legacy concepts default rookie. */
   tier?: RiskTier;
+  /** Creator-chosen live-trading length in minutes (10, 5, or 1); the tier's
+   *  default duration when unset. */
+  matchMinutes?: number;
   status: "submitted" | "shortlisted" | "scheduled" | "launched" | "rejected";
   votes: number;
   createdAt: number;

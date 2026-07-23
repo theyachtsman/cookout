@@ -25,6 +25,8 @@ export interface CoinIdentity {
   artworkUrl?: string;
   bannerUrl?: string;
   tier?: RiskTier;
+  /** Creator-chosen live-trading length (10/5/1 min) — shown as a chip. */
+  matchMinutes?: number;
 }
 
 export function CoinCard({
@@ -117,6 +119,14 @@ export function CoinCard({
             </span>
             {!teaser && <span className="font-mono text-sm text-zinc-500">${coin.symbol}</span>}
             <TierChip tier={coin.tier} />
+            {coin.matchMinutes && (
+              <span
+                className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-bold text-sky-300"
+                title="Live-trading length the creator picked for this match"
+              >
+                ⏱ {coin.matchMinutes}m
+              </span>
+            )}
           </div>
           <div className="truncate text-xs text-zinc-400">
             {teaser ? `Theme: ${coin.theme}` : coin.theme}
