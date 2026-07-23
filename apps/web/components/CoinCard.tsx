@@ -48,7 +48,7 @@ export function CoinCard({
   const fullBlur = !coin.bannerUrl && !!coin.artworkUrl;
   return (
     <div
-      className={`group relative overflow-hidden rounded-2xl border bg-zinc-900 ${borderClass} ${className}`}
+      className={`group relative overflow-hidden rounded-2xl border bg-zinc-950 ${borderClass} ${className}`}
     >
       {/* Full-card backdrop for banner-less coins: art blurred edge to edge.
           One smooth two-stop dim — a mid gradient stop reads as a seam. */}
@@ -82,7 +82,7 @@ export function CoinCard({
             {/* fades into the exact body color — no seam */}
             <div
               aria-hidden
-              className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-950/25 to-transparent"
+              className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/25 to-transparent"
             />
           </>
         ) : !fullBlur ? (
