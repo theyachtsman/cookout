@@ -11,7 +11,7 @@ import {
   type ServerEvent,
   type SystemChatKind,
 } from "@cookout/shared";
-import type { Store } from "./store.js";
+import { activeRugBan, type Store } from "./store.js";
 
 interface Client {
   ws: WebSocket;
@@ -128,6 +128,9 @@ export class Hub {
           badge,
           color,
           level: user?.level,
+          // Rugged-and-banned players keep their voice, but wear the mark
+          // until they (or an admin) lift the ban.
+          banned: user && activeRugBan(user) ? true : undefined,
         };
         this.push(msg.roundId, message);
         break;

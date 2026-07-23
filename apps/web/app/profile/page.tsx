@@ -12,6 +12,7 @@ import { CosmeticsLocker } from "../../components/CosmeticsLocker";
 import { ImagePicker } from "../../components/ImagePicker";
 import { Missions } from "../../components/Missions";
 import { Progress } from "../../components/Progress";
+import { ReputationPanel } from "../../components/Reputation";
 
 export default function ProfilePage() {
   const { profile, signIn, refresh } = useSession();
@@ -184,6 +185,15 @@ export default function ProfilePage() {
           </div>
         </div>
       )}
+
+      <ReputationPanel
+        reputation={profile.creatorReputation}
+        bans={profile.rugBans ?? []}
+        banned={!!profile.banned}
+        self
+        selfServe={!!profile.selfServeUnban}
+        onCleared={() => void refresh()}
+      />
 
       <Missions />
 

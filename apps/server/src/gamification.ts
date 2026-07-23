@@ -230,6 +230,26 @@ export function evaluateRoundEnd(ctx: {
     }
   } else {
     creator.creatorReputation -= 5;
+    // A rug is a launch ban, not just a score hit. Self-serve mode (paper
+    // beta) issues an open-ended ban the player clears from their own
+    // profile; wait-out mode stamps an expiry from the escalation schedule —
+    // repeat offenses wait longer.
+    const bans = (creator.rugBans ??= []);
+    const offense = bans.length + 1;
+    const sched = store.settings.rugBanHours;
+    const hours = sched[Math.min(offense - 1, sched.length - 1)] ?? 24;
+    bans.push({
+      at: now,
+      roundId: round.id,
+      symbol: round.token.symbol,
+      tier: round.tier,
+      offense,
+      expiresAt: store.settings.selfServeUnban ? undefined : now + hours * 3_600_000,
+    });
+    store.logAdmin(
+      "rug_ban",
+      `${creator.address} banned from launching (offense #${offense}, $${round.token.symbol})`,
+    );
   }
 
   return {

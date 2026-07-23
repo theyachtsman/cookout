@@ -2,7 +2,13 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { VOTE_THRESHOLD, VOTING_WINDOW_MS, type Round, type TokenConcept } from "@cookout/shared";
+import {
+  VOTE_ROOM,
+  VOTE_THRESHOLD,
+  VOTING_WINDOW_MS,
+  type Round,
+  type TokenConcept,
+} from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { useSocial } from "../../lib/social";
@@ -31,9 +37,11 @@ const STATUS: Record<
 export default function VotePage() {
   const { profile, signIn } = useSession();
   const { setActiveRoom } = useSocial();
-  // No dedicated vote chat — you're in the global Cookout chat while voting.
+  // The launchpad has its own channel: walk onto the Vote page and the dock
+  // switches to Vote chat — campaign for your coin without flooding The Grill.
   useEffect(() => {
-    setActiveRoom(null);
+    setActiveRoom({ id: VOTE_ROOM, label: "🗳️ Vote" });
+    return () => setActiveRoom(null);
   }, [setActiveRoom]);
   const [concepts, setConcepts] = useState<TokenConcept[]>([]);
   const [rounds, setRounds] = useState<Round[]>([]);

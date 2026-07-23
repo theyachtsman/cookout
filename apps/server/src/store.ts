@@ -35,6 +35,7 @@ import {
   type Prediction,
   type RiskTier,
   type Round,
+  type RugBan,
   type RoundSummary,
   type TokenConcept,
   type Trade,
@@ -159,6 +160,12 @@ export class Store {
     ],
     announceEveryMin: 30,
     pinnedAnnouncement: "",
+    // Paper beta default: a rug ban is a lesson, not a sentence — the player
+    // clears it themselves from their profile. Flip OFF for real-money
+    // deployments, where bans wait out the escalation schedule below.
+    selfServeUnban: true,
+    // Wait-out schedule in hours by offense count (1st, 2nd, 3rd+ rug).
+    rugBanHours: [24, 72, 168],
   };
   /** Live ETH/USD, refreshed by the price feed; used to peg the $40k bond. */
   ethUsd = DEFAULT_ETH_USD;
@@ -683,6 +690,26 @@ export interface OpsSettings {
   announceEveryMin: number;
   /** Pinned announcement shown above The Grill; "" = nothing pinned. */
   pinnedAnnouncement: string;
+  /** Rug bans: ON = players clear their own ban from their profile (paper
+   *  beta); OFF = bans wait out the rugBanHours schedule (real money). */
+  selfServeUnban: boolean;
+  /** Wait-out ban lengths in hours by offense count; last entry repeats. */
+  rugBanHours: number[];
+}
+
+/**
+ * The wallet's active rug ban, if any. Timed bans lift themselves lazily the
+ * first time anyone looks after expiry — the record stays, marked "timeout".
+ */
+export function activeRugBan(u: StoredUser, now = Date.now()): RugBan | undefined {
+  const last = u.rugBans?.[u.rugBans.length - 1];
+  if (!last || last.liftedAt) return undefined;
+  if (last.expiresAt && last.expiresAt <= now) {
+    last.liftedAt = last.expiresAt;
+    last.liftedBy = "timeout";
+    return undefined;
+  }
+  return last;
 }
 
 export interface Snapshot {
