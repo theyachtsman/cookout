@@ -6,6 +6,7 @@ import { VOTE_THRESHOLD, VOTING_WINDOW_MS, type Round, type TokenConcept } from 
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { useSocial } from "../../lib/social";
+import { CoinCard } from "../../components/CoinCard";
 import { TierChip } from "../../components/TierChip";
 
 /**
@@ -152,84 +153,53 @@ export default function VotePage() {
             {voting.map((c) => {
               const pct = Math.min(100, (c.votes / VOTE_THRESHOLD) * 100);
               return (
-                <div
+                <CoinCard
                   key={c.id}
-                  className="group relative overflow-hidden rounded-2xl border border-zinc-800 p-4 transition hover:border-lime-400/50"
+                  coin={c}
+                  className="transition hover:border-lime-400/50"
+                  corner={
+                    <span className="font-mono text-2xl font-black text-lime-300 drop-shadow">
+                      {c.votes}
+                    </span>
+                  }
                 >
-                  {c.artworkUrl && (
-                    <div
-                      aria-hidden
-                      className="absolute inset-0 scale-110 bg-cover bg-center opacity-[0.12] blur-xl"
-                      style={{ backgroundImage: `url(${c.artworkUrl})` }}
-                    />
+                  {c.pitch && (
+                    <div className="line-clamp-2 text-xs text-zinc-500">{c.pitch}</div>
                   )}
-                  <div className="relative">
-                    <div className="flex items-start gap-3">
-                      {c.artworkUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={c.artworkUrl}
-                          alt=""
-                          className="h-14 w-14 shrink-0 rounded-xl border border-zinc-700 object-cover"
-                        />
-                      ) : (
-                        <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900 text-2xl">
-                          🪙
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 font-black">
-                          <span>
-                            {c.name} <span className="text-zinc-500">${c.symbol}</span>
-                          </span>
-                          <TierChip tier={c.tier} />
-                        </div>
-                        <div className="text-sm text-zinc-400">{c.theme}</div>
-                        {c.pitch && (
-                          <div className="mt-0.5 line-clamp-2 text-xs text-zinc-500">{c.pitch}</div>
-                        )}
-                      </div>
-                      <span className="shrink-0 font-mono text-2xl font-black text-lime-300">
-                        {c.votes}
-                      </span>
-                    </div>
-
-                    <div className="mt-3 h-1.5 overflow-hidden rounded bg-zinc-800">
-                      <div className="h-full bg-lime-400 transition-[width]" style={{ width: `${pct}%` }} />
-                    </div>
-                    <div className="mt-1 flex justify-between text-[11px] text-zinc-500">
-                      <span>
-                        {c.votes}/{VOTE_THRESHOLD} to the calendar
-                      </span>
-                      <span>{timeLeft(c.createdAt)}</span>
-                    </div>
-
-                    <div className="mt-3 flex items-center gap-3">
-                      {profile ? (
-                        <button
-                          disabled={busy === c.id}
-                          onClick={() => void vote(c.id)}
-                          className="rounded-lg bg-lime-400 px-4 py-1.5 text-sm font-black text-zinc-950 transition hover:bg-lime-300 active:scale-95 disabled:opacity-50"
-                        >
-                          ▲ Upvote
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => void signIn()}
-                          className="rounded-lg border border-zinc-700 px-4 py-1.5 text-sm font-bold text-zinc-300 hover:border-lime-400/60"
-                        >
-                          Connect to vote
-                        </button>
-                      )}
-                      <Link
-                        href={`/creator/${c.creatorAddress}`}
-                        className="text-xs text-zinc-600 hover:text-zinc-400"
-                      >
-                        by {c.creatorAddress.slice(0, 6)}…{c.creatorAddress.slice(-4)}
-                      </Link>
-                    </div>
+                  <div className="mt-2 h-1.5 overflow-hidden rounded bg-zinc-800">
+                    <div className="h-full bg-lime-400 transition-[width]" style={{ width: `${pct}%` }} />
                   </div>
-                </div>
+                  <div className="mt-1 flex justify-between text-[11px] text-zinc-500">
+                    <span>
+                      {c.votes}/{VOTE_THRESHOLD} to the calendar
+                    </span>
+                    <span>{timeLeft(c.createdAt)}</span>
+                  </div>
+                  <div className="mt-3 flex items-center gap-3">
+                    {profile ? (
+                      <button
+                        disabled={busy === c.id}
+                        onClick={() => void vote(c.id)}
+                        className="rounded-lg bg-lime-400 px-4 py-1.5 text-sm font-black text-zinc-950 transition hover:bg-lime-300 active:scale-95 disabled:opacity-50"
+                      >
+                        ▲ Upvote
+                      </button>
+                    ) : (
+                      <button
+                        onClick={() => void signIn()}
+                        className="rounded-lg border border-zinc-700 px-4 py-1.5 text-sm font-bold text-zinc-300 hover:border-lime-400/60"
+                      >
+                        Connect to vote
+                      </button>
+                    )}
+                    <Link
+                      href={`/creator/${c.creatorAddress}`}
+                      className="text-xs text-zinc-600 hover:text-zinc-400"
+                    >
+                      by {c.creatorAddress.slice(0, 6)}…{c.creatorAddress.slice(-4)}
+                    </Link>
+                  </div>
+                </CoinCard>
               );
             })}
           </div>
