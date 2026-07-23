@@ -7,11 +7,15 @@ import { TierChip } from "./TierChip";
  * The one coin card, used everywhere a coin is billboarded: the post-submit
  * preview, the vote page, and the match calendar.
  *
- * Anatomy: a wide banner fold up top (the creator's promo banner when they
- * uploaded one, otherwise the coin art blown up and blurred), the coin image
- * overlapping the fold, then name / $SYMBOL / tier / theme. Context-specific
- * content (vote buttons, countdowns, …) renders below via children; a corner
- * slot pins a chip over the fold (state label, vote count).
+ * Anatomy: a wide banner fold up top, the coin image overlapping the fold,
+ * then name / $SYMBOL / tier / theme, with context content below (children)
+ * and a chip slot pinned over the fold (corner).
+ *
+ * Backdrops — chosen so there is never a visible seam between fold and body:
+ *  - creator banner uploaded → banner in the fold, fading into the body color;
+ *  - coin art only → the art blown up and blurred across the WHOLE card,
+ *    dimmed toward the bottom for readability;
+ *  - nothing → a soft lime wash fading into the body.
  */
 
 export interface CoinIdentity {
@@ -41,28 +45,51 @@ export function CoinCard({
   borderClass?: string;
   className?: string;
 }) {
-  const fold = coin.bannerUrl ?? coin.artworkUrl;
-  const foldIsBanner = !!coin.bannerUrl;
+  const fullBlur = !coin.bannerUrl && !!coin.artworkUrl;
   return (
     <div
       className={`group relative overflow-hidden rounded-2xl border bg-zinc-900 ${borderClass} ${className}`}
     >
-      {/* banner fold: creator banner, else the coin art blurred big */}
-      <div className="relative h-24 w-full bg-gradient-to-r from-lime-400/15 via-zinc-900 to-zinc-900">
-        {fold && (
+      {/* Full-card backdrop for banner-less coins: art blurred edge to edge. */}
+      {fullBlur && (
+        <>
           <div
             aria-hidden
-            className={`absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110 ${
-              teaser
-                ? "scale-110 opacity-40 blur-2xl saturate-0"
-                : foldIsBanner
-                  ? ""
-                  : "scale-110 opacity-60 blur-xl"
+            className={`absolute inset-0 scale-125 bg-cover bg-center blur-2xl transition-transform duration-700 group-hover:scale-[1.35] ${
+              teaser ? "opacity-30 saturate-0" : "opacity-50"
             }`}
-            style={{ backgroundImage: `url(${fold})` }}
+            style={{ backgroundImage: `url(${coin.artworkUrl})` }}
           />
-        )}
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/95 via-zinc-950/35 to-transparent" />
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-gradient-to-b from-zinc-950/30 via-zinc-950/75 to-zinc-950/95"
+          />
+        </>
+      )}
+
+      {/* fold: the designed banner (or a soft wash when there's no media) */}
+      <div className="relative h-24 w-full">
+        {coin.bannerUrl ? (
+          <>
+            <div
+              aria-hidden
+              className={`absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110 ${
+                teaser ? "scale-110 opacity-40 blur-2xl saturate-0" : ""
+              }`}
+              style={{ backgroundImage: `url(${coin.bannerUrl})` }}
+            />
+            {/* fades into the exact body color — no seam */}
+            <div
+              aria-hidden
+              className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-950/25 to-transparent"
+            />
+          </>
+        ) : !fullBlur ? (
+          <div
+            aria-hidden
+            className="absolute inset-0 bg-gradient-to-b from-lime-400/10 to-transparent"
+          />
+        ) : null}
         {corner && <div className="absolute right-3 top-3">{corner}</div>}
       </div>
 
@@ -84,7 +111,7 @@ export function CoinCard({
         )}
         <div className="min-w-0 flex-1 pb-0.5">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="truncate text-lg font-black text-zinc-50">
+            <span className="truncate text-lg font-black text-zinc-50 drop-shadow">
               {teaser ? "???" : coin.name}
             </span>
             {!teaser && <span className="font-mono text-sm text-zinc-500">${coin.symbol}</span>}
