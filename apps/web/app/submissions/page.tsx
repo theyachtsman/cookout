@@ -270,7 +270,7 @@ export default function Submissions() {
                   it goes straight onto the match calendar at your tier.
                 </p>
               </div>
-              <CoinCard concept={created} />
+              <CoinCard coin={created} />
               <div className="mt-4 flex items-center justify-center gap-3">
                 <button
                   onClick={() => {
