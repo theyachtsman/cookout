@@ -113,7 +113,7 @@ export function SocialDock() {
               }`}
             />
           </span>
-          {activeRoom ? activeRoom.label : "The Cookout"}
+          {activeRoom ? activeRoom.label : "The Grill"}
           <span className="font-mono text-xs text-zinc-400">{online.length}</span>
           {unread > 0 && (
             <span className="rounded-full bg-lime-400 px-1.5 text-[10px] font-black text-zinc-950">
@@ -145,7 +145,7 @@ export function SocialDock() {
                     : "text-zinc-500 hover:text-zinc-300"
                 }`}
               >
-                🔥 Cookout
+                🔥 The Grill
               </button>
               {activeRoom && (
                 <button
@@ -228,7 +228,7 @@ export function SocialDock() {
                   placeholder={
                     inMatch
                       ? activeRoom?.frozen
-                        ? "this round is over — chat lives on in The Cookout"
+                        ? "this round is over — chat lives on in The Grill"
                         : `message ${activeRoom?.label}…`
                       : "say something to the whole cookout…"
                   }

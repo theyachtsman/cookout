@@ -16,7 +16,14 @@ interface Overview {
   whitelistOn: boolean;
   chainEnabled?: boolean;
   feedbackCount: number;
-  settings: { autoSchedule: boolean; tier: string; leadSeconds: number; bots?: boolean };
+  settings: {
+    autoSchedule: boolean;
+    tier: string;
+    leadSeconds: number;
+    bots?: boolean;
+    announceTips?: string[];
+    announceEveryMin?: number;
+  };
   log: { id: string; at: number; action: string; detail: string }[];
 }
 
@@ -27,6 +34,72 @@ interface Feedback {
   text: string;
   page?: string;
   at: number;
+}
+
+/**
+ * Grill announcements: rotating tips posted into the global chat on a cadence.
+ * Local state is user-owned once touched, so the 5s overview refresh never
+ * clobbers in-progress edits; Save resets to server truth.
+ */
+function AnnouncementsEditor({
+  settings,
+  act,
+}: {
+  settings: { announceTips?: string[]; announceEveryMin?: number };
+  act: (path: string, body?: unknown, method?: string) => Promise<void>;
+}) {
+  const [tips, setTips] = useState<string | null>(null);
+  const [every, setEvery] = useState<string | null>(null);
+  const tipsVal = tips ?? (settings.announceTips ?? []).join("\n");
+  const everyVal = every ?? String(settings.announceEveryMin ?? 0);
+  const dirty = tips !== null || every !== null;
+
+  return (
+    <div className="mt-3 rounded-lg border border-zinc-800 p-3">
+      <div className="mb-1 text-sm font-bold">📢 Grill announcements</div>
+      <p className="mb-2 text-xs text-zinc-500">
+        Rotating tips posted into The Grill (global chat), one per line, in order. Match launches
+        and results are announced automatically — this list is for evergreen tips like how to make
+        a coin.
+      </p>
+      <textarea
+        value={tipsVal}
+        onChange={(e) => setTips(e.target.value)}
+        rows={5}
+        placeholder={"One announcement per line…"}
+        className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs leading-relaxed"
+      />
+      <div className="mt-2 flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-xs text-zinc-500">
+          every
+          <input
+            value={everyVal}
+            onChange={(e) => setEvery(e.target.value.replace(/[^0-9]/g, ""))}
+            className="w-16 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-xs"
+          />
+          minutes <span className="text-zinc-600">(0 = off)</span>
+        </label>
+        <button
+          disabled={!dirty}
+          onClick={() =>
+            void act("/api/admin/settings", {
+              announceTips: tipsVal
+                .split("\n")
+                .map((t) => t.trim())
+                .filter(Boolean),
+              announceEveryMin: Number(everyVal) || 0,
+            }).then(() => {
+              setTips(null);
+              setEvery(null);
+            })
+          }
+          className="rounded bg-lime-500 px-3 py-1.5 text-xs font-bold text-zinc-950 hover:bg-lime-400 disabled:opacity-40"
+        >
+          Save announcements
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function FlagClearer({ act }: { act: (path: string, body?: unknown, method?: string) => Promise<void> }) {
@@ -473,6 +546,7 @@ export default function AdminPage() {
               Whitelist gating is the BETA_WHITELIST=1 env var (restart to flip).
             </span>
           </div>
+          <AnnouncementsEditor settings={overview.settings} act={act} />
         </section>
       )}
 

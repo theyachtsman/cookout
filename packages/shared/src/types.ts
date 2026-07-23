@@ -232,7 +232,9 @@ export type SystemChatKind =
   | "whale"
   | "rug"
   | "graduated"
-  | "ended";
+  | "ended"
+  /** Admin/house announcement or rotating tip — high-attention styling. */
+  | "announce";
 
 /** The always-on community room every connected player sits in. */
 export const GLOBAL_ROOM = "global";

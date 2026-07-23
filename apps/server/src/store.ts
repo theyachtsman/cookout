@@ -145,7 +145,19 @@ export class Store {
   /** Tester feedback, wallet-attached (beta instrumentation). */
   feedback: FeedbackEntry[] = [];
   /** Live-ops settings, adjustable from the admin dashboard. */
-  settings: OpsSettings = { autoSchedule: true, tier: "rookie", leadSeconds: 15, bots: true };
+  settings: OpsSettings = {
+    autoSchedule: true,
+    tier: "rookie",
+    leadSeconds: 15,
+    bots: true,
+    announceTips: [
+      "🍳 Want your own coin in the arena? Menu → Make a Coin: pick a name, ticker, and art — the community votes it onto the calendar.",
+      "🗳️ Vote on submitted coins from the Vote page — top-voted concepts become the next matches.",
+      "⚖️ New here? The Fair Open means nobody gets in before you: every buy settles at ONE price. Speed buys nothing.",
+      "🎰 Every trade feeds the Weekly Jackpot — top 10 by weekly XP split it every Monday.",
+    ],
+    announceEveryMin: 30,
+  };
   /** Live ETH/USD, refreshed by the price feed; used to peg the $40k bond. */
   ethUsd = DEFAULT_ETH_USD;
 
@@ -658,6 +670,10 @@ export interface OpsSettings {
   leadSeconds: number;
   /** The paper bot swarm — lobby chat, queue pull-ups, live trading. */
   bots: boolean;
+  /** Rotating announcements posted into The Grill (global chat). */
+  announceTips: string[];
+  /** Minutes between announcements; 0 turns them off. */
+  announceEveryMin: number;
 }
 
 export interface Snapshot {

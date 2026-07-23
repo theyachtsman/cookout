@@ -1,6 +1,7 @@
 import {
   BOND_TARGET_USD,
   DEV_DUMP_FRACTION,
+  GLOBAL_ROOM,
   MCAP_MILESTONES,
   RUG_DRAIN_FRACTION,
   RUG_WINDOW_SECONDS,
@@ -358,6 +359,12 @@ export class RoundEngine {
         `intent${result.fills.length === 1 ? "" : "s"} (${(result.fillRatio * 100).toFixed(0)}% fill).`,
     );
     this.sys(round.id, "live", "TRADING IS LIVE. Good luck.");
+    // Announce the launch to The Grill so the whole site knows a match is on.
+    this.sys(
+      GLOBAL_ROOM,
+      "live",
+      `$${round.token.symbol} just went LIVE — ${round.token.name} is trading now. Pull up!`,
+    );
     this.broadcast(round.id, { type: "auction_settled", result });
     this.emitState(round);
   }
@@ -822,9 +829,19 @@ export class RoundEngine {
       round.id,
       graduated ? "graduated" : "ended",
       graduated
-        ? `SERVED UP — ${round.token.symbol} is out in the wild. Chat is frozen here; see you in The Cookout.`
+        ? `SERVED UP — ${round.token.symbol} is out in the wild. Chat is frozen here; see you in The Grill.`
         : `Round over (${reason.replace(/_/g, " ")}) — every holder exited at one uniform price. ` +
-            `Chat is frozen here; see you in The Cookout.`,
+            `Chat is frozen here; see you in The Grill.`,
+    );
+    // And tell The Grill how it ended.
+    this.sys(
+      GLOBAL_ROOM,
+      graduated ? "graduated" : reason === "rug_detected" ? "rug" : "ended",
+      graduated
+        ? `RESULTS — $${round.token.symbol} SERVED UP 🍽️ and graduated. Check the match results.`
+        : reason === "rug_detected"
+          ? `RESULTS — $${round.token.symbol} got RUGGED. Everyone exited at one uniform price.`
+          : `RESULTS — $${round.token.symbol} is done (${reason.replace(/_/g, " ")}). Results are up.`,
     );
     this.broadcast(round.id, { type: "round_end", roundId: round.id, summary });
     round.state = "results";

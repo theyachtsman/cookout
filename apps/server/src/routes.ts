@@ -360,17 +360,27 @@ export function createApp(
     "/api/admin/settings",
     admin,
     wrap((req, res) => {
-      const { autoSchedule, tier, leadSeconds, bots } = req.body as {
-        autoSchedule?: boolean;
-        tier?: RiskTier;
-        leadSeconds?: number;
-        bots?: boolean;
-      };
+      const { autoSchedule, tier, leadSeconds, bots, announceTips, announceEveryMin } =
+        req.body as {
+          autoSchedule?: boolean;
+          tier?: RiskTier;
+          leadSeconds?: number;
+          bots?: boolean;
+          announceTips?: string[];
+          announceEveryMin?: number;
+        };
       if (autoSchedule !== undefined) store.settings.autoSchedule = !!autoSchedule;
       if (bots !== undefined) store.settings.bots = !!bots;
       if (tier && ["rookie", "standard", "degen"].includes(tier)) store.settings.tier = tier;
       if (leadSeconds !== undefined)
         store.settings.leadSeconds = Math.max(5, Math.min(3600, Number(leadSeconds) || 15));
+      if (Array.isArray(announceTips))
+        store.settings.announceTips = announceTips
+          .map((t) => String(t).trim().slice(0, 280))
+          .filter(Boolean)
+          .slice(0, 12);
+      if (announceEveryMin !== undefined)
+        store.settings.announceEveryMin = Math.max(0, Math.min(1440, Number(announceEveryMin) || 0));
       store.logAdmin("settings", JSON.stringify(store.settings));
       res.json(store.settings);
     }),

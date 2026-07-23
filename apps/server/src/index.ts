@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { GLOBAL_ROOM } from "@cookout/shared";
 import { BotSwarm } from "./bots.js";
 import { ChainService } from "./chain.js";
 import { RoundEngine } from "./engine.js";
@@ -116,6 +117,20 @@ setInterval(() => {
     console.error("transition tick error", e);
   }
 }, 200);
+
+// The Grill announcer: rotate through the admin-configured tips (how to make a
+// coin, how the fair open works, …) on the configured cadence. Settings are
+// read every check, so admin changes apply without a restart.
+let lastTipAt = Date.now(); // first tip lands one interval after boot, not instantly
+let tipIndex = 0;
+setInterval(() => {
+  const { announceTips, announceEveryMin } = store.settings;
+  if (!announceEveryMin || announceTips.length === 0) return;
+  if (Date.now() - lastTipAt < announceEveryMin * 60_000) return;
+  lastTipAt = Date.now();
+  hub.system(GLOBAL_ROOM, "announce", announceTips[tipIndex % announceTips.length]!);
+  tipIndex++;
+}, 30_000);
 
 let saving = false;
 setInterval(() => {

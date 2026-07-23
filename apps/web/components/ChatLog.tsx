@@ -22,6 +22,7 @@ const SYSTEM_STYLE: Record<SystemChatKind, string> = {
   rug: "border-red-500/50 text-red-300",
   graduated: "border-lime-400/60 text-lime-300",
   ended: "border-zinc-600 text-zinc-400",
+  announce: "border-amber-400/60 text-amber-200",
 };
 
 const SYSTEM_ICON: Record<SystemChatKind, string> = {
@@ -35,6 +36,7 @@ const SYSTEM_ICON: Record<SystemChatKind, string> = {
   rug: "💀",
   graduated: "🍽️",
   ended: "🏁",
+  announce: "📢",
 };
 
 const time = (at: number) =>
@@ -56,6 +58,7 @@ export function ChatLog({
   emptyText?: string;
 }) {
   const ref = useRef<HTMLDivElement>(null);
+  const inner = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const [muted, setMuted] = useState<Set<string>>(new Set());
 
@@ -69,41 +72,74 @@ export function ChatLog({
     }
   }, [messages.length]);
 
-  // Sticky bottom: follow new messages unless the reader has scrolled up.
-  useEffect(() => {
+  // Sticky bottom. Two subtleties beyond "scroll on new message":
+  //  - content can grow AFTER the effect runs (fonts, wrapping, images), which
+  //    used to leave the log parked a few px above the bottom and could flip
+  //    stick off — a ResizeObserver on the inner content re-pins whenever its
+  //    size changes while we're meant to be following;
+  //  - the extra rAF pass catches same-frame layout shifts.
+  const scrollToBottom = () => {
     const el = ref.current;
-    if (el && stick.current) el.scrollTop = el.scrollHeight;
+    if (el) el.scrollTop = el.scrollHeight;
+  };
+  useEffect(() => {
+    if (!stick.current) return;
+    scrollToBottom();
+    const raf = requestAnimationFrame(scrollToBottom);
+    return () => cancelAnimationFrame(raf);
   }, [messages]);
+  useEffect(() => {
+    const target = inner.current;
+    if (!target || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => {
+      if (stick.current) scrollToBottom();
+    });
+    ro.observe(target);
+    if (ref.current) ro.observe(ref.current); // container resizes (dock reopened, keyboard)
+    return () => ro.disconnect();
+  }, []);
 
   const onScroll = () => {
     const el = ref.current;
     if (!el) return;
-    stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+    stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
 
   const visible = messages.filter((m) => m.system || !muted.has(m.userAddress.toLowerCase()));
 
   return (
-    <div ref={ref} onScroll={onScroll} className={`space-y-1 overflow-y-auto p-2 ${className}`}>
-      {visible.length === 0 && (
-        <div className="p-4 text-center text-xs text-zinc-600">{emptyText}</div>
-      )}
-      {visible.map((m) =>
-        m.system ? (
-          <div
-            key={m.id}
-            title={time(m.at)}
-            className={`my-1 rounded-lg border-l-2 bg-zinc-900/60 px-2.5 py-1.5 text-[11px] font-bold ${
-              SYSTEM_STYLE[m.systemKind ?? "ended"]
-            }`}
-          >
-            <span className="mr-1.5">{SYSTEM_ICON[m.systemKind ?? "ended"]}</span>
-            {m.text}
-          </div>
-        ) : (
-          <Line key={m.id} m={m} me={me} myName={myName} />
-        ),
-      )}
+    <div ref={ref} onScroll={onScroll} className={`overflow-y-auto p-2 ${className}`}>
+      <div ref={inner} className="space-y-1">
+        {visible.length === 0 && (
+          <div className="p-4 text-center text-xs text-zinc-600">{emptyText}</div>
+        )}
+        {visible.map((m) =>
+          m.system && m.systemKind === "announce" ? (
+            // House announcement — deliberately louder than match events.
+            <div
+              key={m.id}
+              title={time(m.at)}
+              className="my-1.5 rounded-lg border border-amber-400/50 bg-gradient-to-r from-amber-400/[0.14] to-transparent px-3 py-2 text-[12px] font-bold leading-snug text-amber-200"
+            >
+              <span className="mr-1.5">📢</span>
+              {m.text}
+            </div>
+          ) : m.system ? (
+            <div
+              key={m.id}
+              title={time(m.at)}
+              className={`my-1 rounded-lg border-l-2 bg-zinc-900/60 px-2.5 py-1.5 text-[11px] font-bold ${
+                SYSTEM_STYLE[m.systemKind ?? "ended"]
+              }`}
+            >
+              <span className="mr-1.5">{SYSTEM_ICON[m.systemKind ?? "ended"]}</span>
+              {m.text}
+            </div>
+          ) : (
+            <Line key={m.id} m={m} me={me} myName={myName} />
+          ),
+        )}
+      </div>
     </div>
   );
 }
