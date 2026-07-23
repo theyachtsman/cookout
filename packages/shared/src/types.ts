@@ -451,6 +451,8 @@ export type ServerEvent =
   | { type: "prediction_update"; roundId: string; moon: number; rug: number }
   | { type: "reaction"; roundId: string; emoji: string; from: string }
   | { type: "chat_delete"; roundId: string; messageId: string }
+  /** A message was edited by moderation (censored) — replace it by id. */
+  | { type: "chat_update"; message: ChatMessage }
   | { type: "error"; message: string };
 
 /** WebSocket messages: client → server. */

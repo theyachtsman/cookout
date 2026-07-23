@@ -138,7 +138,8 @@ export class Store {
   adminLog: AdminLogEntry[] = [];
   /** Platform fee revenue collected per round (paper ETH). */
   feesByRound = new Map<string, number>();
-  /** Chat mutes: address → muted-until epoch ms (ephemeral moderation state). */
+  /** Chat mutes/bans: address → muted-until epoch ms (persisted; a ban is a
+   *  very long mute). */
   muted = new Map<Address, number>();
   /** Pre-launch beta signups: wallet → signup record (whitelist source). */
   betaSignups = new Map<Address, BetaSignup>();
@@ -605,6 +606,8 @@ export class Store {
         .slice(-5000),
       feedback: this.feedback.slice(-2000),
       settings: this.settings,
+      // Mutes/bans survive restarts; expired ones are pruned on save.
+      muted: [...this.muted.entries()].filter(([, until]) => until > Date.now()),
       jackpotPool: this.jackpotPool,
       jackpotWeekKey: this.jackpotWeekKey,
       jackpotHistory: this.jackpotHistory.slice(-52),
@@ -642,6 +645,9 @@ export class Store {
       );
     }
     this.feedback = snap.feedback ?? [];
+    for (const [addr, until] of snap.muted ?? []) {
+      if (until > Date.now()) this.muted.set(addr, until);
+    }
     if (snap.settings) this.settings = { ...this.settings, ...snap.settings };
     this.adminLog = snap.adminLog;
     for (const b of snap.betaSignups ?? []) this.betaSignups.set(b.address, b);
@@ -690,6 +696,8 @@ export interface Snapshot {
   sessions?: Array<[string, Address | SessionRecord]>;
   feedback?: FeedbackEntry[];
   settings?: OpsSettings;
+  /** Chat mutes/bans: address → muted-until epoch ms. */
+  muted?: Array<[Address, number]>;
   jackpotPool?: number;
   jackpotWeekKey?: string;
   jackpotHistory?: JackpotPayout[];

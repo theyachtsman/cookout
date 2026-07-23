@@ -48,6 +48,7 @@ export function ChatLog({
   myName,
   className = "",
   emptyText = "It's quiet in here. Say something.",
+  fadeSystemAfterMs,
 }: {
   messages: ChatMessage[];
   /** Viewer's address — drives "mine" styling and mention highlights. */
@@ -56,6 +57,10 @@ export function ChatLog({
   myName?: string;
   className?: string;
   emptyText?: string;
+  /** When set, system banners (announcements, launches, results) fade out and
+   *  disappear this many ms after they were posted — used by The Grill so the
+   *  global room stays human while house messages are transient. */
+  fadeSystemAfterMs?: number;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const inner = useRef<HTMLDivElement>(null);
@@ -105,7 +110,25 @@ export function ChatLog({
     stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   };
 
-  const visible = messages.filter((m) => m.system || !muted.has(m.userAddress.toLowerCase()));
+  // Transient system banners: tick once a second while the feature is on so
+  // ages advance, fade over the final 5s, then drop from the log entirely.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!fadeSystemAfterMs) return;
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, [fadeSystemAfterMs]);
+  const systemOpacity = (m: ChatMessage): number => {
+    if (!fadeSystemAfterMs || !m.system) return 1;
+    const left = fadeSystemAfterMs - (now - m.at);
+    return left <= 0 ? 0 : Math.min(1, left / 5000);
+  };
+
+  const visible = messages.filter((m) => {
+    if (m.system)
+      return !fadeSystemAfterMs || now - m.at < fadeSystemAfterMs; // expired banners vanish
+    return !muted.has(m.userAddress.toLowerCase());
+  });
 
   return (
     <div ref={ref} onScroll={onScroll} className={`overflow-y-auto p-2 ${className}`}>
@@ -119,6 +142,7 @@ export function ChatLog({
             <div
               key={m.id}
               title={time(m.at)}
+              style={{ opacity: systemOpacity(m), transition: "opacity 1s linear" }}
               className="my-1.5 rounded-lg border border-amber-400/50 bg-gradient-to-r from-amber-400/[0.14] to-transparent px-3 py-2 text-[12px] font-bold leading-snug text-amber-200"
             >
               <span className="mr-1.5">📢</span>
@@ -128,6 +152,7 @@ export function ChatLog({
             <div
               key={m.id}
               title={time(m.at)}
+              style={{ opacity: systemOpacity(m), transition: "opacity 1s linear" }}
               className={`my-1 rounded-lg border-l-2 bg-zinc-900/60 px-2.5 py-1.5 text-[11px] font-bold ${
                 SYSTEM_STYLE[m.systemKind ?? "ended"]
               }`}
