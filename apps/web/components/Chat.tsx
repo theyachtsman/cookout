@@ -99,7 +99,7 @@ export function Chat({
             onChange={(e) => setText(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
             placeholder={
-              frozen ? "this round is over — chat lives on in The Cookout" : "message the trenches…"
+              frozen ? "this round is over — chat lives on in The Grill" : "message the trenches…"
             }
             disabled={!profile || frozen}
             maxLength={280}
