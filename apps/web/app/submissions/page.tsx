@@ -34,6 +34,10 @@ export default function Submissions() {
   const [error, setError] = useState("");
   // The just-submitted concept — drives the "your coin is live" preview modal.
   const [created, setCreated] = useState<TokenConcept | null>(null);
+  // Two-step submit: "preview" shows the coin card for a final look before
+  // anything is created; confirming actually submits.
+  const [previewing, setPreviewing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
   useEffect(() => setMounted(true), []);
@@ -45,8 +49,20 @@ export default function Submissions() {
   }, []);
   useEffect(load, [load]);
 
-  const submit = async () => {
+  // Step 1: nothing is created yet — validate and show the card preview.
+  const openPreview = () => {
     setError("");
+    if (!form.name.trim() || !form.symbol.trim() || !form.theme.trim()) {
+      setError("name, symbol, and theme are required");
+      return;
+    }
+    setPreviewing(true);
+  };
+
+  // Step 2: the player confirmed — actually submit the concept.
+  const confirmSubmit = async () => {
+    setError("");
+    setSubmitting(true);
     try {
       const concept = await api<TokenConcept>("/api/concepts", {
         body: {
@@ -56,6 +72,7 @@ export default function Submissions() {
           totalSupply: form.totalSupply ? Number(form.totalSupply) : undefined,
         },
       });
+      setPreviewing(false);
       setCreated(concept);
       setForm({
         name: "",
@@ -70,6 +87,8 @@ export default function Submissions() {
       load();
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -204,10 +223,10 @@ export default function Submissions() {
               </div>
             </div>
             <button
-              onClick={() => void submit()}
+              onClick={openPreview}
               className="w-fit rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300"
             >
-              Submit Concept
+              Preview &amp; Submit
             </button>
           </div>
         )}
@@ -249,6 +268,58 @@ export default function Submissions() {
           Go to Community Vote →
         </Link>
       </section>
+
+      {/* Pre-submit confirmation: look the card over before it's created. */}
+      {mounted &&
+        previewing &&
+        createPortal(
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+            <div
+              onClick={() => !submitting && setPreviewing(false)}
+              className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+            />
+            <div className="relative w-full max-w-md">
+              <div className="mb-3 text-center">
+                <div className="text-3xl">👀</div>
+                <h2 className="mt-1 text-xl font-black tracking-tight text-zinc-50">
+                  Look it over — are you sure?
+                </h2>
+                <p className="mt-1 text-sm text-zinc-400">
+                  This is exactly how your coin will appear on the ballot, the calendar, and in
+                  the arena. Once submitted it can&apos;t be edited.
+                </p>
+              </div>
+              <CoinCard
+                coin={{
+                  name: form.name.trim(),
+                  symbol: form.symbol.trim().toUpperCase().slice(0, 8),
+                  theme: form.theme.trim(),
+                  artworkUrl: form.artworkUrl || undefined,
+                  bannerUrl: form.bannerUrl || undefined,
+                  tier: form.tier,
+                }}
+              />
+              {error && <p className="mt-3 text-center text-sm text-red-400">{error}</p>}
+              <div className="mt-4 flex items-center justify-center gap-3">
+                <button
+                  disabled={submitting}
+                  onClick={() => void confirmSubmit()}
+                  className="rounded-xl bg-lime-400 px-6 py-2.5 font-black text-zinc-950 shadow-lg shadow-lime-400/25 transition hover:bg-lime-300 disabled:opacity-50"
+                >
+                  {submitting ? "Submitting…" : "✓ Confirm & Submit"}
+                </button>
+                <button
+                  disabled={submitting}
+                  onClick={() => setPreviewing(false)}
+                  className="text-sm text-zinc-500 hover:text-zinc-300 disabled:opacity-50"
+                >
+                  Cancel — keep editing
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* Post-submit payoff: the coin's promo card, then straight to the vote. */}
       {mounted &&

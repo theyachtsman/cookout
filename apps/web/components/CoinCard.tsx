@@ -50,19 +50,20 @@ export function CoinCard({
     <div
       className={`group relative overflow-hidden rounded-2xl border bg-zinc-900 ${borderClass} ${className}`}
     >
-      {/* Full-card backdrop for banner-less coins: art blurred edge to edge. */}
+      {/* Full-card backdrop for banner-less coins: art blurred edge to edge.
+          One smooth two-stop dim — a mid gradient stop reads as a seam. */}
       {fullBlur && (
         <>
           <div
             aria-hidden
-            className={`absolute inset-0 scale-125 bg-cover bg-center blur-2xl transition-transform duration-700 group-hover:scale-[1.35] ${
-              teaser ? "opacity-30 saturate-0" : "opacity-50"
+            className={`absolute inset-0 scale-110 bg-cover bg-center transition-transform duration-700 group-hover:scale-125 ${
+              teaser ? "opacity-30 blur-2xl saturate-0" : "opacity-60 blur-lg"
             }`}
             style={{ backgroundImage: `url(${coin.artworkUrl})` }}
           />
           <div
             aria-hidden
-            className="absolute inset-0 bg-gradient-to-b from-zinc-950/30 via-zinc-950/75 to-zinc-950/95"
+            className="absolute inset-0 bg-gradient-to-b from-zinc-950/35 to-zinc-950/85"
           />
         </>
       )}
