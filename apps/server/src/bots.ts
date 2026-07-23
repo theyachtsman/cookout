@@ -259,14 +259,16 @@ export class BotSwarm {
   }
 
   /** When the auto-scheduler is off, the swarm keeps the voting booth alive:
-   *  every 15–45s one bot votes on a submitted concept (bandwagon-weighted, so
-   *  momentum snowballs the way real votes do). Bots use the same one-vote-per-
-   *  address ledger as humans, and human votes always count alongside. */
+   *  a bot vote lands every ~2.5–6.5s (bandwagon-weighted, so momentum
+   *  snowballs the way real votes do) — beta pacing that walks a fresh coin to
+   *  the 10-vote shortlist in about a minute instead of leaving the creator
+   *  staring at zero. Bots use the same one-vote-per-address ledger as humans,
+   *  and human votes always count alongside (and speed things up further). */
   private nextVoteAt = 0;
   private voteOnConcepts(now: number): void {
     if (this.store.settings.autoSchedule) return; // calendar fills itself — stay out
     if (now < this.nextVoteAt) return;
-    this.nextVoteAt = now + 15_000 + Math.random() * 30_000;
+    this.nextVoteAt = now + 2_500 + Math.random() * 4_000;
     const open = [...this.store.concepts.values()].filter((c) => c.status === "submitted");
     if (open.length === 0) return;
     // Bandwagon-weighted pick: 1 + votes.
