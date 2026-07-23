@@ -8,12 +8,37 @@ import type { Store } from "./store.js";
  * voting window closes below the threshold is rejected. Both transitions
  * are written to the public audit log.
  */
-export function evaluateVoting(store: Store, now = Date.now()): void {
+/** The earliest start time that doesn't collide with anything already on the
+ *  calendar: after the expected end of every pending/active round, plus the
+ *  ops lead time. */
+function nextFreeSlot(store: Store, leadMs: number, now: number): number {
+  let latest = now;
+  for (const r of store.rounds.values()) {
+    if (r.state === "results") continue;
+    const end =
+      r.endsAt ??
+      r.scheduledAt +
+        (r.config.lobbySeconds + r.config.queueSeconds + r.config.maxDurationSeconds) * 1000;
+    if (end > latest) latest = end;
+  }
+  return latest + leadMs;
+}
+
+export function evaluateVoting(store: Store, engine: RoundEngine, now = Date.now()): void {
   for (const c of store.concepts.values()) {
     if (c.status !== "submitted") continue;
     if (c.votes >= VOTE_THRESHOLD) {
-      c.status = "shortlisted";
-      store.logAdmin("auto_shortlist", `concept ${c.id} (${c.symbol}) hit ${VOTE_THRESHOLD} votes`);
+      // Vote complete → straight onto the calendar at the creator's chosen
+      // tier. No shortlist limbo: the slot lands after whatever is already
+      // queued or running, so matches never overlap.
+      const tier = c.tier ?? store.settings.tier;
+      const at = nextFreeSlot(store, store.settings.leadSeconds * 1000, now);
+      const round = engine.scheduleRound(c, tier, at);
+      c.status = "scheduled";
+      store.logAdmin(
+        "vote_scheduled",
+        `concept ${c.id} (${c.symbol}, ${tier}) hit ${VOTE_THRESHOLD} votes → round ${round.id}`,
+      );
     } else if (now - c.createdAt > VOTING_WINDOW_MS) {
       c.status = "rejected";
       store.logAdmin(

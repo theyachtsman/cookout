@@ -77,8 +77,8 @@ export default function Submissions() {
         <h1 className="mb-1 text-xl font-black">Submit a Token Concept</h1>
         <p className="mb-4 text-xs text-zinc-500">
           Tokens deploy from the platform-audited template only — you supply metadata, never code.
-          No mint, pause, or blacklist controls. Community votes, the Arena Committee shortlists,
-          winners get a match slot.
+          No mint, pause, or blacklist controls. The community votes — hit the vote bar and your coin
+          goes straight onto the match calendar at your chosen tier.
         </p>
         {!profile ? (
           <button
