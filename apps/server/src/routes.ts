@@ -1,6 +1,7 @@
 import express, { type Express, type Request, type Response } from "express";
 import {
   COSMETICS,
+  MATCH_MINUTE_OPTIONS,
   MAX_TOKEN_SUPPLY,
   MIN_TOKEN_SUPPLY,
   TIER_UNLOCK_LEVEL,
@@ -607,6 +608,15 @@ export function createApp(
             `level ${TIER_UNLOCK_LEVEL[tier]} required to launch a ${tier} coin (you're level ${creator.level})`,
           );
       }
+      // Match length is creator-chosen from a fixed menu; anything else falls
+      // back to the tier's default duration.
+      const rawMinutes = (req.body as { matchMinutes?: number }).matchMinutes;
+      let matchMinutes: number | undefined;
+      if (rawMinutes !== undefined && rawMinutes !== null) {
+        matchMinutes = Number(rawMinutes);
+        if (!MATCH_MINUTE_OPTIONS.includes(matchMinutes as 10 | 5 | 1))
+          throw new Err(400, `matchMinutes must be one of ${MATCH_MINUTE_OPTIONS.join(", ")}`);
+      }
       // Creator vetting (spec §5.2): cooldown + rug-ban screen, audit-trailed.
       const ban = activeRugBan(creator);
       const recent = [...store.concepts.values()].filter(
@@ -629,6 +639,7 @@ export function createApp(
         bannerUrl: bannerUrl ? sanitizeImageUrl(bannerUrl) : undefined,
         totalSupply,
         tier,
+        matchMinutes,
         status: "submitted",
         votes: 0,
         createdAt: Date.now(),

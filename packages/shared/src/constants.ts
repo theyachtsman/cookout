@@ -26,6 +26,9 @@ export const DEFAULT_ETH_USD = 1925;
  * graduationMcap values here are fallbacks — the engine recomputes them from
  * BOND_TARGET_USD and the live ETH price when each round is scheduled.
  */
+/** Creator-selectable live-trading lengths for a match, in minutes. */
+export const MATCH_MINUTE_OPTIONS = [10, 5, 1] as const;
+
 export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
   rookie: {
     tier: "rookie",

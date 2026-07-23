@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CREATOR_FEE_SHARE,
+  MATCH_MINUTE_OPTIONS,
   TIER_CONFIGS,
   TIER_UNLOCK_LEVEL,
   type RiskTier,
@@ -30,6 +31,7 @@ export default function Submissions() {
     bannerUrl: "",
     totalSupply: "",
     tier: "rookie" as RiskTier,
+    matchMinutes: 10,
   });
   const [error, setError] = useState("");
   // The just-submitted concept — drives the "your coin is live" preview modal.
@@ -83,6 +85,7 @@ export default function Submissions() {
         bannerUrl: "",
         totalSupply: "",
         tier: "rookie",
+        matchMinutes: 10,
       });
       load();
     } catch (e) {
@@ -222,6 +225,33 @@ export default function Submissions() {
                 })}
               </div>
             </div>
+            {/* Match length — creator-chosen live-trading window. */}
+            <div className="md:col-span-2">
+              <div className="mb-1.5 text-xs text-zinc-500">
+                Match length — how long live trading runs before the market closes
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {MATCH_MINUTE_OPTIONS.map((mins) => {
+                  const active = form.matchMinutes === mins;
+                  const blurb =
+                    mins === 10 ? "the classic" : mins === 5 ? "fast hands" : "pure blitz";
+                  return (
+                    <button
+                      key={mins}
+                      onClick={() => setForm({ ...form, matchMinutes: mins })}
+                      className={`rounded-xl border px-4 py-2 text-left transition ${
+                        active
+                          ? "border-sky-400/70 bg-sky-400/10"
+                          : "border-zinc-700 hover:border-zinc-500"
+                      }`}
+                    >
+                      <span className="text-sm font-black">⏱ {mins} min</span>
+                      <span className="ml-2 text-[11px] text-zinc-500">{blurb}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <button
               onClick={openPreview}
               className="w-fit rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300"
@@ -297,6 +327,7 @@ export default function Submissions() {
                   artworkUrl: form.artworkUrl || undefined,
                   bannerUrl: form.bannerUrl || undefined,
                   tier: form.tier,
+                  matchMinutes: form.matchMinutes,
                 }}
               />
               {error && <p className="mt-3 text-center text-sm text-red-400">{error}</p>}
