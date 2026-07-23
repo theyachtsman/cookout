@@ -91,7 +91,7 @@ setInterval(() => {
   try {
     engine.tick(Date.now());
     if (botsAllowed && store.settings.bots) bots.tick(Date.now());
-    evaluateVoting(store);
+    evaluateVoting(store, engine);
     // Chain-only deployments never auto-spawn paper rounds, regardless of
     // the Live Ops toggle — real rounds cost the operator real gas/liquidity,
     // so they stay deliberate (admin schedule-chain).
