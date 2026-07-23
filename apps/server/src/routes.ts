@@ -24,6 +24,7 @@ import { resolvePrivyLogin, type PrivyResolver } from "./privy.js";
 import { Err, type Broadcast, type RoundEngine } from "./engine.js";
 import { jackpotStatus } from "./jackpot.js";
 import { rateLimit } from "./ratelimit.js";
+import { nextFreeSlot } from "./seed.js";
 import { activeRugBan, type Store, type StoredUser } from "./store.js";
 import { GLOBAL_ROOM, spotPrice } from "@cookout/shared";
 
@@ -768,6 +769,43 @@ export function createApp(
         auction: store.auctionResults.get(round.id) ?? null,
         summary: store.summaries.get(round.id) ?? null,
       });
+    }),
+  );
+
+  /** Run It Back: a coin that didn't graduate gets another shot. Only the
+   *  coin's developer can trigger it; the rerun re-schedules the ORIGINAL
+   *  concept — same tier, same match length, same tokenomics — into the next
+   *  free calendar slot, no new vote needed. Rug-banned wallets are refused
+   *  the same way as a fresh launch. */
+  app.post(
+    "/api/rounds/:id/runback",
+    auth,
+    wrap((req, res) => {
+      const round = store.rounds.get(req.params.id!);
+      if (!round) throw new Err(404, "round not found");
+      if (round.state !== "results") throw new Err(400, "this match hasn't finished yet");
+      if (round.graduated) throw new Err(400, "this coin served up — nothing to run back");
+      if (round.creatorAddress.toLowerCase() !== req.userAddress!.toLowerCase())
+        throw new Err(403, "only this coin's developer can run it back");
+      const creator = store.getOrCreateUser(req.userAddress!);
+      if (activeRugBan(creator))
+        throw new Err(
+          403,
+          "this wallet is banned from launching coins after a rug — check the Reputation section on your Profile page",
+        );
+      const concept = store.concepts.get(round.conceptId);
+      if (!concept) throw new Err(404, "the original concept is gone");
+      const pending = [...store.rounds.values()].some(
+        (r) => r.conceptId === round.conceptId && r.state !== "results",
+      );
+      if (pending) throw new Err(409, "this coin is already back on the calendar");
+      const at = nextFreeSlot(store, store.settings.leadSeconds * 1000, Date.now());
+      const rerun = engine.scheduleRound(concept, round.tier, at);
+      store.logAdmin(
+        "runback",
+        `${req.userAddress} ran back $${concept.symbol} (round ${round.id} → ${rerun.id})`,
+      );
+      res.json(rerun);
     }),
   );
 

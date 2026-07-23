@@ -113,7 +113,10 @@ export default function ProfilePage() {
           <button onClick={() => void saveName()} className="rounded bg-zinc-800 px-3 py-1.5 text-sm">
             Save
           </button>
-          <span className="ml-auto self-center text-xs text-zinc-500">
+          <span className="ml-auto flex gap-3 self-center text-xs text-zinc-500">
+            <a href={`/creator/${profile.address}`} className="hover:text-zinc-300">
+              my coins &amp; launches →
+            </a>
             <a href={`/profile/${profile.address}`} className="hover:text-zinc-300">
               public profile →
             </a>
