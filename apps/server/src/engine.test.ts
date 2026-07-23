@@ -96,6 +96,25 @@ test("full round: lobby → queue → uniform settle → trades → timer end �
   assert.ok(total < 20, "players in aggregate paid fees + auction premium into the pool");
 });
 
+test("creator-chosen matchMinutes drives the live-trading clock", () => {
+  const { store, engine, concept } = setup();
+  concept.matchMinutes = 5; // rookie default is 10 min — the pick must win
+  const t0 = 1_000_000_000;
+  const round = engine.scheduleRound(concept, "rookie", t0);
+  assert.equal(round.config.maxDurationSeconds, 300);
+
+  engine.tick(t0);
+  engine.tick(round.queueOpensAt!);
+  store.arenaDeposit(A, 10);
+  engine.submitIntent(round.id, A, 0.2, undefined, round.queueOpensAt! + 1000);
+  engine.tick(round.queueClosesAt!);
+  assert.equal(round.state, "live");
+  // The market closes exactly matchMinutes after going live. (No tick-to-end
+  // here: a 5-minute silent fast-forward would trip the low-volume auto-end,
+  // which is its own feature — the clock itself is what this test pins.)
+  assert.equal(round.endsAt! - round.liveAt!, 5 * 60_000);
+});
+
 test("rug detection: creator dump drains pool and ends the round", () => {
   const { store, engine, concept } = setup();
   const t0 = 2_000_000_000;
