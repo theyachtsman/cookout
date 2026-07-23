@@ -15,12 +15,89 @@ import { api } from "../lib/api";
  * schedule and only time or an admin lifts it.
  */
 
-export function repStanding(rep: number): { label: string; cls: string } {
-  if (rep < 0) return { label: "In the red", cls: "bg-red-500/20 text-red-300" };
-  if (rep >= 20) return { label: "Elite", cls: "bg-emerald-500/20 text-emerald-300" };
-  if (rep >= 10) return { label: "Trusted", cls: "bg-emerald-500/20 text-emerald-300" };
-  if (rep >= 3) return { label: "Established", cls: "bg-zinc-800 text-zinc-300" };
-  return { label: "New", cls: "bg-zinc-800 text-zinc-300" };
+interface Standing {
+  label: string;
+  emoji: string;
+  /** Text color for the big score + label. */
+  accent: string;
+  /** Ring color around the score tile. */
+  ring: string;
+  /** Fill color for the climb-to-next bar. */
+  bar: string;
+  /** Soft glow behind the score tile. */
+  glow: string;
+  /** Score at which this tier begins (its floor). */
+  floor: number;
+  /** Score where the next tier begins, or null at the top. */
+  next: number | null;
+  nextLabel: string | null;
+}
+
+/**
+ * Reputation tiers, color-coded so the score reads at a glance: red when a rug
+ * has put you underwater, then a warm climb from New → Elite. The gold Elite
+ * tier is the one everyone's chasing.
+ */
+export function repStanding(rep: number): Standing {
+  if (rep < 0)
+    return {
+      label: "In the Red",
+      emoji: "⚠️",
+      accent: "text-red-400",
+      ring: "ring-red-500/60",
+      bar: "bg-red-500",
+      glow: "rgba(239,68,68,0.35)",
+      floor: rep,
+      next: 0,
+      nextLabel: "New",
+    };
+  if (rep >= 20)
+    return {
+      label: "Elite",
+      emoji: "👑",
+      accent: "text-amber-300",
+      ring: "ring-amber-400/60",
+      bar: "bg-amber-400",
+      glow: "rgba(251,191,36,0.45)",
+      floor: 20,
+      next: null,
+      nextLabel: null,
+    };
+  if (rep >= 10)
+    return {
+      label: "Trusted",
+      emoji: "🛡️",
+      accent: "text-emerald-300",
+      ring: "ring-emerald-400/60",
+      bar: "bg-emerald-400",
+      glow: "rgba(52,211,153,0.38)",
+      floor: 10,
+      next: 20,
+      nextLabel: "Elite",
+    };
+  if (rep >= 3)
+    return {
+      label: "Established",
+      emoji: "⭐",
+      accent: "text-sky-300",
+      ring: "ring-sky-400/60",
+      bar: "bg-sky-400",
+      glow: "rgba(56,189,248,0.35)",
+      floor: 3,
+      next: 10,
+      nextLabel: "Trusted",
+    };
+  return {
+    label: "New",
+    emoji: "🌱",
+    accent: "text-zinc-200",
+    ring: "ring-zinc-600",
+    bar: "bg-zinc-400",
+    glow: "rgba(161,161,170,0.25)",
+    floor: 0,
+    next: 3,
+    nextLabel: "Established",
+  };
 }
 
 function fmtWait(ms: number): string {
@@ -67,6 +144,12 @@ export function ReputationPanel({
 
   const standing = repStanding(reputation);
   const active = banned ? bans[bans.length - 1] : undefined;
+  // Progress toward the next tier (only meaningful once you're out of the red).
+  const toNext = standing.next !== null ? Math.max(0, standing.next - reputation) : 0;
+  const pct =
+    standing.next !== null && reputation >= 0
+      ? Math.max(0, Math.min(100, ((reputation - standing.floor) / (standing.next - standing.floor)) * 100))
+      : 0;
 
   const clearBan = async () => {
     setBusy(true);
@@ -83,19 +166,59 @@ export function ReputationPanel({
 
   return (
     <div className={`rounded-xl border p-5 ${banned ? "border-red-500/40" : "border-zinc-800"}`}>
-      <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-black">Reputation</h2>
-        <span className={`rounded px-2 py-0.5 text-xs font-bold ${standing.cls}`}>
-          {standing.label}
-        </span>
-        <span className="font-mono text-sm text-zinc-400">score {reputation}</span>
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Reputation</h2>
         {banned && (
-          <span className="ml-auto rounded bg-red-500/20 px-2 py-0.5 text-xs font-black uppercase tracking-wide text-red-300">
+          <span className="rounded bg-red-500/20 px-2 py-0.5 text-xs font-black uppercase tracking-wide text-red-300">
             🚫 launch ban active
           </span>
         )}
       </div>
-      <p className="mt-1 text-xs text-zinc-500">
+
+      {/* Hero: the score, big and color-coded — the thing a creator is judged on. */}
+      <div className="mt-3 flex items-center gap-5">
+        <div
+          className={`relative flex h-28 w-28 shrink-0 flex-col items-center justify-center rounded-2xl bg-zinc-950 ring-2 ${standing.ring}`}
+          style={{ boxShadow: `0 0 34px ${standing.glow}` }}
+        >
+          <div className={`text-6xl font-black leading-none tabular-nums ${standing.accent}`}>
+            {reputation}
+          </div>
+          <div className="mt-1.5 text-[9px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+            rep score
+          </div>
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className={`text-2xl font-black ${standing.accent}`}>
+            {standing.emoji} {standing.label}
+          </div>
+          {reputation < 0 ? (
+            <div className="mt-2 text-xs text-red-300/80">
+              A rug put you underwater. Launch clean coins to climb back above zero.
+            </div>
+          ) : standing.next !== null ? (
+            <>
+              <div className="mt-2 h-2.5 overflow-hidden rounded-full bg-zinc-800">
+                <div
+                  className={`h-full rounded-full transition-[width] duration-500 ${standing.bar}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <div className="mt-1.5 text-xs text-zinc-400">
+                <b className="text-zinc-100">{toNext}</b> more to{" "}
+                <span className="font-bold">{standing.nextLabel}</span>
+              </div>
+            </>
+          ) : (
+            <div className="mt-2 text-xs text-amber-300/90">
+              Top standing. The crowd trusts your launches.
+            </div>
+          )}
+        </div>
+      </div>
+
+      <p className="mt-4 text-xs text-zinc-500">
         Launching a coin that graduates earns +2, any clean launch +1, a rug −5 and a launch ban.
         Banned wallets can still chat and trade. They just can&apos;t put a coin on the ballot.
       </p>
