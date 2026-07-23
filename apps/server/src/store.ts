@@ -158,6 +158,7 @@ export class Store {
       "🎰 Every trade feeds the Weekly Jackpot — top 10 by weekly XP split it every Monday.",
     ],
     announceEveryMin: 30,
+    pinnedAnnouncement: "",
   };
   /** Live ETH/USD, refreshed by the price feed; used to peg the $40k bond. */
   ethUsd = DEFAULT_ETH_USD;
@@ -680,6 +681,8 @@ export interface OpsSettings {
   announceTips: string[];
   /** Minutes between announcements; 0 turns them off. */
   announceEveryMin: number;
+  /** Pinned announcement shown above The Grill; "" = nothing pinned. */
+  pinnedAnnouncement: string;
 }
 
 export interface Snapshot {

@@ -6,6 +6,7 @@ import { VOTE_THRESHOLD, VOTING_WINDOW_MS, type Round, type TokenConcept } from 
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { useSocial } from "../../lib/social";
+import { TierChip } from "../../components/TierChip";
 
 /**
  * Community Vote — the launchpad's other half. Concepts up for a vote, plus
@@ -176,8 +177,11 @@ export default function VotePage() {
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <div className="font-black">
-                          {c.name} <span className="text-zinc-500">${c.symbol}</span>
+                        <div className="flex items-center gap-2 font-black">
+                          <span>
+                            {c.name} <span className="text-zinc-500">${c.symbol}</span>
+                          </span>
+                          <TierChip tier={c.tier} />
                         </div>
                         <div className="text-sm text-zinc-400">{c.theme}</div>
                         {c.pitch && (
@@ -288,8 +292,11 @@ export default function VotePage() {
                     </div>
                   )}
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-bold">
-                      {c.name} <span className="text-zinc-500">${c.symbol}</span>
+                    <div className="flex items-center gap-1.5 truncate text-sm font-bold">
+                      <span className="truncate">
+                        {c.name} <span className="text-zinc-500">${c.symbol}</span>
+                      </span>
+                      <TierChip tier={c.tier} />
                     </div>
                     <div className="truncate text-[11px] text-zinc-500">{c.theme}</div>
                   </div>

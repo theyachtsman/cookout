@@ -360,15 +360,23 @@ export function createApp(
     "/api/admin/settings",
     admin,
     wrap((req, res) => {
-      const { autoSchedule, tier, leadSeconds, bots, announceTips, announceEveryMin } =
-        req.body as {
-          autoSchedule?: boolean;
-          tier?: RiskTier;
-          leadSeconds?: number;
-          bots?: boolean;
-          announceTips?: string[];
-          announceEveryMin?: number;
-        };
+      const {
+        autoSchedule,
+        tier,
+        leadSeconds,
+        bots,
+        announceTips,
+        announceEveryMin,
+        pinnedAnnouncement,
+      } = req.body as {
+        autoSchedule?: boolean;
+        tier?: RiskTier;
+        leadSeconds?: number;
+        bots?: boolean;
+        announceTips?: string[];
+        announceEveryMin?: number;
+        pinnedAnnouncement?: string;
+      };
       if (autoSchedule !== undefined) store.settings.autoSchedule = !!autoSchedule;
       if (bots !== undefined) store.settings.bots = !!bots;
       if (tier && ["rookie", "standard", "degen"].includes(tier)) store.settings.tier = tier;
@@ -381,6 +389,11 @@ export function createApp(
           .slice(0, 12);
       if (announceEveryMin !== undefined)
         store.settings.announceEveryMin = Math.max(0, Math.min(1440, Number(announceEveryMin) || 0));
+      if (pinnedAnnouncement !== undefined) {
+        store.settings.pinnedAnnouncement = String(pinnedAnnouncement).trim().slice(0, 280);
+        // Connected clients swap the pin live; "" clears it everywhere.
+        broadcast(GLOBAL_ROOM, { type: "pinned", text: store.settings.pinnedAnnouncement });
+      }
       store.logAdmin("settings", JSON.stringify(store.settings));
       res.json(store.settings);
     }),
@@ -549,6 +562,19 @@ export function createApp(
           );
       }
       const creator = store.getOrCreateUser(req.userAddress!);
+      // Risk tier is creator-chosen but level-gated — same gate as playing in
+      // that tier. Legacy/absent tier falls back to rookie.
+      const rawTier = (req.body as { tier?: string }).tier;
+      let tier: RiskTier = "rookie";
+      if (rawTier !== undefined) {
+        if (!["rookie", "standard", "degen"].includes(rawTier)) throw new Err(400, "bad tier");
+        tier = rawTier as RiskTier;
+        if (creator.level < TIER_UNLOCK_LEVEL[tier])
+          throw new Err(
+            403,
+            `level ${TIER_UNLOCK_LEVEL[tier]} required to launch a ${tier} coin (you're level ${creator.level})`,
+          );
+      }
       // Creator vetting (spec §5.2): cooldown + rug-flag screen, audit-trailed.
       const flagged = creator.creatorReputation < 0;
       const recent = [...store.concepts.values()].filter(
@@ -565,6 +591,7 @@ export function createApp(
         pitch: pitch ? String(pitch).slice(0, 1000) : undefined,
         artworkUrl: artworkUrl ? sanitizeImageUrl(artworkUrl) : undefined,
         totalSupply,
+        tier,
         status: "submitted",
         votes: 0,
         createdAt: Date.now(),
@@ -572,7 +599,7 @@ export function createApp(
       store.concepts.set(concept.id, concept);
       store.logAdmin(
         "vetting",
-        `concept ${concept.id} (${concept.symbol}) accepted: template-only deploy, rug-flag check passed, cooldown ok`,
+        `concept ${concept.id} (${concept.symbol}, ${tier}) accepted: template-only deploy, rug-flag check passed, cooldown ok`,
       );
       res.json(concept);
     }),
@@ -619,6 +646,7 @@ export function createApp(
       res.json({
         messages: (store.chat.get(GLOBAL_ROOM) ?? []).slice(-120),
         online: presence(),
+        pinned: store.settings.pinnedAnnouncement || undefined,
       });
     }),
   );

@@ -28,6 +28,8 @@ export interface ActiveRoom {
 
 interface SocialValue {
   online: PresenceUser[];
+  /** Admin-pinned announcement above The Grill ("" = nothing pinned). */
+  pinned: string;
   /** The Cookout (global room). */
   messages: ChatMessage[];
   /** The page-owned room's messages (match, vote, calendar…). */
@@ -55,6 +57,7 @@ interface SocialValue {
 
 const Ctx = createContext<SocialValue>({
   online: [],
+  pinned: "",
   messages: [],
   matchMessages: [],
   activeRoom: null,
@@ -77,6 +80,7 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
   const { profile } = useSession();
   const [online, setOnline] = useState<PresenceUser[]>([]);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [pinned, setPinned] = useState("");
   const [matchMessages, setMatchMessages] = useState<ChatMessage[]>([]);
   const [activeRoom, setActiveRoomState] = useState<ActiveRoom | null>(null);
   const [channel, setChannel] = useState<"global" | "match">("global");
@@ -94,9 +98,10 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
 
   // Seed history + roster so the dock is populated before the socket settles.
   useEffect(() => {
-    api<{ messages: ChatMessage[]; online: PresenceUser[] }>("/api/social/global")
+    api<{ messages: ChatMessage[]; online: PresenceUser[]; pinned?: string }>("/api/social/global")
       .then((d) => {
         setMessages(d.messages ?? []);
+        setPinned(d.pinned ?? "");
         setOnline(d.online ?? []);
       })
       .catch(() => {});
@@ -153,6 +158,8 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
             const id = ev.messageId as string;
             setMessages((prev) => prev.filter((m) => m.id !== id));
             setMatchMessages((prev) => prev.filter((m) => m.id !== id));
+          } else if (ev.type === "pinned") {
+            setPinned((ev.text as string) ?? "");
           } else if (ev.type === "chat_update") {
             // Moderation: censored text — replace in place, keep position.
             const m = ev.message as ChatMessage;
@@ -265,6 +272,7 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
     <Ctx.Provider
       value={{
         online,
+        pinned,
         messages,
         matchMessages,
         activeRoom,

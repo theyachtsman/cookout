@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from "react";
 import {
   CREATOR_FEE_SHARE,
   TIER_CONFIGS,
+  TIER_UNLOCK_LEVEL,
+  type RiskTier,
   type TokenConcept,
 } from "@cookout/shared";
 import { api } from "../../lib/api";
@@ -23,6 +25,7 @@ export default function Submissions() {
     pitch: "",
     artworkUrl: "",
     totalSupply: "",
+    tier: "rookie" as RiskTier,
   });
   const [error, setError] = useState("");
 
@@ -43,7 +46,15 @@ export default function Submissions() {
           totalSupply: form.totalSupply ? Number(form.totalSupply) : undefined,
         },
       });
-      setForm({ name: "", symbol: "", theme: "", pitch: "", artworkUrl: "", totalSupply: "" });
+      setForm({
+        name: "",
+        symbol: "",
+        theme: "",
+        pitch: "",
+        artworkUrl: "",
+        totalSupply: "",
+        tier: "rookie",
+      });
       load();
     } catch (e) {
       setError((e as Error).message);
@@ -122,6 +133,56 @@ export default function Submissions() {
                   className="w-44 rounded border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-sm"
                 />
               </label>
+            </div>
+            {/* Risk tier — creator-chosen, level-gated like playing the tier. */}
+            <div className="md:col-span-2">
+              <div className="mb-1.5 text-xs text-zinc-500">
+                Risk tier — sets the stakes and pace of your coin&apos;s match
+              </div>
+              <div className="grid gap-2 sm:grid-cols-3">
+                {(
+                  [
+                    ["rookie", "🥾", "Training grounds — gentler stakes, forgiving pace."],
+                    ["standard", "⚔️", "The main arena — real pace, real crowds."],
+                    ["degen", "☠️", "Max stakes, max chaos. Not for the faint."],
+                  ] as Array<[RiskTier, string, string]>
+                ).map(([tier, icon, blurb]) => {
+                  const unlockAt = TIER_UNLOCK_LEVEL[tier];
+                  const locked = (profile.level ?? 1) < unlockAt;
+                  const active = form.tier === tier;
+                  return (
+                    <button
+                      key={tier}
+                      disabled={locked}
+                      onClick={() => setForm({ ...form, tier })}
+                      title={locked ? `Reach level ${unlockAt} to launch ${tier} coins` : blurb}
+                      className={`rounded-xl border p-3 text-left transition ${
+                        active
+                          ? "border-lime-400/70 bg-lime-400/10"
+                          : locked
+                            ? "cursor-not-allowed border-zinc-800 opacity-45"
+                            : "border-zinc-700 hover:border-zinc-500"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-black capitalize">
+                          {icon} {tier}
+                        </span>
+                        {locked ? (
+                          <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-bold text-zinc-400">
+                            🔒 Lv{unlockAt}
+                          </span>
+                        ) : active ? (
+                          <span className="rounded bg-lime-400/20 px-1.5 py-0.5 text-[10px] font-bold text-lime-300">
+                            selected
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="mt-1 text-[11px] leading-snug text-zinc-500">{blurb}</div>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
             <button
               onClick={() => void submit()}
