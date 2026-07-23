@@ -37,11 +37,13 @@ const SECTIONS = [
   ["auction", "The Fair Open"],
   ["trading", "Live Trading"],
   ["endings", "Rugs, Redemption & Graduation"],
+  ["reputation", "Reputation & Rug Bans"],
   ["tiers", "Risk Tiers"],
   ["progression", "XP, Levels & Titles"],
   ["jackpot", "The Weekly Jackpot"],
   ["quests", "Quests & Earning XP"],
   ["badges", "Badges & Achievements"],
+  ["grill", "The Grill (Chat)"],
   ["creators", "Launching Your Own Coin"],
   ["faq", "FAQ"],
 ] as const;
@@ -220,14 +222,67 @@ export default function Docs() {
             </li>
             <li>
               <b>🔥 Rug</b> — the pool drains hard or the developer dumps. The kill feed calls it{" "}
-              <b>Burnt</b>. Rugging tanks the creator&apos;s reputation and flags their wallet.
-              Note: creator sells are time-locked after the open on lower tiers — check the
-              round&apos;s tokenomics panel.
+              <b>Burnt</b>. Rugging tanks the creator&apos;s reputation and earns their wallet a{" "}
+              <b>launch ban</b> (see <a href="#reputation" className="text-lime-400 underline">Reputation
+              &amp; Rug Bans</a>). Note: creator sells are time-locked after the open on lower tiers
+              — check the round&apos;s tokenomics panel.
             </li>
           </ul>
           <p className="text-zinc-400">
             Rounds last minutes, exposure is capped on lower tiers, and there is no such thing as
             being stuck holding an unsellable token here.
+          </p>
+        </Section>
+
+        <Section id="reputation" title="Reputation & Rug Bans">
+          <p>
+            Every creator carries a public <b>reputation score</b> — it&apos;s on your profile, your
+            public profile, and your creator page for anyone to check before they vote your coin up.
+          </p>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {[
+              ["+2", "Coin graduates", "text-emerald-300"],
+              ["+1", "Any clean launch", "text-lime-300"],
+              ["−5 + ban", "Your coin rugs", "text-red-300"],
+            ].map(([pts, label, tone]) => (
+              <div key={label as string} className="rounded-xl border border-zinc-800 p-3">
+                <div className={`font-mono text-lg font-black ${tone}`}>{pts}</div>
+                <div className="text-xs text-zinc-400">{label}</div>
+              </div>
+            ))}
+          </div>
+          <p>
+            When a coin you launched rugs, your wallet earns a <b>launch ban</b>. A ban blocks one
+            thing only: <b>putting new coins on the ballot</b>. You can still trade every match,
+            chat in <a href="#grill" className="text-lime-400 underline">The Grill</a>, earn XP, and
+            climb the leaderboard exactly as before — but banned players wear a{" "}
+            <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-xs font-black uppercase text-red-300">
+              🚫 banned
+            </span>{" "}
+            badge on their name in chat until the ban lifts.
+          </p>
+          <p>
+            <b>Clearing a ban</b> depends on the phase you&apos;re playing in — your{" "}
+            <Link href="/profile" className="text-lime-400 underline">Profile</Link> always shows
+            which applies to you, in the <b>Reputation</b> panel:
+          </p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>
+              <b>Paper beta — self-serve.</b> A rug ban is a lesson, not a sentence. Open your
+              Reputation panel and hit <b>Clear my ban</b> to lift it yourself and get back to
+              launching. The rug still stays on your record forever — reputation remembers, even
+              after the ban is gone.
+            </li>
+            <li>
+              <b>Real-money phases — wait it out.</b> Bans lift themselves on a timer, and repeat
+              rugs wait longer each time. Your Reputation panel shows a live countdown to when
+              you&apos;re clear.
+            </li>
+          </ul>
+          <p className="text-zinc-400">
+            Either way, the whole history lives on your creator page — every launch, every
+            graduation, and every rug. Reputation is the point: it&apos;s what tells the crowd
+            whether your next coin is worth a vote.
           </p>
         </Section>
 
@@ -648,25 +703,125 @@ export default function Docs() {
           })}
         </Section>
 
+        <Section id="grill" title="The Grill (Chat)">
+          <p>
+            <b>The Grill</b> is the always-on chat that follows you across the whole site — it never
+            logs out and never leaves the screen. It lives in the dock at the{" "}
+            <b>bottom-left corner</b>: a small tab when closed (showing who&apos;s online and an
+            unread count), the full console when open. Here&apos;s the console, labelled:
+          </p>
+
+          <GrillDiagram />
+
+          <p className="mt-4">Three things share the dock, switched by the tabs up top:</p>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>
+              <b>💬 Chat</b> — the conversation. It has <b>channels</b> (see below).
+            </li>
+            <li>
+              <b>Feed</b> — a live ticker of what players are doing right now: pull-ups, wins, rekts,
+              graduations, level-ups. Flip it to <b>Following</b> to see only people you follow.
+            </li>
+            <li>
+              <b>People</b> — everyone online, grouped by what they&apos;re doing (trading, in queue,
+              spectating, hanging out). Tap a name to open their card and follow them.
+            </li>
+          </ul>
+
+          <h3 className="mt-6 text-lg font-black text-zinc-100">Channels</h3>
+          <p>
+            Chat isn&apos;t one firehose — it&apos;s split into channels so the right talk reaches
+            the right people. The dock switches you automatically as you move around the site:
+          </p>
+          <div className="grid gap-3 sm:grid-cols-3">
+            {[
+              [
+                "🔥 The Grill",
+                "The house channel — always there. Site-wide banter plus house announcements: coin launches, match results, and rotating tips.",
+              ],
+              [
+                "🗳️ Vote",
+                "Appears when you're on the Vote page. Campaign for your coin and talk shortlists with the people actually voting — without flooding The Grill.",
+              ],
+              [
+                "$SYMBOL",
+                "A match's own room, live while you're in that round. This is the trench talk — it drops back to The Grill when you leave.",
+              ],
+            ].map(([name, desc]) => (
+              <div key={name as string} className="rounded-xl border border-zinc-800 p-3">
+                <div className="text-sm font-black text-lime-300">{name}</div>
+                <div className="mt-1 text-xs text-zinc-400">{desc}</div>
+              </div>
+            ))}
+          </div>
+
+          <h3 className="mt-6 text-lg font-black text-zinc-100">Good to know</h3>
+          <ul className="list-disc space-y-2 pl-5">
+            <li>
+              <b>Newest message sits at the bottom</b> and the log auto-scrolls to it — like every
+              chat app you already use.
+            </li>
+            <li>
+              <b>📌 Pinned</b> — a pinned announcement sits above the log and stays put; house tips
+              and launch/result banners fade out on their own after 30 seconds so the channel
+              doesn&apos;t clog.
+            </li>
+            <li>
+              <b>Emoji &amp; spam bar</b> — the emoji picker drops into your message at the cursor;
+              the quick-react bar fires single emoji Twitch-style, one tap each.
+            </li>
+            <li>
+              <b>Your name</b> carries your level and any equipped badge/color. A{" "}
+              <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-xs font-black uppercase text-red-300">
+                🚫 banned
+              </span>{" "}
+              tag means that wallet has an active rug ban — they can still chat, they just
+              can&apos;t launch coins (see{" "}
+              <a href="#reputation" className="text-lime-400 underline">Reputation</a>).
+            </li>
+            <li>
+              Match rooms <b>freeze</b> when the round ends — you can still read the legendary
+              moments, but new messages move to The Grill.
+            </li>
+          </ul>
+        </Section>
+
         <Section id="creators" title="Launching Your Own Coin">
           <ol className="list-decimal space-y-2 pl-5">
             <li>
               Submit a concept on the <Link href="/submissions" className="text-lime-400 underline">Launchpad</Link>:
-              name, symbol, theme, art, and your own total supply. Tokens deploy from the platform
-              template only — you never supply code, and no mint/pause/blacklist functions exist.
+              name, symbol, theme, art, your own total supply, a <b>risk tier</b>, and a{" "}
+              <b>match length</b> (10, 5, or 1 minute of live trading). Tokens deploy from the
+              platform template only — you never supply code, and no mint/pause/blacklist functions
+              exist.
             </li>
             <li>
-              The community votes. <b>{VOTE_THRESHOLD} upvotes</b> auto-shortlists you; the window
-              closes after 24 hours.
+              The community votes. <b>{VOTE_THRESHOLD} upvotes</b> puts your coin straight onto the
+              match calendar at your chosen tier and length; the window closes after 24 hours.
             </li>
-            <li>The committee schedules shortlisted concepts into match slots.</li>
             <li>
               Your round runs. You earn <b>{CREATOR_FEE_SHARE * 100}% of the round&apos;s trading
               fees</b>, reputation for clean launches (double for graduations), and a permanent
-              &quot;Launched by&quot; credit. Rugging your own round tanks your reputation and
-              flags your wallet.
+              &quot;Launched by&quot; credit. Rugging your own round tanks your reputation and{" "}
+              <a href="#reputation" className="text-lime-400 underline">bans you from launching</a>{" "}
+              until the ban clears.
             </li>
           </ol>
+
+          <h3 className="mt-6 text-lg font-black text-zinc-100">🔁 Run It Back</h3>
+          <p>
+            A coin that doesn&apos;t graduate isn&apos;t done — its developer gets a second serving.
+            On any of your failed coins you&apos;ll see a <b>Run It Back</b> button — on the coin
+            card in the <Link href="/matches" className="text-lime-400 underline">Match Calendar</Link>
+            &apos;s Past Results, and on your{" "}
+            <Link href="/profile" className="text-lime-400 underline">creator page</Link> launches.
+            One click re-launches the coin with the <b>exact same setup</b> — same tier, same match
+            length, same tokenomics — straight back onto the calendar, no new vote needed.
+          </p>
+          <p className="text-zinc-400">
+            Only the coin&apos;s own developer can run it back. (If you launched under a rug ban,
+            you&apos;ll need to clear it first — same gate as a fresh launch.)
+          </p>
         </Section>
 
         <Section id="faq" title="FAQ">
@@ -683,6 +838,18 @@ export default function Docs() {
             <Faq q="What happens to my tokens when a round ends without graduating?">
               Automatic uniform redemption: every remaining holder exits at the same price,
               pro-rata against the pool. You always get out; the only question is the price.
+            </Faq>
+            <Faq q="My coin rugged / didn't graduate — can I launch again?">
+              A coin that <b>didn&apos;t graduate</b> (timed out or went quiet) can be re-launched
+              instantly with <b>Run It Back</b> — same setup, no new vote. A coin that{" "}
+              <b>rugged</b> earns your wallet a launch ban first; clear it from the Reputation panel
+              on your <a href="#reputation" className="text-lime-400 underline">Profile</a> (or wait
+              it out, in real-money phases), then you&apos;re free to launch again.
+            </Faq>
+            <Faq q="I got a 🚫 banned tag — what can't I do?">
+              Just one thing: put new coins on the ballot. You can still trade every match, chat,
+              earn XP, and climb the leaderboard. See{" "}
+              <a href="#reputation" className="text-lime-400 underline">Reputation &amp; Rug Bans</a>.
             </Faq>
             <Faq q="Why did my limit intent get refunded?">
               The clearing price landed above your max. That&apos;s the limit doing its job — full
@@ -715,6 +882,100 @@ export default function Docs() {
           </dl>
         </Section>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Visual aide for the chat section: a static, labelled replica of the live
+ * SocialDock so a reader can map every part of the console to a name before
+ * they ever open it. Numbered pins tie the mock to the legend beneath.
+ */
+function Pin({ n }: { n: number }) {
+  return (
+    <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-lime-400 text-[10px] font-black text-zinc-950">
+      {n}
+    </span>
+  );
+}
+
+function GrillDiagram() {
+  return (
+    <div className="not-prose my-4 grid gap-5 rounded-2xl border border-zinc-800 bg-zinc-900/40 p-4 sm:grid-cols-[minmax(0,20rem)_1fr] sm:items-center">
+      {/* the mock console */}
+      <div className="overflow-hidden rounded-2xl border border-zinc-700 bg-zinc-950/95 shadow-2xl shadow-black/50">
+        {/* header: channels + tabs */}
+        <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
+          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-lime-400" title="connected" />
+          <div className="flex min-w-0 items-center gap-1 text-[11px] font-black">
+            <span className="rounded-full bg-zinc-700 px-2 py-0.5 text-zinc-100">🔥 The Grill</span>
+            <span className="truncate rounded-full px-2 py-0.5 text-lime-300/80">$DOGE</span>
+            <Pin n={1} />
+          </div>
+          <div className="ml-auto flex items-center gap-1">
+            <div className="flex overflow-hidden rounded-full bg-zinc-900 p-0.5 text-[11px] font-bold">
+              <span className="rounded-full bg-zinc-700 px-2 py-0.5 text-zinc-100">Chat</span>
+              <span className="px-2 py-0.5 text-zinc-500">Feed</span>
+              <span className="px-2 py-0.5 text-zinc-500">18</span>
+            </div>
+            <Pin n={2} />
+          </div>
+        </div>
+        {/* pinned bar */}
+        <div className="flex items-center gap-1.5 border-b border-amber-400/30 bg-amber-400/[0.08] px-3 py-1.5 text-[11px] font-bold text-amber-200">
+          📌 New here? Menu → Make a Coin to launch your own.
+          <span className="ml-auto"><Pin n={3} /></span>
+        </div>
+        {/* messages */}
+        <div className="space-y-1 px-3 py-2 text-[12px] leading-snug">
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-mono text-[9px] text-zinc-600">7</span>
+            <span className="font-bold text-zinc-300">chef_mike</span>
+            <span className="text-zinc-300">first pull-up lfg 🔥</span>
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="font-mono text-[9px] text-zinc-600">3</span>
+            <span className="font-bold text-zinc-300">saucedup</span>
+            <span className="rounded bg-red-500/20 px-1 py-px text-[9px] font-black uppercase text-red-300">
+              🚫 banned
+            </span>
+            <span className="text-zinc-300">still here, still trading 😎</span>
+            <span className="ml-1"><Pin n={4} /></span>
+          </div>
+          <div className="rounded bg-amber-400/[0.06] px-1.5 py-1 text-[11px] text-amber-200/90">
+            📢 $DOGE just went LIVE — pull up
+          </div>
+        </div>
+        {/* quick emoji + input */}
+        <div className="flex items-center gap-1 border-t border-zinc-800 px-2 py-1 text-sm">
+          <span>🔥</span><span>🚀</span><span>💀</span><span>😂</span>
+          <span className="ml-auto"><Pin n={5} /></span>
+        </div>
+        <div className="flex items-center gap-1.5 border-t border-zinc-800 p-2">
+          <span className="min-w-0 flex-1 truncate rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-xs text-zinc-500">
+            say something to the whole cookout…
+          </span>
+          <span className="rounded-lg bg-lime-400 px-3 py-1.5 text-xs font-black text-zinc-950">Send</span>
+        </div>
+      </div>
+
+      {/* legend */}
+      <ol className="space-y-2.5 text-sm text-zinc-300">
+        {[
+          ["Channels", "The room you're talking in. 🔥 The Grill is always here; a $SYMBOL room shows up while you're in that match."],
+          ["Tabs", "Switch between Chat, the live Feed, and People (online count)."],
+          ["Pinned", "A house message that stays put above the log."],
+          ["Banned tag", "That wallet has an active rug ban — they can chat, not launch."],
+          ["Quick reacts", "Tap an emoji to fire it instantly; the picker also drops emoji into your message."],
+        ].map(([label, desc], i) => (
+          <li key={label} className="flex gap-2.5">
+            <Pin n={i + 1} />
+            <span>
+              <b className="text-zinc-100">{label}.</b> {desc}
+            </span>
+          </li>
+        ))}
+      </ol>
     </div>
   );
 }
