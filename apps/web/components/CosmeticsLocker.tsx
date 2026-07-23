@@ -57,7 +57,7 @@ export function CosmeticsLocker() {
 
   return (
     <div>
-      <h2 className="mb-1 text-lg font-bold">Cosmetics</h2>
+      <h2 className="mb-1 text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Locker</h2>
       <p className="mb-3 text-xs text-zinc-500">
         Cosmetic only. Unlocked by playing, never purchasable, never pay-to-win.
       </p>
