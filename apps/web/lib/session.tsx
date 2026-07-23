@@ -18,6 +18,12 @@ export interface Profile {
   achievements: string[];
   referralCode: string;
   creatorReputation: number;
+  /** Active rug ban? (server-computed; blocks launching, never chatting) */
+  banned?: boolean;
+  /** Rug-ban record, oldest first — history stays after a ban is lifted. */
+  rugBans?: import("@cookout/shared").RugBan[];
+  /** This environment lets players clear their own rug ban (paper beta). */
+  selfServeUnban?: boolean;
   stats: Record<string, number>;
   jackpotWinnings?: number;
   jackpotWins?: { week: string; rank: number; amountEth: number; amountUsd: number; at: number }[];

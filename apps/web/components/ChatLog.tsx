@@ -197,6 +197,14 @@ function Line({ m, me, myName }: { m: ChatMessage; me?: string; myName?: string 
           m.color ? "" : mine ? "text-lime-300" : "text-zinc-300"
         }`}
       />
+      {m.banned && (
+        <span
+          className="shrink-0 rounded bg-red-500/20 px-1 py-px text-[9px] font-black uppercase tracking-wide text-red-300"
+          title="This wallet has an active rug ban — it can chat but can't launch coins."
+        >
+          🚫 banned
+        </span>
+      )}
       <span className="min-w-0 break-words text-zinc-300">{highlight(m.text)}</span>
       <span className="ml-auto hidden shrink-0 font-mono text-[9px] text-zinc-700 group-hover:inline">
         {time(m.at)}

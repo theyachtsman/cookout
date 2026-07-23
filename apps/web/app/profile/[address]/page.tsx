@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import { ACHIEVEMENTS, type JackpotWin, type RoundHistoryEntry } from "@cookout/shared";
+import { ACHIEVEMENTS, type JackpotWin, type RoundHistoryEntry, type RugBan } from "@cookout/shared";
 import { api } from "../../../lib/api";
 import { useUnit } from "../../../lib/chainOnly";
+import { ReputationPanel } from "../../../components/Reputation";
 
 interface PublicProfile {
   address: string;
@@ -16,6 +17,8 @@ interface PublicProfile {
   title: string;
   achievements: string[];
   creatorReputation: number;
+  banned?: boolean;
+  rugBans?: RugBan[];
   stats: Record<string, number>;
   jackpotWinnings?: number;
   jackpotWins?: JackpotWin[];
@@ -58,6 +61,11 @@ export default function PublicProfilePage() {
           <h1 className="text-2xl font-black">
             {profile.displayName ?? `${profile.address.slice(0, 8)}…${profile.address.slice(-6)}`}
           </h1>
+          {profile.banned && (
+            <span className="rounded bg-red-500/20 px-2 py-0.5 text-xs font-black uppercase tracking-wide text-red-300">
+              🚫 banned
+            </span>
+          )}
         </div>
         <div className="mt-1 text-sm text-zinc-400">
           Level {profile.level} · {profile.title} · {profile.xp} XP
@@ -71,6 +79,14 @@ export default function PublicProfilePage() {
           )}
         </div>
       </div>
+
+      {(profile.banned || (profile.rugBans?.length ?? 0) > 0 || profile.creatorReputation !== 0) && (
+        <ReputationPanel
+          reputation={profile.creatorReputation}
+          bans={profile.rugBans ?? []}
+          banned={!!profile.banned}
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {[

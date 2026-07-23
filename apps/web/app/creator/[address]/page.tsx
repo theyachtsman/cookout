@@ -3,9 +3,10 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
-import type { Round, RoundSummary, TokenConcept } from "@cookout/shared";
+import type { Round, RoundSummary, RugBan, TokenConcept } from "@cookout/shared";
 import { api } from "../../../lib/api";
 import { useUnit } from "../../../lib/chainOnly";
+import { ReputationPanel } from "../../../components/Reputation";
 
 interface CreatorView {
   address: string;
@@ -13,6 +14,8 @@ interface CreatorView {
   level: number;
   title: string;
   creatorReputation: number;
+  banned?: boolean;
+  rugBans?: RugBan[];
   feesEarned: number;
   concepts: TokenConcept[];
   rounds: Array<{ round: Round; summary: RoundSummary | null }>;
@@ -70,6 +73,11 @@ export default function CreatorPage() {
           >
             {tier} creator
           </span>
+          {view.banned && (
+            <span className="rounded bg-red-500/20 px-2 py-0.5 text-xs font-black uppercase tracking-wide text-red-300">
+              🚫 launch ban
+            </span>
+          )}
           <Link href={`/profile/${view.address}`} className="ml-auto text-sm text-zinc-400 hover:text-zinc-200">
             player profile →
           </Link>
@@ -78,6 +86,14 @@ export default function CreatorPage() {
           Reputation {view.creatorReputation} · fees earned {view.feesEarned.toFixed(3)} {unit}
         </div>
       </div>
+
+      {(view.banned || (view.rugBans?.length ?? 0) > 0) && (
+        <ReputationPanel
+          reputation={view.creatorReputation}
+          bans={view.rugBans ?? []}
+          banned={!!view.banned}
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-6">
         {[

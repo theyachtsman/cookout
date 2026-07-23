@@ -220,6 +220,8 @@ export interface ChatMessage {
   color?: string;
   /** Level at send time — drives the rank chip beside the name. */
   level?: number;
+  /** Sender had an active rug ban at send time — renders a 🚫 badge. */
+  banned?: boolean;
   /** Match system events (queue opened, bond complete, rug…) render as
    *  inline banners rather than player messages. */
   system?: boolean;
@@ -242,6 +244,9 @@ export type SystemChatKind =
 
 /** The always-on community room every connected player sits in. */
 export const GLOBAL_ROOM = "global";
+
+/** The Vote page's own channel — launchpad talk stays out of The Grill. */
+export const VOTE_ROOM = "vote";
 
 /** Where a player is right now — drives presence dots across the site. */
 export type PresenceStatus =
@@ -313,11 +318,38 @@ export interface UserProfile {
   referredBy?: Address;
   createdAt: number;
   creatorReputation: number;
+  /** Rug-ban record, oldest first. The LAST entry is the live one; earlier
+   *  entries are history and stay on the profile even after being lifted. */
+  rugBans?: RugBan[];
+  /** Computed at serialization time: does this wallet have an active ban? */
+  banned?: boolean;
   stats: UserStats;
   /** Lifetime jackpot winnings (paper ETH in Phase 1). */
   jackpotWinnings?: number;
   /** Individual weekly jackpot wins, newest last (shown on profiles). */
   jackpotWins?: JackpotWin[];
+}
+
+/**
+ * One launch ban earned by rugging a coin. Two flavors, set by live-ops:
+ *  - self-serve (paper beta): no expiry — the player clears it from their own
+ *    profile (or an admin does), and the record stays visible;
+ *  - wait-out (real-money): `expiresAt` is set from the admin-configurable
+ *    escalation schedule — repeat offenses wait longer — and only time or an
+ *    admin lifts it.
+ */
+export interface RugBan {
+  at: number;
+  /** The round that was rugged. */
+  roundId?: string;
+  symbol?: string;
+  tier?: RiskTier;
+  /** 1st, 2nd, 3rd rug… drives the escalation schedule. */
+  offense: number;
+  /** Wait-out mode: when the ban lifts itself. Absent = until lifted. */
+  expiresAt?: number;
+  liftedAt?: number;
+  liftedBy?: "self" | "admin" | "timeout";
 }
 
 /** A single weekly jackpot win, recorded on the winner's profile. */

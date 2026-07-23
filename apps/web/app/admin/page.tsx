@@ -222,6 +222,168 @@ function AnnouncementsEditor({
   );
 }
 
+interface BannedRow {
+  address: string;
+  displayName?: string;
+  level: number;
+  creatorReputation: number;
+  bans: Array<{
+    at: number;
+    symbol?: string;
+    tier?: string;
+    offense: number;
+    expiresAt?: number;
+    liftedAt?: number;
+    liftedBy?: string;
+  }>;
+  active: boolean;
+}
+
+/**
+ * Rug bans: who's banned from launching, the self-serve/wait-out mode switch,
+ * and the escalation schedule. Paper beta runs self-serve (players clear
+ * their own ban from their profile); the real-money config makes offenders
+ * wait out the schedule — repeat rugs wait longer. Unban here lifts any
+ * active ban instantly (the record stays).
+ */
+function RugBansPanel({
+  adminKey,
+  act,
+}: {
+  adminKey: string;
+  act: (path: string, body?: unknown, method?: string) => Promise<void>;
+}) {
+  const [data, setData] = useState<{
+    selfServeUnban: boolean;
+    rugBanHours: number[];
+    banned: BannedRow[];
+  } | null>(null);
+  const [hours, setHours] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    api<{ selfServeUnban: boolean; rugBanHours: number[]; banned: BannedRow[] }>(
+      "/api/admin/banned",
+      { admin: adminKey },
+    )
+      .then(setData)
+      .catch(() => {});
+  }, [adminKey]);
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 10_000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const hoursVal = hours ?? (data?.rugBanHours ?? []).join(", ");
+
+  const fmtLeft = (ms: number) => {
+    const m = Math.max(1, Math.ceil(ms / 60_000));
+    const d = Math.floor(m / 1440);
+    const h = Math.floor((m % 1440) / 60);
+    return d > 0 ? `${d}d ${h}h` : h > 0 ? `${h}h ${m % 60}m` : `${m}m`;
+  };
+
+  return (
+    <div className="rounded-lg border border-zinc-800 p-3">
+      <div className="flex flex-wrap items-center gap-3 border-b border-zinc-800 pb-3 text-sm">
+        <button
+          onClick={() =>
+            void act("/api/admin/settings", { selfServeUnban: !data?.selfServeUnban }).then(load)
+          }
+          className={`rounded px-3 py-1.5 text-sm font-bold ${
+            data?.selfServeUnban ? "bg-emerald-900/60 text-emerald-300" : "bg-amber-900/50 text-amber-300"
+          }`}
+          title="ON = paper beta: players clear their own rug ban from their profile. OFF = wait-out mode: bans expire on the schedule; only time or you lift them."
+        >
+          {data?.selfServeUnban ? "🟢 Self-serve unban (paper beta)" : "⏳ Wait-out bans (schedule)"}
+        </button>
+        <label className="flex items-center gap-2 text-xs text-zinc-500">
+          ban hours by offense
+          <input
+            value={hoursVal}
+            onChange={(e) => setHours(e.target.value)}
+            placeholder="24, 72, 168"
+            className="w-36 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-xs"
+          />
+          <button
+            disabled={hours === null}
+            onClick={() =>
+              void act("/api/admin/settings", {
+                rugBanHours: hoursVal
+                  .split(/[,\s]+/)
+                  .map((h) => Number(h))
+                  .filter((h) => Number.isFinite(h) && h > 0),
+              }).then(() => {
+                setHours(null);
+                load();
+              })
+            }
+            className="rounded bg-lime-500 px-2 py-1 text-xs font-bold text-zinc-950 hover:bg-lime-400 disabled:opacity-40"
+          >
+            save
+          </button>
+        </label>
+        <span className="text-xs text-zinc-600">
+          1st, 2nd, 3rd rug… last entry repeats. Only used in wait-out mode.
+        </span>
+      </div>
+
+      <div className="mt-2 max-h-72 space-y-1 overflow-y-auto">
+        {(data?.banned ?? []).map((row) => {
+          const last = row.bans[row.bans.length - 1];
+          return (
+            <div
+              key={row.address}
+              className={`flex flex-wrap items-center gap-2 rounded px-2 py-1.5 text-xs ${
+                row.active ? "bg-red-500/10" : "bg-zinc-900/60"
+              }`}
+            >
+              <span className={row.active ? "font-black text-red-300" : "text-zinc-500"}>
+                {row.active ? "🚫" : "✓"}
+              </span>
+              <a
+                href={`/profile/${row.address}`}
+                className="font-bold text-zinc-200 hover:underline"
+              >
+                {row.displayName ?? `${row.address.slice(0, 6)}…${row.address.slice(-4)}`}
+              </a>
+              <span className="font-mono text-zinc-600">{row.address.slice(0, 10)}…</span>
+              <span className="text-zinc-500">
+                {row.bans.length} rug{row.bans.length === 1 ? "" : "s"} · rep{" "}
+                {row.creatorReputation}
+              </span>
+              {last && (
+                <span className="text-zinc-500">
+                  last: {last.symbol ? `$${last.symbol} · ` : ""}
+                  {new Date(last.at).toLocaleDateString()}
+                </span>
+              )}
+              <span className="ml-auto text-zinc-400">
+                {row.active
+                  ? last?.expiresAt
+                    ? `auto-lifts in ${fmtLeft(last.expiresAt - Date.now())}`
+                    : "until lifted"
+                  : `lifted (${last?.liftedBy ?? "?"})`}
+              </span>
+              {row.active && (
+                <button
+                  onClick={() => void act(`/api/admin/users/${row.address}/unban`).then(load)}
+                  className="rounded bg-emerald-600 px-2 py-0.5 font-bold text-white hover:bg-emerald-500"
+                >
+                  unban
+                </button>
+              )}
+            </div>
+          );
+        })}
+        {(data?.banned ?? []).length === 0 && (
+          <div className="p-3 text-xs text-zinc-600">No rug bans on record. Clean grill. 🍳</div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function FlagClearer({ act }: { act: (path: string, body?: unknown, method?: string) => Promise<void> }) {
   const [addr, setAddr] = useState("");
   return (
@@ -809,8 +971,11 @@ export default function AdminPage() {
       </section>
 
       <section>
-        <h2 className="mb-2 font-bold">Creator Flags</h2>
-        <FlagClearer act={act} />
+        <h2 className="mb-2 font-bold">🚫 Rug Bans &amp; Reputation</h2>
+        <RugBansPanel adminKey={key} act={act} />
+        <div className="mt-2">
+          <FlagClearer act={act} />
+        </div>
       </section>
 
       <section>

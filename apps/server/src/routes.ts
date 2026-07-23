@@ -23,7 +23,7 @@ import { resolvePrivyLogin, type PrivyResolver } from "./privy.js";
 import { Err, type Broadcast, type RoundEngine } from "./engine.js";
 import { jackpotStatus } from "./jackpot.js";
 import { rateLimit } from "./ratelimit.js";
-import type { Store, StoredUser } from "./store.js";
+import { activeRugBan, type Store, type StoredUser } from "./store.js";
 import { GLOBAL_ROOM, spotPrice } from "@cookout/shared";
 
 const PAUSE_LIMIT = 3;
@@ -160,6 +160,8 @@ export function createApp(
         // Dev-wallet flag: the client uses it to gate the admin page UI.
         // Real authorization stays on ADMIN_KEY for every admin API call.
         isDev: isDevWallet(req.userAddress!),
+        // Whether this environment lets players clear their own rug ban.
+        selfServeUnban: store.settings.selfServeUnban,
       }),
     ),
   );
@@ -172,6 +174,25 @@ export function createApp(
       const { displayName, avatarUrl } = req.body as { displayName?: string; avatarUrl?: string };
       if (displayName !== undefined) u.displayName = String(displayName).slice(0, 24);
       if (avatarUrl !== undefined) u.avatarUrl = sanitizeImageUrl(avatarUrl);
+      res.json(publicProfile(u, true));
+    }),
+  );
+
+  /** Paper-beta self-service: clear your own rug ban. The record stays on the
+   *  profile — lifting a ban never erases the history. Wait-out environments
+   *  (selfServeUnban off) refuse: time or an admin lifts those. */
+  app.post(
+    "/api/me/reputation/unban",
+    auth,
+    wrap((req, res) => {
+      if (!store.settings.selfServeUnban)
+        throw new Err(403, "bans here lift on a schedule — wait it out or appeal to a moderator");
+      const u = store.getOrCreateUser(req.userAddress!);
+      const ban = activeRugBan(u);
+      if (!ban) throw new Err(400, "no active ban on this wallet");
+      ban.liftedAt = Date.now();
+      ban.liftedBy = "self";
+      store.logAdmin("self_unban", `${u.address} cleared their own rug ban (offense #${ban.offense})`);
       res.json(publicProfile(u, true));
     }),
   );
@@ -309,6 +330,8 @@ export function createApp(
         level: u.level,
         title: u.title,
         creatorReputation: u.creatorReputation,
+        banned: !!activeRugBan(u),
+        rugBans: u.rugBans ?? [],
         feesEarned: u.feesEarned,
         concepts,
         rounds,
@@ -368,6 +391,8 @@ export function createApp(
         announceTips,
         announceEveryMin,
         pinnedAnnouncement,
+        selfServeUnban,
+        rugBanHours,
       } = req.body as {
         autoSchedule?: boolean;
         tier?: RiskTier;
@@ -376,6 +401,8 @@ export function createApp(
         announceTips?: string[];
         announceEveryMin?: number;
         pinnedAnnouncement?: string;
+        selfServeUnban?: boolean;
+        rugBanHours?: number[];
       };
       if (autoSchedule !== undefined) store.settings.autoSchedule = !!autoSchedule;
       if (bots !== undefined) store.settings.bots = !!bots;
@@ -389,6 +416,11 @@ export function createApp(
           .slice(0, 12);
       if (announceEveryMin !== undefined)
         store.settings.announceEveryMin = Math.max(0, Math.min(1440, Number(announceEveryMin) || 0));
+      if (selfServeUnban !== undefined) store.settings.selfServeUnban = !!selfServeUnban;
+      if (Array.isArray(rugBanHours) && rugBanHours.length > 0)
+        store.settings.rugBanHours = rugBanHours
+          .map((h) => Math.max(1, Math.min(24 * 365, Math.round(Number(h) || 0))))
+          .slice(0, 10);
       if (pinnedAnnouncement !== undefined) {
         store.settings.pinnedAnnouncement = String(pinnedAnnouncement).trim().slice(0, 280);
         // Connected clients swap the pin live; "" clears it everywhere.
@@ -575,12 +607,16 @@ export function createApp(
             `level ${TIER_UNLOCK_LEVEL[tier]} required to launch a ${tier} coin (you're level ${creator.level})`,
           );
       }
-      // Creator vetting (spec §5.2): cooldown + rug-flag screen, audit-trailed.
-      const flagged = creator.creatorReputation < 0;
+      // Creator vetting (spec §5.2): cooldown + rug-ban screen, audit-trailed.
+      const ban = activeRugBan(creator);
       const recent = [...store.concepts.values()].filter(
         (c) => c.creatorAddress === creator.address && Date.now() - c.createdAt < 60 * 60 * 1000,
       );
-      if (flagged) throw new Err(403, "creator wallet is flagged from a prior rug");
+      if (ban)
+        throw new Err(
+          403,
+          "this wallet is banned from launching coins after a rug — check the Reputation section on your Profile page",
+        );
       if (recent.length >= 3) throw new Err(429, "creator cooldown: max 3 submissions per hour");
       const concept: TokenConcept = {
         id: store.id(),
@@ -1155,6 +1191,51 @@ export function createApp(
     }),
   );
 
+  /** Every wallet with a rug-ban record — active bans first, then by most
+   *  recent. Feeds the admin "Rug Bans" panel with one-click unban. */
+  app.get(
+    "/api/admin/banned",
+    admin,
+    wrap((_req, res) => {
+      const rows = [...store.users.values()]
+        .filter((u) => u.rugBans?.length)
+        .map((u) => ({
+          address: u.address,
+          displayName: u.displayName,
+          level: u.level,
+          creatorReputation: u.creatorReputation,
+          bans: u.rugBans!,
+          active: !!activeRugBan(u),
+        }))
+        .sort(
+          (a, b) =>
+            Number(b.active) - Number(a.active) ||
+            (b.bans[b.bans.length - 1]?.at ?? 0) - (a.bans[a.bans.length - 1]?.at ?? 0),
+        );
+      res.json({
+        selfServeUnban: store.settings.selfServeUnban,
+        rugBanHours: store.settings.rugBanHours,
+        banned: rows,
+      });
+    }),
+  );
+
+  /** Lift a wallet's active rug ban (the record stays, marked "admin"). */
+  app.post(
+    "/api/admin/users/:address/unban",
+    admin,
+    wrap((req, res) => {
+      const u = store.users.get(req.params.address!.toLowerCase());
+      if (!u) throw new Err(404, "user not found");
+      const ban = activeRugBan(u);
+      if (!ban) throw new Err(400, "no active rug ban on this wallet");
+      ban.liftedAt = Date.now();
+      ban.liftedBy = "admin";
+      store.logAdmin("unban", `${u.address} rug ban lifted by admin (offense #${ban.offense})`);
+      res.json({ ok: true });
+    }),
+  );
+
   // Creator vetting override: clears a rug flag (negative reputation) so the
   // wallet can submit again. Logged like every admin action.
   app.post(
@@ -1259,7 +1340,13 @@ function publicProfile(u: StoredUser, self = false) {
   // rest still carries jackpotWinnings + jackpotWins — shown on profiles.
   const d = new Date();
   const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-  const base = { ...rest, season: seasons[key] ?? { pnl: 0, xp: 0, wins: 0, trades: 0 } };
+  const base = {
+    ...rest,
+    season: seasons[key] ?? { pnl: 0, xp: 0, wins: 0, trades: 0 },
+    // Reputation is public by design: the ban and its history (rest carries
+    // rugBans) show on the public profile just like the owner's.
+    banned: !!activeRugBan(u),
+  };
   if (!self) return base;
   return {
     ...base,
