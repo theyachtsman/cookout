@@ -6,6 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { Round } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { Countdown } from "../../components/Countdown";
+import { RunItBackButton } from "../../components/RunItBack";
 import { useSocial } from "../../lib/social";
 
 const LIVEISH = ["lobby", "queue_open", "settling", "live"];
@@ -176,11 +177,14 @@ export default function Home() {
                       </span>
                     }
                   >
-                    <div className="text-[11px] text-zinc-500">
-                      {r.graduated
-                        ? "still trading in the wild"
-                        : `ended: ${r.endReason?.replace(/_/g, " ")}`}
-                      {r.endedAt && <span className="ml-1 text-zinc-700">· {ago(r.endedAt)}</span>}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-[11px] text-zinc-500">
+                        {r.graduated
+                          ? "still trading in the wild"
+                          : `ended: ${r.endReason?.replace(/_/g, " ")}`}
+                        {r.endedAt && <span className="ml-1 text-zinc-700">· {ago(r.endedAt)}</span>}
+                      </div>
+                      {!r.graduated && <RunItBackButton round={r} />}
                     </div>
                   </CoinCard>
                 </Link>

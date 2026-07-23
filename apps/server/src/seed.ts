@@ -10,8 +10,8 @@ import type { Store } from "./store.js";
  */
 /** The earliest start time that doesn't collide with anything already on the
  *  calendar: after the expected end of every pending/active round, plus the
- *  ops lead time. */
-function nextFreeSlot(store: Store, leadMs: number, now: number): number {
+ *  ops lead time. (Exported for Run It Back re-launches.) */
+export function nextFreeSlot(store: Store, leadMs: number, now: number): number {
   let latest = now;
   for (const r of store.rounds.values()) {
     if (r.state === "results") continue;

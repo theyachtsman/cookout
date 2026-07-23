@@ -7,6 +7,7 @@ import type { Round, RoundSummary, RugBan, TokenConcept } from "@cookout/shared"
 import { api } from "../../../lib/api";
 import { useUnit } from "../../../lib/chainOnly";
 import { ReputationPanel } from "../../../components/Reputation";
+import { RunItBackButton } from "../../../components/RunItBack";
 
 interface CreatorView {
   address: string;
@@ -136,6 +137,9 @@ export default function CreatorPage() {
                   vol {summary.totalVolume.toFixed(1)} · peak mcap {summary.peakMcap.toFixed(0)} ·{" "}
                   {summary.holderCount} holders
                 </span>
+              )}
+              {round.state === "results" && !round.graduated && (
+                <RunItBackButton round={round} className={summary ? "" : "ml-auto"} />
               )}
             </Link>
           ))}
