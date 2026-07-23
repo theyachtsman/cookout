@@ -53,7 +53,7 @@ export function SpeedEmojiBar({ onSpam }: { onSpam: (emoji: string) => void }) {
               ? "bg-red-500/15 ring-1 ring-red-500/40 hover:bg-red-500/25"
               : "bg-zinc-900 hover:bg-zinc-800 active:scale-90"
           }`}
-          title={editing ? "remove" : "click to send — spam away"}
+          title={editing ? "remove" : "click to send, spam away"}
         >
           {e}
           {editing && (

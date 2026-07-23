@@ -150,9 +150,9 @@ export default function VotePage() {
         </div>
         {voting.length === 0 ? (
           <div className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-sm text-zinc-500">
-            Nothing up for a vote right now —{" "}
+            Nothing up for a vote right now.{" "}
             <Link href="/submissions" className="text-lime-400 hover:underline">
-              submit one
+              Make a coin
             </Link>
             .
           </div>
@@ -317,7 +317,7 @@ export default function VotePage() {
           </div>
         )}
         <p className="mt-2 text-[11px] text-zinc-600">
-          Rows with a round are clickable — jump straight to the chart and results.
+          Rows with a round are clickable. Jump straight to the chart and results.
         </p>
       </section>
     </div>

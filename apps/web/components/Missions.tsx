@@ -54,7 +54,7 @@ export function Missions() {
           >
             {allDone ? "✓ " : "🎯 "}
             Clear all for <span className="font-bold text-amber-300">+{bonus} XP</span> bonus
-            {allDone ? " — earned!" : ""}
+            {allDone ? " · earned!" : ""}
           </div>
           <div className="space-y-2">
             {items.map((m) => (

@@ -138,7 +138,7 @@ export default function Leaderboard() {
             {rows.length > 0 && rows.length <= 3 && (
               <tr>
                 <td colSpan={4} className="px-4 py-4 text-center text-xs text-zinc-600">
-                  Top {rows.length} on the podium — play rounds to join the table.
+                  Top {rows.length} on the podium. Play rounds to join the table.
                 </td>
               </tr>
             )}

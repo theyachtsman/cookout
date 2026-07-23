@@ -72,7 +72,7 @@ export function UnlockToasts() {
       push({
         key: `ach-${id}-${Date.now()}`,
         kind: "achievement",
-        title: `Achievement unlocked — ${def.name}`,
+        title: `Achievement unlocked · ${def.name}`,
         sub: `${def.rarity} · ${def.description} · +${ACHIEVEMENT_XP[def.rarity]} XP`,
         icon: "🏆",
         accent: RARITY_ACCENT[def.rarity] ?? RARITY_ACCENT.common!,
@@ -105,7 +105,7 @@ export function UnlockToasts() {
           push({
             key: `quest-${m.id}-${Date.now()}`,
             kind: "quest",
-            title: `Quest complete — ${m.name}`,
+            title: `Quest complete · ${m.name}`,
             sub: `${m.period === "daily" ? "daily quest" : "weekly challenge"} · +${m.xp} XP`,
             icon: "✅",
             accent: "border-lime-400 text-lime-300",

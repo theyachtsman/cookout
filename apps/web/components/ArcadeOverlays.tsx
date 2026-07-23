@@ -24,7 +24,7 @@ export function KillFeedTicker({ killfeed }: { killfeed: KillFeedEvent[] }) {
         <span key={`${key}-${e.id}`} className="inline-flex items-center gap-1.5 text-xs">
           <span>{KILL_ICONS[e.kind] ?? "•"}</span>
           <span className={e.kind === "rug_detected" ? "font-bold text-red-400" : "text-zinc-300"}>
-            {e.kind === "rug_detected" ? `Burnt — ${e.text}` : e.text}
+            {e.kind === "rug_detected" ? `Burnt · ${e.text}` : e.text}
           </span>
         </span>
       ))}

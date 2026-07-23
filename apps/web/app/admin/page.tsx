@@ -544,7 +544,7 @@ function BetaList({ adminKey }: { adminKey: string }) {
           <button
             disabled={busy}
             onClick={() => {
-              const text = prompt("Paste wallet addresses (any format — we extract every 0x… address):");
+              const text = prompt("Paste wallet addresses (any format; we extract every 0x… address):");
               if (text) void importText(text);
             }}
             className="rounded bg-zinc-800 px-3 py-1.5 font-bold text-zinc-200 hover:bg-zinc-700"

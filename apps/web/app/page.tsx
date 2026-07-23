@@ -295,7 +295,7 @@ function Hero() {
           <span className="text-xl">🎮</span>
           <p className="text-left text-sm text-zinc-200">
             <span className="font-black text-lime-300">Pick a name and play.</span>{" "}
-            Paper money, no deposit, no wallet — you&apos;re in a match in under a minute.
+            Paper money, no deposit, no wallet. You&apos;re in a match in under a minute.
           </p>
         </div>
       </div>
@@ -752,7 +752,7 @@ function Pillars() {
 
 const HOW_INSTANT = [
   ["🎮", "Pick a name", "No email, no wallet, no forms. Choose a handle and you have an account."],
-  ["⚡", "Get your paper stack", "We stake your starter pETH into your Arena Account automatically. It's paper — nothing to deposit, nothing at risk."],
+  ["⚡", "Get your paper stack", "We stake your starter pETH into your Arena Account automatically. It's paper. Nothing to deposit, nothing at risk."],
   ["🔥", "Walk into a match", "There's always one running. You're trading against the room in under a minute."],
 ];
 
@@ -766,7 +766,7 @@ function Access() {
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-zinc-400">
           No whitelist, no waves, no wallet. It&apos;s all paper money while we&apos;re in beta, so
-          the only thing you&apos;re risking is your ego. Bring a wallet later if you want — you
+          the only thing you&apos;re risking is your ego. Bring a wallet later if you want. You
           don&apos;t need one to play.
         </p>
       </Reveal>
@@ -802,7 +802,7 @@ function Access() {
           {/* the Swarm, explained honestly rather than hidden */}
           <p className="mx-auto mt-6 max-w-xl border-t border-lime-400/20 pt-5 text-sm text-zinc-400">
             <b className="text-zinc-200">Where&apos;s everyone?</b> Every match is kept busy by our
-            Swarm while the community grows — it trades differently every round, so no two games feel
+            Swarm while the community grows. It trades differently every round, so no two games feel
             the same. As real players fill the lobby, they take the Swarm&apos;s seats.
           </p>
           <p className="mt-4 text-xs text-zinc-600">

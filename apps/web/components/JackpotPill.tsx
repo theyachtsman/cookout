@@ -32,7 +32,7 @@ export function JackpotPill() {
   return (
     <Link
       href="/jackpot"
-      title="Weekly Jackpot — paid to the top XP earners every week"
+      title="Weekly Jackpot · paid to the top XP earners every week"
       className="group flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-gradient-to-r from-amber-500/15 to-yellow-500/10 px-3 py-1 text-sm font-black text-amber-300 transition hover:border-amber-300/70 hover:from-amber-500/25"
     >
       <span className="animate-pulse">🎰</span>

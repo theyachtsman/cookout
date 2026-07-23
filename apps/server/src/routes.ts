@@ -188,7 +188,7 @@ export function createApp(
     auth,
     wrap((req, res) => {
       if (!store.settings.selfServeUnban)
-        throw new Err(403, "bans here lift on a schedule — wait it out or appeal to a moderator");
+        throw new Err(403, "bans here lift on a schedule: wait it out or appeal to a moderator");
       const u = store.getOrCreateUser(req.userAddress!);
       const ban = activeRugBan(u);
       if (!ban) throw new Err(400, "no active ban on this wallet");
@@ -626,7 +626,7 @@ export function createApp(
       if (ban)
         throw new Err(
           403,
-          "this wallet is banned from launching coins after a rug — check the Reputation section on your Profile page",
+          "this wallet is banned from launching coins after a rug. Check the Reputation section on your Profile page",
         );
       if (recent.length >= 3) throw new Err(429, "creator cooldown: max 3 submissions per hour");
       const concept: TokenConcept = {
@@ -784,14 +784,14 @@ export function createApp(
       const round = store.rounds.get(req.params.id!);
       if (!round) throw new Err(404, "round not found");
       if (round.state !== "results") throw new Err(400, "this match hasn't finished yet");
-      if (round.graduated) throw new Err(400, "this coin served up — nothing to run back");
+      if (round.graduated) throw new Err(400, "this coin served up; nothing to run back");
       if (round.creatorAddress.toLowerCase() !== req.userAddress!.toLowerCase())
         throw new Err(403, "only this coin's developer can run it back");
       const creator = store.getOrCreateUser(req.userAddress!);
       if (activeRugBan(creator))
         throw new Err(
           403,
-          "this wallet is banned from launching coins after a rug — check the Reputation section on your Profile page",
+          "this wallet is banned from launching coins after a rug. Check the Reputation section on your Profile page",
         );
       const concept = store.concepts.get(round.conceptId);
       if (!concept) throw new Err(404, "the original concept is gone");
@@ -1129,7 +1129,7 @@ export function createApp(
       // CHAIN_ONLY deployments (the dev/staging stack) never run paper
       // simulation rounds — every launch goes through the factory.
       if (process.env.CHAIN_ONLY === "1")
-        throw new Err(403, "this deployment is chain-only — use schedule-chain");
+        throw new Err(403, "this deployment is chain-only: use schedule-chain");
       const concept = store.concepts.get(req.params.id!);
       if (!concept) throw new Err(404, "concept not found");
       const { tier = "rookie", inSeconds = 30, config } = req.body as {

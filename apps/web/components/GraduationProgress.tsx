@@ -81,7 +81,7 @@ export function GraduationProgress({
       )}
       <div className="mb-2 flex items-center justify-between text-xs">
         <span className="font-bold text-zinc-300">
-          🍽️ Bonding progress {graduating && "— targets met, serving up!"}
+          🍽️ Bonding progress {graduating && "· targets met, serving up!"}
         </span>
         <span className="font-mono text-zinc-400">
           {usd(bars[0]!.now * ethUsd)} / {usd(bars[0]!.goal * ethUsd)} ·{" "}

@@ -9,7 +9,7 @@ import { ImageResponse } from "next/og";
  * if the mascot asset can't be read the card still renders without it.
  */
 export const alt =
-  "The Cookout — every chart is a multiplayer match. Open beta: play free, no wallet needed.";
+  "The Cookout · every chart is a multiplayer match. Open beta: play free, no wallet needed.";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 

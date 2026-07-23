@@ -29,7 +29,7 @@ export function Results({
                 : "bg-zinc-800 text-zinc-300"
           }`}
         >
-          {summary.graduated ? "🍽️ SERVED UP — Arena Alumni" : summary.endReason.replace("_", " ")}
+          {summary.graduated ? "🍽️ SERVED UP · Arena Alumni" : summary.endReason.replace("_", " ")}
         </span>
       </div>
       <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm md:grid-cols-3">
@@ -47,7 +47,7 @@ export function Results({
         <p className="mt-4 border-t border-zinc-800 pt-3 text-xs text-zinc-500">
           Opened via batch auction at {auction.clearingPrice.toExponential(4)} ·{" "}
           {auction.fills.length} intents · fill ratio {(auction.fillRatio * 100).toFixed(0)}% ·
-          audit hash <span className="font-mono">{auction.auditHash}</span> — recompute it from the
+          audit hash <span className="font-mono">{auction.auditHash}</span>. Recompute it from the
           published intents to verify settlement.
         </p>
       )}

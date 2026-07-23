@@ -97,13 +97,13 @@ export function ReputationPanel({
       </div>
       <p className="mt-1 text-xs text-zinc-500">
         Launching a coin that graduates earns +2, any clean launch +1, a rug −5 and a launch ban.
-        Banned wallets can still chat and trade — they just can&apos;t put a coin on the ballot.
+        Banned wallets can still chat and trade. They just can&apos;t put a coin on the ballot.
       </p>
 
       {active && (
         <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/[0.06] p-3">
           <div className="text-sm font-bold text-red-300">
-            Rug ban — offense #{active.offense}
+            Rug ban · offense #{active.offense}
             {active.symbol && <span className="text-red-400/80"> · ${active.symbol}</span>}
             <span className="ml-2 font-normal text-zinc-500">
               since {new Date(active.at).toLocaleDateString()}
@@ -112,7 +112,7 @@ export function ReputationPanel({
           {active.expiresAt ? (
             <div className="mt-1 text-xs text-zinc-400">
               This ban lifts itself in{" "}
-              <b className="font-mono text-amber-300">{fmtWait(active.expiresAt - now)}</b> — repeat
+              <b className="font-mono text-amber-300">{fmtWait(active.expiresAt - now)}</b>: repeat
               offenses wait longer. A moderator can lift it early.
             </div>
           ) : self ? (
@@ -120,7 +120,7 @@ export function ReputationPanel({
               <div className="mt-2">
                 <p className="text-xs text-zinc-400">
                   Paper beta grace: you can clear this ban yourself. The record stays on your
-                  profile either way — reputation remembers.
+                  profile either way. Reputation remembers.
                 </p>
                 <button
                   disabled={busy}

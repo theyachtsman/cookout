@@ -74,14 +74,14 @@ export default function Home() {
       <section>
         <h1 className="mb-1 text-2xl font-black">Match Calendar</h1>
         <p className="mb-4 text-sm text-zinc-400">
-          Every match is a real token launched through a fair batch auction — one clearing price,
+          Every match is a real token launched through a fair batch auction: one clearing price,
           pro-rata fills, auditable settlement.
         </p>
         {live.length === 0 && upcoming.length === 0 && (
           <div className="rounded-xl border border-lime-400/30 bg-lime-400/[0.04] p-8 text-center">
             <div className="text-3xl">🍳</div>
             <p className="mt-2 text-lg font-black text-zinc-100">
-              The grill is empty — someone needs to launch a coin.
+              The grill is empty. Someone needs to launch a coin.
             </p>
             <p className="mx-auto mt-1 max-w-md text-sm text-zinc-400">
               Matches come from the community: make a coin, the crowd votes it through, and it
@@ -213,7 +213,7 @@ function RoundCard({ round, highlight }: { round: Round; highlight?: boolean }) 
   const stateLabel: Record<string, string> = {
     scheduled: "Starting soon",
     lobby: "Lobby open",
-    queue_open: "Queue open — get in",
+    queue_open: "Queue open, get in",
     settling: "Settling auction",
     live: "LIVE",
   };

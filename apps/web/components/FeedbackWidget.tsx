@@ -41,7 +41,7 @@ export function FeedbackWidget() {
           </div>
           {state === "sent" ? (
             <div className="py-4 text-center text-sm font-bold text-lime-300">
-              Got it — thank you 🔥
+              Got it, thank you 🔥
             </div>
           ) : (
             <>
@@ -60,7 +60,7 @@ export function FeedbackWidget() {
                 Send
               </button>
               {state === "error" && (
-                <p className="mt-1 text-xs text-red-400">couldn&apos;t send — try again shortly</p>
+                <p className="mt-1 text-xs text-red-400">couldn&apos;t send, try again shortly</p>
               )}
             </>
           )}
