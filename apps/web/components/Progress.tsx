@@ -34,8 +34,6 @@ export function Progress() {
 
   return (
     <div className="space-y-4">
-      <h2 className="text-lg font-bold">Progression</h2>
-
       {/* Streaks */}
       <div className="grid gap-3 sm:grid-cols-2">
         <div className="rounded-xl border border-orange-500/40 bg-gradient-to-br from-orange-500/10 to-transparent p-4">

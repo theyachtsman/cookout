@@ -13,10 +13,20 @@ import { ImagePicker } from "../../components/ImagePicker";
 import { Missions } from "../../components/Missions";
 import { Progress } from "../../components/Progress";
 import { ReputationPanel } from "../../components/Reputation";
+import {
+  Avatar,
+  ProfileHero,
+  RARITY,
+  SectionTitle,
+  StatCard,
+  StatGrid,
+} from "../../components/ProfileUI";
 
 export default function ProfilePage() {
   const { profile, signIn, refresh } = useSession();
   const [name, setName] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [copied, setCopied] = useState(false);
   const chainOnly = useChainOnly();
   const unit = useUnit();
 
@@ -32,202 +42,265 @@ export default function ProfilePage() {
 
   if (!profile)
     return (
-      <div className="py-16 text-center">
+      <div className="py-24 text-center">
+        <div className="text-4xl">👤</div>
+        <p className="mt-3 text-sm text-zinc-400">Sign in to see your profile.</p>
         <button
           onClick={() => void signIn()}
-          className="rounded-lg bg-lime-400 px-6 py-3 font-black text-zinc-950"
+          className="mt-4 rounded-lg bg-lime-400 px-6 py-3 font-black text-zinc-950 hover:bg-lime-300"
         >
-          Connect Wallet
+          Play Now
         </button>
       </div>
     );
 
-  const nextLevelXp = xpForLevel(profile.level + 1);
-  const currLevelXp = xpForLevel(profile.level);
-  const progress =
-    nextLevelXp > currLevelXp
-      ? Math.min(100, ((profile.xp - currLevelXp) / (nextLevelXp - currLevelXp)) * 100)
-      : 100;
   const s = profile.stats;
+  const displayName = profile.displayName ?? `${profile.address.slice(0, 8)}…`;
+  const avatarUrl = (profile as unknown as { avatarUrl?: string }).avatarUrl;
+  const referralCount = (profile as unknown as { referralCount?: number }).referralCount ?? 0;
+  const referralEarnings =
+    (profile as unknown as { referralEarnings?: number }).referralEarnings ?? 0;
+  const refLink =
+    typeof window !== "undefined" ? `${window.location.origin}/?ref=${profile.referralCode}` : "";
 
   const saveName = async () => {
     if (!name.trim()) return;
     await api("/api/me", { method: "PATCH", body: { displayName: name.trim() } });
     setName("");
+    setEditing(false);
     void refresh();
   };
 
+  const copyRef = () => {
+    void navigator.clipboard.writeText(refLink);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
   return (
-    <div className="space-y-6">
-      <div className="rounded-xl border border-zinc-800 p-6">
-        <div className="flex flex-wrap items-center gap-4">
-          <ImagePicker
-            label="Profile picture"
-            round
-            value={(profile as unknown as { avatarUrl?: string }).avatarUrl}
-            onChange={(dataUrl) =>
-              void api("/api/me", { method: "PATCH", body: { avatarUrl: dataUrl } }).then(refresh)
-            }
-          />
-          <div>
-            <h1 className="text-2xl font-black">
-              {profile.displayName ?? `${profile.address.slice(0, 8)}…`}
-            </h1>
-            <div className="text-sm text-zinc-400">
-              Level {profile.level} · {profile.title} · {profile.xp} XP
+    <div className="mx-auto max-w-5xl space-y-6">
+      <ProfileHero
+        avatar={<Avatar url={avatarUrl} name={displayName} level={profile.level} />}
+        name={displayName}
+        level={profile.level}
+        title={profile.title}
+        xp={profile.xp}
+        currLevelXp={xpForLevel(profile.level)}
+        nextLevelXp={xpForLevel(profile.level + 1)}
+        chips={
+          <>
+            <span className="font-mono text-xs text-zinc-500">{profile.xp.toLocaleString()} XP</span>
+            <button
+              onClick={() => setEditing((v) => !v)}
+              className="rounded-full border border-zinc-700 px-2.5 py-0.5 text-[11px] font-bold text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+            >
+              ✎ Edit
+            </button>
+          </>
+        }
+        right={
+          chainOnly ? (
+            <Link href="/wallet" className="block hover:opacity-80">
+              <div className="font-mono text-2xl font-black text-lime-400">
+                ⚡ {arenaBal !== null ? arenaBal.toFixed(4) : "—"}
+              </div>
+              <div className="text-[11px] text-zinc-500">ETH · arena wallet →</div>
+            </Link>
+          ) : (
+            <Link href="/wallet" className="block hover:opacity-80">
+              <div className="font-mono text-2xl font-black text-lime-400">
+                ⚡ {(profile.arenaBalance ?? 0).toFixed(3)}
+              </div>
+              <div className="text-[11px] text-zinc-500">
+                pETH · {(profile.paperBalance ?? 0).toFixed(2)} banked →
+              </div>
+            </Link>
+          )
+        }
+      >
+        {/* quick links + editor + referral, all inside the hero card */}
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
+          <Link href={`/creator/${profile.address}`} className="font-bold text-lime-400 hover:underline">
+            My coins &amp; launches →
+          </Link>
+          <Link href={`/profile/${profile.address}`} className="text-zinc-400 hover:text-zinc-200">
+            View public profile →
+          </Link>
+        </div>
+
+        {editing && (
+          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-950/50 p-3">
+            <ImagePicker
+              label="Profile picture"
+              round
+              value={avatarUrl}
+              onChange={(dataUrl) =>
+                void api("/api/me", { method: "PATCH", body: { avatarUrl: dataUrl } }).then(refresh)
+              }
+            />
+            <div className="flex items-center gap-2">
+              <input
+                placeholder={profile.displayName ?? "set a display name"}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm outline-none focus:border-lime-400/50"
+              />
+              <button
+                onClick={() => void saveName()}
+                className="rounded-lg bg-lime-400 px-3 py-1.5 text-sm font-black text-zinc-950 hover:bg-lime-300"
+              >
+                Save
+              </button>
             </div>
           </div>
-          <div className="ml-auto text-right">
-            {chainOnly ? (
-              <Link href="/wallet" className="block hover:opacity-80">
-                <div className="text-2xl font-black text-lime-400">
-                  ⚡ {arenaBal !== null ? arenaBal.toFixed(4) : "—"} ETH
-                </div>
-                <div className="text-xs text-zinc-500">arena wallet</div>
-              </Link>
-            ) : (
-              <>
-                <div className="text-2xl font-black text-lime-400">
-                  ⚡ {(profile.arenaBalance ?? 0).toFixed(3)} pETH
-                </div>
-                <div className="text-xs text-zinc-500">
-                  arena wallet · {(profile.paperBalance ?? 0).toFixed(3)} in the bank
-                </div>
-              </>
-            )}
-          </div>
-        </div>
-        <div className="mt-3 h-2 overflow-hidden rounded bg-zinc-800">
-          <div className="h-full bg-lime-400" style={{ width: `${progress}%` }} />
-        </div>
-        <div className="mt-1 text-xs text-zinc-500">
-          {profile.xp - currLevelXp}/{nextLevelXp - currLevelXp} XP to level {profile.level + 1}
-        </div>
-        <div className="mt-4 flex gap-2">
-          <input
-            placeholder="set display name"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            className="rounded border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm"
-          />
-          <button onClick={() => void saveName()} className="rounded bg-zinc-800 px-3 py-1.5 text-sm">
-            Save
-          </button>
-          <span className="ml-auto flex gap-3 self-center text-xs text-zinc-500">
-            <a href={`/creator/${profile.address}`} className="hover:text-zinc-300">
-              my coins &amp; launches →
-            </a>
-            <a href={`/profile/${profile.address}`} className="hover:text-zinc-300">
-              public profile →
-            </a>
-          </span>
-        </div>
-        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-zinc-900 px-3 py-2 text-xs">
-          <span className="text-zinc-500">Referral link</span>
-          <code className="text-zinc-300">
-            {typeof window !== "undefined" ? `${window.location.origin}/?ref=${profile.referralCode}` : ""}
-          </code>
+        )}
+
+        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-zinc-950/50 px-3 py-2 text-xs">
+          <span className="font-bold text-zinc-400">🎁 Invite link</span>
+          <code className="truncate text-zinc-500">{refLink}</code>
           <button
-            onClick={() =>
-              void navigator.clipboard.writeText(`${window.location.origin}/?ref=${profile.referralCode}`)
-            }
-            className="rounded bg-zinc-800 px-2 py-1 hover:bg-zinc-700"
+            onClick={copyRef}
+            className="rounded-md bg-zinc-800 px-2 py-1 font-bold hover:bg-zinc-700"
           >
-            copy
+            {copied ? "✓ copied" : "copy"}
           </button>
           <span className="ml-auto text-zinc-500">
-            {(profile as unknown as { referralCount?: number }).referralCount ?? 0} referred ·{" "}
-            {((profile as unknown as { referralEarnings?: number }).referralEarnings ?? 0).toFixed(3)} {unit} earned
+            {referralCount} referred · {referralEarnings.toFixed(3)} {unit} earned
           </span>
         </div>
-      </div>
+      </ProfileHero>
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        {[
-          ["Rounds", s.roundsPlayed],
-          ["Trades", s.trades],
-          ["Wins", s.wins],
-          ["Losses", s.losses],
-          ["Total PnL", (s.totalPnl as number).toFixed(3)],
-          ["Best trade", (s.bestTradePnl as number).toFixed(3)],
-          ["Rugs survived", s.rugsSurvived],
-          ["Win streak", s.currentWinStreak],
-        ].map(([k, v]) => (
-          <div key={k as string} className="rounded-lg border border-zinc-800 p-3">
-            <div className="text-[10px] uppercase tracking-wide text-zinc-500">{k}</div>
-            <div className="font-mono text-lg font-bold">{v}</div>
-          </div>
-        ))}
-      </div>
+      {/* Career stats */}
+      <section>
+        <SectionTitle title="Career Stats" />
+        <StatGrid>
+          <StatCard icon="🎮" label="Rounds" value={s.roundsPlayed} />
+          <StatCard icon="⚡" label="Trades" value={s.trades} />
+          <StatCard icon="🏆" label="Wins" value={s.wins} tone="text-emerald-300" />
+          <StatCard icon="💀" label="Losses" value={s.losses} tone="text-red-300" />
+          <StatCard
+            icon="📈"
+            label="Total PnL"
+            value={`${(s.totalPnl as number) >= 0 ? "+" : ""}${(s.totalPnl as number).toFixed(2)}`}
+            tone={(s.totalPnl as number) >= 0 ? "text-emerald-300" : "text-red-300"}
+          />
+          <StatCard
+            icon="🚀"
+            label="Best Trade"
+            value={`+${(s.bestTradePnl as number).toFixed(2)}`}
+            tone="text-emerald-300"
+          />
+          <StatCard icon="🧊" label="Rugs Survived" value={s.rugsSurvived} />
+          <StatCard icon="🔥" label="Win Streak" value={s.currentWinStreak} tone="text-orange-300" />
+        </StatGrid>
+      </section>
 
+      {/* Jackpot winnings */}
       {(profile.jackpotWinnings ?? 0) > 0 && (
-        <div className="rounded-xl border border-amber-400/40 bg-gradient-to-br from-amber-500/10 to-transparent p-5">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-lg font-black text-amber-300">🎰 Jackpot Winnings</h2>
-            <a href="/jackpot" className="text-xs text-amber-400/80 hover:underline">
+        <section className="rounded-2xl border border-amber-400/40 bg-gradient-to-br from-amber-500/10 to-transparent p-5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-sm font-black uppercase tracking-wide text-amber-300">
+              🎰 Jackpot Winnings
+            </h2>
+            <Link href="/jackpot" className="text-xs text-amber-400/80 hover:underline">
               this week&apos;s pot →
-            </a>
+            </Link>
           </div>
-          <div className="mt-1 font-mono text-3xl font-black text-amber-300">
+          <div className="mt-1 font-mono text-4xl font-black text-amber-300">
             {(profile.jackpotWinnings ?? 0).toFixed(4)} {unit}
           </div>
-          <div className="mt-3 space-y-1">
+          <div className="mt-3 flex flex-wrap gap-1.5">
             {[...(profile.jackpotWins ?? [])]
               .reverse()
-              .slice(0, 6)
+              .slice(0, 10)
               .map((w, i) => (
-                <div key={i} className="flex items-center gap-3 text-sm">
-                  <span className="w-14 font-mono text-zinc-500">{w.week}</span>
-                  <span className="w-10">{["🥇", "🥈", "🥉"][w.rank - 1] ?? `#${w.rank}`}</span>
-                  <span className="font-mono text-amber-300">+{w.amountEth.toFixed(4)} {unit}</span>
-                  <span className="font-mono text-xs text-zinc-500">
-                    ${w.amountUsd.toFixed(2)}
-                  </span>
-                </div>
+                <span
+                  key={i}
+                  title={`${w.week}: +${w.amountEth.toFixed(4)} ${unit} ($${w.amountUsd.toFixed(2)})`}
+                  className="rounded-lg border border-amber-400/30 bg-amber-400/[0.06] px-2 py-1 font-mono text-xs text-amber-200"
+                >
+                  {["🥇", "🥈", "🥉"][w.rank - 1] ?? `#${w.rank}`} {w.week}
+                </span>
               ))}
           </div>
-        </div>
+        </section>
       )}
 
-      <ReputationPanel
-        reputation={profile.creatorReputation}
-        bans={profile.rugBans ?? []}
-        banned={!!profile.banned}
-        self
-        selfServe={!!profile.selfServeUnban}
-        onCleared={() => void refresh()}
-      />
+      {/* Reputation */}
+      <section>
+        <SectionTitle title="Creator Reputation" />
+        <ReputationPanel
+          reputation={profile.creatorReputation}
+          bans={profile.rugBans ?? []}
+          banned={!!profile.banned}
+          self
+          selfServe={!!profile.selfServeUnban}
+          onCleared={() => void refresh()}
+        />
+      </section>
 
-      <Missions />
+      {/* Quests */}
+      <section>
+        <SectionTitle title="Quests & Challenges" />
+        <Missions />
+      </section>
 
-      <Progress />
+      {/* Progression */}
+      <section>
+        <SectionTitle title="Progression" />
+        <Progress />
+      </section>
 
+      {/* Achievements */}
+      <section>
+        <SectionTitle
+          title="Achievements"
+          action={
+            <span className="font-mono text-xs text-zinc-500">
+              {profile.achievements.length} / {ACHIEVEMENTS.length} unlocked
+            </span>
+          }
+        />
+        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+          {[...ACHIEVEMENTS]
+            .sort(
+              (a, b) =>
+                Number(profile.achievements.includes(b.id)) -
+                Number(profile.achievements.includes(a.id)),
+            )
+            .map((a) => {
+              const unlocked = profile.achievements.includes(a.id);
+              const r = RARITY[a.rarity] ?? RARITY.common;
+              return (
+                <div
+                  key={a.id}
+                  className={`rounded-xl border p-3.5 transition ${
+                    unlocked ? `${r.ring} ${r.wash}` : "border-zinc-800/70 opacity-45"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-bold text-zinc-100">
+                      {unlocked ? "🏅" : "🔒"} {a.name}
+                    </span>
+                    <span
+                      className={`shrink-0 text-[9px] font-black uppercase tracking-wide ${
+                        unlocked ? r.text : "text-zinc-600"
+                      }`}
+                    >
+                      {r.label}
+                    </span>
+                  </div>
+                  <div className="mt-1 text-xs text-zinc-400">{a.description}</div>
+                </div>
+              );
+            })}
+        </div>
+      </section>
+
+      {/* Cosmetics + settings carry their own headers */}
       <CosmeticsLocker />
 
       <AudioMixer />
-
-      <div>
-        <h2 className="mb-3 text-lg font-bold">Achievements</h2>
-        <div className="grid gap-2 md:grid-cols-3">
-          {ACHIEVEMENTS.map((a) => {
-            const unlocked = profile.achievements.includes(a.id);
-            return (
-              <div
-                key={a.id}
-                className={`rounded-lg border p-3 ${
-                  unlocked ? "border-lime-400/50 bg-lime-400/5" : "border-zinc-800 opacity-50"
-                }`}
-              >
-                <div className="text-sm font-bold">
-                  {unlocked ? "🏅" : "🔒"} {a.name}
-                  <span className="ml-2 text-[10px] uppercase text-zinc-500">{a.rarity}</span>
-                </div>
-                <div className="text-xs text-zinc-400">{a.description}</div>
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
