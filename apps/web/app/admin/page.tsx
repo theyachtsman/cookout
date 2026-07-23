@@ -37,6 +37,111 @@ interface Feedback {
 }
 
 /**
+ * Live moderation of The Grill (global chat): censor keeps the message but
+ * redacts its text, delete removes it outright, mute silences for an hour,
+ * ban is a permanent mute. Every action propagates to connected clients
+ * instantly (chat_update / chat_delete events) and is audit-logged.
+ */
+function GrillModeration({
+  act,
+}: {
+  act: (path: string, body?: unknown, method?: string) => Promise<void>;
+}) {
+  const [msgs, setMsgs] = useState<ChatMessage[]>([]);
+  const [unmuteAddr, setUnmuteAddr] = useState("");
+
+  const load = useCallback(() => {
+    api<{ messages: ChatMessage[] }>("/api/chat/global")
+      .then((d) => setMsgs(d.messages ?? []))
+      .catch(() => {});
+  }, []);
+  useEffect(() => {
+    load();
+    const t = setInterval(load, 5000);
+    return () => clearInterval(t);
+  }, [load]);
+
+  const mod = (path: string, body?: unknown, method?: string) =>
+    void act(path, body, method).then(load);
+
+  return (
+    <div className="rounded-lg border border-zinc-800 p-3">
+      <div className="max-h-80 space-y-1 overflow-y-auto">
+        {[...msgs].reverse().map((m) => (
+          <div
+            key={m.id}
+            className="flex items-center gap-2 rounded px-2 py-1 text-xs hover:bg-zinc-900"
+          >
+            <span className="shrink-0 font-mono text-[10px] text-zinc-600">
+              {new Date(m.at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </span>
+            <span className={`shrink-0 font-bold ${m.system ? "text-amber-300" : "text-lime-400"}`}>
+              {m.system ? "📢 house" : (m.displayName ?? `${m.userAddress.slice(0, 6)}…`)}
+            </span>
+            <span className="min-w-0 flex-1 truncate text-zinc-300">{m.text}</span>
+            <button
+              onClick={() => mod(`/api/admin/chat/global/${m.id}/censor`)}
+              className="rounded bg-zinc-800 px-1.5 py-0.5 hover:bg-zinc-700"
+            >
+              censor
+            </button>
+            <button
+              onClick={() => mod(`/api/admin/chat/global/${m.id}`, undefined, "DELETE")}
+              className="rounded bg-red-900/50 px-1.5 py-0.5 text-red-300 hover:bg-red-900"
+            >
+              delete
+            </button>
+            {!m.system && (
+              <>
+                <button
+                  onClick={() => mod(`/api/admin/users/${m.userAddress}/mute`, { minutes: 60 })}
+                  className="rounded bg-zinc-800 px-1.5 py-0.5 hover:bg-zinc-700"
+                >
+                  mute 1h
+                </button>
+                <button
+                  onClick={() => {
+                    if (
+                      confirm(
+                        `Ban ${m.displayName ?? m.userAddress} from chat permanently? ` +
+                          "(Undo any time with unmute below.)",
+                      )
+                    )
+                      mod(`/api/admin/users/${m.userAddress}/mute`, { minutes: 52_560_000 });
+                  }}
+                  className="rounded bg-red-900/70 px-1.5 py-0.5 font-bold text-red-200 hover:bg-red-800"
+                >
+                  ban
+                </button>
+              </>
+            )}
+          </div>
+        ))}
+        {msgs.length === 0 && <div className="p-3 text-xs text-zinc-600">The Grill is empty.</div>}
+      </div>
+      <div className="mt-2 flex items-center gap-2 border-t border-zinc-800 pt-2">
+        <input
+          value={unmuteAddr}
+          onChange={(e) => setUnmuteAddr(e.target.value)}
+          placeholder="0x… unmute / unban an address"
+          className="flex-1 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-xs"
+        />
+        <button
+          disabled={!/^0x[0-9a-fA-F]{40}$/.test(unmuteAddr.trim())}
+          onClick={() => {
+            mod(`/api/admin/users/${unmuteAddr.trim().toLowerCase()}/unmute`);
+            setUnmuteAddr("");
+          }}
+          className="rounded bg-lime-500 px-3 py-1 text-xs font-bold text-zinc-950 hover:bg-lime-400 disabled:opacity-40"
+        >
+          unmute
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
  * Grill announcements: rotating tips posted into the global chat on a cadence.
  * Local state is user-owned once touched, so the 5s overview refresh never
  * clobbers in-progress edits; Save resets to server truth.
@@ -589,6 +694,14 @@ export default function AdminPage() {
                       <span className="flex-1 truncate text-zinc-300">{m.text}</span>
                       <button
                         onClick={() =>
+                          void act(`/api/admin/chat/${r.id}/${m.id}/censor`).then(() => loadModChat(r.id))
+                        }
+                        className="rounded bg-zinc-800 px-1.5 py-0.5 hover:bg-zinc-700"
+                      >
+                        censor
+                      </button>
+                      <button
+                        onClick={() =>
                           void act(`/api/admin/chat/${r.id}/${m.id}`, undefined, "DELETE").then(() => loadModChat(r.id))
                         }
                         className="rounded bg-red-900/50 px-1.5 py-0.5 text-red-300 hover:bg-red-900"
@@ -673,6 +786,11 @@ export default function AdminPage() {
               </div>
             ))}
         </div>
+      </section>
+
+      <section>
+        <h2 className="mb-2 font-bold">🔥 Grill Moderation</h2>
+        <GrillModeration act={act} />
       </section>
 
       <section>

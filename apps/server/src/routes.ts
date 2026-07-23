@@ -1114,9 +1114,14 @@ export function createApp(
     admin,
     wrap((req, res) => {
       const address = req.params.address!.toLowerCase();
-      const minutes = Math.min(24 * 60, Math.max(1, Number((req.body as { minutes?: number }).minutes ?? 15)));
+      // Up to 100 years — a "ban" is just a mute that outlives us all.
+      const minutes = Math.min(
+        100 * 365 * 24 * 60,
+        Math.max(1, Number((req.body as { minutes?: number }).minutes ?? 15)),
+      );
       store.muted.set(address, Date.now() + minutes * 60_000);
-      store.logAdmin("mute", `${address} for ${minutes}m`);
+      const label = minutes >= 365 * 24 * 60 ? "BANNED" : `for ${minutes}m`;
+      store.logAdmin("mute", `${address} ${label}`);
       res.json({ ok: true, until: store.muted.get(address) });
     }),
   );
@@ -1160,6 +1165,23 @@ export function createApp(
         messageId: req.params.messageId!,
       });
       store.logAdmin("chat_delete", `${removed!.userAddress}: "${removed!.text.slice(0, 60)}"`);
+      res.json({ ok: true });
+    }),
+  );
+
+  /** Censor: the message stays in the log but its text is redacted — softer
+   *  than deletion when the conversation around it should keep its shape. */
+  app.post(
+    "/api/admin/chat/:roundId/:messageId/censor",
+    admin,
+    wrap((req, res) => {
+      const list = store.chat.get(req.params.roundId!);
+      const msg = list?.find((m) => m.id === req.params.messageId);
+      if (!msg) throw new Err(404, "message not found");
+      const original = msg.text;
+      msg.text = "‹ removed by a moderator ›";
+      broadcast(req.params.roundId!, { type: "chat_update", message: msg });
+      store.logAdmin("chat_censor", `${msg.userAddress}: "${original.slice(0, 60)}"`);
       res.json({ ok: true });
     }),
   );

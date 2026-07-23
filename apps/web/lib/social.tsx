@@ -148,6 +148,17 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
               if (!readingRef.current || channelRef.current !== "match")
                 setUnread((n) => n + 1);
             }
+          } else if (ev.type === "chat_delete") {
+            // Moderation: drop the message everywhere it might be rendered.
+            const id = ev.messageId as string;
+            setMessages((prev) => prev.filter((m) => m.id !== id));
+            setMatchMessages((prev) => prev.filter((m) => m.id !== id));
+          } else if (ev.type === "chat_update") {
+            // Moderation: censored text — replace in place, keep position.
+            const m = ev.message as ChatMessage;
+            const swap = (prev: ChatMessage[]) => prev.map((x) => (x.id === m.id ? m : x));
+            setMessages(swap);
+            setMatchMessages(swap);
           }
         } catch {
           /* ignore malformed frames */

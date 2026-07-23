@@ -208,6 +208,10 @@ export function SocialDock() {
                 me={profile.address}
                 myName={profile.displayName}
                 className="flex-1"
+                // The Grill stays human: house banners (tips, launches,
+                // results) fade out 30s after they land. Match rooms keep
+                // their banners — they're the round's narrative.
+                fadeSystemAfterMs={inMatch ? undefined : 30_000}
                 emptyText={
                   inMatch
                     ? "The trenches are quiet. Start talking."
