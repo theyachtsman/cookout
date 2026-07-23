@@ -213,8 +213,24 @@ export function ArenaHeader({
   }
   if (rank) stats.push(["Your rank", `#${rank}`, rank <= 3 ? "text-amber-300" : undefined]);
 
+  // The creator's promo banner backs the whole header once the coin is
+  // revealed (never during the scheduled teaser). A left-heavy gradient keeps
+  // the status strip and stats readable over any artwork.
+  const banner = round.state !== "scheduled" ? round.token.bannerUrl : undefined;
   return (
-    <div className={`overflow-hidden rounded-xl border bg-zinc-900/40 ${skin.border}`}>
+    <div className={`relative overflow-hidden rounded-xl border bg-zinc-900/40 ${skin.border}`}>
+      {banner && (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={banner}
+            alt=""
+            className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-50"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-zinc-950/70 to-zinc-950/40" />
+        </>
+      )}
+      <div className="relative">
       {/* status strip */}
       <div className="flex flex-wrap items-center gap-x-5 gap-y-1 px-4 py-2.5">
         <span className={`flex items-center gap-2 text-lg font-black tracking-wide ${skin.text}`}>
@@ -306,6 +322,7 @@ export function ArenaHeader({
             </div>
           ))}
         </div>
+      </div>
       </div>
     </div>
   );

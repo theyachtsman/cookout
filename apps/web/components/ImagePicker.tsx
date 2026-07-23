@@ -13,12 +13,16 @@ export function ImagePicker({
   onChange,
   size = 256,
   round = false,
+  wide = false,
 }: {
   label: string;
   value?: string;
   onChange: (dataUrl: string) => void;
+  /** Max output dimension in px (longest side). */
   size?: number;
   round?: boolean;
+  /** Wide (~3:1) preview for banner uploads. */
+  wide?: boolean;
 }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [error, setError] = useState("");
@@ -60,9 +64,9 @@ export function ImagePicker({
       <button
         type="button"
         onClick={() => inputRef.current?.click()}
-        className={`flex h-16 w-16 items-center justify-center overflow-hidden border border-dashed border-zinc-600 bg-zinc-900 text-2xl hover:border-zinc-400 ${
+        className={`flex items-center justify-center overflow-hidden border border-dashed border-zinc-600 bg-zinc-900 text-2xl hover:border-zinc-400 ${
           round ? "rounded-full" : "rounded-lg"
-        }`}
+        } ${wide ? "h-14 w-44" : "h-16 w-16"}`}
         title={label}
       >
         {value ? (
