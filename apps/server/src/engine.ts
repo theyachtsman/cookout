@@ -98,6 +98,7 @@ export class RoundEngine {
         symbol: concept.symbol,
         theme: concept.theme,
         artworkUrl: concept.artworkUrl,
+        bannerUrl: concept.bannerUrl,
       },
       creatorAddress: concept.creatorAddress,
       tier,

@@ -43,6 +43,8 @@ export interface TokenConcept {
   artworkUrl?: string;
   /** Creator-chosen total supply (tokenomics); tier default when unset. */
   totalSupply?: number;
+  /** Wide promo banner (data URL), shown behind the trading header. */
+  bannerUrl?: string;
   /** Creator-chosen risk tier (level-gated); legacy concepts default rookie. */
   tier?: RiskTier;
   status: "submitted" | "shortlisted" | "scheduled" | "launched" | "rejected";
@@ -99,7 +101,7 @@ export interface ChainRoundInfo {
 export interface Round {
   id: string;
   conceptId: string;
-  token: { name: string; symbol: string; theme: string; artworkUrl?: string };
+  token: { name: string; symbol: string; theme: string; artworkUrl?: string; bannerUrl?: string };
   creatorAddress: Address;
   tier: RiskTier;
   state: RoundState;

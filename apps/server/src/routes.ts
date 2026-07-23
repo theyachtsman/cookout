@@ -549,7 +549,7 @@ export function createApp(
     "/api/concepts",
     auth,
     wrap((req, res) => {
-      const { name, symbol, theme, pitch, artworkUrl } = req.body as Record<string, string>;
+      const { name, symbol, theme, pitch, artworkUrl, bannerUrl } = req.body as Record<string, string>;
       const rawSupply = (req.body as { totalSupply?: number }).totalSupply;
       if (!name || !symbol || !theme) throw new Err(400, "name, symbol, theme required");
       let totalSupply: number | undefined;
@@ -590,6 +590,7 @@ export function createApp(
         theme: String(theme).slice(0, 140),
         pitch: pitch ? String(pitch).slice(0, 1000) : undefined,
         artworkUrl: artworkUrl ? sanitizeImageUrl(artworkUrl) : undefined,
+        bannerUrl: bannerUrl ? sanitizeImageUrl(bannerUrl) : undefined,
         totalSupply,
         tier,
         status: "submitted",

@@ -24,6 +24,7 @@ export default function Submissions() {
     theme: "",
     pitch: "",
     artworkUrl: "",
+    bannerUrl: "",
     totalSupply: "",
     tier: "rookie" as RiskTier,
   });
@@ -43,6 +44,7 @@ export default function Submissions() {
         body: {
           ...form,
           artworkUrl: form.artworkUrl || undefined,
+          bannerUrl: form.bannerUrl || undefined,
           totalSupply: form.totalSupply ? Number(form.totalSupply) : undefined,
         },
       });
@@ -52,6 +54,7 @@ export default function Submissions() {
         theme: "",
         pitch: "",
         artworkUrl: "",
+        bannerUrl: "",
         totalSupply: "",
         tier: "rookie",
       });
@@ -119,6 +122,13 @@ export default function Submissions() {
                 label="Coin image"
                 value={form.artworkUrl || undefined}
                 onChange={(dataUrl) => setForm({ ...form, artworkUrl: dataUrl })}
+              />
+              <ImagePicker
+                label="Promo banner (wide, optional)"
+                wide
+                size={1024}
+                value={form.bannerUrl || undefined}
+                onChange={(dataUrl) => setForm({ ...form, bannerUrl: dataUrl })}
               />
               <label className="text-sm">
                 <div className="mb-1 text-xs text-zinc-500">

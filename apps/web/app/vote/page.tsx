@@ -36,7 +36,8 @@ export default function VotePage() {
   }, [setActiveRoom]);
   const [concepts, setConcepts] = useState<TokenConcept[]>([]);
   const [rounds, setRounds] = useState<Round[]>([]);
-  const [filter, setFilter] = useState<Filter>("voting");
+  // Default to "all" so past submissions are visible without a click.
+  const [filter, setFilter] = useState<Filter>("all");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
 
