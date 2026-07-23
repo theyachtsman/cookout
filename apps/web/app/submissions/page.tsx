@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   CREATOR_FEE_SHARE,
   TIER_CONFIGS,
@@ -12,6 +14,7 @@ import {
 import { api } from "../../lib/api";
 import { useUnit } from "../../lib/chainOnly";
 import { useSession } from "../../lib/session";
+import { CoinCard } from "../../components/CoinCard";
 import { ImagePicker } from "../../components/ImagePicker";
 
 export default function Submissions() {
@@ -29,6 +32,11 @@ export default function Submissions() {
     tier: "rookie" as RiskTier,
   });
   const [error, setError] = useState("");
+  // The just-submitted concept — drives the "your coin is live" preview modal.
+  const [created, setCreated] = useState<TokenConcept | null>(null);
+  const [mounted, setMounted] = useState(false);
+  const router = useRouter();
+  useEffect(() => setMounted(true), []);
 
   const load = useCallback(() => {
     api<TokenConcept[]>("/api/concepts")
@@ -40,7 +48,7 @@ export default function Submissions() {
   const submit = async () => {
     setError("");
     try {
-      await api("/api/concepts", {
+      const concept = await api<TokenConcept>("/api/concepts", {
         body: {
           ...form,
           artworkUrl: form.artworkUrl || undefined,
@@ -48,6 +56,7 @@ export default function Submissions() {
           totalSupply: form.totalSupply ? Number(form.totalSupply) : undefined,
         },
       });
+      setCreated(concept);
       setForm({
         name: "",
         symbol: "",
@@ -240,6 +249,49 @@ export default function Submissions() {
           Go to Community Vote →
         </Link>
       </section>
+
+      {/* Post-submit payoff: the coin's promo card, then straight to the vote. */}
+      {mounted &&
+        created &&
+        createPortal(
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+            <div
+              onClick={() => setCreated(null)}
+              className="absolute inset-0 bg-black/75 backdrop-blur-sm"
+            />
+            <div className="relative w-full max-w-md">
+              <div className="mb-3 text-center">
+                <div className="text-3xl">🔥</div>
+                <h2 className="mt-1 text-xl font-black tracking-tight text-zinc-50">
+                  Your coin is on the ballot!
+                </h2>
+                <p className="mt-1 text-sm text-zinc-400">
+                  This is how it&apos;ll look in the arena. The crowd votes now — hit the bar and
+                  it goes straight onto the match calendar at your tier.
+                </p>
+              </div>
+              <CoinCard concept={created} />
+              <div className="mt-4 flex items-center justify-center gap-3">
+                <button
+                  onClick={() => {
+                    setCreated(null);
+                    router.push("/vote");
+                  }}
+                  className="rounded-xl bg-lime-400 px-6 py-2.5 font-black text-zinc-950 shadow-lg shadow-lime-400/25 transition hover:bg-lime-300"
+                >
+                  Watch the votes →
+                </button>
+                <button
+                  onClick={() => setCreated(null)}
+                  className="text-sm text-zinc-500 hover:text-zinc-300"
+                >
+                  stay here
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
