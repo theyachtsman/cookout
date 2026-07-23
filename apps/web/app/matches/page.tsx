@@ -76,8 +76,21 @@ export default function Home() {
           pro-rata fills, auditable settlement.
         </p>
         {live.length === 0 && upcoming.length === 0 && (
-          <div className="rounded-lg border border-zinc-800 p-6 text-zinc-400">
-            No rounds on the calendar yet — the next one is usually seconds away.
+          <div className="rounded-xl border border-lime-400/30 bg-lime-400/[0.04] p-8 text-center">
+            <div className="text-3xl">🍳</div>
+            <p className="mt-2 text-lg font-black text-zinc-100">
+              The grill is empty — someone needs to launch a coin.
+            </p>
+            <p className="mx-auto mt-1 max-w-md text-sm text-zinc-400">
+              Matches come from the community: make a coin, the crowd votes it through, and it
+              lands right here on the calendar at your chosen tier.
+            </p>
+            <Link
+              href="/submissions"
+              className="mt-4 inline-block rounded-xl bg-lime-400 px-6 py-2.5 font-black text-zinc-950 shadow-lg shadow-lime-400/25 transition hover:bg-lime-300"
+            >
+              🔥 Make a Coin →
+            </Link>
           </div>
         )}
         <div className="grid gap-4 md:grid-cols-2">
