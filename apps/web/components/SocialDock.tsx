@@ -21,6 +21,7 @@ export function SocialDock() {
   const { profile } = useSession();
   const {
     online,
+    pinned,
     messages,
     matchMessages,
     activeRoom,
@@ -203,6 +204,13 @@ export function SocialDock() {
 
           {tab === "chat" ? (
             <>
+              {/* Admin-pinned announcement: stays put above the log, never
+                  fades — the one house message that outlives the 30s rule. */}
+              {!inMatch && pinned && (
+                <div className="border-b border-amber-400/30 bg-amber-400/[0.08] px-3 py-2 text-[12px] font-bold leading-snug text-amber-200">
+                  📌 {pinned}
+                </div>
+              )}
               <ChatLog
                 messages={inMatch ? matchMessages : messages}
                 me={profile.address}

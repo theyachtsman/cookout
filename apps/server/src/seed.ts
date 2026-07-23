@@ -70,10 +70,9 @@ export function autoScheduler(store: Store, engine: RoundEngine): void {
     .sort((a, b) => b.votes - a.votes)[0];
   if (!next) return;
   next.status = "shortlisted";
-  const round = engine.scheduleRound(
-    next,
-    store.settings.tier,
-    Date.now() + store.settings.leadSeconds * 1000,
-  );
-  store.logAdmin("auto_schedule", `round ${round.id} (${next.symbol}, ${store.settings.tier})`);
+  // The creator's chosen tier wins; the ops setting is the fallback for
+  // legacy concepts submitted before tiers were selectable.
+  const tier = next.tier ?? store.settings.tier;
+  const round = engine.scheduleRound(next, tier, Date.now() + store.settings.leadSeconds * 1000);
+  store.logAdmin("auto_schedule", `round ${round.id} (${next.symbol}, ${tier})`);
 }

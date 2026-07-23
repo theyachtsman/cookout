@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ChatMessage, Round, TokenConcept } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useChainOnly } from "../../lib/chainOnly";
+import { TierChip } from "../../components/TierChip";
 import { useSession } from "../../lib/session";
 
 interface Overview {
@@ -23,6 +24,7 @@ interface Overview {
     bots?: boolean;
     announceTips?: string[];
     announceEveryMin?: number;
+    pinnedAnnouncement?: string;
   };
   log: { id: string; at: number; action: string; detail: string }[];
 }
@@ -150,14 +152,16 @@ function AnnouncementsEditor({
   settings,
   act,
 }: {
-  settings: { announceTips?: string[]; announceEveryMin?: number };
+  settings: { announceTips?: string[]; announceEveryMin?: number; pinnedAnnouncement?: string };
   act: (path: string, body?: unknown, method?: string) => Promise<void>;
 }) {
   const [tips, setTips] = useState<string | null>(null);
   const [every, setEvery] = useState<string | null>(null);
+  const [pin, setPin] = useState<string | null>(null);
   const tipsVal = tips ?? (settings.announceTips ?? []).join("\n");
   const everyVal = every ?? String(settings.announceEveryMin ?? 0);
-  const dirty = tips !== null || every !== null;
+  const pinVal = pin ?? (settings.pinnedAnnouncement ?? "");
+  const dirty = tips !== null || every !== null || pin !== null;
 
   return (
     <div className="mt-3 rounded-lg border border-zinc-800 p-3">
@@ -174,6 +178,15 @@ function AnnouncementsEditor({
         placeholder={"One announcement per line…"}
         className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-xs leading-relaxed"
       />
+      <label className="mt-2 block text-xs text-zinc-500">
+        📌 Pinned announcement — stays above The Grill until cleared (empty = no pin)
+        <input
+          value={pinVal}
+          onChange={(e) => setPin(e.target.value)}
+          placeholder="Nothing pinned"
+          className="mt-1 w-full rounded border border-amber-500/40 bg-zinc-900 px-2 py-1.5 text-xs text-amber-200"
+        />
+      </label>
       <div className="mt-2 flex flex-wrap items-center gap-3">
         <label className="flex items-center gap-2 text-xs text-zinc-500">
           every
@@ -193,9 +206,11 @@ function AnnouncementsEditor({
                 .map((t) => t.trim())
                 .filter(Boolean),
               announceEveryMin: Number(everyVal) || 0,
+              pinnedAnnouncement: pinVal.trim(),
             }).then(() => {
               setTips(null);
               setEvery(null);
+              setPin(null);
             })
           }
           className="rounded bg-lime-500 px-3 py-1.5 text-xs font-bold text-zinc-950 hover:bg-lime-400 disabled:opacity-40"
@@ -736,7 +751,7 @@ export default function AdminPage() {
             .map((c) => (
               <div key={c.id} className="flex flex-wrap items-center gap-3 rounded-lg border border-zinc-800 p-3 text-sm">
                 <span className="font-bold">
-                  {c.name} <span className="text-zinc-500">${c.symbol}</span>
+                  {c.name} <span className="text-zinc-500">${c.symbol}</span> <TierChip tier={c.tier} />
                 </span>
                 <span className="text-zinc-400">{c.theme}</span>
                 <span className="font-mono text-xs text-zinc-500">{c.votes} votes</span>

@@ -43,6 +43,8 @@ export interface TokenConcept {
   artworkUrl?: string;
   /** Creator-chosen total supply (tokenomics); tier default when unset. */
   totalSupply?: number;
+  /** Creator-chosen risk tier (level-gated); legacy concepts default rookie. */
+  tier?: RiskTier;
   status: "submitted" | "shortlisted" | "scheduled" | "launched" | "rejected";
   votes: number;
   createdAt: number;
@@ -453,6 +455,8 @@ export type ServerEvent =
   | { type: "chat_delete"; roundId: string; messageId: string }
   /** A message was edited by moderation (censored) — replace it by id. */
   | { type: "chat_update"; message: ChatMessage }
+  /** The Grill's pinned announcement changed ("" clears it). */
+  | { type: "pinned"; text: string }
   | { type: "error"; message: string };
 
 /** WebSocket messages: client → server. */

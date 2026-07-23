@@ -237,6 +237,7 @@ export class BotSwarm {
   }
 
   tick(now: number): void {
+    this.voteOnConcepts(now);
     for (const round of this.store.rounds.values()) {
       if (round.chain) continue; // real-money rounds are humans-only
       const phase = round.state;
@@ -255,6 +256,40 @@ export class BotSwarm {
         }
       }
     }
+  }
+
+  /** When the auto-scheduler is off, the swarm keeps the voting booth alive:
+   *  every 15–45s one bot votes on a submitted concept (bandwagon-weighted, so
+   *  momentum snowballs the way real votes do). Bots use the same one-vote-per-
+   *  address ledger as humans, and human votes always count alongside. */
+  private nextVoteAt = 0;
+  private voteOnConcepts(now: number): void {
+    if (this.store.settings.autoSchedule) return; // calendar fills itself — stay out
+    if (now < this.nextVoteAt) return;
+    this.nextVoteAt = now + 15_000 + Math.random() * 30_000;
+    const open = [...this.store.concepts.values()].filter((c) => c.status === "submitted");
+    if (open.length === 0) return;
+    // Bandwagon-weighted pick: 1 + votes.
+    const totalW = open.reduce((s, c) => s + 1 + c.votes, 0);
+    let roll = Math.random() * totalW;
+    let pick = open[0]!;
+    for (const c of open) {
+      roll -= 1 + c.votes;
+      if (roll <= 0) {
+        pick = c;
+        break;
+      }
+    }
+    let voters = this.store.conceptVoters.get(pick.id);
+    if (!voters) {
+      voters = new Set();
+      this.store.conceptVoters.set(pick.id, voters);
+    }
+    const fresh = PERSONAS.filter((p) => !voters.has(p.address));
+    if (fresh.length === 0) return;
+    const p = fresh[Math.floor(Math.random() * fresh.length)]!;
+    voters.add(p.address);
+    pick.votes++;
   }
 
   /** The regime + jitter for a round, rolled once and cached. */
