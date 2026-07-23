@@ -213,10 +213,13 @@ export function ArenaHeader({
   }
   if (rank) stats.push(["Your rank", `#${rank}`, rank <= 3 ? "text-amber-300" : undefined]);
 
-  // The creator's promo banner backs the whole header once the coin is
-  // revealed (never during the scheduled teaser). A left-heavy gradient keeps
-  // the status strip and stats readable over any artwork.
-  const banner = round.state !== "scheduled" ? round.token.bannerUrl : undefined;
+  // The coin backs the whole header once revealed (never during the scheduled
+  // teaser): the creator's promo banner when uploaded, otherwise the coin art
+  // blown up and softly blurred — same treatment as the CoinCard. A left-heavy
+  // gradient keeps the status strip and stats readable over any artwork.
+  const revealed = round.state !== "scheduled";
+  const banner = revealed ? round.token.bannerUrl : undefined;
+  const artBackdrop = revealed && !banner ? round.token.artworkUrl : undefined;
   return (
     <div className={`relative overflow-hidden rounded-xl border bg-zinc-900/40 ${skin.border}`}>
       {banner && (
@@ -228,6 +231,16 @@ export function ArenaHeader({
             className="pointer-events-none absolute inset-0 h-full w-full object-cover opacity-50"
           />
           <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-zinc-950/70 to-zinc-950/40" />
+        </>
+      )}
+      {artBackdrop && (
+        <>
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0 scale-110 bg-cover bg-center opacity-50 blur-lg"
+            style={{ backgroundImage: `url(${artBackdrop})` }}
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-zinc-950/70 to-zinc-950/50" />
         </>
       )}
       <div className="relative">
