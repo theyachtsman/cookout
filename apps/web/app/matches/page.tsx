@@ -142,71 +142,43 @@ export default function Home() {
           )}
           <div className="grid gap-3 md:grid-cols-3">
             {done.map((r) => {
-              const art = r.token.artworkUrl;
               const rug = r.endReason === "rug_detected" || r.endReason === "liquidity_removed";
               return (
                 <Link
                   key={r.id}
                   href={`/round/${r.id}`}
-                  className={`group relative overflow-hidden rounded-xl border transition hover:-translate-y-0.5 ${
-                    r.graduated
-                      ? "border-lime-400/40 hover:border-lime-400/80"
-                      : rug
-                        ? "border-red-900/60 hover:border-red-700"
-                        : "border-zinc-800 hover:border-zinc-600"
-                  }`}
+                  className="block transition hover:-translate-y-0.5"
                 >
-                  {art && (
-                    <div
-                      aria-hidden
-                      className="absolute inset-0 scale-110 bg-cover bg-center opacity-20 blur-lg transition-opacity duration-300 group-hover:opacity-35"
-                      style={{ backgroundImage: `url(${art})` }}
-                    />
-                  )}
-                  <div
-                    aria-hidden
-                    className="absolute inset-0 bg-gradient-to-r from-zinc-950/90 via-zinc-950/70 to-zinc-950/90"
-                  />
-                  <div className="relative flex items-center gap-3 p-3">
-                    {art ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={art}
-                        alt=""
-                        className={`h-11 w-11 rounded-lg border border-zinc-700 object-cover shadow-md shadow-black/50 ${
-                          rug ? "grayscale" : ""
+                  <CoinCard
+                    coin={{ ...r.token, tier: r.tier }}
+                    borderClass={
+                      r.graduated
+                        ? "border-lime-400/40 hover:border-lime-400/80"
+                        : rug
+                          ? "border-red-900/60 hover:border-red-700"
+                          : "border-zinc-800 hover:border-zinc-600"
+                    }
+                    corner={
+                      <span
+                        className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-bold ${
+                          r.graduated
+                            ? "bg-lime-400/20 text-lime-300"
+                            : rug
+                              ? "bg-red-500/20 text-red-300"
+                              : "bg-zinc-800/90 text-zinc-400"
                         }`}
-                      />
-                    ) : (
-                      <div className="flex h-11 w-11 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-900 text-xl">
-                        {r.graduated ? "🍽️" : rug ? "🔥" : "🪙"}
-                      </div>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      <div className="truncate font-bold">
-                        {r.token.name} <span className="text-zinc-500">${r.token.symbol}</span>
-                      </div>
-                      <div className="text-[11px] text-zinc-500">
-                        {r.graduated
-                          ? "still trading in the wild"
-                          : `ended: ${r.endReason?.replace(/_/g, " ")}`}
-                        {r.endedAt && (
-                          <span className="ml-1 text-zinc-700">· {ago(r.endedAt)}</span>
-                        )}
-                      </div>
+                      >
+                        {r.graduated ? "🍽️ served up" : rug ? "🔥 burnt" : "closed"}
+                      </span>
+                    }
+                  >
+                    <div className="text-[11px] text-zinc-500">
+                      {r.graduated
+                        ? "still trading in the wild"
+                        : `ended: ${r.endReason?.replace(/_/g, " ")}`}
+                      {r.endedAt && <span className="ml-1 text-zinc-700">· {ago(r.endedAt)}</span>}
                     </div>
-                    <span
-                      className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-bold ${
-                        r.graduated
-                          ? "bg-lime-400/20 text-lime-300"
-                          : rug
-                            ? "bg-red-500/20 text-red-300"
-                            : "bg-zinc-800 text-zinc-400"
-                      }`}
-                    >
-                      {r.graduated ? "🍽️ served up" : rug ? "🔥 burnt" : "closed"}
-                    </span>
-                  </div>
+                  </CoinCard>
                 </Link>
               );
             })}
