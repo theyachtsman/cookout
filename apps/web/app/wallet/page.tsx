@@ -113,7 +113,7 @@ function PaperWalletPage() {
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
           This is your game account. Matches spend your arena balance, never your bank. It works
-          exactly like the real thing will — get the habit here, where it&apos;s only paper.
+          exactly like the real thing will, so you build the habit here, where it&apos;s only paper.
         </p>
       </header>
 
@@ -238,7 +238,7 @@ function PrivyWalletCard({ address }: { address: string }) {
         <div>
           <h2 className="text-sm font-black text-zinc-200">Your wallet</h2>
           <p className="mt-0.5 text-xs text-zinc-500">
-            Your Privy account — the real on-chain wallet behind your login.
+            Your Privy account: the real on-chain wallet behind your login.
           </p>
         </div>
         <div className="text-right">
@@ -261,7 +261,7 @@ function PrivyWalletCard({ address }: { address: string }) {
         {address} {copied ? "✓ copied" : "⧉"}
       </button>
       <p className="mt-3 border-t border-zinc-800 pt-3 text-[11px] text-zinc-600">
-        Depositing real ETH here and funding your arena from it open at mainnet — the beta is paper
+        Depositing real ETH here and funding your arena from it open at mainnet. The beta is paper
         money, so this stays near 0 for now.
       </p>
     </div>
@@ -326,14 +326,14 @@ function ChainWalletPage() {
           ⚡ Arena Account
           {hot && (
             <span className="ml-2 rounded bg-lime-400/15 px-2 py-0.5 text-xs font-bold text-lime-300">
-              HOT — instant trades
+              HOT · instant trades
             </span>
           )}
         </h1>
         <p className="mt-1 max-w-xl text-sm text-zinc-500">
-          Your hot balance for on-chain rounds. Deposit once from your main wallet — one
-          confirmation — and every pull-up, buy, and sell fires instantly with no pop-ups. The key
-          lives only in this browser; withdraw back to your main wallet anytime.
+          Your hot balance for on-chain rounds. Deposit once from your main wallet, one
+          confirmation, and every pull-up, buy, and sell fires instantly with no pop-ups. The key
+          lives only in this browser, and you can withdraw back to your main wallet anytime.
         </p>
       </header>
 
@@ -415,7 +415,7 @@ function ChainWalletPage() {
             <div className="overflow-hidden rounded-xl border border-zinc-800">
               {history.length === 0 ? (
                 <div className="p-4 text-sm text-zinc-600">
-                  No transactions yet — deposit and pull up to an on-chain round.
+                  No transactions yet. Deposit and pull up to an on-chain round.
                 </div>
               ) : (
                 <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[30rem] text-sm">

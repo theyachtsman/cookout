@@ -311,7 +311,7 @@ function CalendarScene() {
       <div className="mb-3">
         <h3 className="text-lg font-black">Match Calendar</h3>
         <p className="text-xs text-zinc-500">
-          A fresh community-made token every few minutes — fair open, pro-rata fills, auditable
+          A fresh community-made token every few minutes: fair open, pro-rata fills, auditable
           settlement.
         </p>
       </div>
@@ -334,7 +334,7 @@ function CalendarScene() {
           name="???"
           symbol=""
           theme="Theme: flame-grilled"
-          badge="Queue open — get in"
+          badge="Queue open · get in"
           badgeCls="bg-lime-400/15 text-lime-300"
           sub={<>Queue closes in <b className="font-mono text-zinc-200">{fmt(38)}</b></>}
           tier="prime"
@@ -507,9 +507,9 @@ function QueueScene() {
       {/* phase banner */}
       <div className="rounded-xl border border-lime-400/60 bg-lime-400/10 px-4 py-2.5">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
-          <span className="text-base font-black tracking-wide text-lime-300">QUEUE OPEN — PULL UP</span>
+          <span className="text-base font-black tracking-wide text-lime-300">QUEUE OPEN · PULL UP</span>
           <span className="hidden text-xs text-zinc-400 sm:inline">
-            Everyone settles at ONE clearing price — order and speed don&apos;t matter
+            Everyone settles at ONE clearing price, and order and speed don&apos;t matter
           </span>
           <span className="ml-auto font-mono text-xl font-black tabular-nums text-zinc-100">
             0:{String(closeIn).padStart(2, "0")}
@@ -523,10 +523,10 @@ function QueueScene() {
       <div className="grid flex-1 gap-3 md:grid-cols-3">
         {/* queue + live pre-positions */}
         <div className="flex min-h-0 flex-col rounded-xl border border-zinc-800 p-4 md:col-span-2">
-          <h4 className="text-sm font-black">Position Queue — open</h4>
+          <h4 className="text-sm font-black">Position Queue · open</h4>
           <p className="mb-3 text-[11px] text-zinc-500">
             Buy intents queue until close, then settle at one uniform price. Oversubscribed? Pro-rata
-            fills — speed buys nothing.
+            fills, and speed buys nothing.
           </p>
           {/* the buy row */}
           <div className="flex flex-wrap items-end gap-2">
@@ -590,7 +590,7 @@ function QueueScene() {
           </div>
           <div className="rounded-xl border border-zinc-800 p-3">
             <h4 className="mb-1.5 text-xs font-bold text-zinc-300">Moon or Rug?</h4>
-            <p className="mb-2 text-[10px] text-zinc-500">Call it before the open — correct calls earn XP.</p>
+            <p className="mb-2 text-[10px] text-zinc-500">Call it before the open. Correct calls earn XP.</p>
             <div className="flex gap-2">
               <div
                 className={`flex-1 rounded px-2 py-1.5 text-center text-xs font-bold text-emerald-300 ${
@@ -745,7 +745,7 @@ function LaunchScene() {
               ● LIVE TRADING
             </span>
             <span className="hidden text-xs text-zinc-400 sm:inline">
-              👉 It&apos;s playable — you have {START_CASH} pETH. Hit Buy or Sell and watch the chart answer.
+              👉 It&apos;s playable. You have {START_CASH} pETH. Hit Buy or Sell and watch the chart answer.
             </span>
             <span className="ml-auto font-mono text-lg font-black tabular-nums text-zinc-100">
               1:{String(Math.max(0, 40 - age)).padStart(2, "0")}
@@ -1422,7 +1422,7 @@ function JackpotScene() {
       </div>
       <div className="rounded-xl border border-zinc-800 p-3">
         <div className="mb-2 text-[11px] font-bold text-zinc-300">
-          Fed by every trading fee — no cap, paid in real ETH
+          Fed by every trading fee · no cap, paid in real ETH
         </div>
         <div className="flex h-6 overflow-hidden rounded-full text-[10px] font-black text-zinc-950">
           <div className="flex items-center justify-center bg-amber-400" style={{ width: "30%" }}>30% JACKPOT</div>
@@ -1559,7 +1559,7 @@ function LaunchpadScene() {
               : "bg-zinc-800 text-zinc-500"
         }`}
       >
-        {submitted ? "✓ Submitted — now up for community vote" : "Submit Concept"}
+        {submitted ? "✓ Submitted · now up for community vote" : "Submit Concept"}
       </div>
 
       <div className="mt-auto grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -1593,7 +1593,7 @@ function UpvoteScene() {
         <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">Community Upvote</div>
         <h3 className="mt-1 text-lg font-black">Voting Now</h3>
         <p className="text-xs text-zinc-500">
-          10 upvotes sends a fresh coin to the committee shortlist — and onto the match calendar.
+          10 upvotes sends a fresh coin to the committee shortlist and onto the match calendar.
         </p>
       </div>
       <div className="grid min-h-0 flex-1 gap-3 sm:grid-cols-3">
@@ -1632,7 +1632,7 @@ function UpvoteScene() {
               <div className="mt-auto pt-3">
                 {shortlisted ? (
                   <div className="text-[11px] font-bold text-sky-300">
-                    ✓ Vote passed — awaiting a match slot
+                    ✓ Vote passed · awaiting a match slot
                   </div>
                 ) : (
                   <>

@@ -153,10 +153,10 @@ export class Store {
     leadSeconds: 15,
     bots: true,
     announceTips: [
-      "🍳 Want your own coin in the arena? Menu → Make a Coin: pick a name, ticker, and art — the community votes it onto the calendar.",
-      "🗳️ Vote on submitted coins from the Vote page — top-voted concepts become the next matches.",
+      "🍳 Want your own coin in the arena? Menu → Make a Coin: pick a name, ticker, and art, then the community votes it onto the calendar.",
+      "🗳️ Vote on submitted coins from the Vote page. Top-voted concepts become the next matches.",
       "⚖️ New here? The Fair Open means nobody gets in before you: every buy settles at ONE price. Speed buys nothing.",
-      "🎰 Every trade feeds the Weekly Jackpot — top 10 by weekly XP split it every Monday.",
+      "🎰 Every trade feeds the Weekly Jackpot. Top 10 by weekly XP split it every Monday.",
     ],
     announceEveryMin: 30,
     pinnedAnnouncement: "",

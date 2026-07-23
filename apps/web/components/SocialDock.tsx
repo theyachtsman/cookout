@@ -240,7 +240,7 @@ export function SocialDock() {
                   placeholder={
                     inMatch
                       ? activeRoom?.frozen
-                        ? "this round is over — chat lives on in The Grill"
+                        ? "this round is over. chat lives on in The Grill"
                         : `message ${activeRoom?.label}…`
                       : "say something to the whole cookout…"
                   }
@@ -286,7 +286,7 @@ export function OnlineList({
   if (grouped.length === 0)
     return (
       <div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-zinc-600">
-        Nobody else is here yet — you&apos;re first to the grill.
+        Nobody else is here yet. You&apos;re first to the grill.
       </div>
     );
   return (
@@ -399,7 +399,7 @@ export function ActivityFeed({
         {shown.length === 0 && (
           <div className="p-4 text-center text-xs text-zinc-600">
             {scope === "following"
-              ? "You're not following anyone yet — tap a name and hit Follow."
+              ? "You're not following anyone yet. Tap a name and hit Follow."
               : "Nothing has happened yet. Be the first."}
           </div>
         )}

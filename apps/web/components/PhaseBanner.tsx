@@ -33,16 +33,16 @@ export function PhaseBanner({ round }: { round: Round }) {
       case "lobby":
         return {
           label: "LOBBY OPEN",
-          detail: "Position queue opens next — get your entry ready",
+          detail: "Position queue opens next. Get your entry ready",
           from: round.scheduledAt,
           until: round.queueOpensAt,
           tone: "border-sky-500/50 bg-sky-500/10",
         };
       case "queue_open":
         return {
-          label: "QUEUE OPEN — PULL UP",
+          label: "QUEUE OPEN · PULL UP",
           detail:
-            "Submit buy intents now. Everyone settles at ONE clearing price — order and speed don't matter",
+            "Submit buy intents now. Everyone settles at ONE clearing price, and order and speed don't matter",
           from: round.queueOpensAt,
           until: round.queueClosesAt,
           tone: "border-lime-400/60 bg-lime-400/10",
@@ -50,7 +50,7 @@ export function PhaseBanner({ round }: { round: Round }) {
       case "settling":
         return {
           label: "SETTLING",
-          detail: "Queue closed — computing the uniform clearing price…",
+          detail: "Queue closed. Computing the uniform clearing price…",
           tone: "border-purple-500/50 bg-purple-500/10",
         };
       case "live":
@@ -64,15 +64,15 @@ export function PhaseBanner({ round }: { round: Round }) {
       case "ended":
         return {
           label: "RESOLVING",
-          detail: "Round ended — computing results…",
+          detail: "Round ended. Computing results…",
           tone: "border-zinc-600 bg-zinc-900",
         };
       default:
         return {
-          label: round.graduated ? "🍽️ SERVED UP — OUT IN THE WILD" : "ROUND OVER",
+          label: round.graduated ? "🍽️ SERVED UP · OUT IN THE WILD" : "ROUND OVER",
           detail: round.graduated
-            ? "Bonding targets hit — the battle is over and this market now trades in the wild (paper-simulated). Position caps are off."
-            : `Ended: ${(round.endReason ?? "").replace(/_/g, " ")} — positions resolved at one uniform redemption price`,
+            ? "Bonding targets hit. The battle is over and this market now trades in the wild (paper-simulated). Position caps are off."
+            : `Ended: ${(round.endReason ?? "").replace(/_/g, " ")}. Positions resolved at one uniform redemption price`,
           tone: round.graduated
             ? "border-emerald-500/60 bg-emerald-500/10"
             : "border-zinc-600 bg-zinc-900",

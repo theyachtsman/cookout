@@ -62,7 +62,7 @@ export function AudioMixer() {
         ))}
       </div>
       <p className="mt-4 text-[11px] leading-snug text-zinc-600">
-        Saved on this device — your mix is yours alone.
+        Saved on this device. Your mix is yours alone.
       </p>
     </div>
   );

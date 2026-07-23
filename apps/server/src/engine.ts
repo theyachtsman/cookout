@@ -180,7 +180,7 @@ export class RoundEngine {
           this.sys(
             round.id,
             "queue_open",
-            `Queue is OPEN — pull up. Everyone settles at one price in ${round.config.queueSeconds}s.`,
+            `Queue is OPEN. Pull up. Everyone settles at one price in ${round.config.queueSeconds}s.`,
           );
           this.emitState(round);
           return true;
@@ -243,7 +243,7 @@ export class RoundEngine {
   ) {
     const round = this.mustRound(roundId);
     if (round.chain)
-      throw new Err(409, "on-chain round — submit your buy from your wallet, not the paper API");
+      throw new Err(409, "on-chain round: submit your buy from your wallet, not the paper API");
     if (round.state !== "queue_open") throw new Err(409, "queue is not open");
     if (!(ethAmount > 0)) throw new Err(400, "ethAmount must be positive");
     const cap = round.config.maxPositionEth;
@@ -252,9 +252,9 @@ export class RoundEngine {
     const mine = existing.filter((i) => i.userAddress === user.address);
     const committed = mine.reduce((s, i) => s + i.ethAmount, 0);
     if (cap > 0 && committed + ethAmount > cap)
-      throw new Err(400, `queue position cap is ${cap} paper ETH for this tier — live trading is uncapped`);
+      throw new Err(400, `queue position cap is ${cap} paper ETH for this tier; live trading is uncapped`);
     if ((user.arenaBalance ?? 0) < ethAmount)
-      throw new Err(400, "not enough in your arena wallet — deposit pETH to pull up");
+      throw new Err(400, "not enough in your arena wallet: deposit pETH to pull up");
     user.arenaBalance = (user.arenaBalance ?? 0) - ethAmount; // escrow until settlement
     if (mine.length === 0) this.store.trackActivity(user.address, "auctions_entered", 1, now);
     const intent = {
@@ -278,7 +278,7 @@ export class RoundEngine {
   cancelIntent(roundId: string, address: Address, intentId: string) {
     const round = this.mustRound(roundId);
     if (round.chain)
-      throw new Err(409, "on-chain round — cancel from your wallet, not the paper API");
+      throw new Err(409, "on-chain round: cancel from your wallet, not the paper API");
     if (round.state !== "queue_open") throw new Err(409, "queue is not open");
     const intents = this.store.intents.get(roundId)!;
     const idx = intents.findIndex(
@@ -294,7 +294,7 @@ export class RoundEngine {
   /** Queue closed: settle every intent at one clearing price, atomically. */
   private settle(round: Round, now: number): void {
     round.state = "settling";
-    this.sys(round.id, "queue_closed", "Queue CLOSED — computing the uniform clearing price…");
+    this.sys(round.id, "queue_closed", "Queue CLOSED. Computing the uniform clearing price…");
     this.emitState(round);
     const cfg = round.config;
     const pool: PoolState = {
@@ -358,7 +358,7 @@ export class RoundEngine {
     this.sys(
       round.id,
       "settled",
-      `Settled at ONE price — ${result.totalRaised.toFixed(2)} in from ${result.fills.length} ` +
+      `Settled at ONE price. ${result.totalRaised.toFixed(2)} in from ${result.fills.length} ` +
         `intent${result.fills.length === 1 ? "" : "s"} (${(result.fillRatio * 100).toFixed(0)}% fill).`,
     );
     this.sys(round.id, "live", "TRADING IS LIVE. Good luck.");
@@ -366,7 +366,7 @@ export class RoundEngine {
     this.sys(
       GLOBAL_ROOM,
       "live",
-      `$${round.token.symbol} just went LIVE — ${round.token.name} is trading now. Pull up!`,
+      `$${round.token.symbol} just went LIVE. ${round.token.name} is trading now. Pull up!`,
     );
     this.broadcast(round.id, { type: "auction_settled", result });
     this.emitState(round);
@@ -381,7 +381,7 @@ export class RoundEngine {
   ): Trade {
     const round = this.mustRound(roundId);
     if (round.chain)
-      throw new Err(409, "on-chain round — trade from your wallet, not the paper API");
+      throw new Err(409, "on-chain round: trade from your wallet, not the paper API");
     const s = this.liveState(roundId);
     const alumni = round.state === "results" && !!round.graduated;
     if (round.state !== "live" && !alumni) throw new Err(409, "round is not live");
@@ -397,7 +397,7 @@ export class RoundEngine {
       const ethIn = amount.eth ?? 0;
       if (!(ethIn > 0)) throw new Err(400, "eth amount required");
       if ((user.arenaBalance ?? 0) < ethIn)
-        throw new Err(400, "not enough in your arena wallet — deposit pETH to trade");
+        throw new Err(400, "not enough in your arena wallet: deposit pETH to trade");
       // Live trading is uncapped — bet the whole bag if you dare. The
       // position cap (maxPositionEth) constrains ONLY the fair-open queue
       // (submitIntent), so nobody can pre-load the bond before the open.
@@ -731,7 +731,7 @@ export class RoundEngine {
     round.endedAt = now;
     round.endReason = reason;
     if (reason === "rug_detected")
-      this.kill(round, "rug_detected", "Rug detected — liquidity drained", now);
+      this.kill(round, "rug_detected", "Rug detected · liquidity drained", now);
     this.emitState(round);
 
     // Flush the in-progress candle so the chart snapshot includes the end.
@@ -765,7 +765,7 @@ export class RoundEngine {
       // Served Up: liquidity locks in a permanent pool, holders keep their
       // tokens, and the market keeps trading "in the wild" (alumniTick).
       // Positions are left untouched so wild trading stays consistent.
-      this.kill(round, "graduated", `${round.token.symbol} SERVED UP — out in the wild`, now);
+      this.kill(round, "graduated", `${round.token.symbol} SERVED UP · out in the wild`, now);
       const concept = this.store.concepts.get(round.conceptId);
       if (concept) concept.status = "launched";
     } else {
@@ -817,7 +817,7 @@ export class RoundEngine {
       this.store.pushActivity(
         round.creatorAddress,
         "graduated",
-        `bonded $${round.token.symbol} — served up 🍽️`,
+        `bonded $${round.token.symbol}, served up 🍽️`,
         { roundId: round.id, roundSymbol: round.token.symbol },
       );
     if (!graduated && (reason === "rug_detected" || reason === "liquidity_removed"))
@@ -832,8 +832,8 @@ export class RoundEngine {
       round.id,
       graduated ? "graduated" : "ended",
       graduated
-        ? `SERVED UP — ${round.token.symbol} is out in the wild. Chat is frozen here; see you in The Grill.`
-        : `Round over (${reason.replace(/_/g, " ")}) — every holder exited at one uniform price. ` +
+        ? `SERVED UP. ${round.token.symbol} is out in the wild. Chat is frozen here; see you in The Grill.`
+        : `Round over (${reason.replace(/_/g, " ")}). Every holder exited at one uniform price. ` +
             `Chat is frozen here; see you in The Grill.`,
     );
     // And tell The Grill how it ended.
@@ -841,10 +841,10 @@ export class RoundEngine {
       GLOBAL_ROOM,
       graduated ? "graduated" : reason === "rug_detected" ? "rug" : "ended",
       graduated
-        ? `RESULTS — $${round.token.symbol} SERVED UP 🍽️ and graduated. Check the match results.`
+        ? `RESULTS · $${round.token.symbol} SERVED UP 🍽️ and graduated. Check the match results.`
         : reason === "rug_detected"
-          ? `RESULTS — $${round.token.symbol} got RUGGED. Everyone exited at one uniform price.`
-          : `RESULTS — $${round.token.symbol} is done (${reason.replace(/_/g, " ")}). Results are up.`,
+          ? `RESULTS · $${round.token.symbol} got RUGGED. Everyone exited at one uniform price.`
+          : `RESULTS · $${round.token.symbol} is done (${reason.replace(/_/g, " ")}). Results are up.`,
     );
     this.broadcast(round.id, { type: "round_end", roundId: round.id, summary });
     round.state = "results";

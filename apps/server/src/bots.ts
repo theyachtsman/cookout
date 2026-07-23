@@ -166,7 +166,7 @@ const QUEUE_LINES = [
 ];
 const PUMP_LINES = [
   "IT'S COOKING 🔥", "up only szn", "told y'all", "chart going vertical lmaooo",
-  "whoever just market bought — respect", "printing. simply printing.", "don't you dare sell",
+  "whoever just market bought, respect", "printing. simply printing.", "don't you dare sell",
   "mcap about to break the target watch", "green candles taste better at night",
   "SEND IT 🚀", "we are SO back", "candles fatter than my portfolio", "bulls in full control",
   "i'm never selling (i will sell)", "this is financial advice, buy", "vertical. absolutely vertical.",

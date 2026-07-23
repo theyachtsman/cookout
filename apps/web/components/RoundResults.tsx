@@ -25,31 +25,31 @@ const REASON: Record<string, { title: string; emoji: string; note: string; tone:
   rug_detected: {
     title: "BURNT",
     emoji: "🔥",
-    note: "Liquidity drained — every remaining holder exited at the same salvage price. No exit-order games, even in a rug.",
+    note: "Liquidity drained. Every remaining holder exited at the same salvage price. No exit-order games, even in a rug.",
     tone: "text-red-400",
   },
   liquidity_removed: {
     title: "BURNT",
     emoji: "🔥",
-    note: "Liquidity pulled — everyone remaining exited at one uniform salvage price.",
+    note: "Liquidity pulled. Everyone remaining exited at one uniform salvage price.",
     tone: "text-red-400",
   },
   timer: {
     title: "ROUND OVER",
     emoji: "⏱",
-    note: "Bonding targets missed at the bell — every remaining holder exited at one uniform redemption price.",
+    note: "Bonding targets missed at the bell. Every remaining holder exited at one uniform redemption price.",
     tone: "text-zinc-200",
   },
   low_volume: {
     title: "ROUND OVER",
     emoji: "💤",
-    note: "Volume went quiet — the round closed and everyone exited at one uniform redemption price.",
+    note: "Volume went quiet. The round closed and everyone exited at one uniform redemption price.",
     tone: "text-zinc-200",
   },
   mcap_target: {
     title: "TARGET HIT",
     emoji: "🎯",
-    note: "Market-cap target reached — the round settled at one uniform price.",
+    note: "Market-cap target reached. The round settled at one uniform price.",
     tone: "text-lime-300",
   },
 };
@@ -83,7 +83,7 @@ export function RoundResultsOverlay({
     ? {
         title: "SERVED UP",
         emoji: "🍽️",
-        note: "Bonded out and released into the wild — it keeps trading. Below is how the pre-bond battle played out.",
+        note: "Bonded out and released into the wild, and it keeps trading. Below is how the pre-bond battle played out.",
         tone: "text-lime-300",
       }
     : (REASON[summary.endReason] ?? REASON.timer!);
@@ -149,7 +149,7 @@ export function RoundResultsOverlay({
               )}
               {breakdown.heldTokens <= 0 && (
                 <div className="text-xs text-zinc-500">
-                  You were fully out before the end — nothing left to redeem.
+                  You were fully out before the end, nothing left to redeem.
                 </div>
               )}
             </dl>
@@ -164,7 +164,7 @@ export function RoundResultsOverlay({
           </div>
           <p className="mt-1.5 text-xs leading-relaxed text-zinc-400">
             Every {unit} left in the pool is split <b className="text-zinc-200">pro-rata across
-            every token still held</b> — one shared exit price for all remaining holders
+            every token still held</b>: one shared exit price for all remaining holders
             {breakdown && breakdown.heldTokens > 0 && breakdown.returned > 0 && (
               <>
                 {" "}
@@ -175,7 +175,7 @@ export function RoundResultsOverlay({
                 {unit}/token)
               </>
             )}
-            . Being fast or slow after the bell changes nothing — there is no exit race
+            . Being fast or slow after the bell changes nothing. There is no exit race
             {summary.endReason === "rug_detected" || summary.endReason === "liquidity_removed" ? (
               <>
                 , and even after the drain, <b className="text-zinc-200">the salvage that remained
@@ -186,12 +186,12 @@ export function RoundResultsOverlay({
             {onChain ? (
               <>
                 Your share is <b className="text-amber-300">claimable from the round&apos;s
-                contract</b> — hit Redeem in &quot;Your on-chain claims&quot; on this page.
+                contract</b>: hit Redeem in &quot;Your on-chain claims&quot; on this page.
               </>
             ) : (
               <>
                 Your share was <b className="text-amber-300">credited to your {unit} balance
-                automatically</b> — nothing to claim.
+                automatically</b>: nothing to claim.
               </>
             )}
           </p>

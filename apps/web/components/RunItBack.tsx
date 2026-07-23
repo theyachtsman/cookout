@@ -96,7 +96,7 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
                   <p className="mt-2 text-sm text-zinc-400">
                     When a coin doesn&apos;t graduate, its developer gets a second serving:{" "}
                     <b className="text-zinc-200">Run It Back</b> re-launches the coin with the
-                    exact same setup — same tier, same match length, same tokenomics — straight
+                    exact same setup (same tier, same match length, same tokenomics) straight
                     onto the calendar, no new vote needed.
                   </p>
                   <p className="mt-2 text-sm text-zinc-400">

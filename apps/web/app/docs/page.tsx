@@ -81,8 +81,8 @@ export default function Docs() {
           <p>
             The Cookout is a <b>live multiplayer trading arena</b>. Every match on the calendar is a
             brand-new token created for that match by a community creator. It opens through a fair
-            batch auction, trades live for a few minutes in front of a crowd, and then ends — by
-            graduation, by timer, or by getting rugged.
+            batch auction, trades live for a few minutes in front of a crowd, then ends one of three
+            ways: graduation, timer, or a rug.
           </p>
           <p>
             It is <b>not</b> a simulated casino chart. Every candle you see is made of real trades
@@ -91,14 +91,14 @@ export default function Docs() {
           </p>
           <p>
             Getting in takes under a minute: sign in with an email, Google, X, or your own wallet
-            and you&apos;re on the calendar. No whitelist, nothing to deposit — the beta is free to
+            and you&apos;re on the calendar. No whitelist, nothing to deposit. The beta is free to
             play. <a href="#account" className="text-lime-400 underline">How accounts work →</a>
           </p>
         </Section>
 
         <Section id="account" title="Getting In & Your Account">
           <p>
-            The Cookout is in <b>open beta</b> — no whitelist, no waves, no crypto knowledge
+            The Cookout is in <b>open beta</b>: no whitelist, no waves, no crypto knowledge
             required. Hit <b>Play Now</b> and sign in with an email, Google, X, or an existing
             wallet (login is handled by{" "}
             <a href="https://privy.io" target="_blank" rel="noreferrer" className="text-lime-400 underline">
@@ -107,7 +107,7 @@ export default function Docs() {
             ). That&apos;s the whole onboarding.
           </p>
           <p>
-            Every account comes with its own <b>wallet address</b> under the hood — created
+            Every account comes with its own <b>wallet address</b> under the hood, created
             automatically and secured by your login. That address is your identity: your XP, level,
             match history, and leaderboard runs all hang off it. You never sign transactions or
             manage keys to play; the blockchain stays in the background.
@@ -117,56 +117,55 @@ export default function Docs() {
           </p>
           <ul className="list-disc space-y-2 pl-5">
             <li>
-              <b>Arena balance</b> — the stake matches can spend. Your starter 10 pETH is staked
+              <b>Arena balance</b>: the stake matches can spend. Your starter 10 pETH is staked
               here automatically on sign-up so you can walk straight into a lobby.
             </li>
             <li>
-              <b>Bank</b> — the rest of your paper money. Safe, can&apos;t trade. Move funds
+              <b>Bank</b>: the rest of your paper money. Safe, can&apos;t trade. Move funds
               between bank and arena any time you&apos;re not queued into a match.
             </li>
             <li>
-              <b>Your wallet</b> — the real on-chain address behind your login, shown with its live
+              <b>Your wallet</b>: the real on-chain address behind your login, shown with its live
               balance. Real deposits, withdrawals, and funding the arena with real ETH open at
               mainnet; during the beta everything you play with is pETH.
             </li>
           </ul>
           <p className="text-zinc-400">
-            One more thing you should know: during the beta, matches are kept busy by our{" "}
-            <b>Swarm</b> — house traders that behave differently every round, so there&apos;s always
-            a market to out-trade. As real players fill the lobbies, they take the Swarm&apos;s
-            seats.
+            During the beta, matches are kept busy by our <b>Swarm</b>: house traders that behave
+            differently every round, so there&apos;s always a market to out-trade. As real players
+            fill the lobbies, they take the Swarm&apos;s seats.
           </p>
         </Section>
 
         <Section id="round" title="Anatomy of a Round">
           <ol className="list-decimal space-y-2 pl-5">
             <li>
-              <b>Scheduled</b> — the match is on the calendar. You see the theme; the token stays a
+              <b>Scheduled</b>: the match is on the calendar. You see the theme; the token stays a
               teaser until the lobby opens.
             </li>
             <li>
-              <b>Lobby</b> — token revealed. Check the tokenomics panel, the crowd size, and make
+              <b>Lobby</b>: token revealed. Check the tokenomics panel, the crowd size, and make
               your Moon-or-Rug call.
             </li>
             <li>
-              <b>Queue open</b> — submit buy intents into the batch auction. The live bid board
+              <b>Queue open</b>: submit buy intents into the batch auction. The live bid board
               shows everyone entering with you.
             </li>
             <li>
-              <b>Settling</b> — the queue closes at a fixed time and every fill settles at one
+              <b>Settling</b>: the queue closes at a fixed time and every fill settles at one
               clearing price, in one shot.
             </li>
             <li>
-              <b>Live</b> — continuous trading until the round ends. Watch the graduation bars and
+              <b>Live</b>: continuous trading until the round ends. Watch the graduation bars and
               the kill feed.
             </li>
             <li>
-              <b>Results</b> — winners, superlatives, XP, achievements, leaderboard moves.
+              <b>Results</b>: winners, superlatives, XP, achievements, leaderboard moves.
             </li>
           </ol>
         </Section>
 
-        <Section id="auction" title="The Fair Open (read this one)">
+        <Section id="auction" title="The Fair Open">
           <p>
             On every other launchpad, the open is won by whoever has the fastest bot. Here,{" "}
             <b>speed buys nothing</b>:
@@ -174,11 +173,11 @@ export default function Docs() {
           <ul className="list-disc space-y-2 pl-5">
             <li>Buy intents queue until a fixed close time. Arrival order is irrelevant.</li>
             <li>
-              Everyone settles at <b>one uniform clearing price</b> — first bid and last bid pay
+              Everyone settles at <b>one uniform clearing price</b>: first bid and last bid pay
               exactly the same.
             </li>
             <li>
-              If the round is oversubscribed, every intent is filled <b>pro-rata</b> — never by
+              If the round is oversubscribed, every intent is filled <b>pro-rata</b>: never by
               price priority, never first-come-first-served.
             </li>
             <li>
@@ -202,7 +201,7 @@ export default function Docs() {
           <p>
             Fees are flat and published: <b>{TIER_CONFIGS.rookie.tradeFeeBps / 100}%</b> per trade,{" "}
             <b>{TIER_CONFIGS.rookie.auctionFeeBps / 100}%</b> on auction fills. That fee stream is
-            the only thing the house ever earns — player losses always go to other players, never
+            the only thing the house ever earns. Player losses always go to other players, never
             to us.
           </p>
         </Section>
@@ -211,21 +210,21 @@ export default function Docs() {
           <p>A round ends the moment any of these fire:</p>
           <ul className="list-disc space-y-2 pl-5">
             <li>
-              <b>🎓 Graduation</b> — market cap, volume, and holder targets all met (watch the
+              <b>🎓 Graduation</b>: market cap, volume, and holder targets all met (watch the
               bonding bars above the chart). The token becomes an <b>Arena Alumni</b>; holders keep
               their position.
             </li>
             <li>
-              <b>⏱ Timer / low volume</b> — the round hits its max length or goes quiet. Every
-              remaining holder exits automatically at <b>one uniform redemption price</b> — the
+              <b>⏱ Timer / low volume</b>: the round hits its max length or goes quiet. Every
+              remaining holder exits automatically at <b>one uniform redemption price</b>: the
               same rate for everyone, no exit-order games, always liquid.
             </li>
             <li>
-              <b>🔥 Rug</b> — the pool drains hard or the developer dumps. The kill feed calls it{" "}
+              <b>🔥 Rug</b>: the pool drains hard or the developer dumps. The kill feed calls it{" "}
               <b>Burnt</b>. Rugging tanks the creator&apos;s reputation and earns their wallet a{" "}
               <b>launch ban</b> (see <a href="#reputation" className="text-lime-400 underline">Reputation
-              &amp; Rug Bans</a>). Note: creator sells are time-locked after the open on lower tiers
-              — check the round&apos;s tokenomics panel.
+              &amp; Rug Bans</a>). Note: creator sells are time-locked after the open on lower tiers.
+              Check the round&apos;s tokenomics panel.
             </li>
           </ul>
           <p className="text-zinc-400">
@@ -236,7 +235,7 @@ export default function Docs() {
 
         <Section id="reputation" title="Reputation & Rug Bans">
           <p>
-            Every creator carries a public <b>reputation score</b> — it&apos;s on your profile, your
+            Every creator carries a public <b>reputation score</b>: it&apos;s on your profile, your
             public profile, and your creator page for anyone to check before they vote your coin up.
           </p>
           <div className="grid gap-2 sm:grid-cols-3">
@@ -255,33 +254,33 @@ export default function Docs() {
             When a coin you launched rugs, your wallet earns a <b>launch ban</b>. A ban blocks one
             thing only: <b>putting new coins on the ballot</b>. You can still trade every match,
             chat in <a href="#grill" className="text-lime-400 underline">The Grill</a>, earn XP, and
-            climb the leaderboard exactly as before — but banned players wear a{" "}
+            climb the leaderboard exactly as before. Banned players just wear a{" "}
             <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-xs font-black uppercase text-red-300">
               🚫 banned
             </span>{" "}
             badge on their name in chat until the ban lifts.
           </p>
           <p>
-            <b>Clearing a ban</b> depends on the phase you&apos;re playing in — your{" "}
+            How you clear a ban depends on the phase you&apos;re playing in. Your{" "}
             <Link href="/profile" className="text-lime-400 underline">Profile</Link> always shows
             which applies to you, in the <b>Reputation</b> panel:
           </p>
           <ul className="list-disc space-y-2 pl-5">
             <li>
-              <b>Paper beta — self-serve.</b> A rug ban is a lesson, not a sentence. Open your
+              <b>Paper beta: self-serve.</b> A rug ban is a lesson, not a sentence. Open your
               Reputation panel and hit <b>Clear my ban</b> to lift it yourself and get back to
-              launching. The rug still stays on your record forever — reputation remembers, even
+              launching. The rug still stays on your record forever. Reputation remembers, even
               after the ban is gone.
             </li>
             <li>
-              <b>Real-money phases — wait it out.</b> Bans lift themselves on a timer, and repeat
+              <b>Real-money phases: wait it out.</b> Bans lift themselves on a timer, and repeat
               rugs wait longer each time. Your Reputation panel shows a live countdown to when
               you&apos;re clear.
             </li>
           </ul>
           <p className="text-zinc-400">
-            Either way, the whole history lives on your creator page — every launch, every
-            graduation, and every rug. Reputation is the point: it&apos;s what tells the crowd
+            Either way, the whole history lives on your creator page: every launch, every
+            graduation, and every rug. Reputation is the point. It&apos;s what tells the crowd
             whether your next coin is worth a vote.
           </p>
         </Section>
@@ -322,9 +321,9 @@ export default function Docs() {
 
         <Section id="progression" title="XP, Levels & Titles">
           <p>
-            You earn XP every round <b>regardless of profit</b> — participation, first buys,
+            You earn XP every round <b>regardless of profit</b>: participation, first buys,
             diamond hands, perfect exits, rug survival, and more. Every point counts toward your{" "}
-            <b>level for life</b> — levels never reset. Each bracket carries a <b>title</b> that
+            <b>level for life</b>. Levels never reset. Each bracket carries a <b>title</b> that
             rides next to your name everywhere, and two brackets also <b>unlock a new arena</b>. The
             curve steepens as you climb (XP to reach a level ≈{" "}
             <span className="font-mono text-zinc-300">80·(L−1)^1.6</span>).
@@ -381,20 +380,20 @@ export default function Docs() {
         <Section id="jackpot" title="The Weekly Jackpot">
           <p>
             Every trade on The Cookout feeds a single, site-wide{" "}
-            <b className="text-amber-300">Weekly Jackpot</b> — a shared prize pot that pays out to
+            <b className="text-amber-300">Weekly Jackpot</b>: a shared prize pot that pays out to
             the top players every week.
           </p>
           <ul className="list-disc space-y-2 pl-5">
             <li>
               <b>Trading fills it.</b> {Math.round(JACKPOT_FEE_SHARE * 100)}% of every trading fee
               across the whole site flows into the pot (half of the platform&apos;s house cut).
-              Nothing is minted for it — it&apos;s pure fee revenue, so a busy week directly means a
+              Nothing is minted for it. It&apos;s pure fee revenue, so a busy week directly means a
               bigger jackpot. There is no cap.
             </li>
             <li>
               <b>XP wins it.</b> When the week closes (Monday 00:00 UTC), the{" "}
               <b>top {JACKPOT_WINNERS} players by XP earned that week</b> split the pot. It rewards
-              playing, not just profit — and it resets every week, so newcomers and veterans compete
+              playing, not just profit, and it resets every week, so newcomers and veterans compete
               on the same clock.
             </li>
             <li>
@@ -426,11 +425,10 @@ export default function Docs() {
 
         <Section id="quests" title="Quests & Earning XP">
           <p>
-            XP is the whole game — it sets your level, unlocks tiers and cosmetics, and decides
+            XP is the whole game. It sets your level, unlocks tiers and cosmetics, and decides
             the <Link href="/jackpot" className="text-amber-400 underline">Weekly Jackpot</Link>.
-            You earn it from many places, and the system is built so the way to the top of the
-            board is <b>playing well and often</b>, never spamming one action. Here&apos;s every
-            source:
+            You earn it from many places, and the way to the top of the board is always{" "}
+            <b>playing well and often</b>, never spamming one action. Every source:
           </p>
 
           <div className="overflow-x-auto">
@@ -447,7 +445,7 @@ export default function Docs() {
                   <td className="py-2 pr-4 font-bold">Every trade</td>
                   <td className="py-2 pr-4 font-mono text-lime-300">5·3·2·1…</td>
                   <td className="py-2 text-zinc-400">
-                    Buys and sells both earn, but on a decaying curve — capped at{" "}
+                    Buys and sells both earn, but on a decaying curve, capped at{" "}
                     {TRADE_XP.roundCap} XP a round and {TRADE_XP.dailyCap} a day. Wash-spamming
                     trades earns almost nothing.
                   </td>
@@ -456,7 +454,7 @@ export default function Docs() {
                   <td className="py-2 pr-4 font-bold">Daily Quests</td>
                   <td className="py-2 pr-4 font-mono text-lime-300">15–60</td>
                   <td className="py-2 text-zinc-400">
-                    A board of 4 quests that <b>rotates every day</b> from a big pool — play rounds,
+                    A board of 4 quests that <b>rotates every day</b> from a big pool: play rounds,
                     catch a dip, nail an exit, hold to the end, make the podium. Clear all four for a{" "}
                     <span className="text-amber-300">+{DAILY_SET_BONUS_XP}</span> bonus.
                   </td>
@@ -475,8 +473,8 @@ export default function Docs() {
                     {PODIUM_XP.join(" / ")}
                   </td>
                   <td className="py-2 text-zinc-400">
-                    Finish a round top-3 by PnL. Only three players win it per round — you can&apos;t
-                    farm it, you have to out-trade the table.
+                    Finish a round top-3 by PnL. Only three players win it per round, so you
+                    can&apos;t farm it. You have to out-trade the table.
                   </td>
                 </tr>
                 <tr className="border-t border-zinc-800">
@@ -485,7 +483,7 @@ export default function Docs() {
                     {ACHIEVEMENT_XP.common}–{ACHIEVEMENT_XP.legendary}
                   </td>
                   <td className="py-2 text-zinc-400">
-                    Every badge you unlock pays one-time XP, scaled by rarity — common to legendary.
+                    Every badge you unlock pays one-time XP, scaled by rarity, common to legendary.
                   </td>
                 </tr>
                 <tr className="border-t border-zinc-800">
@@ -493,14 +491,14 @@ export default function Docs() {
                   <td className="py-2 pr-4 font-mono text-lime-300">15–75</td>
                   <td className="py-2 text-zinc-400">
                     Just showing up and playing, first buys, profitable finishes, diamond hands,
-                    perfect exits, whale hunts, rug survival — all pay, win or lose.
+                    perfect exits, whale hunts, rug survival. All pay, win or lose.
                   </td>
                 </tr>
                 <tr className="border-t border-zinc-800">
                   <td className="py-2 pr-4 font-bold">Predictions</td>
                   <td className="py-2 pr-4 font-mono text-lime-300">15–20</td>
                   <td className="py-2 text-zinc-400">
-                    <b>Moon or Rug</b> — call each open before it happens. XP only; bragging rights,
+                    <b>Moon or Rug</b>: call each open before it happens. XP only. Bragging rights,
                     not a bet.
                   </td>
                 </tr>
@@ -511,7 +509,7 @@ export default function Docs() {
                     {Object.values(DAILY_STREAK_MILESTONES).slice(-1)[0]}+
                   </td>
                   <td className="py-2 text-zinc-400">
-                    Play at least one round a day to build a 🔥 <b>play streak</b> — milestones at
+                    Play at least one round a day to build a 🔥 <b>play streak</b>: milestones at
                     days 3, 7, 14, 30 pay more and more. Miss a day and a <b>freeze token</b> (earned
                     every 7 days) saves it. Clearing the weekly set week after week builds a second
                     streak.
@@ -521,8 +519,8 @@ export default function Docs() {
                   <td className="py-2 pr-4 font-bold">Milestones</td>
                   <td className="py-2 pr-4 font-mono text-lime-300">40–350</td>
                   <td className="py-2 text-zinc-400">
-                    Lifetime ladders — {MILESTONES.map((m) => m.name).join(", ")} — pay XP at every
-                    tier as your career totals climb. Months of goals that never reset.
+                    Lifetime ladders ({MILESTONES.map((m) => m.name).join(", ")}) that pay XP at
+                    every tier as your career totals climb. Months of goals that never reset.
                   </td>
                 </tr>
                 <tr className="border-t border-zinc-800">
@@ -540,7 +538,7 @@ export default function Docs() {
           </div>
 
           <h3 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-300">
-            Daily quests — {DAILY_ACTIVE_COUNT} of these {MISSIONS.filter((m) => m.period === "daily").length} rotate in each day
+            Daily quests · {DAILY_ACTIVE_COUNT} of these {MISSIONS.filter((m) => m.period === "daily").length} rotate in each day
           </h3>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {MISSIONS.filter((m) => m.period === "daily").map((m) => (
@@ -553,7 +551,7 @@ export default function Docs() {
           </p>
 
           <h3 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-300">
-            Weekly challenges — all {WEEKLY_MISSIONS.length} live all week
+            Weekly challenges · all {WEEKLY_MISSIONS.length} live all week
           </h3>
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {WEEKLY_MISSIONS.map((m) => (
@@ -566,7 +564,7 @@ export default function Docs() {
           </p>
 
           <h3 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-300">
-            Streaks — show up, get paid
+            Streaks · show up, get paid
           </h3>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="rounded-xl border border-zinc-800 p-4">
@@ -580,7 +578,7 @@ export default function Docs() {
               </div>
               <p className="mt-2 text-xs text-zinc-500">
                 Consecutive days played. Past 30 days, upkeep pays +50 XP each further week. A{" "}
-                <b className="text-sky-300">streak freeze</b> auto-saves one missed day — earn one
+                <b className="text-sky-300">streak freeze</b> auto-saves one missed day. Earn one
                 every 7 days played, hold up to {STREAK_FREEZE_MAX}.
               </p>
             </div>
@@ -601,7 +599,7 @@ export default function Docs() {
           </div>
 
           <h3 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-300">
-            Lifetime milestone ladders — never reset
+            Lifetime milestone ladders · never reset
           </h3>
           <div className="grid gap-3 sm:grid-cols-3">
             {MILESTONES.map((lad) => (
@@ -623,7 +621,7 @@ export default function Docs() {
           </div>
 
           <h3 className="mt-8 mb-3 text-sm font-bold uppercase tracking-wide text-zinc-300">
-            Monthly season pass — free track
+            Monthly season pass · free track
           </h3>
           <div className="overflow-x-auto">
             <div className="flex gap-2">
@@ -650,20 +648,20 @@ export default function Docs() {
             </div>
           </div>
           <p className="mt-2 text-sm text-zinc-500">
-            Your season XP climbs a free monthly track — no paid tier, ever. Hit the marks for XP
-            kickers and pass-exclusive cosmetics, then it resets for a fresh climb.
+            Your season XP climbs a free monthly track, with no paid tier, ever. Hit the marks for
+            XP kickers and pass-exclusive cosmetics, then it resets for a fresh climb.
           </p>
 
           <p className="mt-6 text-zinc-400">
-            Track all of it — quests, streaks, milestones and your pass — on your{" "}
+            Track all of it (quests, streaks, milestones, and your pass) on your{" "}
             <Link href="/profile" className="text-lime-400 underline">profile</Link>.
           </p>
           <p className="text-zinc-400">
-            <b className="text-zinc-200">One anti-farm rule worth knowing:</b> the “grind” sources —
-            trade XP, daily quests, and just showing up — are capped at{" "}
+            <b className="text-zinc-200">One anti-farm rule worth knowing.</b> The “grind” sources
+            (trade XP, daily quests, and just showing up) are capped at{" "}
             <span className="font-mono text-zinc-200">{FLOOR_XP_WEEKLY_CAP.toLocaleString()}</span>{" "}
             XP a week toward the jackpot. Past that, only skill, competition, streaks, and milestones
-            keep counting. You can&apos;t out-grind the board — you have to out-play it, which is
+            keep counting. You can&apos;t out-grind the board, you have to out-play it, which is
             exactly why the <Link href="/jackpot" className="text-amber-400 underline">jackpot</Link>{" "}
             stays fair when it&apos;s paying real ETH.
           </p>
@@ -672,11 +670,11 @@ export default function Docs() {
         <Section id="badges" title="Badges & Achievements">
           <p>
             Badges are earned <b>once</b> and displayed on your profile forever. Each pays one-time
-            XP scaled by rarity — <span className="font-mono text-zinc-400">common {ACHIEVEMENT_XP.common}</span> ·{" "}
+            XP scaled by rarity: <span className="font-mono text-zinc-400">common {ACHIEVEMENT_XP.common}</span> ·{" "}
             <span className="font-mono text-sky-400">rare {ACHIEVEMENT_XP.rare}</span> ·{" "}
             <span className="font-mono text-violet-400">epic {ACHIEVEMENT_XP.epic}</span> ·{" "}
             <span className="font-mono text-amber-400">legendary {ACHIEVEMENT_XP.legendary}</span>.
-            Rarer badges are harder plays. The registry grows over time — here&apos;s every one live
+            Rarer badges are harder plays. The registry grows over time. Every one live
             today:
           </p>
           {(["legendary", "epic", "rare", "common"] as const).map((rarity) => {
@@ -705,7 +703,7 @@ export default function Docs() {
 
         <Section id="grill" title="The Grill (Chat)">
           <p>
-            <b>The Grill</b> is the always-on chat that follows you across the whole site — it never
+            <b>The Grill</b> is the always-on chat that follows you across the whole site. It never
             logs out and never leaves the screen. It lives in the dock at the{" "}
             <b>bottom-left corner</b>: a small tab when closed (showing who&apos;s online and an
             unread count), the full console when open. Here&apos;s the console, labelled:
@@ -716,36 +714,36 @@ export default function Docs() {
           <p className="mt-4">Three things share the dock, switched by the tabs up top:</p>
           <ul className="list-disc space-y-2 pl-5">
             <li>
-              <b>💬 Chat</b> — the conversation. It has <b>channels</b> (see below).
+              <b>💬 Chat</b>: the conversation. It has <b>channels</b> (see below).
             </li>
             <li>
-              <b>Feed</b> — a live ticker of what players are doing right now: pull-ups, wins, rekts,
+              <b>Feed</b>: a live ticker of what players are doing right now: pull-ups, wins, rekts,
               graduations, level-ups. Flip it to <b>Following</b> to see only people you follow.
             </li>
             <li>
-              <b>People</b> — everyone online, grouped by what they&apos;re doing (trading, in queue,
+              <b>People</b>: everyone online, grouped by what they&apos;re doing (trading, in queue,
               spectating, hanging out). Tap a name to open their card and follow them.
             </li>
           </ul>
 
           <h3 className="mt-6 text-lg font-black text-zinc-100">Channels</h3>
           <p>
-            Chat isn&apos;t one firehose — it&apos;s split into channels so the right talk reaches
-            the right people. The dock switches you automatically as you move around the site:
+            Chat isn&apos;t one firehose. It&apos;s split into channels so the right talk reaches
+            the right people, and the dock switches you automatically as you move around the site:
           </p>
           <div className="grid gap-3 sm:grid-cols-3">
             {[
               [
                 "🔥 The Grill",
-                "The house channel — always there. Site-wide banter plus house announcements: coin launches, match results, and rotating tips.",
+                "The house channel, always there. Site-wide banter plus house announcements: coin launches, match results, and rotating tips.",
               ],
               [
                 "🗳️ Vote",
-                "Appears when you're on the Vote page. Campaign for your coin and talk shortlists with the people actually voting — without flooding The Grill.",
+                "Appears when you're on the Vote page. Campaign for your coin and talk shortlists with the people actually voting, without flooding The Grill.",
               ],
               [
                 "$SYMBOL",
-                "A match's own room, live while you're in that round. This is the trench talk — it drops back to The Grill when you leave.",
+                "A match's own room, live while you're in that round. This is the trench talk, and it drops back to The Grill when you leave.",
               ],
             ].map(([name, desc]) => (
               <div key={name as string} className="rounded-xl border border-zinc-800 p-3">
@@ -758,16 +756,16 @@ export default function Docs() {
           <h3 className="mt-6 text-lg font-black text-zinc-100">Good to know</h3>
           <ul className="list-disc space-y-2 pl-5">
             <li>
-              <b>Newest message sits at the bottom</b> and the log auto-scrolls to it — like every
+              <b>Newest message sits at the bottom</b> and the log auto-scrolls to it, like every
               chat app you already use.
             </li>
             <li>
-              <b>📌 Pinned</b> — a pinned announcement sits above the log and stays put; house tips
+              <b>📌 Pinned</b>: a pinned announcement sits above the log and stays put; house tips
               and launch/result banners fade out on their own after 30 seconds so the channel
               doesn&apos;t clog.
             </li>
             <li>
-              <b>Emoji &amp; spam bar</b> — the emoji picker drops into your message at the cursor;
+              <b>Emoji &amp; spam bar</b>: the emoji picker drops into your message at the cursor;
               the quick-react bar fires single emoji Twitch-style, one tap each.
             </li>
             <li>
@@ -775,12 +773,12 @@ export default function Docs() {
               <span className="rounded bg-red-500/20 px-1.5 py-0.5 text-xs font-black uppercase text-red-300">
                 🚫 banned
               </span>{" "}
-              tag means that wallet has an active rug ban — they can still chat, they just
+              tag means that wallet has an active rug ban. They can still chat, they just
               can&apos;t launch coins (see{" "}
               <a href="#reputation" className="text-lime-400 underline">Reputation</a>).
             </li>
             <li>
-              Match rooms <b>freeze</b> when the round ends — you can still read the legendary
+              Match rooms <b>freeze</b> when the round ends. You can still read the legendary
               moments, but new messages move to The Grill.
             </li>
           </ul>
@@ -792,7 +790,7 @@ export default function Docs() {
               Submit a concept on the <Link href="/submissions" className="text-lime-400 underline">Launchpad</Link>:
               name, symbol, theme, art, your own total supply, a <b>risk tier</b>, and a{" "}
               <b>match length</b> (10, 5, or 1 minute of live trading). Tokens deploy from the
-              platform template only — you never supply code, and no mint/pause/blacklist functions
+              platform template only. You never supply code, and no mint/pause/blacklist functions
               exist.
             </li>
             <li>
@@ -810,64 +808,64 @@ export default function Docs() {
 
           <h3 className="mt-6 text-lg font-black text-zinc-100">🔁 Run It Back</h3>
           <p>
-            A coin that doesn&apos;t graduate isn&apos;t done — its developer gets a second serving.
-            On any of your failed coins you&apos;ll see a <b>Run It Back</b> button — on the coin
+            A coin that doesn&apos;t graduate isn&apos;t done. Its developer gets a second serving.
+            On any of your failed coins you&apos;ll see a <b>Run It Back</b> button: on the coin
             card in the <Link href="/matches" className="text-lime-400 underline">Match Calendar</Link>
             &apos;s Past Results, and on your{" "}
             <Link href="/profile" className="text-lime-400 underline">creator page</Link> launches.
-            One click re-launches the coin with the <b>exact same setup</b> — same tier, same match
-            length, same tokenomics — straight back onto the calendar, no new vote needed.
+            One click re-launches the coin with the <b>exact same setup</b> (same tier, same match
+            length, same tokenomics) straight back onto the calendar, no new vote needed.
           </p>
           <p className="text-zinc-400">
             Only the coin&apos;s own developer can run it back. (If you launched under a rug ban,
-            you&apos;ll need to clear it first — same gate as a fresh launch.)
+            you&apos;ll need to clear it first, the same gate as a fresh launch.)
           </p>
         </Section>
 
         <Section id="faq" title="FAQ">
           <dl className="space-y-4">
             <Faq q="Is this real money?">
-              Not in the paper beta — everyone starts with 10 pETH of simulated balance. The
+              Not in the paper beta. Everyone starts with 10 pETH of simulated balance. The
               format, the market, and the leaderboards are fully real.
             </Faq>
             <Faq q="Can the platform rug me?">
               No. The house has no withdraw rights over round liquidity, every settlement is
               auditable, and our only revenue is the published fee stream. If you lose, a player
-              won — not us.
+              won, not us.
             </Faq>
             <Faq q="What happens to my tokens when a round ends without graduating?">
               Automatic uniform redemption: every remaining holder exits at the same price,
               pro-rata against the pool. You always get out; the only question is the price.
             </Faq>
-            <Faq q="My coin rugged / didn't graduate — can I launch again?">
+            <Faq q="My coin rugged or didn't graduate. Can I launch again?">
               A coin that <b>didn&apos;t graduate</b> (timed out or went quiet) can be re-launched
-              instantly with <b>Run It Back</b> — same setup, no new vote. A coin that{" "}
+              instantly with <b>Run It Back</b>: same setup, no new vote. A coin that{" "}
               <b>rugged</b> earns your wallet a launch ban first; clear it from the Reputation panel
               on your <a href="#reputation" className="text-lime-400 underline">Profile</a> (or wait
               it out, in real-money phases), then you&apos;re free to launch again.
             </Faq>
-            <Faq q="I got a 🚫 banned tag — what can't I do?">
+            <Faq q="I got a 🚫 banned tag. What can't I do?">
               Just one thing: put new coins on the ballot. You can still trade every match, chat,
               earn XP, and climb the leaderboard. See{" "}
               <a href="#reputation" className="text-lime-400 underline">Reputation &amp; Rug Bans</a>.
             </Faq>
             <Faq q="Why did my limit intent get refunded?">
-              The clearing price landed above your max. That&apos;s the limit doing its job — full
+              The clearing price landed above your max. That&apos;s the limit doing its job: full
               refund, no fill.
             </Faq>
             <Faq q="How do I start playing?">
-              Hit <b>Play Now</b> and sign in with an email, Google, X, or your own wallet — under
+              Hit <b>Play Now</b> and sign in with an email, Google, X, or your own wallet. Under
               a minute, free, no whitelist, no deposit. Your starter pETH is staked into the arena
               for you, so you can pull up to the next match immediately. Details in{" "}
               <a href="#account" className="text-lime-400 underline">Getting In &amp; Your Account</a>.
             </Faq>
             <Faq q="Do I need a crypto wallet?">
-              No. Signing in creates a secure wallet address for you automatically — that&apos;s
+              No. Signing in creates a secure wallet address for you automatically, and that&apos;s
               your account. If you already live on-chain you can connect your own wallet instead.
               Either way, you never sign transactions or touch keys to play.
             </Faq>
             <Faq q="Who am I playing against?">
-              Real players, plus our <b>Swarm</b> — house traders that keep every beta match active
+              Real players, plus our <b>Swarm</b>: house traders that keep every beta match active
               and behave differently each round. They can win or lose just like you. As the
               community grows, real players take their seats. Follow{" "}
               <a href="https://x.com/hoodcookout" target="_blank" rel="noreferrer" className="text-lime-400 underline">@hoodcookout</a>{" "}
@@ -875,7 +873,7 @@ export default function Docs() {
             </Faq>
             <Faq q="How does the Weekly Jackpot work?">
               A slice of every trading fee builds a shared pot that pays the top{" "}
-              {JACKPOT_WINNERS} players by weekly XP every Monday — the more the site trades, the
+              {JACKPOT_WINNERS} players by weekly XP every Monday, and the more the site trades, the
               bigger it gets. Full details in{" "}
               <a href="#jackpot" className="text-lime-400 underline">The Weekly Jackpot</a> above.
             </Faq>
@@ -943,7 +941,7 @@ function GrillDiagram() {
             <span className="ml-1"><Pin n={4} /></span>
           </div>
           <div className="rounded bg-amber-400/[0.06] px-1.5 py-1 text-[11px] text-amber-200/90">
-            📢 $DOGE just went LIVE — pull up
+            📢 $DOGE just went LIVE, pull up
           </div>
         </div>
         {/* quick emoji + input */}
@@ -965,7 +963,7 @@ function GrillDiagram() {
           ["Channels", "The room you're talking in. 🔥 The Grill is always here; a $SYMBOL room shows up while you're in that match."],
           ["Tabs", "Switch between Chat, the live Feed, and People (online count)."],
           ["Pinned", "A house message that stays put above the log."],
-          ["Banned tag", "That wallet has an active rug ban — they can chat, not launch."],
+          ["Banned tag", "That wallet has an active rug ban. They can chat, not launch."],
           ["Quick reacts", "Tap an emoji to fire it instantly; the picker also drops emoji into your message."],
         ].map(([label, desc], i) => (
           <li key={label} className="flex gap-2.5">

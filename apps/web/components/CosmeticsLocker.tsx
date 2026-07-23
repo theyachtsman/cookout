@@ -59,7 +59,7 @@ export function CosmeticsLocker() {
     <div>
       <h2 className="mb-1 text-lg font-bold">Cosmetics</h2>
       <p className="mb-3 text-xs text-zinc-500">
-        Cosmetic only — unlocked by playing, never purchasable, never pay-to-win.
+        Cosmetic only. Unlocked by playing, never purchasable, never pay-to-win.
       </p>
       <div className="grid gap-4 md:grid-cols-2">
         {(["badge", "title", "chat_color", "frame"] as const).map((type) => (

@@ -81,7 +81,7 @@ export default function JackpotPage() {
         <p className="mx-auto mt-4 max-w-2xl text-sm text-zinc-400">
           Every trade on The Cookout feeds this pot. The more the whole site trades, the bigger it
           grows. At the end of each week (Monday 00:00 UTC) it&apos;s split among the ten players who
-          earned the most XP that week — paid automatically{" "}
+          earned the most XP that week, paid automatically{" "}
           {jp.paperMode ? "in paper ETH to your balance" : "in ETH to your wallet"}.
         </p>
       </div>
@@ -105,7 +105,7 @@ export default function JackpotPage() {
           <FeeBar b={jp.breakdown} />
           <p className="mt-3 text-xs text-zinc-500">
             The jackpot takes <span className="font-bold text-amber-300">{jp.breakdown.jackpotPct}%</span>{" "}
-            of every trading fee — half of the platform&apos;s house cut. Nothing is minted for it; it is
+            of every trading fee, half of the platform&apos;s house cut. Nothing is minted for it. It is
             pure fee revenue, so a busy trading week directly means a bigger jackpot.
           </p>
         </div>
@@ -124,11 +124,11 @@ export default function JackpotPage() {
         <h3 className="text-base font-black">How the Jackpot works</h3>
         <ol className="mt-3 space-y-3 text-sm text-zinc-300">
           {[
-            ["Trade drives the pot", `A fixed ${jp.breakdown.jackpotPct}% of all trading fees across every lobby flows into one shared jackpot. There is no cap — the pot is exactly as big as the week's trading makes it.`],
-            ["Earn XP to climb", "Everything that grants XP — playing rounds, hitting missions, correct predictions, win streaks — counts toward your weekly XP total. The jackpot rewards activity, so newcomers and veterans compete on the same weekly reset."],
+            ["Trade drives the pot", `A fixed ${jp.breakdown.jackpotPct}% of all trading fees across every lobby flows into one shared jackpot. There is no cap. The pot is exactly as big as the week's trading makes it.`],
+            ["Earn XP to climb", "Everything that grants XP counts toward your weekly total: playing rounds, hitting missions, correct predictions, win streaks. The jackpot rewards activity, so newcomers and veterans compete on the same weekly reset."],
             ["Top 10 get paid", "When the week closes (Monday 00:00 UTC), the ten highest weekly-XP players split the pot. Ranks 1–3 earn the most; 4th–10th receive tapering shares."],
             [`Paid ${jp.paperMode ? "in paper ETH" : "in ETH, automatically"}`, jp.paperMode ? "During the paper beta, winnings land in your paper balance instantly and show on your public profile. In production, the same payout goes out as real ETH to the winning addresses." : "Winnings are sent as ETH straight to the winning addresses and recorded on their public profiles."],
-            ["Unfilled shares roll over", "If fewer than ten players earned XP in a week, the unclaimed shares stay in the pot and roll into next week — so the jackpot only ever grows toward a big week."],
+            ["Unfilled shares roll over", "If fewer than ten players earned XP in a week, the unclaimed shares stay in the pot and roll into next week, so the jackpot only ever grows toward a big week."],
           ].map(([t, body], i) => (
             <li key={i} className="flex gap-3">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-amber-400/20 text-xs font-black text-amber-300">
@@ -141,7 +141,7 @@ export default function JackpotPage() {
           ))}
         </ol>
         <p className="mt-4 text-xs text-zinc-500">
-          Climbing the weekly board is the fastest way in — check the{" "}
+          Climbing the weekly board is the fastest way in. Check the{" "}
           <Link href="/leaderboard" className="text-lime-400 hover:underline">
             leaderboard
           </Link>{" "}
@@ -172,7 +172,7 @@ function Standings({ rows, cur }: { rows: JackpotStanding[]; cur: string }) {
   if (rows.length === 0)
     return (
       <div className="rounded-2xl border border-dashed border-zinc-800 py-10 text-center text-sm text-zinc-500">
-        No XP earned yet this week — play a round to claim the top spot.
+        No XP earned yet this week. Play a round to claim the top spot.
       </div>
     );
   return (

@@ -30,7 +30,7 @@ export function DevBanner() {
 
   return (
     <div className="flex items-center justify-center gap-2 bg-amber-400 px-3 py-1 text-center text-[11px] font-black uppercase tracking-wider text-zinc-950">
-      <span>🚧 Dev environment — staging, not live</span>
+      <span>🚧 Dev environment · staging, not live</span>
       {apiHost && (
         <span className="hidden font-mono normal-case tracking-normal text-amber-900 sm:inline">
           · {apiHost}

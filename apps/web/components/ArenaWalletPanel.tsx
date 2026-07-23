@@ -68,7 +68,7 @@ export function ArenaWalletPanel({ round }: { round: Round }) {
           ⚡ Arena Account{" "}
           {hot && (
             <span className="ml-1 rounded bg-lime-400/15 px-1.5 py-0.5 text-[10px] font-bold text-lime-300">
-              HOT — instant trades
+              HOT · instant trades
             </span>
           )}
         </h4>
@@ -78,8 +78,8 @@ export function ArenaWalletPanel({ round }: { round: Round }) {
       </div>
       <p className="mb-3 text-[11px] leading-snug text-zinc-500">
         {hot
-          ? "Buys, sells, and pull-ups fire instantly from this balance — no wallet pop-ups."
-          : "Deposit once (one wallet confirmation), then every trade fires instantly with no pop-ups. The key lives only in this browser — fund what you'll play with."}
+          ? "Buys, sells, and pull-ups fire instantly from this balance, with no wallet pop-ups."
+          : "Deposit once (one wallet confirmation), then every trade fires instantly with no pop-ups. The key lives only in this browser, so fund what you'll play with."}
       </p>
       <div className="flex flex-wrap items-center gap-2">
         <input

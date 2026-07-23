@@ -12,9 +12,9 @@ import { TopNav } from "../components/TopNav";
 import "./globals.css";
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.thecookout.fun";
-const TITLE = "The Cookout — Live Trading Arena";
+const TITLE = "The Cookout · Live Trading Arena";
 const DESCRIPTION =
-  "A live multiplayer trading arena: fair-open PvP token rounds, XP quests, and a weekly ETH jackpot. Open beta — play instantly with paper money. No wallet, no deposit.";
+  "A live multiplayer trading arena: fair-open PvP token rounds, XP quests, and a weekly ETH jackpot. Open beta, play instantly with paper money. No wallet, no deposit.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

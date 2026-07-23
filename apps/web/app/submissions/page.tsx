@@ -108,10 +108,10 @@ export default function Submissions() {
   return (
     <div className="space-y-8">
       <section className="rounded-xl border border-zinc-800 p-5">
-        <h1 className="mb-1 text-xl font-black">Submit a Token Concept</h1>
+        <h1 className="mb-1 text-xl font-black">Make a Coin</h1>
         <p className="mb-4 text-xs text-zinc-500">
-          Tokens deploy from the platform-audited template only — you supply metadata, never code.
-          No mint, pause, or blacklist controls. The community votes — hit the vote bar and your coin
+          Tokens deploy from the platform-audited template only. You supply the metadata, never the
+          code, and there are no mint, pause, or blacklist controls. Hit the vote bar and your coin
           goes straight onto the match calendar at your chosen tier.
         </p>
         {!profile ? (
@@ -178,13 +178,13 @@ export default function Submissions() {
             {/* Risk tier — creator-chosen, level-gated like playing the tier. */}
             <div className="md:col-span-2">
               <div className="mb-1.5 text-xs text-zinc-500">
-                Risk tier — sets the stakes and pace of your coin&apos;s match
+                Risk tier · sets the stakes and pace of your coin&apos;s match
               </div>
               <div className="grid gap-2 sm:grid-cols-3">
                 {(
                   [
-                    ["rookie", "🥾", "Training grounds — gentler stakes, forgiving pace."],
-                    ["standard", "⚔️", "The main arena — real pace, real crowds."],
+                    ["rookie", "🥾", "Training grounds. Gentler stakes, forgiving pace."],
+                    ["standard", "⚔️", "The main arena. Real pace, real crowds."],
                     ["degen", "☠️", "Max stakes, max chaos. Not for the faint."],
                   ] as Array<[RiskTier, string, string]>
                 ).map(([tier, icon, blurb]) => {
@@ -228,7 +228,7 @@ export default function Submissions() {
             {/* Match length — creator-chosen live-trading window. */}
             <div className="md:col-span-2">
               <div className="mb-1.5 text-xs text-zinc-500">
-                Match length — how long live trading runs before the market closes
+                Match length · how long live trading runs before the market closes
               </div>
               <div className="flex flex-wrap gap-2">
                 {MATCH_MINUTE_OPTIONS.map((mins) => {
@@ -264,9 +264,9 @@ export default function Submissions() {
       </section>
 
       <section className="rounded-xl border border-zinc-800 p-5">
-        <h2 className="mb-1 text-lg font-bold">Tokenomics — declared up front</h2>
+        <h2 className="mb-1 text-lg font-bold">Tokenomics, declared up front</h2>
         <p className="mb-3 text-xs text-zinc-500">
-          Every launch uses the platform template. Creators choose name, art, and total supply —
+          Every launch uses the platform template. Creators choose name, art, and total supply, and
           nothing else. No creator mint, pause, or blacklist. Ever.
         </p>
         <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
@@ -288,8 +288,8 @@ export default function Submissions() {
       <section className="rounded-xl border border-lime-400/30 bg-lime-400/[0.05] p-5 text-center">
         <h2 className="text-lg font-black">Submitted? The crowd decides next.</h2>
         <p className="mx-auto mt-1 max-w-lg text-sm text-zinc-400">
-          Voting — plus every submission ever made, including the ones that didn&apos;t pass — now
-          lives on its own page.
+          Voting lives on its own page now, alongside every submission ever made, including the
+          ones that didn&apos;t pass.
         </p>
         <Link
           href="/vote"
@@ -312,7 +312,7 @@ export default function Submissions() {
               <div className="mb-3 text-center">
                 <div className="text-3xl">👀</div>
                 <h2 className="mt-1 text-xl font-black tracking-tight text-zinc-50">
-                  Look it over — are you sure?
+                  Look it over. Are you sure?
                 </h2>
                 <p className="mt-1 text-sm text-zinc-400">
                   This is exactly how your coin will appear on the ballot, the calendar, and in
@@ -344,7 +344,7 @@ export default function Submissions() {
                   onClick={() => setPreviewing(false)}
                   className="text-sm text-zinc-500 hover:text-zinc-300 disabled:opacity-50"
                 >
-                  Cancel — keep editing
+                  Cancel, keep editing
                 </button>
               </div>
             </div>
@@ -368,7 +368,7 @@ export default function Submissions() {
                   Your coin is on the ballot!
                 </h2>
                 <p className="mt-1 text-sm text-zinc-400">
-                  This is how it&apos;ll look in the arena. The crowd votes now — hit the bar and
+                  This is how it&apos;ll look in the arena. The crowd votes now. Hit the bar and
                   it goes straight onto the match calendar at your tier.
                 </p>
               </div>

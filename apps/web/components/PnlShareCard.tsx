@@ -187,7 +187,7 @@ export function PnlShareCard({
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      setFailed("clipboard blocked — use Download instead");
+      setFailed("clipboard blocked. use Download instead");
     }
   };
 
@@ -215,7 +215,7 @@ export function PnlShareCard({
             onClick={() => void copy()}
             className="rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300"
           >
-            {copied ? "✓ Copied — paste it on X" : "Copy image"}
+            {copied ? "✓ Copied · paste it on X" : "Copy image"}
           </button>
           <button
             onClick={() => void download()}

@@ -75,7 +75,7 @@ export function TopHolders({ roundId, ethUsd = 1925 }: { roundId: string; ethUsd
         ))}
         {holders.length === 0 && (
           <div className="py-3 text-center text-xs text-zinc-600">
-            no bags yet — auction settles soon
+            no bags yet · auction settles soon
           </div>
         )}
       </div>

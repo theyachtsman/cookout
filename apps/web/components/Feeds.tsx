@@ -33,7 +33,7 @@ export function Feeds({
             <div key={e.id} className="killfeed-item rounded bg-zinc-900 px-2 py-1 text-sm">
               <span className="mr-1.5">{KILL_ICONS[e.kind] ?? "•"}</span>
               {e.kind === "rug_detected" ? (
-                <span className="font-bold text-red-400">Burnt — {e.text}</span>
+                <span className="font-bold text-red-400">Burnt · {e.text}</span>
               ) : (
                 e.text
               )}

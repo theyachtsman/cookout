@@ -414,7 +414,7 @@ export default function RoundPage() {
         >
           {round.graduated ? "🍽️" : isRugRound(round) ? "🔥" : "📊"} See match results
           <span className="font-normal opacity-70">
-            {round.graduated ? "— how the pre-bond battle played out" : "— PnL & payouts"}
+            {round.graduated ? "· how the pre-bond battle played out" : "· PnL & payouts"}
           </span>
         </button>
       )}
@@ -578,7 +578,7 @@ export default function RoundPage() {
 
       {auction && round.state !== "results" && (
         <div className="rounded-lg border border-zinc-800 px-4 py-2 text-xs text-zinc-500">
-          Auction settled at {auction.clearingPrice.toExponential(4)} — raised{" "}
+          Auction settled at {auction.clearingPrice.toExponential(4)} · raised{" "}
           {auction.totalRaised.toFixed(2)} {unit} from {auction.fills.length} intents (fill ratio{" "}
           {(auction.fillRatio * 100).toFixed(0)}%) · audit {auction.auditHash.slice(0, 16)}…
         </div>

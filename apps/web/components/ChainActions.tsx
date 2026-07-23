@@ -60,7 +60,7 @@ export function ChainActions({ round, onChanged }: { round: Round; onChanged: ()
           <div key={i.id} className="flex items-center justify-between gap-3 text-sm">
             <span className="text-zinc-300">
               Auction intent <span className="font-mono">#{i.id}</span> ·{" "}
-              <span className="font-mono">{i.ethAmount} ETH</span> — claim your tokens &amp; any
+              <span className="font-mono">{i.ethAmount} ETH</span> · claim your tokens &amp; any
               refund
             </span>
             <button
@@ -80,7 +80,7 @@ export function ChainActions({ round, onChanged }: { round: Round; onChanged: ()
         {redeemable && (
           <div className="flex items-center justify-between gap-3 text-sm">
             <span className="text-zinc-300">
-              Round over (no graduation) — redeem{" "}
+              Round over (no graduation) · redeem{" "}
               <span className="font-mono">{Number(tokenBal / 10n ** 18n).toLocaleString()}</span>{" "}
               tokens at the uniform exit price
             </span>

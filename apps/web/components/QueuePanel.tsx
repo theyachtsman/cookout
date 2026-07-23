@@ -179,7 +179,7 @@ export function QueuePanel({
     <div className="grid gap-4 md:grid-cols-3">
       <div className="flex flex-col rounded-xl border border-zinc-800 p-5 md:col-span-2">
         <h3 className="mb-1 font-black">
-          {queueOpen ? "Position Queue — open" : round.state === "settling" ? "Settling…" : "Lobby"}
+          {queueOpen ? "Position Queue · open" : round.state === "settling" ? "Settling…" : "Lobby"}
           {onChain && (
             <span className="ml-2 rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-bold text-amber-300">
               ⛓️ ON-CHAIN · real testnet ETH
@@ -188,7 +188,7 @@ export function QueuePanel({
         </h3>
         <p className="mb-4 text-xs text-zinc-500">
           Buy intents queue until close, then everyone settles at one uniform clearing price.
-          Oversubscribed? Pro-rata fills — speed buys nothing here.
+          Oversubscribed? Pro-rata fills, and speed buys nothing here.
           {onChain && " Your ETH escrows in the round's auction contract until settlement."}
         </p>
         {!profile ? (
@@ -276,7 +276,7 @@ export function QueuePanel({
         ) : (
           <div className="text-sm text-zinc-400">
             {round.state === "lobby"
-              ? "Queue opens soon — hang tight."
+              ? "Queue opens soon. Hang tight."
               : "Queue closed. Clearing price being computed…"}
           </div>
         )}
@@ -338,7 +338,7 @@ export function QueuePanel({
                 </div>
               ))}
             {bids.length === 0 && (
-              <div className="text-xs text-zinc-600">no bids yet — be first in</div>
+              <div className="text-xs text-zinc-600">no bids yet, be first in</div>
             )}
           </div>
         </div>
@@ -353,7 +353,7 @@ export function QueuePanel({
           {/* Players gathering before the game — faces, not a count. */}
           <div className="mb-3 max-h-40 space-y-0.5 overflow-y-auto">
             {inRoom.length === 0 && (
-              <div className="text-xs text-zinc-600">nobody here yet — be the first</div>
+              <div className="text-xs text-zinc-600">nobody here yet, be the first</div>
             )}
             {inRoom.map((u) => {
               const meta = STATUS_META[u.status];
@@ -418,7 +418,7 @@ export function QueuePanel({
           </div>
           {myCall && (
             <p className="mt-2 text-xs font-bold text-zinc-300">
-              You called {myCall === "moon" ? "🌕 Moon" : "🧨 Rug"} — locked in.
+              You called {myCall === "moon" ? "🌕 Moon" : "🧨 Rug"}. Locked in.
             </p>
           )}
         </div>
@@ -440,7 +440,7 @@ export function QueuePanel({
             />
             <Row
               k="Dev sell lock"
-              v={round.config.devSellLockSeconds > 0 ? `${round.config.devSellLockSeconds}s after open` : "none — degen rules"}
+              v={round.config.devSellLockSeconds > 0 ? `${round.config.devSellLockSeconds}s after open` : "none · degen rules"}
             />
           </dl>
         </div>
