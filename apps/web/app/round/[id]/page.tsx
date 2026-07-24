@@ -37,6 +37,7 @@ import { QueuePanel } from "../../../components/QueuePanel";
 import { Results } from "../../../components/Results";
 import { RoundResultsOverlay, type EndBreakdown } from "../../../components/RoundResults";
 import { TradePanel } from "../../../components/TradePanel";
+import { OrderBook } from "../../../components/OrderBook";
 
 interface Ticker {
   price: number;
@@ -519,6 +520,14 @@ export default function RoundPage() {
                 }}
               />
             )}
+            {/* The order book sits under the buttons and survives the round —
+                it keeps rendering the trade tape for graduated and burnt coins. */}
+            <OrderBook
+              trades={trades}
+              symbol={round.token.symbol}
+              ethUsd={ticker?.ethUsd ?? pegUsd ?? 1925}
+              me={profile?.address}
+            />
             <ChainActions
               round={round}
               onChanged={() => {

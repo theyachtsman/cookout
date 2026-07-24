@@ -220,11 +220,13 @@ export default function Docs() {
               same rate for everyone, no exit-order games, always liquid.
             </li>
             <li>
-              <b>🔥 Rug</b>: the pool drains hard or the developer dumps. The kill feed calls it{" "}
-              <b>Burnt</b>. Rugging tanks the creator&apos;s reputation and earns their wallet a{" "}
-              <b>launch ban</b> (see <a href="#reputation" className="text-lime-400 underline">Reputation
-              &amp; Rug Bans</a>). Note: creator sells are time-locked after the open on lower tiers.
-              Check the round&apos;s tokenomics panel.
+              <b>🔥 Rug</b>: the pool drains hard, or the creator dumps their own bag. Specifically,
+              a launch is pulled once the creator has <b>sold 75% of the most they ever held</b> of
+              their own coin (cumulative, not one trade) — trimming a little to take profit is fine.
+              The kill feed calls it <b>Burnt</b>. Rugging tanks the creator&apos;s reputation and
+              earns their wallet a <b>launch ban</b> (see{" "}
+              <a href="#reputation" className="text-lime-400 underline">Reputation &amp; Rug Bans</a>).
+              Note: creator sells are also time-locked briefly after the open on lower tiers.
             </li>
           </ul>
           <p className="text-zinc-400">
@@ -800,9 +802,10 @@ export default function Docs() {
             <li>
               Your round runs. You earn <b>{CREATOR_FEE_SHARE * 100}% of the round&apos;s trading
               fees</b>, reputation for clean launches (double for graduations), and a permanent
-              &quot;Launched by&quot; credit. Rugging your own round tanks your reputation and{" "}
+              &quot;Launched by&quot; credit. You can trade your own coin freely — but{" "}
+              <b>dumping 75% of your holdings rugs it</b>, which tanks your reputation and{" "}
               <a href="#reputation" className="text-lime-400 underline">bans you from launching</a>{" "}
-              until the ban clears.
+              until the ban clears. Take profit in trims, not a full send.
             </li>
           </ol>
 

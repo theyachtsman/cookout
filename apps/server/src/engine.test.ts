@@ -143,6 +143,31 @@ test("rug detection: creator dump drains pool and ends the round", () => {
   assert.ok(cr.creatorReputation < 0, "rugging tanks creator reputation");
 });
 
+test("dev rug: a trim under 75% is safe; crossing 75% cumulative pulls the coin", () => {
+  const { store, engine, concept } = setup();
+  const t0 = 2_500_000_000;
+  const round = engine.scheduleRound(concept, "degen", t0);
+  round.config.maxPositionEth = 0;
+  // Deep pool + no graduation so the ONLY rug path is the dev dump.
+  round.config.initialEthLiquidity = 50;
+  round.config.graduationMcap = 1e9;
+  engine.tick(t0);
+  engine.tick(round.queueOpensAt!);
+  store.getOrCreateUser(concept.creatorAddress).arenaBalance = 100;
+  store.getOrCreateUser(A).arenaBalance = 100;
+  engine.submitIntent(round.id, concept.creatorAddress, 0.3, undefined, round.queueOpensAt! + 1);
+  engine.submitIntent(round.id, A, 0.3, undefined, round.queueOpensAt! + 2);
+  engine.tick(round.queueClosesAt!);
+
+  // Creator trims half their bag — profit-taking, not a rug.
+  engine.trade(round.id, concept.creatorAddress, "sell", { pct: 50 }, round.liveAt! + 1000);
+  assert.equal(round.state, "live", "a 50% trim does not rug");
+  // A second sell pushes cumulative sold past 75% of their peak → rug.
+  engine.trade(round.id, concept.creatorAddress, "sell", { pct: 60 }, round.liveAt! + 2000);
+  assert.equal(round.state, "results");
+  assert.equal(round.endReason, "rug_detected");
+});
+
 test("graduation: criteria met migrates instead of redeeming", () => {
   const { store, engine, concept } = setup();
   const t0 = 3_000_000_000;

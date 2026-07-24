@@ -6,8 +6,10 @@ export const STARTING_PAPER_BALANCE = 10;
 /** A single trade ≥ this fraction of pool ETH reserve is a "whale" event. */
 export const WHALE_TRADE_FRACTION = 0.05;
 
-/** Creator selling ≥ this fraction of their tokens in one trade flags a rug check. */
-export const DEV_DUMP_FRACTION = 0.5;
+/** A launch counts as a rug once the creator has sold ≥ this fraction of the
+ *  most they ever held of their own coin (cumulative across all their sells,
+ *  not a single trade). Selling under this is just profit-taking. */
+export const DEV_DUMP_FRACTION = 0.75;
 
 /** Pool losing ≥ this fraction of ETH reserve within RUG_WINDOW_SECONDS ⇒ rug detected. */
 export const RUG_DRAIN_FRACTION = 0.6;

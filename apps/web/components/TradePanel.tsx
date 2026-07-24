@@ -32,7 +32,8 @@ export function TradePanel({
   const { profile, signIn, promptPlayNow } = useSession();
   const [tab, setTab] = useState<"buy" | "sell">("buy");
   // Enter buys in native units or dollars — the widget converts at the peg.
-  const [denom, setDenom] = useState<"native" | "usd">("native");
+  // Default to dollars: most players think in USD; the toggle flips to coins.
+  const [denom, setDenom] = useState<"native" | "usd">("usd");
   const peg = ethUsd && ethUsd > 0 ? ethUsd : 0;
   const [amount, setAmount] = useState("");
   const [pct, setPct] = useState("");
@@ -98,8 +99,10 @@ export function TradePanel({
       if (tab === "buy") {
         const typed = Number(amount);
         if (!(typed > 0)) throw new Error("enter an amount");
-        // USD entry converts at the live peg; native passes straight through.
-        const eth = denom === "usd" && peg ? typed / peg : typed;
+        // USD entry converts at the live peg; never treat a dollar figure as
+        // raw coins if the peg hasn't landed (would fire a wildly wrong size).
+        if (denom === "usd" && !peg) throw new Error("price still loading — try again in a moment");
+        const eth = denom === "usd" ? typed / peg : typed;
         if (!(eth > 0)) throw new Error("enter an amount");
         if (onChain) await chainBuy(round, eth.toFixed(18).replace(/0+$/, "") || String(eth));
         else await api(`/api/rounds/${round.id}/trade`, { body: { side: "buy", eth } });
@@ -152,12 +155,15 @@ export function TradePanel({
   const setValue = buying ? setAmount : setPct;
   const ready = Number(value) > 0;
   const usdMode = buying && denom === "usd" && !!peg;
-  // Small, fast sizes — the arena is about many quick clips, not one big bet.
-  const quickBuys = usdMode
-    ? [1, 5, 10, 25]
-    : onChain
-      ? [0.0005, 0.001, 0.002, 0.005]
+  // Quick-buy sizes are native amounts (so a chip always buys the same coin
+  // size); the label shows the live USD equivalent when in dollar mode.
+  // Rookie rounds get a tiny 0.001 starter clip on top of the usual sizes.
+  const quickBuys = onChain
+    ? [0.0005, 0.001, 0.002, 0.005]
+    : round.tier === "rookie"
+      ? [0.001, 0.01, 0.05, 0.1]
       : [0.01, 0.05, 0.1, 0.25];
+  const quickLabel = (v: number) => (usdMode && peg ? `$${(v * peg).toFixed(2)}` : `${v}`);
   // What the typed amount is worth in the other denomination.
   const typedNum = Number(amount);
   const convertedHint =
@@ -218,10 +224,10 @@ export function TradePanel({
             <button
               key={v}
               disabled={pending}
-              onClick={() => void fire("buy", { eth: usdMode && peg ? v / peg : v })}
+              onClick={() => void fire("buy", { eth: v })}
               className="rounded bg-emerald-600/20 px-2.5 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-600/40 active:scale-95 disabled:opacity-50"
             >
-              +{usdMode ? `$${v}` : v}
+              +{quickLabel(v)}
             </button>
           ))}
 
@@ -398,10 +404,10 @@ export function TradePanel({
           ? quickBuys.map((v) => (
               <button
                 key={v}
-                onClick={() => setAmount(String(v))}
+                onClick={() => setAmount(usdMode && peg ? (v * peg).toFixed(2) : String(v))}
                 className="rounded-full border border-emerald-500/30 bg-emerald-500/10 py-1.5 text-[11px] font-bold text-emerald-300 hover:bg-emerald-500/25"
               >
-                {usdMode ? `$${v}` : v}
+                {quickLabel(v)}
               </button>
             ))
           : [25, 50, 100].map((p) => (
