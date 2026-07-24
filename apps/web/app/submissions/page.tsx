@@ -283,6 +283,12 @@ export default function Submissions() {
             </div>
           ))}
         </div>
+        <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/[0.05] p-3 text-xs text-zinc-300">
+          <b className="text-red-300">🔥 The rug rule:</b> you can trade your own coin like anyone
+          else, but <b>selling 75% of the most you ever held</b> (cumulative) pulls the launch and
+          brands it Burnt — that tanks your reputation and bans you from launching. Trim to take
+          profit; don&apos;t full-send your own bag.
+        </div>
       </section>
 
       <section className="rounded-xl border border-lime-400/30 bg-lime-400/[0.05] p-5 text-center">

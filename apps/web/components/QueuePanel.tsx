@@ -44,9 +44,11 @@ export function QueuePanel({
   const { online } = useSocial();
   const onChain = !!round.chain;
   const unit = onChain ? "ETH" : "pETH";
-  const [amount, setAmount] = useState(onChain ? "0.001" : "0.1");
-  // Pull up in native units or dollars — converted at the live peg.
-  const [denom, setDenom] = useState<"native" | "usd">("native");
+  // Default sits in the dollar denom below (paper ≈ $20, chain small).
+  const [amount, setAmount] = useState(onChain ? "0.001" : "20");
+  // Pull up in native units or dollars — converted at the live peg. Default to
+  // dollars so landed deposits read in USD; the toggle flips back to coins.
+  const [denom, setDenom] = useState<"native" | "usd">("usd");
   const peg = ethUsd && ethUsd > 0 ? ethUsd : 0;
   const [intents, setIntents] = useState<AuctionIntent[]>([]);
   const [bids, setBids] = useState<Bid[]>([]);
@@ -111,7 +113,10 @@ export function QueuePanel({
       const typed = Number(amount);
       if (!(typed > 0)) throw new Error("enter an amount");
       // USD entry converts at the live peg before it ever leaves the client.
-      const ethAmount = denom === "usd" && peg ? typed / peg : typed;
+      // Never fall back to treating a dollar figure as raw coins if the peg
+      // hasn't landed yet — that would submit a wildly wrong size.
+      if (denom === "usd" && !peg) throw new Error("price still loading — try again in a moment");
+      const ethAmount = denom === "usd" ? typed / peg : typed;
       if (onChain) {
         // Real ETH escrows into the round's auction contract; the server
         // mirrors the IntentSubmitted event into the board a tick later.
@@ -161,6 +166,9 @@ export function QueuePanel({
   const inRoom = online.filter((u) => u.roundId === round.id);
   const largestEntry = bids.reduce((m, b) => Math.max(m, b.ethAmount), 0);
   const usdMode = denom === "usd" && peg > 0;
+  // Render an ETH amount in the currently-selected denom (landed deposits).
+  const fmtAmt = (eth: number) =>
+    usdMode ? `$${(eth * peg).toFixed(2)}` : `${eth.toFixed(2)} ${unit}`;
   const typedNum = Number(amount);
   const convertedHint =
     peg && typedNum > 0
@@ -274,7 +282,8 @@ export function QueuePanel({
                 className="flex items-center justify-between rounded bg-zinc-900 px-3 py-1.5 text-sm"
               >
                 <span className="font-mono">
-                  {i.ethAmount} {unit}{i.maxPrice ? ` @ ≤${i.maxPrice}` : " @ market"}
+                  {fmtAmt(i.ethAmount)}
+                  <span className="text-zinc-500">{i.maxPrice ? ` @ ≤${i.maxPrice}` : " @ market"}</span>
                 </span>
                 {queueOpen && (
                   <button
@@ -293,7 +302,7 @@ export function QueuePanel({
           <div className="mb-2 flex items-center justify-between text-xs">
             <span className="font-bold text-zinc-300">Live pre-positions</span>
             <span className="font-mono text-zinc-500">
-              {bids.length} bids · {bids.reduce((s, b) => s + b.ethAmount, 0).toFixed(2)} {unit}
+              {bids.length} bids · {fmtAmt(bids.reduce((s, b) => s + b.ethAmount, 0))}
             </span>
           </div>
           <div className="flex min-h-56 flex-1 flex-col-reverse gap-1 overflow-y-auto">
@@ -316,9 +325,7 @@ export function QueuePanel({
                   <a href={`/profile/${b.userAddress}`} className="truncate hover:underline">
                     {b.displayName ?? `${b.userAddress.slice(0, 6)}…${b.userAddress.slice(-4)}`}
                   </a>
-                  <span className="ml-auto font-mono text-lime-300">
-                    {b.ethAmount.toFixed(2)} {unit}
-                  </span>
+                  <span className="ml-auto font-mono text-lime-300">{fmtAmt(b.ethAmount)}</span>
                   {b.limit && <span className="text-[10px] text-zinc-500">limit</span>}
                 </div>
               ))}

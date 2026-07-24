@@ -470,7 +470,10 @@ export class RoundEngine {
         );
       if (user.address === round.creatorAddress) {
         this.kill(round, "dev_sell", `Developer sold ${fmt(r.amountOut)} ETH`, now);
-        if (tokens >= DEV_DUMP_FRACTION * (tokens + pos.tokens))
+        // A rug is now defined by the creator dumping the bulk of their OWN
+        // bag: once their cumulative sells cross DEV_DUMP_FRACTION of the most
+        // they ever held, the coin is pulled. Trimming below that is fine.
+        if (m.maxTokens > 0 && m.tokensSoldBeforeEnd >= DEV_DUMP_FRACTION * m.maxTokens)
           this.endRound(round, "rug_detected", now);
       }
     }
@@ -501,6 +504,7 @@ export class RoundEngine {
     fee: number,
     now: number,
   ): Trade {
+    const trader = this.store.users.get(address);
     const trade: Trade = {
       id: this.store.id(),
       roundId: round.id,
@@ -512,6 +516,8 @@ export class RoundEngine {
       fee,
       at: now,
       isCreator: address === round.creatorAddress,
+      displayName: trader?.displayName,
+      avatarUrl: trader?.avatarUrl,
     };
     let list = this.store.trades.get(round.id);
     if (!list) {

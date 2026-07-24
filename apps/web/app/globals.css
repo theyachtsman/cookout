@@ -23,6 +23,19 @@ body {
   animation: slide-in 0.25s ease-out;
 }
 
+/* Order-book: the freshest trade row flashes lime as it lands. */
+@keyframes ob-flash {
+  0% {
+    background-color: rgba(163, 230, 53, 0.28);
+  }
+  100% {
+    background-color: transparent;
+  }
+}
+.ob-flash {
+  animation: ob-flash 0.9s ease-out;
+}
+
 @keyframes fadein {
   from {
     opacity: 0;

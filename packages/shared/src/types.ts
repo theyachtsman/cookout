@@ -172,6 +172,9 @@ export interface Trade {
   at: number;
   /** True when the trader is the round's creator (rendered as "Developer"). */
   isCreator: boolean;
+  /** Trader identity resolved at trade time, for the order book. */
+  displayName?: string;
+  avatarUrl?: string;
 }
 
 export interface Candle {
