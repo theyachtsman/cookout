@@ -48,7 +48,6 @@ export function QueuePanel({
   // Pull up in native units or dollars — converted at the live peg.
   const [denom, setDenom] = useState<"native" | "usd">("native");
   const peg = ethUsd && ethUsd > 0 ? ethUsd : 0;
-  const [maxPrice, setMaxPrice] = useState("");
   const [intents, setIntents] = useState<AuctionIntent[]>([]);
   const [bids, setBids] = useState<Bid[]>([]);
   const [error, setError] = useState("");
@@ -119,15 +118,10 @@ export function QueuePanel({
         await chainSubmitIntent(
           round,
           ethAmount.toFixed(18).replace(/0+$/, "") || String(ethAmount),
-          maxPrice || undefined,
+          undefined,
         );
       } else {
-        await api(`/api/rounds/${round.id}/intents`, {
-          body: {
-            ethAmount,
-            maxPrice: maxPrice ? Number(maxPrice) : undefined,
-          },
-        });
+        await api(`/api/rounds/${round.id}/intents`, { body: { ethAmount } });
       }
       playDeposit();
       loadIntents();
@@ -248,15 +242,6 @@ export function QueuePanel({
               {convertedHint && (
                 <div className="mt-1 font-mono text-[11px] text-zinc-500">{convertedHint}</div>
               )}
-            </label>
-            <label className="text-sm">
-              <div className="mb-1 text-xs text-zinc-500">Max price (optional)</div>
-              <input
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
-                placeholder="market"
-                className="w-32 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 font-mono"
-              />
             </label>
             <button
               disabled={pending}
