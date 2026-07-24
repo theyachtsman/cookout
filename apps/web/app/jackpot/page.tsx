@@ -145,9 +145,9 @@ export default function JackpotPage() {
           <Link href="/leaderboard" className="text-lime-400 hover:underline">
             leaderboard
           </Link>{" "}
-          and grab open{" "}
+          and jump into the{" "}
           <Link href="/matches" className="text-lime-400 hover:underline">
-            matches
+            Arena
           </Link>
           .
         </p>

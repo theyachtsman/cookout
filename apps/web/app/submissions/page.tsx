@@ -112,7 +112,7 @@ export default function Submissions() {
         <p className="mb-4 text-xs text-zinc-500">
           Tokens deploy from the platform-audited template only. You supply the metadata, never the
           code, and there are no mint, pause, or blacklist controls. Hit the vote bar and your coin
-          goes straight onto the match calendar at your chosen tier.
+          goes straight into the Arena at your chosen tier.
         </p>
         {!profile ? (
           <button
@@ -315,8 +315,8 @@ export default function Submissions() {
                   Look it over. Are you sure?
                 </h2>
                 <p className="mt-1 text-sm text-zinc-400">
-                  This is exactly how your coin will appear on the ballot, the calendar, and in
-                  the arena. Once submitted it can&apos;t be edited.
+                  This is exactly how your coin will appear on the ballot and across the Arena,
+                  from the lineup to the live chart. Once submitted it can&apos;t be edited.
                 </p>
               </div>
               <CoinCard
@@ -369,7 +369,7 @@ export default function Submissions() {
                 </h2>
                 <p className="mt-1 text-sm text-zinc-400">
                   This is how it&apos;ll look in the arena. The crowd votes now. Hit the bar and
-                  it goes straight onto the match calendar at your tier.
+                  it goes straight into the Arena at your tier.
                 </p>
               </div>
               <CoinCard coin={created} />

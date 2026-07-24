@@ -72,10 +72,10 @@ export default function Home() {
   return (
     <div className="space-y-8">
       <section>
-        <h1 className="mb-1 text-2xl font-black">Match Calendar</h1>
+        <h1 className="mb-1 text-2xl font-black">The Arena</h1>
         <p className="mb-4 text-sm text-zinc-400">
-          Every match is a real token launched through a fair batch auction: one clearing price,
-          pro-rata fills, auditable settlement.
+          Live now, up next, and every past result. Each match is a real token launched through a
+          fair batch auction: one clearing price, pro-rata fills, auditable settlement.
         </p>
         {live.length === 0 && upcoming.length === 0 && (
           <div className="rounded-xl border border-lime-400/30 bg-lime-400/[0.04] p-8 text-center">
@@ -84,8 +84,8 @@ export default function Home() {
               The grill is empty. Someone needs to launch a coin.
             </p>
             <p className="mx-auto mt-1 max-w-md text-sm text-zinc-400">
-              Matches come from the community: make a coin, the crowd votes it through, and it
-              lands right here on the calendar at your chosen tier.
+              Every match starts with the community: make a coin, the crowd votes it through, and it
+              lands right here in the Arena at your chosen tier.
             </p>
             <Link
               href="/submissions"

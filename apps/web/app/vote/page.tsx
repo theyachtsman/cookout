@@ -128,9 +128,9 @@ export default function VotePage() {
           The crowd picks what cooks.
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-          Every coin on the calendar got there by vote.{" "}
-          <b className="text-zinc-200">{VOTE_THRESHOLD} upvotes</b> puts a coin straight on the match
-          calendar at its chosen tier; anything that doesn&apos;t hit the bar within{" "}
+          Every coin in the Arena got there by vote.{" "}
+          <b className="text-zinc-200">{VOTE_THRESHOLD} upvotes</b> puts a coin straight into the
+          Arena at its chosen tier; anything that doesn&apos;t hit the bar within{" "}
           {Math.round(VOTING_WINDOW_MS / 3_600_000)} hours closes out. One vote per wallet.
         </p>
         <Link
@@ -179,7 +179,7 @@ export default function VotePage() {
                   </div>
                   <div className="mt-1 flex justify-between text-[11px] text-zinc-500">
                     <span>
-                      {c.votes}/{VOTE_THRESHOLD} to the calendar
+                      {c.votes}/{VOTE_THRESHOLD} to the Arena
                     </span>
                     <span>{timeLeft(c.createdAt)}</span>
                   </div>
