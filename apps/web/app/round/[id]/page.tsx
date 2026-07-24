@@ -29,7 +29,6 @@ import { EdgeCallouts } from "../../../components/arena/EdgeCallouts";
 import { FirstMatchCelebration } from "../../../components/arena/FirstMatchCelebration";
 import { RoundOverlays, UrgencyPulse } from "../../../components/arena/RoundOverlays";
 import { LiveLeaders } from "../../../components/arena/LiveLeaders";
-import { MomentumMeter } from "../../../components/arena/MomentumMeter";
 import { PnlShareCard } from "../../../components/PnlShareCard";
 import { ArenaWalletPanel } from "../../../components/ArenaWalletPanel";
 import { ChainActions } from "../../../components/ChainActions";
@@ -205,14 +204,6 @@ export default function RoundPage() {
   // we just don't invoke it. Still stop any bed on leave, for safety.
   useEffect(() => () => audio.stopAmbience(), []);
 
-  // Drives the final-minute mood shift across the arena column.
-  const [finalMinute, setFinalMinute] = useState(false);
-  useEffect(() => {
-    if (round?.state !== "live" || !round.endsAt) return setFinalMinute(false);
-    const endsAt = round.endsAt;
-    const t = setInterval(() => setFinalMinute(endsAt - Date.now() <= 60_000), 500);
-    return () => clearInterval(t);
-  }, [round?.state, round?.endsAt]);
 
   liveRef.current = round?.state === "live";
   positionRef.current = position;
@@ -505,9 +496,6 @@ export default function RoundPage() {
               graduated={round.graduated}
               />
             </div>
-            {round.state === "live" && (
-              <MomentumMeter trades={trades} live urgent={finalMinute} />
-            )}
             {round.state === "live" && (
               <TradePanel
                 round={round}
