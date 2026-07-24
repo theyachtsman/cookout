@@ -507,7 +507,23 @@ export type ServerEvent =
   | { type: "chat_update"; message: ChatMessage }
   /** The Grill's pinned announcement changed ("" clears it). */
   | { type: "pinned"; text: string }
+  /** Someone @-mentioned you in chat — sent only to the pinged user. */
+  | { type: "ping"; ping: PingEntry }
   | { type: "error"; message: string };
+
+/** An @-mention of a player in chat, shown in their Pings feed. */
+export interface PingEntry {
+  id: string;
+  /** Who sent the ping. */
+  fromAddress: Address;
+  fromName?: string;
+  fromAvatarUrl?: string;
+  /** Channel it was said in (GLOBAL_ROOM, VOTE_ROOM, or a round id). */
+  roundId: string;
+  /** The message text they were pinged in. */
+  text: string;
+  at: number;
+}
 
 /** WebSocket messages: client → server. */
 export type ClientEvent =

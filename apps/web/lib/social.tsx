@@ -1,9 +1,16 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
-import { GLOBAL_ROOM, type ActivityEvent, type ChatMessage, type PresenceUser } from "@cookout/shared";
+import {
+  GLOBAL_ROOM,
+  type ActivityEvent,
+  type ChatMessage,
+  type PingEntry,
+  type PresenceUser,
+} from "@cookout/shared";
 import { api, getToken, wsUrl } from "./api";
 import { useSession } from "./session";
+import { playPing } from "./sfx";
 
 /**
  * The persistent social layer.
@@ -44,6 +51,12 @@ interface SocialValue {
   react: (emoji: string) => void;
   /** Site-wide activity, newest first. */
   activity: ActivityEvent[];
+  /** @-mentions of you, newest first. */
+  pings: PingEntry[];
+  /** Pings received since you last looked at the Pings feed. */
+  pingsUnread: number;
+  /** Mark the Pings feed as seen (call when it's on screen). */
+  readPings: () => void;
   /** Addresses the signed-in player follows. */
   following: string[];
   setFollow: (address: string, follow: boolean) => Promise<void>;
@@ -66,6 +79,9 @@ const Ctx = createContext<SocialValue>({
   setChannel: () => {},
   react: () => {},
   activity: [],
+  pings: [],
+  pingsUnread: 0,
+  readPings: () => {},
   following: [],
   setFollow: async () => {},
   connected: false,
@@ -85,11 +101,15 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
   const [activeRoom, setActiveRoomState] = useState<ActiveRoom | null>(null);
   const [channel, setChannel] = useState<"global" | "match">("global");
   const [activity, setActivity] = useState<ActivityEvent[]>([]);
+  const [pings, setPings] = useState<PingEntry[]>([]);
+  const [pingsUnread, setPingsUnread] = useState(0);
   const [following, setFollowing] = useState<string[]>([]);
   const [connected, setConnected] = useState(false);
   const [unread, setUnread] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const readingRef = useRef(false);
+  const myAddrRef = useRef<string | undefined>(undefined);
+  myAddrRef.current = profile?.address;
   // The socket callback is created once; refs keep it reading fresh values.
   const matchRef = useRef<ActiveRoom | null>(null);
   const channelRef = useRef<"global" | "match">("global");
@@ -118,6 +138,18 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
       .catch(() => {});
   }, [profile?.address]);
 
+  // Pings: seed the @-mention feed on login; live ones arrive over the socket.
+  useEffect(() => {
+    if (!profile?.address) {
+      setPings([]);
+      setPingsUnread(0);
+      return;
+    }
+    api<{ pings: PingEntry[] }>("/api/social/pings")
+      .then((d) => setPings(d.pings ?? []))
+      .catch(() => {});
+  }, [profile?.address]);
+
   // One long-lived connection to the global room. Reconnects on drop, and
   // re-opens when the session changes so the server sees the right identity.
   const token = profile ? getToken() : null;
@@ -142,6 +174,14 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
             setOnline((ev.online as PresenceUser[]) ?? []);
           } else if (ev.type === "activity") {
             setActivity((prev) => [ev.event as ActivityEvent, ...prev].slice(0, 120));
+          } else if (ev.type === "ping") {
+            // Someone @-mentioned you: sound, unread bump, top of the feed.
+            const p = ev.ping as PingEntry;
+            if (p.fromAddress?.toLowerCase() !== myAddrRef.current?.toLowerCase()) {
+              setPings((prev) => [p, ...prev.filter((x) => x.id !== p.id)].slice(0, 50));
+              setPingsUnread((n) => n + 1);
+              playPing();
+            }
           } else if (ev.type === "chat") {
             const m = ev.message as ChatMessage;
             if (m.roundId === GLOBAL_ROOM) {
@@ -268,6 +308,8 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
     if (reading) setUnread(0);
   }, []);
 
+  const readPings = useCallback(() => setPingsUnread(0), []);
+
   return (
     <Ctx.Provider
       value={{
@@ -281,6 +323,9 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
         setChannel,
         react,
         activity,
+        pings,
+        pingsUnread,
+        readPings,
         following,
         setFollow,
         connected,

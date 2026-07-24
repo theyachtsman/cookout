@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ActivityEvent, ActivityKind, PresenceUser } from "@cookout/shared";
+import {
+  GLOBAL_ROOM,
+  VOTE_ROOM,
+  type ActivityEvent,
+  type ActivityKind,
+  type PingEntry,
+  type PresenceUser,
+} from "@cookout/shared";
 import { useSession } from "../lib/session";
 import { useSocial } from "../lib/social";
 import { ChatLog } from "./ChatLog";
@@ -28,6 +35,9 @@ export function SocialDock() {
     channel,
     setChannel,
     activity,
+    pings,
+    pingsUnread,
+    readPings,
     following,
     connected,
     unread,
@@ -37,7 +47,13 @@ export function SocialDock() {
   const [open, setOpen] = useState(false);
   const [tab, setTab] = useState<"chat" | "feed" | "people">("chat");
   const [feedScope, setFeedScope] = useState<"all" | "following">("all");
+  const [feedView, setFeedView] = useState<"activity" | "pings">("activity");
   const [dismissed, setDismissed] = useState(false);
+
+  // Looking at the Pings view clears its unread badge.
+  useEffect(() => {
+    if (open && tab === "feed" && feedView === "pings") readPings();
+  }, [open, tab, feedView, pings.length, readPings]);
 
   // Walking into a match pops the console open on that match's channel —
   // the trenches were always visible before; they still are.
@@ -174,12 +190,20 @@ export function SocialDock() {
                 Chat
               </button>
               <button
-                onClick={() => setTab("feed")}
-                className={`rounded-full px-2.5 py-0.5 ${
+                onClick={() => {
+                  setTab("feed");
+                  if (pingsUnread > 0) setFeedView("pings");
+                }}
+                className={`relative rounded-full px-2.5 py-0.5 ${
                   tab === "feed" ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
                 }`}
               >
                 Feed
+                {pingsUnread > 0 && (
+                  <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full bg-lime-400 px-1 text-[9px] font-black text-zinc-950">
+                    {pingsUnread > 9 ? "9+" : pingsUnread}
+                  </span>
+                )}
               </button>
               <button
                 onClick={() => setTab("people")}
@@ -258,13 +282,38 @@ export function SocialDock() {
               </form>
             </>
           ) : tab === "feed" ? (
-            <ActivityFeed
-              events={activity}
-              following={following}
-              scope={feedScope}
-              onScope={setFeedScope}
-              onNavigate={() => setOpen(false)}
-            />
+            <div className="flex flex-1 flex-col overflow-hidden">
+              {/* Activity vs Pings columns */}
+              <div className="flex gap-1 border-b border-zinc-800 px-2 py-1.5 text-[11px] font-bold">
+                {(["activity", "pings"] as const).map((v) => (
+                  <button
+                    key={v}
+                    onClick={() => setFeedView(v)}
+                    className={`relative rounded-full px-2.5 py-0.5 ${
+                      feedView === v ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+                    }`}
+                  >
+                    {v === "activity" ? "Activity" : "🔔 Pings"}
+                    {v === "pings" && pingsUnread > 0 && (
+                      <span className="ml-1 rounded-full bg-lime-400 px-1 text-[9px] font-black text-zinc-950">
+                        {pingsUnread > 9 ? "9+" : pingsUnread}
+                      </span>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {feedView === "pings" ? (
+                <PingsFeed pings={pings} onNavigate={() => setOpen(false)} />
+              ) : (
+                <ActivityFeed
+                  events={activity}
+                  following={following}
+                  scope={feedScope}
+                  onScope={setFeedScope}
+                  onNavigate={() => setOpen(false)}
+                />
+              )}
+            </div>
           ) : (
             <OnlineList grouped={grouped} onNavigate={() => setOpen(false)} />
           )}
@@ -426,6 +475,65 @@ export function ActivityFeed({
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+/** Which channel a ping was said in, for the Pings feed. */
+function channelLabel(roomId: string): string {
+  if (roomId === GLOBAL_ROOM) return "The Grill";
+  if (roomId === VOTE_ROOM) return "Vote";
+  return "a match";
+}
+
+/** The Pings column: who @-mentioned you, where, and what they said. */
+export function PingsFeed({ pings, onNavigate }: { pings: PingEntry[]; onNavigate?: () => void }) {
+  if (pings.length === 0)
+    return (
+      <div className="flex flex-1 items-center justify-center p-6 text-center text-xs text-zinc-600">
+        No pings yet. When someone @s your name in chat, it shows up here.
+      </div>
+    );
+  return (
+    <div className="flex-1 space-y-1 overflow-y-auto p-2">
+      {pings.map((p) => {
+        const room = channelLabel(p.roundId);
+        const name = p.fromName ?? `${p.fromAddress.slice(0, 6)}…${p.fromAddress.slice(-4)}`;
+        const roundLink = p.roundId !== GLOBAL_ROOM && p.roundId !== VOTE_ROOM;
+        return (
+          <div key={p.id} className="rounded-lg bg-zinc-900/70 px-2.5 py-1.5">
+            <div className="flex items-baseline gap-1.5 text-[12px]">
+              <span className="shrink-0">🔔</span>
+              <Link
+                href={`/profile/${p.fromAddress}`}
+                onClick={onNavigate}
+                className="shrink-0 font-bold text-lime-300 hover:underline"
+              >
+                {name}
+              </Link>
+              <span className="text-zinc-400">pinged you</span>
+              <span className="ml-auto shrink-0 font-mono text-[9px] text-zinc-600">{ago(p.at)}</span>
+            </div>
+            <div className="mt-0.5 line-clamp-2 break-words text-[12px] text-zinc-300">
+              &ldquo;{p.text}&rdquo;
+            </div>
+            <div className="mt-0.5 text-[10px] text-zinc-600">
+              in{" "}
+              {roundLink ? (
+                <Link
+                  href={`/round/${p.roundId}`}
+                  onClick={onNavigate}
+                  className="text-lime-300/80 hover:underline"
+                >
+                  {room}
+                </Link>
+              ) : (
+                room
+              )}
+            </div>
+          </div>
+        );
+      })}
     </div>
   );
 }
