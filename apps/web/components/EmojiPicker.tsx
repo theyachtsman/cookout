@@ -184,7 +184,9 @@ export function EmojiPicker({
     return merged;
   }, [query]);
 
-  const grid = results ?? CATEGORIES.find((c) => c.key === cat)!.emoji;
+  // The "__recent" tab has no CATEGORIES entry (it renders `recent` below), so
+  // fall back to an empty list instead of dereferencing undefined and crashing.
+  const grid = results ?? CATEGORIES.find((c) => c.key === cat)?.emoji ?? [];
 
   const pick = (e: string) => {
     onPick(e);
