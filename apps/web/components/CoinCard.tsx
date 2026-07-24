@@ -119,14 +119,21 @@ export function CoinCard({
             </span>
             {!teaser && <span className="font-mono text-sm text-zinc-500">${coin.symbol}</span>}
             <TierChip tier={coin.tier} />
-            {coin.matchMinutes && (
+            {coin.matchMinutes === 1 ? (
+              <span
+                className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-black uppercase text-red-300"
+                title="1-Minute Blitz: rug-and-dodge mode — the dev can dump freely, no penalty"
+              >
+                ⚡ 1m blitz
+              </span>
+            ) : coin.matchMinutes ? (
               <span
                 className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-bold text-sky-300"
                 title="Live-trading length the creator picked for this match"
               >
                 ⏱ {coin.matchMinutes}m
               </span>
-            )}
+            ) : null}
           </div>
           <div className="truncate text-xs text-zinc-400">
             {teaser ? `Theme: ${coin.theme}` : coin.theme}

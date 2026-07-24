@@ -308,6 +308,14 @@ export function ArenaHeader({
               <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-bold uppercase text-zinc-300">
                 {round.tier}
               </span>
+              {round.blitz && (
+                <span
+                  className="animate-pulse rounded bg-red-500/25 px-1.5 py-0.5 text-[10px] font-black uppercase text-red-300"
+                  title="1-Minute Blitz: the dev can rug any time with no penalty. Get in, get out."
+                >
+                  ⚡ blitz
+                </span>
+              )}
               {round.graduated && (
                 <span className="rounded bg-lime-400/20 px-1.5 py-0.5 text-[10px] font-bold text-lime-300">
                   alumni

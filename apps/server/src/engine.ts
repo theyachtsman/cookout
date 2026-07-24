@@ -86,6 +86,10 @@ export class RoundEngine {
     config.graduationMcap = BOND_TARGET_USD / this.store.ethUsd;
     // Creator-chosen match length (10/5/1 min) overrides the tier default.
     if (concept.matchMinutes) config.maxDurationSeconds = concept.matchMinutes * 60;
+    // 1-minute Blitz: rug-and-dodge mode. The dev can sell the instant it's
+    // live (no sell lock) and dumping their bag rugs the coin penalty-free.
+    const blitz = concept.matchMinutes === 1;
+    if (blitz) config.devSellLockSeconds = 0;
     if (concept.totalSupply) {
       // Creator tokenomics: keep the tier's pool-share ratio at the new supply.
       const poolShare = config.initialTokenLiquidity / config.totalSupply;
@@ -104,6 +108,8 @@ export class RoundEngine {
       },
       creatorAddress: concept.creatorAddress,
       tier,
+      matchMinutes: concept.matchMinutes,
+      blitz,
       state: "scheduled",
       config,
       scheduledAt,
