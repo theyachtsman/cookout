@@ -329,6 +329,7 @@ export function createApp(
       res.json({
         address,
         displayName: u.displayName,
+        avatarUrl: u.avatarUrl,
         level: u.level,
         title: u.title,
         creatorReputation: u.creatorReputation,
