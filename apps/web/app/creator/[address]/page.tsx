@@ -13,6 +13,7 @@ import { Avatar, ProfileHero, SectionTitle, StatCard, StatGrid } from "../../../
 interface CreatorView {
   address: string;
   displayName?: string;
+  avatarUrl?: string;
   level: number;
   title: string;
   creatorReputation: number;
@@ -68,7 +69,7 @@ export default function CreatorPage() {
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <ProfileHero
-        avatar={<Avatar url={undefined} name={name} level={view.level} />}
+        avatar={<Avatar url={view.avatarUrl} name={name} level={view.level} />}
         name={name}
         level={view.level}
         title={`${view.title} · Creator`}
