@@ -729,6 +729,14 @@ export function createApp(
     }),
   );
 
+  /** The caller's recent @-mention pings, newest first (seeds the Pings feed
+   *  on load; live pings arrive over the socket). */
+  app.get(
+    "/api/social/pings",
+    auth,
+    wrap((req, res) => res.json({ pings: store.pings.get(req.userAddress!) ?? [] })),
+  );
+
   /** Follow / unfollow a player. */
   app.post(
     "/api/me/follow",

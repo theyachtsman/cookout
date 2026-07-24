@@ -6,6 +6,7 @@ import {
   GLOBAL_ROOM,
   type ChatMessage,
   type ClientEvent,
+  type PingEntry,
   type PresenceStatus,
   type PresenceUser,
   type ServerEvent,
@@ -133,8 +134,53 @@ export class Hub {
           banned: user && activeRugBan(user) ? true : undefined,
         };
         this.push(msg.roundId, message);
+        this.deliverPings(message);
         break;
       }
+    }
+  }
+
+  /**
+   * @-mentions: if a chat message names an online player as their name appears
+   * (@theirName), ping them — a targeted event carries a notify sound + a
+   * Pings-feed entry. We match against connected users only, which keeps bots
+   * and the whole user table out of it and makes the mention meaningful.
+   */
+  private deliverPings(message: ChatMessage): void {
+    const haystack = message.text.toLowerCase();
+    if (!haystack.includes("@")) return;
+    const done = new Set<string>();
+    for (const c of this.clients) {
+      if (!c.address || c.address === message.userAddress || done.has(c.address)) continue;
+      const name = this.store.users.get(c.address)?.displayName;
+      if (!name) continue;
+      const needle = "@" + name.toLowerCase();
+      const idx = haystack.indexOf(needle);
+      if (idx === -1) continue;
+      // Require a word boundary after the name so @bob doesn't fire on @bobby.
+      const after = haystack[idx + needle.length];
+      if (after && /[a-z0-9_]/.test(after)) continue;
+      done.add(c.address);
+      const sender = this.store.users.get(message.userAddress);
+      const ping: PingEntry = {
+        id: this.store.id(),
+        fromAddress: message.userAddress,
+        fromName: message.displayName,
+        fromAvatarUrl: sender?.avatarUrl,
+        roundId: message.roundId,
+        text: message.text,
+        at: message.at,
+      };
+      this.store.addPing(c.address, ping);
+      this.sendToUser(c.address, { type: "ping", ping });
+    }
+  }
+
+  /** Send an event to every live connection for one player (any room). */
+  private sendToUser(address: string, event: ServerEvent): void {
+    const payload = JSON.stringify(event);
+    for (const c of this.clients) {
+      if (c.address === address && c.ws.readyState === WebSocket.OPEN) c.ws.send(payload);
     }
   }
 

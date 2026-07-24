@@ -29,6 +29,7 @@ import {
   type AuctionIntent,
   type AuctionResult,
   type ChatMessage,
+  type PingEntry,
   type JackpotPayout,
   type KillFeedEvent,
   type Position,
@@ -142,6 +143,8 @@ export class Store {
   /** Chat mutes/bans: address → muted-until epoch ms (persisted; a ban is a
    *  very long mute). */
   muted = new Map<Address, number>();
+  /** Recent @-mention pings per player (in-memory, newest first, capped). */
+  pings = new Map<Address, PingEntry[]>();
   /** Pre-launch beta signups: wallet → signup record (whitelist source). */
   betaSignups = new Map<Address, BetaSignup>();
   /** Tester feedback, wallet-attached (beta instrumentation). */
@@ -404,6 +407,14 @@ export class Store {
 
   logAdmin(action: string, detail: string): void {
     this.adminLog.push({ id: this.id(), at: Date.now(), action, detail });
+  }
+
+  /** Record an @-mention ping for a player (newest first, keep the last 50). */
+  addPing(target: Address, entry: PingEntry): void {
+    const list = this.pings.get(target) ?? [];
+    list.unshift(entry);
+    if (list.length > 50) list.length = 50;
+    this.pings.set(target, list);
   }
 
   /**

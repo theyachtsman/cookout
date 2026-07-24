@@ -22,6 +22,8 @@ export const playSell = () => audio.play("trade.sell");
 export const playDeposit = () => audio.play("trade.deposit");
 export const playAchievement = () => audio.play("notify.achievement");
 export const playQuest = () => audio.play("notify.quest");
+/** Someone @-mentioned you in chat. */
+export const playPing = () => audio.play("notify.quest");
 export const playWhale = () => audio.play("market.whaleBuy");
 export const playThud = () => audio.play("market.whaleSell");
 export const playRug = () => audio.play("round.rug");
