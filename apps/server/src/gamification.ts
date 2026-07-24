@@ -228,6 +228,10 @@ export function evaluateRoundEnd(ctx: {
         referrer.referralEarnings += fees * REFERRAL_FEE_SHARE;
       }
     }
+  } else if (round.blitz) {
+    // 1-minute Blitz: the rug IS the game. Dumping the bag ends the round but
+    // costs the creator nothing — no reputation hit, no launch ban.
+    store.logAdmin("blitz_rug", `${creator.address} blitz-rugged $${round.token.symbol} (no penalty)`);
   } else {
     creator.creatorReputation -= 5;
     // A rug is a launch ban, not just a score hit. Self-serve mode (paper

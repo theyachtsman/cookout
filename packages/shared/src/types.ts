@@ -113,6 +113,12 @@ export interface Round {
   tier: RiskTier;
   state: RoundState;
   config: RoundConfig;
+  /** Creator-chosen live-trading length in minutes (10 / 5 / 1). */
+  matchMinutes?: number;
+  /** 1-minute "Blitz" mode: rug-and-dodge rules. The creator can sell any
+   *  time (no dev-sell lock) and dumping their whole bag rugs the coin with
+   *  NO reputation hit or launch ban — the rug is the game. */
+  blitz?: boolean;
   /** Epoch ms for the scheduled open (lobby start). */
   scheduledAt: number;
   queueOpensAt?: number;

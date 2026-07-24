@@ -233,24 +233,38 @@ export default function Submissions() {
               <div className="flex flex-wrap gap-2">
                 {MATCH_MINUTE_OPTIONS.map((mins) => {
                   const active = form.matchMinutes === mins;
+                  const blitz = mins === 1;
                   const blurb =
-                    mins === 10 ? "the classic" : mins === 5 ? "fast hands" : "pure blitz";
+                    mins === 10 ? "the classic" : mins === 5 ? "fast hands" : "⚡ blitz · special rules";
                   return (
                     <button
                       key={mins}
                       onClick={() => setForm({ ...form, matchMinutes: mins })}
                       className={`rounded-xl border px-4 py-2 text-left transition ${
                         active
-                          ? "border-sky-400/70 bg-sky-400/10"
+                          ? blitz
+                            ? "border-red-400/70 bg-red-400/10"
+                            : "border-sky-400/70 bg-sky-400/10"
                           : "border-zinc-700 hover:border-zinc-500"
                       }`}
                     >
                       <span className="text-sm font-black">⏱ {mins} min</span>
-                      <span className="ml-2 text-[11px] text-zinc-500">{blurb}</span>
+                      <span className={`ml-2 text-[11px] ${blitz ? "font-bold text-red-300" : "text-zinc-500"}`}>
+                        {blurb}
+                      </span>
                     </button>
                   );
                 })}
               </div>
+              {form.matchMinutes === 1 && (
+                <div className="mt-2 rounded-lg border border-red-500/40 bg-red-500/[0.06] p-3 text-xs text-zinc-300">
+                  <b className="text-red-300">⚡ 1-Minute Blitz — different rules.</b> This is a
+                  rug-and-dodge sprint. As the dev you can <b>sell whenever you want</b> (no sell
+                  lock) and <b>dump 100% of your bag with zero reputation hit and no launch ban</b> —
+                  the rug is the whole game. Traders: get in, grab a small bag, and get out before
+                  the inevitable pull. There is no &quot;playing it safe&quot; here.
+                </div>
+              )}
             </div>
             <button
               onClick={openPreview}
@@ -287,7 +301,9 @@ export default function Submissions() {
           <b className="text-red-300">🔥 The rug rule:</b> you can trade your own coin like anyone
           else, but <b>selling 75% of the most you ever held</b> (cumulative) pulls the launch and
           brands it Burnt — that tanks your reputation and bans you from launching. Trim to take
-          profit; don&apos;t full-send your own bag.
+          profit; don&apos;t full-send your own bag.{" "}
+          <b className="text-amber-300">Exception: 1-minute Blitz coins</b> are built for rugging —
+          the dev can dump freely with no penalty (see the Blitz note above).
         </div>
       </section>
 

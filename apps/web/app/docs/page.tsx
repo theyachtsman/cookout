@@ -225,7 +225,10 @@ export default function Docs() {
               their own coin (cumulative, not one trade) — trimming a little to take profit is fine.
               The kill feed calls it <b>Burnt</b>. Rugging tanks the creator&apos;s reputation and
               earns their wallet a <b>launch ban</b> (see{" "}
-              <a href="#reputation" className="text-lime-400 underline">Reputation &amp; Rug Bans</a>).
+              <a href="#reputation" className="text-lime-400 underline">Reputation &amp; Rug Bans</a>) —
+              unless it&apos;s a <b className="text-red-300">1-minute Blitz</b> coin, where rugging is
+              the game and costs the creator nothing (see{" "}
+              <a href="#creators" className="text-lime-400 underline">Launching Your Own Coin</a>).
               Note: creator sells are also time-locked briefly after the open on lower tiers.
             </li>
           </ul>
@@ -808,6 +811,18 @@ export default function Docs() {
               until the ban clears. Take profit in trims, not a full send.
             </li>
           </ol>
+
+          <div className="mt-4 rounded-xl border border-red-500/40 bg-red-500/[0.06] p-4">
+            <h3 className="text-base font-black text-red-300">⚡ 1-Minute Blitz — a different game</h3>
+            <p className="mt-1 text-sm text-zinc-300">
+              Pick the <b>1-minute</b> match length and the normal rug rules are off. Blitz is
+              built for rugging: as the dev you have <b>no sell lock</b> (dump the instant it&apos;s
+              live) and you can <b>rug 100% of your bag with zero reputation hit and no launch
+              ban</b>. The coin still burns when you pull — that&apos;s the point. For traders it&apos;s
+              pure reflex: get in, grab a small bag, and get out before the inevitable rug. Dodging
+              the pull is the whole skill.
+            </p>
+          </div>
 
           <h3 className="mt-6 text-lg font-black text-zinc-100">🔁 Run It Back</h3>
           <p>

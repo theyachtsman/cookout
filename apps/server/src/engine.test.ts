@@ -143,6 +143,31 @@ test("rug detection: creator dump drains pool and ends the round", () => {
   assert.ok(cr.creatorReputation < 0, "rugging tanks creator reputation");
 });
 
+test("1-minute blitz: dev can rug the whole bag penalty-free, no sell lock", () => {
+  const { store, engine, concept } = setup();
+  concept.matchMinutes = 1;
+  const t0 = 2_700_000_000;
+  const round = engine.scheduleRound(concept, "rookie", t0);
+  assert.equal(round.blitz, true, "1-min rounds are blitz");
+  assert.equal(round.config.devSellLockSeconds, 0, "blitz drops the dev sell lock");
+  round.config.maxPositionEth = 0;
+  round.config.initialEthLiquidity = 50;
+  round.config.graduationMcap = 1e9;
+  engine.tick(t0);
+  engine.tick(round.queueOpensAt!);
+  store.getOrCreateUser(concept.creatorAddress).arenaBalance = 100;
+  store.getOrCreateUser(A).arenaBalance = 100;
+  engine.submitIntent(round.id, concept.creatorAddress, 0.3, undefined, round.queueOpensAt! + 1);
+  engine.submitIntent(round.id, A, 0.3, undefined, round.queueOpensAt! + 2);
+  engine.tick(round.queueClosesAt!);
+  // Dev dumps the entire bag the instant it's live — allowed, and it rugs.
+  engine.trade(round.id, concept.creatorAddress, "sell", { pct: 100 }, round.liveAt! + 500);
+  assert.equal(round.endReason, "rug_detected");
+  const cr = store.getOrCreateUser(concept.creatorAddress);
+  assert.equal(cr.creatorReputation, 0, "blitz rug costs no reputation");
+  assert.ok(!cr.rugBans || cr.rugBans.length === 0, "blitz rug issues no launch ban");
+});
+
 test("dev rug: a trim under 75% is safe; crossing 75% cumulative pulls the coin", () => {
   const { store, engine, concept } = setup();
   const t0 = 2_500_000_000;
