@@ -71,15 +71,12 @@ test("full round: lobby → queue → uniform settle → trades → timer end �
   assert.ok(sellTrade.ethAmount > 0);
   assert.ok(events.some((e) => e.type === "trade"));
 
-  // Live trading is uncapped — an over-cap buy is fine once the round is open.
-  const bigBuy = engine.trade(
-    round.id,
-    B,
-    "buy",
-    { eth: round.config.maxPositionEth + 0.5 },
-    now + 2000,
+  // Rookie keeps its training wheels on after the open: a buy that would push
+  // the live position past liveMaxPositionEth is refused (higher tiers uncapped).
+  assert.throws(
+    () => engine.trade(round.id, B, "buy", { eth: round.config.liveMaxPositionEth + 0.5 }, now + 2000),
+    /live position/,
   );
-  assert.equal(bigBuy.side, "buy");
 
   // Timer expiry ends the round and resolves everyone at one redemption price.
   engine.tick(round.endsAt!);
@@ -151,6 +148,7 @@ test("graduation: criteria met migrates instead of redeeming", () => {
   const t0 = 3_000_000_000;
   const round = engine.scheduleRound(concept, "rookie", t0);
   round.config.maxPositionEth = 0;
+  round.config.liveMaxPositionEth = 0; // uncapped: this test drives graduation, not the cap
   round.config.graduationMcap = 20;
   round.config.graduationMinHolders = 2;
   round.config.graduationMinVolume = 1;

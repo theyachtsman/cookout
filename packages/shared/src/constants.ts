@@ -48,6 +48,9 @@ export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
     lowVolumeThreshold: 0.02,
     lowVolumeWindowSeconds: 120,
     maxPositionEth: 0.3,
+    // Rookie keeps its training wheels on after the open: live trading is
+    // capped at the same 0.3 pETH so a beginner can't dump their whole bag.
+    liveMaxPositionEth: 0.3,
     devSellLockSeconds: 60,
   },
   standard: {
@@ -68,6 +71,7 @@ export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
     lowVolumeThreshold: 0.015,
     lowVolumeWindowSeconds: 90,
     maxPositionEth: 0.5,
+    liveMaxPositionEth: 0, // the main arena: live trading is uncapped
     devSellLockSeconds: 30,
   },
   degen: {
@@ -88,6 +92,7 @@ export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
     lowVolumeThreshold: 0.01,
     lowVolumeWindowSeconds: 60,
     maxPositionEth: 0,
+    liveMaxPositionEth: 0, // degen: no caps anywhere, by design
     devSellLockSeconds: 0,
   },
 };

@@ -170,6 +170,7 @@ export class ChainService {
     config.initialEthLiquidity *= s;
     config.graduationMinVolume *= s;
     config.maxPositionEth *= s;
+    config.liveMaxPositionEth *= s;
     config.lowVolumeThreshold *= s;
     if (config.mcapTarget) config.mcapTarget *= s;
     if (concept.totalSupply) config.totalSupply = concept.totalSupply;

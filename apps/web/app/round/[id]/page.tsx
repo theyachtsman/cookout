@@ -69,6 +69,9 @@ export default function RoundPage() {
   const [killfeed, setKillfeed] = useState<KillFeedEvent[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [ticker, setTicker] = useState<Ticker | null>(null);
+  // The ETH/USD peg from the round payload, so dollar entry works during the
+  // pull-up queue too (before the live ticker starts carrying ethUsd).
+  const [pegUsd, setPegUsd] = useState<number>();
   const [lobby, setLobby] = useState<Lobby | null>(null);
   const [auction, setAuction] = useState<AuctionResult | null>(null);
   const [summary, setSummary] = useState<RoundSummary | null>(null);
@@ -120,6 +123,7 @@ export default function RoundPage() {
       predictions: { moon: number; rug: number };
       auction: AuctionResult | null;
       summary: RoundSummary | null;
+      ethUsd?: number;
     }>(`/api/rounds/${id}`);
     setRound(data.round);
     setKillfeed(data.killfeed);
@@ -128,6 +132,7 @@ export default function RoundPage() {
     setPreds(data.predictions);
     setAuction(data.auction);
     setSummary(data.summary);
+    if (data.ethUsd) setPegUsd(data.ethUsd);
   }, [id]);
 
   useEffect(() => {
@@ -435,7 +440,7 @@ export default function RoundPage() {
               round={round}
               lobby={lobby}
               preds={preds}
-              ethUsd={ticker?.ethUsd}
+              ethUsd={ticker?.ethUsd ?? pegUsd}
               onChanged={() => {
                 void loadMe();
                 void refresh();

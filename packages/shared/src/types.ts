@@ -82,8 +82,12 @@ export interface RoundConfig {
   /** Round ends if volume stays below this for lowVolumeWindow seconds. */
   lowVolumeThreshold: number;
   lowVolumeWindowSeconds: number;
-  /** Max position per player in paper ETH (0 = uncapped). */
+  /** Max position per player in the fair-open queue, in paper ETH (0 = uncapped). */
   maxPositionEth: number;
+  /** Max ETH a player can have deployed during LIVE trading (0 = uncapped).
+   *  A training-wheels ceiling on beginner tiers so nobody dumps their whole
+   *  bag in one match; higher tiers leave live trading uncapped. */
+  liveMaxPositionEth: number;
   /** Creator cannot sell for this many seconds after open (0 = no lock). */
   devSellLockSeconds: number;
 }

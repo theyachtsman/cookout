@@ -398,9 +398,16 @@ export class RoundEngine {
       if (!(ethIn > 0)) throw new Err(400, "eth amount required");
       if ((user.arenaBalance ?? 0) < ethIn)
         throw new Err(400, "not enough in your arena wallet: deposit pETH to trade");
-      // Live trading is uncapped — bet the whole bag if you dare. The
-      // position cap (maxPositionEth) constrains ONLY the fair-open queue
-      // (submitIntent), so nobody can pre-load the bond before the open.
+      // Beginner tiers keep a live position ceiling (liveMaxPositionEth): the
+      // total ETH you have deployed at once can't exceed it, so a rookie can't
+      // dump their whole bag in a single match. Selling frees the room back up.
+      // Higher tiers leave this at 0 (uncapped — bet the whole bag if you dare).
+      const liveCap = round.config.liveMaxPositionEth ?? 0;
+      if (liveCap > 0 && pos.costBasisEth + ethIn > liveCap + 1e-9)
+        throw new Err(
+          400,
+          `this tier caps your live position at ${liveCap} pETH — sell some before buying more`,
+        );
       const r = buy(pool, ethIn, round.config.tradeFeeBps);
       user.arenaBalance = (user.arenaBalance ?? 0) - ethIn;
       round.pool = r.pool;
