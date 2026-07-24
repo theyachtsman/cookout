@@ -24,8 +24,8 @@ import { ChartCanvas } from "./ChartCanvas";
 
 const SCENES = [
   { key: "launchpad", label: "Make a Coin", blurb: "Name it, draw it, send it", dur: 7600 },
-  { key: "upvote", label: "Community Upvote", blurb: "Vote coins onto the calendar", dur: 7000 },
-  { key: "calendar", label: "The Calendar", blurb: "Queued lobbies + a live match", dur: 5200 },
+  { key: "upvote", label: "Community Upvote", blurb: "Vote coins into the Arena", dur: 7000 },
+  { key: "calendar", label: "The Arena", blurb: "Queued lobbies + a live match", dur: 5200 },
   { key: "queue", label: "Pre-Launch Queue", blurb: "Place your buy before the open", dur: 8200 },
   { key: "launch", label: "Launch → Live", blurb: "Settle, then the chart rips", dur: 9800 },
   { key: "leaderboard", label: "The Leaderboard", blurb: "Where you rank this week", dur: 7600 },
@@ -208,7 +208,7 @@ export function ArenaDemo() {
             </span>
           </div>
           <div className="ml-auto flex items-center gap-3 text-xs text-zinc-500">
-            <span className="hidden sm:inline">Matches</span>
+            <span className="hidden sm:inline">Arena</span>
             <span className="hidden sm:inline">Board</span>
             <span className="hidden text-amber-400/80 sm:inline">Jackpot</span>
             <span className="rounded-lg bg-lime-400 px-2.5 py-1 text-[11px] font-black text-zinc-950">
@@ -309,7 +309,7 @@ function CalendarScene() {
   return (
     <div className="flex h-full animate-[fadein_.4s_ease] flex-col">
       <div className="mb-3">
-        <h3 className="text-lg font-black">Match Calendar</h3>
+        <h3 className="text-lg font-black">The Arena</h3>
         <p className="text-xs text-zinc-500">
           A fresh community-made token every few minutes: fair open, pro-rata fills, auditable
           settlement.
@@ -1593,7 +1593,7 @@ function UpvoteScene() {
         <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">Community Upvote</div>
         <h3 className="mt-1 text-lg font-black">Voting Now</h3>
         <p className="text-xs text-zinc-500">
-          10 upvotes sends a fresh coin to the committee shortlist and onto the match calendar.
+          10 upvotes sends a fresh coin to the committee shortlist and into the Arena.
         </p>
       </div>
       <div className="grid min-h-0 flex-1 gap-3 sm:grid-cols-3">

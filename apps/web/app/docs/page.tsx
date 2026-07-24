@@ -79,7 +79,7 @@ export default function Docs() {
 
         <Section id="what" title="What is The Cookout?">
           <p>
-            The Cookout is a <b>live multiplayer trading arena</b>. Every match on the calendar is a
+            The Cookout is a <b>live multiplayer trading arena</b>. Every match in the Arena is a
             brand-new token created for that match by a community creator. It opens through a fair
             batch auction, trades live for a few minutes in front of a crowd, then ends one of three
             ways: graduation, timer, or a rug.
@@ -91,7 +91,7 @@ export default function Docs() {
           </p>
           <p>
             Getting in takes under a minute: sign in with an email, Google, X, or your own wallet
-            and you&apos;re on the calendar. No whitelist, nothing to deposit. The beta is free to
+            and you&apos;re in the Arena. No whitelist, nothing to deposit. The beta is free to
             play. <a href="#account" className="text-lime-400 underline">How accounts work →</a>
           </p>
         </Section>
@@ -140,7 +140,7 @@ export default function Docs() {
         <Section id="round" title="Anatomy of a Round">
           <ol className="list-decimal space-y-2 pl-5">
             <li>
-              <b>Scheduled</b>: the match is on the calendar. You see the theme; the token stays a
+              <b>Scheduled</b>: the match is booked into the Arena. You see the theme; the token stays a
               teaser until the lobby opens.
             </li>
             <li>
@@ -794,8 +794,8 @@ export default function Docs() {
               exist.
             </li>
             <li>
-              The community votes. <b>{VOTE_THRESHOLD} upvotes</b> puts your coin straight onto the
-              match calendar at your chosen tier and length; the window closes after 24 hours.
+              The community votes. <b>{VOTE_THRESHOLD} upvotes</b> puts your coin straight into the
+              Arena at your chosen tier and length; the window closes after 24 hours.
             </li>
             <li>
               Your round runs. You earn <b>{CREATOR_FEE_SHARE * 100}% of the round&apos;s trading
@@ -810,11 +810,11 @@ export default function Docs() {
           <p>
             A coin that doesn&apos;t graduate isn&apos;t done. Its developer gets a second serving.
             On any of your failed coins you&apos;ll see a <b>Run It Back</b> button: on the coin
-            card in the <Link href="/matches" className="text-lime-400 underline">Match Calendar</Link>
+            card in the <Link href="/matches" className="text-lime-400 underline">Arena</Link>
             &apos;s Past Results, and on your{" "}
             <Link href="/profile" className="text-lime-400 underline">creator page</Link> launches.
             One click re-launches the coin with the <b>exact same setup</b> (same tier, same match
-            length, same tokenomics) straight back onto the calendar, no new vote needed.
+            length, same tokenomics) straight back into the Arena, no new vote needed.
           </p>
           <p className="text-zinc-400">
             Only the coin&apos;s own developer can run it back. (If you launched under a rug ban,

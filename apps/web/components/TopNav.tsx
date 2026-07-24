@@ -28,7 +28,7 @@ interface NavLink {
 const LINKS: NavLink[] = [
   { href: "/submissions", label: "Make a Coin", auth: true },
   { href: "/vote", label: "Vote", auth: true },
-  { href: "/matches", label: "Matches", auth: true },
+  { href: "/matches", label: "Arena", auth: true },
   { href: "/leaderboard", label: "Board", auth: true },
   { href: "/jackpot", label: "Jackpot", auth: true, accent: true },
   { href: "/docs", label: "Menu" },

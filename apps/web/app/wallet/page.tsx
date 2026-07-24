@@ -112,7 +112,7 @@ function PaperWalletPage() {
           )}
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
-          This is your game account. Matches spend your arena balance, never your bank. It works
+          This is your game account. Rounds spend your arena balance, never your bank. It works
           exactly like the real thing will, so you build the habit here, where it&apos;s only paper.
         </p>
       </header>
