@@ -7,6 +7,8 @@ import { api } from "../lib/api";
 import { fundArenaWallet } from "../lib/chainTx";
 import { playDeposit } from "../lib/sfx";
 import { useSession } from "../lib/session";
+import { fmtAmount, useDenomPref, useEthUsd } from "../lib/ethUsd";
+import { DenomToggle } from "./DenomToggle";
 
 /**
  * The Arena Wallet panel — deposit once, trade hot.
@@ -18,6 +20,8 @@ import { useSession } from "../lib/session";
  */
 export function ArenaWalletPanel({ round }: { round: Round }) {
   const { profile, refresh: refreshProfile } = useSession();
+  const peg = useEthUsd();
+  const [usd, setUsd] = useDenomPref();
   const [bal, setBal] = useState<number | null>(null);
   const [amount, setAmount] = useState("0.005");
   const [busy, setBusy] = useState("");
@@ -44,7 +48,8 @@ export function ArenaWalletPanel({ round }: { round: Round }) {
 
   // Paper rounds run the same flow with pETH so the habit transfers: money
   // sitting in your bank can't trade until you stake it into the arena.
-  if (!round.chain) return <PaperArena profile={profile} refresh={refreshProfile} />;
+  if (!round.chain)
+    return <PaperArena profile={profile} refresh={refreshProfile} peg={peg} usd={usd} setUsd={setUsd} />;
 
   const hot = (bal ?? 0) > 0.0002;
 
@@ -72,8 +77,11 @@ export function ArenaWalletPanel({ round }: { round: Round }) {
             </span>
           )}
         </h4>
-        <span className="font-mono text-sm font-bold text-zinc-200">
-          {bal !== null ? `${bal.toFixed(4)} ETH` : "—"}
+        <span className="flex items-center gap-2">
+          <span className="font-mono text-sm font-bold text-zinc-200">
+            {bal !== null ? fmtAmount(bal, usd, peg, "ETH", 4) : "—"}
+          </span>
+          <DenomToggle usd={usd} onChange={setUsd} native="ETH" />
         </span>
       </div>
       <p className="mb-3 text-[11px] leading-snug text-zinc-500">
@@ -128,9 +136,15 @@ export function ArenaWalletPanel({ round }: { round: Round }) {
 function PaperArena({
   profile,
   refresh,
+  peg,
+  usd,
+  setUsd,
 }: {
   profile: { paperBalance: number; arenaBalance?: number };
   refresh: () => void;
+  peg: number;
+  usd: boolean;
+  setUsd: (v: boolean) => void;
 }) {
   const [amount, setAmount] = useState("1");
   const [busy, setBusy] = useState("");
@@ -181,7 +195,12 @@ function PaperArena({
             </span>
           )}
         </h4>
-        <span className="font-mono text-sm font-bold text-zinc-200">{arena.toFixed(3)} pETH</span>
+        <span className="flex items-center gap-2">
+          <span className="font-mono text-sm font-bold text-zinc-200">
+            {fmtAmount(arena, usd, peg)}
+          </span>
+          <DenomToggle usd={usd} onChange={setUsd} />
+        </span>
       </div>
       <p className="mb-3 text-[11px] leading-snug text-zinc-500">
         {hot
@@ -215,7 +234,7 @@ function PaperArena({
           onClick={() => setAmount(String(Math.floor(bank * 100) / 100))}
           className="text-[11px] text-zinc-500 hover:text-zinc-300"
         >
-          bank {bank.toFixed(2)} pETH · max
+          bank {fmtAmount(bank, usd, peg, "pETH", 2)} · max
         </button>
       </div>
       {error && <div className="mt-2 text-sm text-red-400">{error}</div>}

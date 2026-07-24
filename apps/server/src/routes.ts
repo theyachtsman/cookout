@@ -768,6 +768,9 @@ export function createApp(
         predictions: engine.predictionCounts(round.id),
         auction: store.auctionResults.get(round.id) ?? null,
         summary: store.summaries.get(round.id) ?? null,
+        // The live ETH/USD peg, so the client can offer dollar entry even
+        // before the live ticker starts (i.e. during the pull-up queue).
+        ethUsd: store.ethUsd,
       });
     }),
   );

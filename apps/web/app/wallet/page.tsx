@@ -17,6 +17,8 @@ import {
 import { api } from "../../lib/api";
 import { useChainOnly } from "../../lib/chainOnly";
 import { fundArenaWallet } from "../../lib/chainTx";
+import { fmtAmount, useDenomPref, useEthUsd } from "../../lib/ethUsd";
+import { DenomToggle } from "../../components/DenomToggle";
 import { useSession } from "../../lib/session";
 import { playDeposit } from "../../lib/sfx";
 
@@ -47,6 +49,8 @@ export default function WalletPage() {
  */
 function PaperWalletPage() {
   const { profile, promptPlayNow, refresh } = useSession();
+  const peg = useEthUsd();
+  const [usd, setUsd] = useDenomPref();
   const [amount, setAmount] = useState("1");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -119,16 +123,28 @@ function PaperWalletPage() {
 
       <PrivyWalletCard address={profile.address} />
 
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Balances</span>
+        <DenomToggle usd={usd} onChange={setUsd} />
+      </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-lime-400/40 bg-lime-400/5 p-5">
           <div className="text-xs uppercase tracking-wide text-zinc-500">In the arena</div>
-          <div className="mt-1 font-mono text-3xl font-black text-lime-300">{arena.toFixed(3)}</div>
-          <div className="text-xs text-zinc-500">pETH · playable now</div>
+          <div className="mt-1 font-mono text-3xl font-black text-lime-300">
+            {usd ? fmtAmount(arena, true, peg) : arena.toFixed(3)}
+          </div>
+          <div className="text-xs text-zinc-500">
+            {usd ? `≈ ${arena.toFixed(3)} pETH · playable now` : "pETH · playable now"}
+          </div>
         </div>
         <div className="rounded-xl border border-zinc-800 p-5">
           <div className="text-xs uppercase tracking-wide text-zinc-500">In the bank</div>
-          <div className="mt-1 font-mono text-3xl font-black text-zinc-200">{bank.toFixed(3)}</div>
-          <div className="text-xs text-zinc-500">pETH · safe, can&apos;t trade</div>
+          <div className="mt-1 font-mono text-3xl font-black text-zinc-200">
+            {usd ? fmtAmount(bank, true, peg) : bank.toFixed(3)}
+          </div>
+          <div className="text-xs text-zinc-500">
+            {usd ? `≈ ${bank.toFixed(3)} pETH · safe` : "pETH · safe, can't trade"}
+          </div>
         </div>
       </div>
 
@@ -281,6 +297,8 @@ function when(at: number): string {
 
 function ChainWalletPage() {
   const { profile, signIn } = useSession();
+  const peg = useEthUsd();
+  const [usd, setUsd] = useDenomPref();
   const [bal, setBal] = useState<number | null>(null);
   const [history, setHistory] = useState<ArenaTxEntry[]>([]);
   const [amount, setAmount] = useState("0.005");
@@ -351,10 +369,22 @@ function ChainWalletPage() {
           <section className="rounded-xl border border-zinc-800 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <div className="text-xs uppercase tracking-wide text-zinc-500">Hot balance</div>
+                <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-500">
+                  Hot balance
+                  <DenomToggle usd={usd} onChange={setUsd} native="ETH" />
+                </div>
                 <div className="font-mono text-3xl font-black text-zinc-100">
-                  {bal !== null ? bal.toFixed(4) : "…"}{" "}
-                  <span className="text-base font-bold text-zinc-500">ETH</span>
+                  {bal !== null ? (
+                    usd ? (
+                      fmtAmount(bal, true, peg, "ETH", 4)
+                    ) : (
+                      <>
+                        {bal.toFixed(4)} <span className="text-base font-bold text-zinc-500">ETH</span>
+                      </>
+                    )
+                  ) : (
+                    "…"
+                  )}
                 </div>
               </div>
               <div className="flex flex-wrap items-center gap-2">
