@@ -201,70 +201,82 @@ export function QueuePanel({
             {onChain ? "Connect Wallet to Pull Up" : "Play to Pull Up"}
           </button>
         ) : queueOpen ? (
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="text-sm">
-              <div className="mb-1 flex items-center gap-2 text-xs text-zinc-500">
-                <span>Amount</span>
-                {peg > 0 && (
-                  <span className="flex overflow-hidden rounded-full border border-zinc-800 text-[10px] font-bold">
-                    {(
-                      [
-                        ["native", unit],
-                        ["usd", "USD"],
-                      ] as const
-                    ).map(([key, label]) => (
-                      <button
-                        key={key}
-                        type="button"
-                        onClick={() => {
-                          const n = Number(amount);
-                          if (n > 0)
-                            setAmount(
-                              key === "usd"
-                                ? (n * peg).toFixed(2)
-                                : (n / peg).toFixed(onChain ? 5 : 4),
-                            );
-                          setDenom(key);
-                        }}
-                        className={`px-2 py-0.5 ${
-                          denom === key
-                            ? "bg-zinc-700 text-zinc-100"
-                            : "text-zinc-500 hover:text-zinc-300"
-                        }`}
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </span>
-                )}
-              </div>
-              <div className="flex items-center gap-1">
-                {usdMode && <span className="font-mono text-zinc-500">$</span>}
+          <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-4">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+                Your entry
+              </span>
+              {peg > 0 && (
+                <span className="flex overflow-hidden rounded-full border border-zinc-800 text-[10px] font-bold">
+                  {(
+                    [
+                      ["native", unit],
+                      ["usd", "USD"],
+                    ] as const
+                  ).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      onClick={() => {
+                        const n = Number(amount);
+                        if (n > 0)
+                          setAmount(
+                            key === "usd" ? (n * peg).toFixed(2) : (n / peg).toFixed(onChain ? 5 : 4),
+                          );
+                        setDenom(key);
+                      }}
+                      className={`px-2.5 py-1 ${
+                        denom === key ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </span>
+              )}
+            </div>
+
+            <div className="mt-2.5 flex items-stretch gap-2">
+              <div className="flex flex-1 items-center rounded-lg border border-zinc-700 bg-zinc-900 px-3 focus-within:border-lime-400/50">
+                {usdMode && <span className="mr-1 font-mono text-lg font-bold text-zinc-500">$</span>}
                 <input
                   value={amount}
                   onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
+                  onKeyDown={(e) => e.key === "Enter" && !pending && void submit()}
                   inputMode="decimal"
-                  className="w-28 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 font-mono"
+                  placeholder="0"
+                  className="w-full min-w-0 bg-transparent py-2.5 font-mono text-lg text-zinc-100 outline-none placeholder-zinc-600"
                 />
+                <span className="ml-2 shrink-0 text-xs font-bold text-zinc-500">
+                  {usdMode ? "USD" : unit}
+                </span>
               </div>
-              {convertedHint && (
-                <div className="mt-1 font-mono text-[11px] text-zinc-500">{convertedHint}</div>
-              )}
-            </label>
-            <button
-              disabled={pending}
-              onClick={() => void submit()}
-              className="rounded-lg bg-lime-400 px-6 py-2 font-black text-zinc-950 hover:bg-lime-300 disabled:opacity-50"
-            >
-              {pending ? "Confirm in wallet…" : "Pull Up"}
-            </button>
-            <span className="text-xs text-zinc-500">
-              balance:{" "}
-              {onChain
-                ? `${ethBal !== null ? ethBal.toFixed(4) : "…"} ${unit}`
-                : `${(profile.arenaBalance ?? 0).toFixed(2)} ${unit}`}
-              {round.config.maxPositionEth > 0 && ` · cap ${round.config.maxPositionEth} ${unit}`}
-            </span>
+              <button
+                disabled={pending}
+                onClick={() => void submit()}
+                className="shrink-0 rounded-lg bg-lime-400 px-6 font-black text-zinc-950 transition hover:bg-lime-300 active:scale-95 disabled:opacity-50"
+              >
+                {pending ? (onChain ? "Confirm…" : "…") : "Pull Up"}
+              </button>
+            </div>
+
+            <div className="mt-2 flex items-center justify-between gap-3 text-[11px]">
+              <span className="font-mono text-zinc-500">{convertedHint || " "}</span>
+              <span className="text-zinc-500">
+                balance{" "}
+                <b className="font-mono text-zinc-300">
+                  {onChain
+                    ? `${ethBal !== null ? ethBal.toFixed(4) : "…"}`
+                    : (profile.arenaBalance ?? 0).toFixed(2)}{" "}
+                  {unit}
+                </b>
+                {round.config.maxPositionEth > 0 && (
+                  <span className="text-zinc-600">
+                    {" · "}cap {round.config.maxPositionEth} {unit}
+                  </span>
+                )}
+              </span>
+            </div>
           </div>
         ) : (
           <div className="text-sm text-zinc-400">
