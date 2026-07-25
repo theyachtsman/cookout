@@ -188,11 +188,15 @@ export function QueuePanel({
             </span>
           )}
         </h3>
-        <p className="mb-4 text-xs text-zinc-500">
-          Buy intents queue until close, then everyone settles at one uniform clearing price.
-          Oversubscribed? Pro-rata fills, and speed buys nothing here.
-          {onChain && " Your ETH escrows in the round's auction contract until settlement."}
-        </p>
+        {round.state === "lobby" ? (
+          <LobbyWelcome onChain={onChain} />
+        ) : (
+          <p className="mb-4 text-xs text-zinc-500">
+            Buy intents queue until close, then everyone settles at one uniform clearing price.
+            Oversubscribed? Pro-rata fills, and speed buys nothing here.
+            {onChain && " Your ETH escrows in the round's auction contract until settlement."}
+          </p>
+        )}
         {!profile ? (
           <button
             onClick={() => (onChain ? void signIn() : promptPlayNow())}
@@ -281,7 +285,7 @@ export function QueuePanel({
         ) : (
           <div className="text-sm text-zinc-400">
             {round.state === "lobby"
-              ? "Queue opens soon. Hang tight."
+              ? "You're in. The Pull Up opens shortly, so gather your people and get set."
               : "Queue closed. Clearing price being computed…"}
           </div>
         )}
@@ -458,6 +462,61 @@ function Row({ k, v }: { k: string; v: string }) {
     <div className="flex justify-between">
       <dt className="text-zinc-500">{k}</dt>
       <dd className="font-mono">{v}</dd>
+    </div>
+  );
+}
+
+/**
+ * The lobby welcome + primer. The lobby is the gather before the Pull Up, so we
+ * use the downtime to hype the crowd, point them at the Moon/Rug call, and
+ * explain the batch auction (one price, pro-rata fills) so nobody is surprised
+ * by their fill when the queue opens.
+ */
+function LobbyWelcome({ onChain }: { onChain: boolean }) {
+  const points: Array<[string, string, string]> = [
+    [
+      "🗳️",
+      "Make your call",
+      "Vote 🌕 Moon or 🧨 Rug in the Moon or Rug panel before the open. Lock a correct read and earn XP.",
+    ],
+    [
+      "⚖️",
+      "One fair price",
+      "When the Pull Up opens you drop a buy intent. Every intent settles together at a single clearing price, so being fast buys you nothing.",
+    ],
+    [
+      "🍽️",
+      "Pro-rata fills",
+      "If more pulls up than the auction can take, everyone is filled by the same fraction of what they asked for. You are never front-run or out-sniped.",
+    ],
+    [
+      "💰",
+      "What you'll hold",
+      onChain
+        ? "Expect your pro-rata share of tokens at the clearing price. Anything unfilled is returned from escrow the moment the round goes live."
+        : "Expect your pro-rata share of tokens at the clearing price. Anything that doesn't fill returns to your Cook Out Balance the moment the round goes live.",
+    ],
+  ];
+
+  return (
+    <div className="mb-4 rounded-xl border border-lime-400/25 bg-gradient-to-b from-lime-400/[0.06] to-transparent p-4">
+      <h4 className="text-sm font-black text-zinc-100">
+        🔥 Welcome to the Cook Out. This is the gather.
+      </h4>
+      <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+        The lobby is open. Rally your crew and get everyone in before the Pull Up. Once the queue
+        opens the clock is short, so use this time: gather, talk it out in chat, and make your call.
+      </p>
+      <div className="mt-3 space-y-2">
+        {points.map(([icon, title, body]) => (
+          <div key={title} className="flex gap-2.5">
+            <span className="mt-0.5 shrink-0 text-base leading-none">{icon}</span>
+            <p className="text-xs leading-relaxed text-zinc-400">
+              <b className="text-zinc-200">{title}.</b> {body}
+            </p>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
