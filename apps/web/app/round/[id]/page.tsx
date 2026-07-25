@@ -193,10 +193,10 @@ export default function RoundPage() {
       setFlash({ text, tone });
       setTimeout(() => setFlash(null), 1900);
     };
-    // Live and results are announced by RoundOverlays (COOK! / the verdict),
-    // so this only covers the phases it doesn't own.
-    if (round.state === "queue_open") show("QUEUE OPEN", "go");
-    else if (round.state === "settling") show("SETTLING", "end");
+    // Lobby/pull-up/live and the verdict are announced by RoundOverlays
+    // (LOBBY OPEN / PULL UP / COOK! / the verdict), so this only covers the
+    // one phase it doesn't own.
+    if (round.state === "settling") show("SETTLING", "end");
   }, [round?.state, round?.graduated]);
 
   // Ambience is off for now — the queue "low roar" bed wasn't wanted. The

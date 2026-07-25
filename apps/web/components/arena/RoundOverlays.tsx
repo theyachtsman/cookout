@@ -74,21 +74,42 @@ export function RoundOverlays({
       const now = Date.now();
       const s = showRef.current;
 
+      // A 5..1 ladder into a phase boundary, reused for every gate: doors, the
+      // pull-up, and the open all count in the same escalating impacts.
+      const ladder = (prefix: string, until?: number) => {
+        if (!until) return;
+        const left = Math.ceil((until - now) / 1000);
+        if (left >= 1 && left <= 5)
+          once(`${prefix}-${left}`, () => {
+            s(String(left), left <= 2 ? "warn" : "go", 850, true);
+            if (!muted) audio.play(`countdown.${left}`);
+          });
+      };
+
+      // ---- doors: 5..1 into the lobby reveal (while the round is still teased)
+      if (round.state === "scheduled") ladder("doors", round.scheduledAt);
+      // ---- pull up: 5..1 into the queue opening (while the lobby is up)
+      if (round.state === "lobby") ladder("pull", round.queueOpensAt);
+
       // ---- the open: 5..1 then COOK! over the last five seconds of the queue
-      if (round.state === "queue_open" || round.state === "settling") {
-        const until = round.queueClosesAt;
-        if (until) {
-          const left = Math.ceil((until - now) / 1000);
-          if (left >= 1 && left <= 5) {
-            once(`cd-${left}`, () => {
-              s(String(left), left <= 2 ? "warn" : "go", 850, true);
-              if (!muted) audio.play(`countdown.${left}`);
-            });
-          }
-        }
-      }
+      if (round.state === "queue_open" || round.state === "settling")
+        ladder("cd", round.queueClosesAt);
 
       const witnessed = round.state !== arrivedOn.current;
+
+      // ---- phase reveals: doors open into the lobby, PULL UP into the queue.
+      // These only fire on a transition we actually watched (witnessed), so
+      // opening a round mid-phase never blasts a stale banner.
+      if (witnessed && round.state === "lobby")
+        once("lobby-open", () => {
+          s("LOBBY OPEN", "go", 1100);
+          if (!muted) audio.play("round.launch");
+        });
+      if (witnessed && round.state === "queue_open")
+        once("pull-up", () => {
+          s("PULL UP", "go", 1100);
+          if (!muted) audio.play("round.launch");
+        });
 
       if (round.state === "live") {
         if (witnessed) once("cook", () => {
@@ -137,7 +158,7 @@ export function RoundOverlays({
 
     const t = setInterval(tick, 100);
     return () => clearInterval(t);
-  }, [round.state, round.queueClosesAt, round.liveAt, round.endsAt, round.graduated, round.endReason, onCook, muted]);
+  }, [round.state, round.scheduledAt, round.queueOpensAt, round.queueClosesAt, round.liveAt, round.endsAt, round.graduated, round.endReason, onCook, muted]);
 
   if (!banner) return null;
 
