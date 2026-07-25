@@ -37,6 +37,7 @@ import { Results } from "../../../components/Results";
 import { RoundResultsOverlay, type EndBreakdown } from "../../../components/RoundResults";
 import { TradePanel } from "../../../components/TradePanel";
 import { OrderBook } from "../../../components/OrderBook";
+import { RugMeter, type RugInfo } from "../../../components/RugMeter";
 
 interface Ticker {
   price: number;
@@ -79,6 +80,8 @@ export default function RoundPage() {
   const [reactions, setReactions] = useState<Array<{ id: number; emoji: string }>>([]);
   const [leaders, setLeaders] = useState<Array<{ address: string; displayName?: string; badge?: string; value: number }>>([]);
   const [position, setPosition] = useState<{ tokens: number; costBasisEth: number; realizedPnl: number } | null>(null);
+  // Rug meter — creator-only, delivered by /me while the round is live.
+  const [rug, setRug] = useState<RugInfo | null>(null);
 
   // ---- battle FX: flashes/shockwaves + soundscape driven by WS events ----
   const [fx, setFx] = useState<FxEvent[]>([]);
@@ -142,10 +145,12 @@ export default function RoundPage() {
   const loadMe = useCallback(async () => {
     if (!profile) return;
     try {
-      const me = await api<{ position: { tokens: number; costBasisEth: number; realizedPnl: number } }>(
-        `/api/rounds/${id}/me`,
-      );
+      const me = await api<{
+        position: { tokens: number; costBasisEth: number; realizedPnl: number };
+        rug?: RugInfo | null;
+      }>(`/api/rounds/${id}/me`);
       setPosition(me.position);
+      setRug(me.rug ?? null);
     } catch {
       /* not signed in */
     }
@@ -496,6 +501,9 @@ export default function RoundPage() {
               graduated={round.graduated}
               />
             </div>
+            {/* Rug meter — the dev's dump-to-rug gauge, right on the trade deck.
+                Only the creator ever receives `rug`, so this is theirs alone. */}
+            {round.state === "live" && rug && <RugMeter rug={rug} blitz={round.blitz} />}
             {round.state === "live" && (
               <TradePanel
                 round={round}
