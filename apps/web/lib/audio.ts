@@ -60,11 +60,9 @@ interface Mix {
   gameplay: number;
   music: number;
   muted: boolean;
-  /** Ambient background music on/off (defaults off; user toggles it). */
-  musicOn: boolean;
 }
 
-const DEFAULT_MIX: Mix = { master: 0.9, ui: 0.8, gameplay: 1, music: 0.55, muted: false, musicOn: false };
+const DEFAULT_MIX: Mix = { master: 0.9, ui: 0.8, gameplay: 1, music: 0.6, muted: false };
 const MIX_KEY = "cookout:audio";
 const LEGACY_MUTE_KEY = "cookout:muted";
 
@@ -123,7 +121,6 @@ class AudioManager {
   private registry = new Map<string, SoundEvent>();
   private ambienceStop: (() => void) | null = null;
   private ambienceName: string | null = null;
-  private musicStop: (() => void) | null = null;
   private duckUntil = 0;
 
   // ---- lifecycle ----
@@ -199,8 +196,6 @@ class AudioManager {
     for (let i = 0; i < nlen; i++) nd[i] = Math.random() * 2 - 1;
 
     this.applyMix();
-    // Resume the music bed on the first gesture if the user left it on.
-    if (this.mix.musicOn && !this.musicStop) this.startMusicInternal();
     return a;
   }
 
@@ -218,7 +213,7 @@ class AudioManager {
   getMix(): Mix {
     return { ...this.mix };
   }
-  setVolume(which: "master" | "ui" | "gameplay" | "music", value: number): void {
+  setVolume(which: keyof Omit<Mix, "muted">, value: number): void {
     this.mix[which] = Math.min(1, Math.max(0, value));
     this.persist();
     this.applyMix();
@@ -322,33 +317,6 @@ class AudioManager {
     this.ambienceStop?.();
     this.ambienceStop = null;
     this.ambienceName = null;
-  }
-
-  // ---- ambient music (generative, toggleable) ----
-
-  /** Turn the music bed on. Needs a prior user gesture to build the graph. */
-  startMusic(): void {
-    if (!this.ensure() || this.musicStop) return;
-    this.startMusicInternal();
-  }
-  private startMusicInternal(): void {
-    if (!this.ctx || this.musicStop) return;
-    this.musicStop = buildMusic(this.ctx, this.cats.music, this.reverbSend, this.noise);
-  }
-  stopMusic(): void {
-    this.musicStop?.();
-    this.musicStop = null;
-  }
-  /** Flip the music bed; the preference persists across sessions. */
-  toggleMusic(): boolean {
-    this.mix.musicOn = !this.mix.musicOn;
-    this.persist();
-    if (this.mix.musicOn) this.startMusic();
-    else this.stopMusic();
-    return this.mix.musicOn;
-  }
-  isMusicOn(): boolean {
-    return this.mix.musicOn;
   }
 }
 
@@ -602,99 +570,6 @@ function buildAmbience(a: AudioContext, out: GainNode, noise: AudioBuffer, name:
         /* already stopped */
       }
     }, 1400);
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Generative ambient music — "warm electronic lounge"
-// ---------------------------------------------------------------------------
-
-/**
- * A slowly evolving pad bed in A minor: a four-chord loop (Am – F – C – G), a
- * soft ~68 BPM sub pulse, and sparse pentatonic motifs that drift over the top
- * so it never exactly repeats. Fully synthesized — runs forever, no assets.
- * Routed through the music group so the music volume slider controls it, and a
- * look-ahead scheduler keeps notes queued a bit ahead of the clock for timing.
- */
-function buildMusic(a: AudioContext, out: GainNode, reverb: GainNode, noise: AudioBuffer): () => void {
-  const stopped = { v: false };
-  const master = a.createGain();
-  master.gain.value = 0;
-  master.gain.linearRampToValueAtTime(1, a.currentTime + 3.5); // gentle fade-in
-  master.connect(out);
-
-  const BPM = 68;
-  const spb = 60 / BPM; // seconds per beat
-  const BEATS = 4; // beats per chord/bar
-
-  // Warm low-mid chord voicings (Hz). A minor: i – VI – III – VII.
-  const CHORDS: number[][] = [
-    [110.0, 130.81, 164.81, 220.0], // Am — A C E A
-    [87.31, 130.81, 174.61, 261.63], // F  — F C F C
-    [130.81, 164.81, 196.0, 261.63], // C  — C E G C
-    [98.0, 146.83, 196.0, 293.66], // G  — G D G D
-  ];
-  // A-minor-pentatonic motif pool (mid-high), consonant over every chord above.
-  const MEL = [440.0, 523.25, 587.33, 659.25, 783.99, 880.0];
-
-  const at = (t: number): RenderCtx => ({ a, out: master, reverb, noise, t });
-
-  const pad = (freqs: number[], t: number, dur: number) => {
-    for (const f of freqs) {
-      voice(at(t), f, {
-        dur: dur + 1.6,
-        type: "sawtooth",
-        gain: 0.022,
-        cutoff: 460,
-        cutoffTo: 920,
-        q: 0.7,
-        detune: 8,
-        attack: 1.4,
-        send: 0.5,
-      });
-      // an octave of triangle air on top, quieter — warmth without mud
-      voice(at(t), f * 2, {
-        dur: dur + 1.0,
-        type: "triangle",
-        gain: 0.008,
-        cutoff: 1700,
-        attack: 1.8,
-        send: 0.55,
-      });
-    }
-  };
-  const pulse = (t: number) =>
-    voice(at(t), 55, { dur: 0.5, type: "sine", gain: 0.05, attack: 0.03, cutoff: 180 });
-  const motif = (t: number) => {
-    const f = MEL[Math.floor(Math.random() * MEL.length)]!;
-    fm(at(t), f, { dur: 1.3 + Math.random(), gain: 0.05, ratio: 2, index: 55, send: 0.6 });
-  };
-
-  let beat = 0;
-  let next = a.currentTime + 0.2;
-  const schedule = () => {
-    if (stopped.v) return;
-    const ahead = a.currentTime + 1.6;
-    while (next < ahead) {
-      const t = next;
-      if (beat % BEATS === 0) pad(CHORDS[Math.floor(beat / BEATS) % CHORDS.length]!, t, BEATS * spb);
-      pulse(t);
-      // sparse, humanized motifs — off the downbeat so it breathes
-      if (Math.random() < 0.32) motif(t + spb * (Math.random() < 0.5 ? 0.5 : 0.25));
-      beat++;
-      next += spb;
-    }
-  };
-  schedule();
-  const timer = setInterval(schedule, 300);
-
-  return () => {
-    if (stopped.v) return;
-    stopped.v = true;
-    clearInterval(timer);
-    master.gain.cancelScheduledValues(a.currentTime);
-    master.gain.setValueAtTime(master.gain.value, a.currentTime);
-    master.gain.linearRampToValueAtTime(0, a.currentTime + 2.0); // fade out
   };
 }
 
