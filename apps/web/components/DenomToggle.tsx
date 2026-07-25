@@ -1,6 +1,6 @@
 "use client";
 
-/** A compact native/USD pill toggle, used on the Arena Account displays. */
+/** A compact native/USD pill toggle, used on the Cook Out Balance displays. */
 export function DenomToggle({
   usd,
   onChange,

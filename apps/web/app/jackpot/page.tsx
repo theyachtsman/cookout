@@ -147,7 +147,7 @@ export default function JackpotPage() {
           </Link>{" "}
           and jump into the{" "}
           <Link href="/matches" className="text-lime-400 hover:underline">
-            Arena
+            Cook Out
           </Link>
           .
         </p>

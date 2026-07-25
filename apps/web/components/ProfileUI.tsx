@@ -88,6 +88,7 @@ export function ProfileHero({
   chips,
   right,
   accent = false,
+  bannerUrl,
   children,
 }: {
   avatar: ReactNode;
@@ -102,6 +103,8 @@ export function ProfileHero({
   right?: ReactNode;
   /** Tint the banner red (banned) instead of the default lime wash. */
   accent?: boolean;
+  /** Player-uploaded header image shown behind the avatar + level. */
+  bannerUrl?: string;
   children?: ReactNode;
 }) {
   const showXp = xp !== undefined && currLevelXp !== undefined && nextLevelXp !== undefined;
@@ -112,14 +115,23 @@ export function ProfileHero({
 
   return (
     <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/40">
-      {/* banner wash */}
-      <div
-        className={`h-20 w-full ${
-          accent
-            ? "bg-gradient-to-r from-red-500/20 via-red-500/5 to-transparent"
-            : "bg-gradient-to-r from-lime-400/15 via-emerald-400/5 to-transparent"
-        }`}
-      />
+      {/* banner: an uploaded image if the player set one, otherwise a wash. A
+          gradient scrim over any image keeps the avatar + name legible. */}
+      <div className="relative h-24 w-full overflow-hidden sm:h-28">
+        {bannerUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={bannerUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
+        )}
+        <div
+          className={`absolute inset-0 ${
+            bannerUrl
+              ? "bg-gradient-to-t from-zinc-900/90 via-zinc-900/30 to-transparent"
+              : accent
+                ? "bg-gradient-to-r from-red-500/20 via-red-500/5 to-transparent"
+                : "bg-gradient-to-r from-lime-400/15 via-emerald-400/5 to-transparent"
+          }`}
+        />
+      </div>
       <div className="px-5 pb-5">
         <div className="flex flex-wrap items-end gap-4">
           {/* avatar + level medal */}

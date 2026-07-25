@@ -26,6 +26,7 @@ interface PublicProfile {
   address: string;
   displayName?: string;
   avatarUrl?: string;
+  bannerUrl?: string;
   xp: number;
   level: number;
   title: string;
@@ -78,6 +79,7 @@ export default function PublicProfilePage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <ProfileHero
         avatar={<Avatar url={profile.avatarUrl} name={name} level={profile.level} />}
+        bannerUrl={profile.bannerUrl}
         name={name}
         level={profile.level}
         title={profile.title}

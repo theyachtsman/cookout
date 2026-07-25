@@ -72,7 +72,7 @@ export default function Home() {
   return (
     <div className="space-y-8">
       <section>
-        <h1 className="mb-1 text-2xl font-black">The Arena</h1>
+        <h1 className="mb-1 text-2xl font-black">The Cook Out</h1>
         <p className="mb-4 text-sm text-zinc-400">
           Live now, up next, and every past result. Each match is a real token launched through a
           fair batch auction: one clearing price, pro-rata fills, auditable settlement.
@@ -84,14 +84,14 @@ export default function Home() {
               The grill is empty. Someone needs to launch a coin.
             </p>
             <p className="mx-auto mt-1 max-w-md text-sm text-zinc-400">
-              Every match starts with the community: make a coin, the crowd votes it through, and it
-              lands right here in the Arena at your chosen tier.
+              Every match starts with the community: launch a coin, the crowd votes it through, and
+              it lands right here at the Cook Out at your chosen tier.
             </p>
             <Link
               href="/submissions"
               className="mt-4 inline-block rounded-xl bg-lime-400 px-6 py-2.5 font-black text-zinc-950 shadow-lg shadow-lime-400/25 transition hover:bg-lime-300"
             >
-              🔥 Make a Coin →
+              🔥 Launch a Coin →
             </Link>
           </div>
         )}

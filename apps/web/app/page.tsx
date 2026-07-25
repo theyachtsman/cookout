@@ -752,7 +752,7 @@ function Pillars() {
 
 const HOW_INSTANT = [
   ["🎮", "Pick a name", "No email, no wallet, no forms. Choose a handle and you have an account."],
-  ["⚡", "Get your paper stack", "We stake your starter pETH into your Arena Account automatically. It's paper. Nothing to deposit, nothing at risk."],
+  ["⚡", "Get your paper stack", "We stake your starter pETH into your Cook Out Balance automatically. It's paper. Nothing to deposit, nothing at risk."],
   ["🔥", "Walk into a match", "There's always one running. You're trading against the room in under a minute."],
 ];
 

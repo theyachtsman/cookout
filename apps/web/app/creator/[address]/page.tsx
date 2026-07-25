@@ -14,6 +14,7 @@ interface CreatorView {
   address: string;
   displayName?: string;
   avatarUrl?: string;
+  bannerUrl?: string;
   level: number;
   title: string;
   creatorReputation: number;
@@ -70,6 +71,7 @@ export default function CreatorPage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <ProfileHero
         avatar={<Avatar url={view.avatarUrl} name={name} level={view.level} />}
+        bannerUrl={view.bannerUrl}
         name={name}
         level={view.level}
         title={`${view.title} · Creator`}
