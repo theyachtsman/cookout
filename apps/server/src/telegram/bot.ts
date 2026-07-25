@@ -121,10 +121,12 @@ export function createPitBoss(store: Store): PitBoss | null {
     announcementChatId: process.env.TELEGRAM_ANNOUNCEMENT_CHAT_ID,
     topics: {
       announcements: num(process.env.TELEGRAM_TOPIC_ANNOUNCEMENTS),
+      general: num(process.env.TELEGRAM_TOPIC_GENERAL),
+      feedback: num(process.env.TELEGRAM_TOPIC_FEEDBACK),
       launch: num(process.env.TELEGRAM_TOPIC_LAUNCH),
       trading: num(process.env.TELEGRAM_TOPIC_TRADING),
       leaderboards: num(process.env.TELEGRAM_TOPIC_LEADERBOARDS),
-      general: num(process.env.TELEGRAM_TOPIC_GENERAL),
+      support: num(process.env.TELEGRAM_TOPIC_SUPPORT),
     },
   };
   return new PitBoss(store, new TelegramApi(token), config);

@@ -1,5 +1,16 @@
-/** Which forum topic (message thread) a class of post belongs in. */
-export type TopicKey = "announcements" | "launch" | "trading" | "leaderboards" | "general";
+/**
+ * The seven community topics. Five receive the automated feed; "feedback" and
+ * "support" are human-conversation spaces (no auto-posts) but are wired so the
+ * admin broadcaster and pinned-message setup can target them too.
+ */
+export type TopicKey =
+  | "announcements"
+  | "general"
+  | "feedback"
+  | "launch"
+  | "trading"
+  | "leaderboards"
+  | "support";
 
 /** Everything the Pit Boss needs to know about its world, from env. */
 export interface PitBossConfig {
