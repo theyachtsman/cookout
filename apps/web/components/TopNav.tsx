@@ -6,7 +6,6 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { BrandLogo } from "./BrandLogo";
 import { JackpotPill } from "./JackpotPill";
-import { MusicToggle } from "./MusicToggle";
 import { WalletButton } from "./WalletButton";
 import { useChainOnly } from "../lib/chainOnly";
 import { useSession } from "../lib/session";
@@ -65,7 +64,7 @@ export function TopNav() {
         {/* mobile hamburger */}
         <button
           onClick={() => setOpen(true)}
-          className="-ml-1 shrink-0 rounded-lg p-2 text-zinc-300 hover:bg-zinc-800 md:hidden"
+          className="-ml-1 shrink-0 rounded-lg p-2 text-zinc-300 hover:bg-zinc-800 lg:hidden"
           aria-label="Open menu"
         >
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -87,13 +86,14 @@ export function TopNav() {
 
         <div className="flex-1" />
 
-        {/* desktop inline links */}
-        <div className="hidden items-center gap-x-5 md:flex">
+        {/* desktop inline links — only once there's room (lg+); below that the
+            hamburger drawer carries them, so nothing wraps or crowds. */}
+        <div className="hidden items-center gap-x-5 lg:flex">
           {links.map((l) => (
             <Link
               key={l.href}
               href={l.href}
-              className={`text-sm hover:text-lime-300 ${
+              className={`whitespace-nowrap text-sm hover:text-lime-300 ${
                 l.accent ? "text-amber-400/90 hover:text-amber-300" : "text-zinc-400"
               }`}
             >
@@ -102,7 +102,6 @@ export function TopNav() {
           ))}
         </div>
 
-        <MusicToggle />
         <WalletButton />
       </div>
 
