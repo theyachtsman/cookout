@@ -1,7 +1,7 @@
 import { resolveNotifyPrefs, type ActivityEvent, type Address, type NotifyCategory } from "@cookout/shared";
 import type { Store } from "../store.js";
 import type { InlineKeyboard, TelegramApi } from "./api.js";
-import type { PitBossConfig } from "./config.js";
+import type { PitBossConfig, TopicKey } from "./config.js";
 import { makeKeyboards, type Keyboards } from "./keyboards.js";
 import { esc, feed, say } from "./voice.js";
 
@@ -54,10 +54,18 @@ export class Notifier {
     }
   }
 
-  /** Post to the community feed (announcement channel, else the group). */
-  toChannel(text: string, keyboard?: InlineKeyboard): void {
+  /**
+   * Post to the community feed. When "Announcements" (and friends) are forum
+   * topics inside the group — the common case — we target the topic's thread so
+   * it lands in the right place; a separate announcement channel (no topics)
+   * just gets the post. Unknown/unset topics fall back to General.
+   */
+  toChannel(text: string, keyboard?: InlineKeyboard, topic?: TopicKey): void {
     if (!this.channelId) return;
-    void this.api.sendMessage({ chatId: this.channelId, text, keyboard });
+    // Threads only apply to the forum group, not a standalone channel.
+    const threadId =
+      !this.config.announcementChatId && topic ? this.config.topics?.[topic] : undefined;
+    void this.api.sendMessage({ chatId: this.channelId, text, keyboard, messageThreadId: threadId });
   }
 
   // ---- the activity tap ----------------------------------------------------
@@ -73,7 +81,7 @@ export class Notifier {
         this.toOwner(e.address, "levelUps", say.levelUp(lvl, title), this.kb.openCookout());
         this.toFollowers(e.address, say.followed(who, `hit Level ${lvl}`));
         // Only milestone levels reach the channel, so the feed stays worth reading.
-        if (lvl >= 10 && lvl % 5 === 0) this.toChannel(feed.levelUp(who, lvl, title));
+        if (lvl >= 10 && lvl % 5 === 0) this.toChannel(feed.levelUp(who, lvl, title), undefined, "leaderboards");
         break;
       }
       case "achievement":
@@ -82,7 +90,7 @@ export class Notifier {
         break;
       case "graduated":
         this.toOwner(e.address, "graduations", `🍽️ Your coin ${sym ? `$${esc(sym)} ` : ""}served up and walked out into the wild. Legendary cook.`);
-        this.toChannel(feed.graduated(sym ?? "coin"), e.roundId ? this.kb.graduated(e.roundId) : this.kb.openCookout());
+        this.toChannel(feed.graduated(sym ?? "coin"), e.roundId ? this.kb.graduated(e.roundId) : this.kb.openCookout(), "leaderboards");
         break;
       case "rekt":
         this.toOwner(e.address, "rugs", `💀 You got burnt${sym ? ` in $${esc(sym)}` : ""}. Grill's cold on that one — onto the next.`);
@@ -93,10 +101,10 @@ export class Notifier {
         break;
       case "jackpot":
         this.toOwner(e.address, "jackpot", `💰 ${esc(e.text)} Come collect.`, this.kb.jackpot());
-        this.toChannel(`💰 ${b(esc(who))} ${esc(e.text)}`, this.kb.jackpot());
+        this.toChannel(`💰 ${b(esc(who))} ${esc(e.text)}`, this.kb.jackpot(), "leaderboards");
         break;
       case "submitted":
-        this.toChannel(feed.submitted(sym ?? "?", "", who), this.kb.vote());
+        this.toChannel(feed.submitted(sym ?? "?", "", who), this.kb.vote(), "launch");
         break;
       case "pulled_up":
         this.toFollowers(e.address, say.followed(who, `pulled up${sym ? ` to $${esc(sym)}` : ""}`), sym && e.roundId ? this.kb.round(e.roundId, sym) : undefined);
@@ -108,31 +116,31 @@ export class Notifier {
   // ---- explicit community-feed posts (wired from lifecycle / admin) --------
 
   votesHit(symbol: string, votes: number): void {
-    this.toChannel(feed.votesHit(symbol, votes), this.kb.vote());
+    this.toChannel(feed.votesHit(symbol, votes), this.kb.vote(), "announcements");
   }
   scheduled(symbol: string, roundId: string): void {
-    this.toChannel(feed.scheduled(symbol), this.kb.round(roundId, symbol));
+    this.toChannel(feed.scheduled(symbol), this.kb.round(roundId, symbol), "announcements");
   }
   fairOpen(symbol: string, roundId: string): void {
-    this.toChannel(feed.fairOpen(symbol), this.kb.round(roundId, symbol));
+    this.toChannel(feed.fairOpen(symbol), this.kb.round(roundId, symbol), "trading");
   }
   live(symbol: string, roundId: string): void {
-    this.toChannel(feed.live(symbol), this.kb.round(roundId, symbol));
+    this.toChannel(feed.live(symbol), this.kb.round(roundId, symbol), "trading");
   }
   burnt(symbol: string, roundId?: string): void {
-    this.toChannel(feed.burnt(symbol), roundId ? this.kb.round(roundId, symbol) : this.kb.openCookout());
+    this.toChannel(feed.burnt(symbol), roundId ? this.kb.round(roundId, symbol) : this.kb.openCookout(), "leaderboards");
   }
   runItBack(symbol: string, roundId: string): void {
-    this.toChannel(feed.runItBack(symbol), this.kb.runItBack(roundId));
+    this.toChannel(feed.runItBack(symbol), this.kb.runItBack(roundId), "launch");
   }
   jackpotGrew(eth: number, usd?: number): void {
-    this.toChannel(feed.jackpot(eth, usd), this.kb.jackpot());
+    this.toChannel(feed.jackpot(eth, usd), this.kb.jackpot(), "announcements");
   }
   patchNotes(text: string): void {
-    this.toChannel(feed.patchNotes(text), this.kb.openCookout());
+    this.toChannel(feed.patchNotes(text), this.kb.openCookout(), "announcements");
   }
   announce(text: string): void {
-    this.toChannel(feed.announce(text), this.kb.openCookout());
+    this.toChannel(feed.announce(text), this.kb.openCookout(), "announcements");
   }
 }
 

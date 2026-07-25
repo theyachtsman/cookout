@@ -93,7 +93,12 @@ export class PitBoss {
         if (now - this.lastSeedAt < 6 * 3_600_000) return; // already nudged recently
         this.lastSeedAt = now;
         this.lastGroupActivityAt = now; // our own prompt counts as activity
-        void this.api.sendMessage({ chatId: this.config.groupChatId!, text: seedPrompt(), silent: true });
+        void this.api.sendMessage({
+          chatId: this.config.groupChatId!,
+          text: seedPrompt(),
+          silent: true,
+          messageThreadId: this.config.topics?.general,
+        });
       },
       15 * 60_000,
     );
@@ -108,11 +113,19 @@ export class PitBoss {
 export function createPitBoss(store: Store): PitBoss | null {
   const token = process.env.TELEGRAM_BOT_TOKEN;
   if (!token) return null;
+  const num = (v?: string) => (v && Number.isFinite(Number(v)) ? Number(v) : undefined);
   const config: PitBossConfig = {
     botUsername: process.env.TELEGRAM_BOT_USERNAME ?? "pitboss_cookout_bot",
     webBase: process.env.WEB_BASE_URL ?? "https://www.thecookout.fun",
     groupChatId: process.env.TELEGRAM_GROUP_CHAT_ID,
     announcementChatId: process.env.TELEGRAM_ANNOUNCEMENT_CHAT_ID,
+    topics: {
+      announcements: num(process.env.TELEGRAM_TOPIC_ANNOUNCEMENTS),
+      launch: num(process.env.TELEGRAM_TOPIC_LAUNCH),
+      trading: num(process.env.TELEGRAM_TOPIC_TRADING),
+      leaderboards: num(process.env.TELEGRAM_TOPIC_LEADERBOARDS),
+      general: num(process.env.TELEGRAM_TOPIC_GENERAL),
+    },
   };
   return new PitBoss(store, new TelegramApi(token), config);
 }
