@@ -14,7 +14,9 @@ import {
   dailyStreakReward,
   weeklyStreakReward,
   type Candle,
+  FOUNDER_CAP,
   STARTING_PAPER_BALANCE,
+  type TelegramLink,
   TRADE_XP,
   dayKey,
   levelForXp,
@@ -190,6 +192,12 @@ export class Store {
   activity: ActivityEvent[] = [];
   /** Set by the hub so activity streams to the global room live. */
   onActivity: (e: ActivityEvent) => void = () => {};
+  /** Extra taps on the activity stream (e.g. The Pit Boss on Telegram). Unlike
+   *  onActivity, any number can subscribe without clobbering each other. */
+  private activityTaps: Array<(e: ActivityEvent) => void> = [];
+  onActivityEvent(fn: (e: ActivityEvent) => void): void {
+    this.activityTaps.push(fn);
+  }
 
   /** Record something the crowd should see. Bots are excluded by the caller. */
   pushActivity(
@@ -212,6 +220,13 @@ export class Store {
     this.activity.push(event);
     if (this.activity.length > 300) this.activity.splice(0, this.activity.length - 300);
     this.onActivity(event);
+    for (const tap of this.activityTaps) {
+      try {
+        tap(event);
+      } catch {
+        /* a bad tap must never break the activity fan-out */
+      }
+    }
   }
 
   /** Move paper money into the arena balance (what matches spend). */
@@ -244,6 +259,94 @@ export class Store {
     else list.delete(t);
     u.following = [...list];
     return u.following;
+  }
+
+  // ---- Telegram companion linking ----------------------------------------
+
+  /** telegram user id → owner profile address. Rebuilt on hydrate. */
+  private telegramIndex = new Map<string, Address>();
+  /** One-time link tokens (ephemeral, not persisted): token → address + expiry. */
+  private tgLinkTokens = new Map<string, { address: Address; expiresAt: number }>();
+
+  /** Mint a short-lived token the player carries into Telegram via deep link. */
+  createTelegramLinkToken(address: Address, ttlMs = 15 * 60_000): string {
+    // Prune expired tokens opportunistically so the map can't grow unbounded.
+    const now = Date.now();
+    for (const [k, v] of this.tgLinkTokens) if (v.expiresAt <= now) this.tgLinkTokens.delete(k);
+    const token = randomUUID().replace(/-/g, "");
+    this.tgLinkTokens.set(token, { address: address.toLowerCase(), expiresAt: now + ttlMs });
+    return token;
+  }
+
+  /** Redeem a link token (single use). Returns the owner address or undefined. */
+  consumeTelegramLinkToken(token: string): Address | undefined {
+    const rec = this.tgLinkTokens.get(token);
+    if (!rec) return undefined;
+    this.tgLinkTokens.delete(token);
+    if (rec.expiresAt <= Date.now()) return undefined;
+    return rec.address;
+  }
+
+  /** Bind a Telegram account to a profile (one Telegram id per profile). */
+  linkTelegram(address: Address, link: TelegramLink): StoredUser {
+    const u = this.getOrCreateUser(address);
+    // If this telegram id was linked elsewhere, release the old owner first.
+    const prevOwner = this.telegramIndex.get(link.userId);
+    if (prevOwner && prevOwner !== u.address) {
+      const old = this.users.get(prevOwner);
+      if (old) old.telegram = undefined;
+    }
+    if (u.telegram) this.telegramIndex.delete(u.telegram.userId);
+    u.telegram = link;
+    this.telegramIndex.set(link.userId, u.address);
+    return u;
+  }
+
+  unlinkTelegram(address: Address): StoredUser {
+    const u = this.getOrCreateUser(address);
+    if (u.telegram) this.telegramIndex.delete(u.telegram.userId);
+    u.telegram = undefined;
+    return u;
+  }
+
+  /** Which profile owns a Telegram user id, if any. */
+  resolveTelegram(userId: string): Address | undefined {
+    return this.telegramIndex.get(userId);
+  }
+
+  /** Every linked user (for fan-out). */
+  linkedTelegramUsers(): StoredUser[] {
+    return [...this.telegramIndex.values()]
+      .map((a) => this.users.get(a))
+      .filter((u): u is StoredUser => !!u?.telegram);
+  }
+
+  private reindexTelegram(): void {
+    this.telegramIndex.clear();
+    for (const u of this.users.values())
+      if (u.telegram) this.telegramIndex.set(u.telegram.userId, u.address);
+  }
+
+  // ---- Founding Members ---------------------------------------------------
+
+  /** Claim a permanent founder number (idempotent). Undefined once the cap is
+   *  reached and the wallet isn't already a founder. Numbers never repeat. */
+  claimFounder(address: Address): number | undefined {
+    const u = this.getOrCreateUser(address);
+    if (u.founderNumber) return u.founderNumber;
+    let max = 0;
+    for (const x of this.users.values()) if (x.founderNumber && x.founderNumber > max) max = x.founderNumber;
+    if (max >= FOUNDER_CAP) return undefined;
+    u.founderNumber = max + 1;
+    u.founderSince = Date.now();
+    return u.founderNumber;
+  }
+
+  /** Founders in number order. */
+  founders(): StoredUser[] {
+    return [...this.users.values()]
+      .filter((u) => u.founderNumber)
+      .sort((a, b) => (a.founderNumber ?? 0) - (b.founderNumber ?? 0));
   }
 
   id(): string {
@@ -675,6 +778,7 @@ export class Store {
     this.jackpotHistory = snap.jackpotHistory ?? [];
     this.jackpotLifetimeEth = snap.jackpotLifetimeEth ?? 0;
     this.reindexArena();
+    this.reindexTelegram();
   }
 }
 

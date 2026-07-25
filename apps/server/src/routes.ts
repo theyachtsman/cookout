@@ -5,13 +5,17 @@ import {
   MATCH_MINUTE_OPTIONS,
   MAX_TOKEN_SUPPLY,
   MIN_TOKEN_SUPPLY,
+  NOTIFY_CATEGORIES,
   TIER_UNLOCK_LEVEL,
+  resolveNotifyPrefs,
   unlockedCosmetics,
   weekKey,
   type CosmeticType,
+  type NotifyCategory,
   type RiskTier,
   type TokenConcept,
 } from "@cookout/shared";
+import { linkDeepLink } from "./telegram/index.js";
 import {
   createSessionForAddress,
   isDevWallet,
@@ -42,6 +46,8 @@ export function createApp(
   presence: () => import("@cookout/shared").PresenceUser[] = () => [],
   /** Verifies a Privy access token → account address. Injectable for tests. */
   resolvePrivy: PrivyResolver = resolvePrivyLogin,
+  /** The Telegram companion, or null when TELEGRAM_BOT_TOKEN is unset. */
+  pitBoss: import("./telegram/index.js").PitBoss | null = null,
 ): Express {
   const app = express();
   // Body limit covers client-downscaled data-URL images (coin art, avatars).
@@ -184,6 +190,116 @@ export function createApp(
       // Empty string clears the banner (revert to the default wash).
       if (bannerUrl !== undefined) u.bannerUrl = bannerUrl === "" ? undefined : sanitizeImageUrl(bannerUrl);
       res.json(publicProfile(u, true));
+    }),
+  );
+
+  // ---- Telegram companion (The Pit Boss) ----------------------------------
+
+  const tgStatus = (u: import("./store.js").StoredUser) => ({
+    configured: !!pitBoss,
+    linked: !!u.telegram,
+    username: u.telegram?.username ?? null,
+    linkedAt: u.telegram?.linkedAt ?? null,
+    prefs: resolveNotifyPrefs(u.notifyPrefs),
+    founderNumber: u.founderNumber ?? null,
+  });
+
+  app.get(
+    "/api/me/telegram",
+    auth,
+    wrap((req, res) => res.json(tgStatus(store.getOrCreateUser(req.userAddress!)))),
+  );
+
+  // Start linking: mint a one-time token and hand back the bot deep link.
+  app.post(
+    "/api/me/telegram/link",
+    auth,
+    wrap((req, res) => {
+      if (!pitBoss) throw new Err(503, "Telegram isn't configured on this server yet");
+      const token = store.createTelegramLinkToken(req.userAddress!);
+      res.json({ url: linkDeepLink(pitBoss.config.botUsername, token), token });
+    }),
+  );
+
+  app.delete(
+    "/api/me/telegram",
+    auth,
+    wrap((req, res) => {
+      store.unlinkTelegram(req.userAddress!);
+      res.json(tgStatus(store.getOrCreateUser(req.userAddress!)));
+    }),
+  );
+
+  // Update notification switches (partial; unknown keys ignored).
+  app.patch(
+    "/api/me/telegram/prefs",
+    auth,
+    wrap((req, res) => {
+      const u = store.getOrCreateUser(req.userAddress!);
+      const body = (req.body?.prefs ?? {}) as Record<string, unknown>;
+      const valid = new Set(NOTIFY_CATEGORIES.map((c) => c.key));
+      const next = { ...(u.notifyPrefs ?? {}) };
+      for (const [k, v] of Object.entries(body))
+        if (valid.has(k as NotifyCategory)) next[k as NotifyCategory] = !!v;
+      u.notifyPrefs = next;
+      res.json(tgStatus(u));
+    }),
+  );
+
+  // Claim a permanent Founding Member number.
+  app.post(
+    "/api/me/founder",
+    auth,
+    wrap((req, res) => {
+      const n = store.claimFounder(req.userAddress!);
+      if (n === undefined) throw new Err(409, "all Founding Member seats are claimed");
+      res.json({ founderNumber: n });
+    }),
+  );
+
+  // Public founders roll — for a founders page and the Telegram /founders card.
+  app.get(
+    "/api/founders",
+    wrap((_req, res) =>
+      res.json({
+        founders: store.founders().map((u) => ({
+          founderNumber: u.founderNumber,
+          address: u.address,
+          displayName: u.displayName,
+          avatarUrl: u.avatarUrl,
+          founderSince: u.founderSince,
+        })),
+      }),
+    ),
+  );
+
+  // Admin: Pit Boss status + broadcasts to the community feed.
+  app.get(
+    "/api/admin/telegram/status",
+    admin,
+    wrap((_req, res) =>
+      res.json({
+        configured: !!pitBoss,
+        botUsername: pitBoss?.config.botUsername ?? null,
+        group: !!pitBoss?.config.groupChatId,
+        channel: !!pitBoss?.config.announcementChatId,
+        linkedUsers: store.linkedTelegramUsers().length,
+        founders: store.founders().length,
+      }),
+    ),
+  );
+
+  app.post(
+    "/api/admin/telegram/broadcast",
+    admin,
+    wrap((req, res) => {
+      const { text, kind } = req.body as { text?: string; kind?: "announce" | "patch" };
+      const body = String(text ?? "").trim();
+      if (!body) throw new Err(400, "text required");
+      if (!pitBoss) throw new Err(503, "Telegram isn't configured");
+      if (kind === "patch") pitBoss.notifier.patchNotes(body);
+      else pitBoss.notifier.announce(body);
+      res.json({ ok: true });
     }),
   );
 
