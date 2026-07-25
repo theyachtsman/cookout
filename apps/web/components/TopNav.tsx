@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { BrandLogo } from "./BrandLogo";
 import { JackpotPill } from "./JackpotPill";
+import { MusicToggle } from "./MusicToggle";
 import { WalletButton } from "./WalletButton";
 import { useChainOnly } from "../lib/chainOnly";
 import { useSession } from "../lib/session";
@@ -101,6 +102,7 @@ export function TopNav() {
           ))}
         </div>
 
+        <MusicToggle />
         <WalletButton />
       </div>
 

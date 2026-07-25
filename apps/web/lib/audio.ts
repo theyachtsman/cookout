@@ -60,9 +60,11 @@ interface Mix {
   gameplay: number;
   music: number;
   muted: boolean;
+  /** Ambient background music on/off (defaults off; user toggles it). */
+  musicOn: boolean;
 }
 
-const DEFAULT_MIX: Mix = { master: 0.9, ui: 0.8, gameplay: 1, music: 0.6, muted: false };
+const DEFAULT_MIX: Mix = { master: 0.9, ui: 0.8, gameplay: 1, music: 0.55, muted: false, musicOn: false };
 const MIX_KEY = "cookout:audio";
 const LEGACY_MUTE_KEY = "cookout:muted";
 
@@ -121,6 +123,7 @@ class AudioManager {
   private registry = new Map<string, SoundEvent>();
   private ambienceStop: (() => void) | null = null;
   private ambienceName: string | null = null;
+  private musicStop: (() => void) | null = null;
   private duckUntil = 0;
 
   // ---- lifecycle ----
@@ -196,6 +199,8 @@ class AudioManager {
     for (let i = 0; i < nlen; i++) nd[i] = Math.random() * 2 - 1;
 
     this.applyMix();
+    // Resume the music bed on the first gesture if the user left it on.
+    if (this.mix.musicOn && !this.musicStop) this.startMusicInternal();
     return a;
   }
 
@@ -213,7 +218,7 @@ class AudioManager {
   getMix(): Mix {
     return { ...this.mix };
   }
-  setVolume(which: keyof Omit<Mix, "muted">, value: number): void {
+  setVolume(which: "master" | "ui" | "gameplay" | "music", value: number): void {
     this.mix[which] = Math.min(1, Math.max(0, value));
     this.persist();
     this.applyMix();
@@ -317,6 +322,33 @@ class AudioManager {
     this.ambienceStop?.();
     this.ambienceStop = null;
     this.ambienceName = null;
+  }
+
+  // ---- ambient music (generative, toggleable) ----
+
+  /** Turn the music bed on. Needs a prior user gesture to build the graph. */
+  startMusic(): void {
+    if (!this.ensure() || this.musicStop) return;
+    this.startMusicInternal();
+  }
+  private startMusicInternal(): void {
+    if (!this.ctx || this.musicStop) return;
+    this.musicStop = buildMusic(this.ctx, this.cats.music, this.reverbSend, this.noise);
+  }
+  stopMusic(): void {
+    this.musicStop?.();
+    this.musicStop = null;
+  }
+  /** Flip the music bed; the preference persists across sessions. */
+  toggleMusic(): boolean {
+    this.mix.musicOn = !this.mix.musicOn;
+    this.persist();
+    if (this.mix.musicOn) this.startMusic();
+    else this.stopMusic();
+    return this.mix.musicOn;
+  }
+  isMusicOn(): boolean {
+    return this.mix.musicOn;
   }
 }
 
@@ -574,6 +606,99 @@ function buildAmbience(a: AudioContext, out: GainNode, noise: AudioBuffer, name:
 }
 
 // ---------------------------------------------------------------------------
+// Generative ambient music — "warm electronic lounge"
+// ---------------------------------------------------------------------------
+
+/**
+ * A slowly evolving pad bed in A minor: a four-chord loop (Am – F – C – G), a
+ * soft ~68 BPM sub pulse, and sparse pentatonic motifs that drift over the top
+ * so it never exactly repeats. Fully synthesized — runs forever, no assets.
+ * Routed through the music group so the music volume slider controls it, and a
+ * look-ahead scheduler keeps notes queued a bit ahead of the clock for timing.
+ */
+function buildMusic(a: AudioContext, out: GainNode, reverb: GainNode, noise: AudioBuffer): () => void {
+  const stopped = { v: false };
+  const master = a.createGain();
+  master.gain.value = 0;
+  master.gain.linearRampToValueAtTime(1, a.currentTime + 3.5); // gentle fade-in
+  master.connect(out);
+
+  const BPM = 68;
+  const spb = 60 / BPM; // seconds per beat
+  const BEATS = 4; // beats per chord/bar
+
+  // Warm low-mid chord voicings (Hz). A minor: i – VI – III – VII.
+  const CHORDS: number[][] = [
+    [110.0, 130.81, 164.81, 220.0], // Am — A C E A
+    [87.31, 130.81, 174.61, 261.63], // F  — F C F C
+    [130.81, 164.81, 196.0, 261.63], // C  — C E G C
+    [98.0, 146.83, 196.0, 293.66], // G  — G D G D
+  ];
+  // A-minor-pentatonic motif pool (mid-high), consonant over every chord above.
+  const MEL = [440.0, 523.25, 587.33, 659.25, 783.99, 880.0];
+
+  const at = (t: number): RenderCtx => ({ a, out: master, reverb, noise, t });
+
+  const pad = (freqs: number[], t: number, dur: number) => {
+    for (const f of freqs) {
+      voice(at(t), f, {
+        dur: dur + 1.6,
+        type: "sawtooth",
+        gain: 0.022,
+        cutoff: 460,
+        cutoffTo: 920,
+        q: 0.7,
+        detune: 8,
+        attack: 1.4,
+        send: 0.5,
+      });
+      // an octave of triangle air on top, quieter — warmth without mud
+      voice(at(t), f * 2, {
+        dur: dur + 1.0,
+        type: "triangle",
+        gain: 0.008,
+        cutoff: 1700,
+        attack: 1.8,
+        send: 0.55,
+      });
+    }
+  };
+  const pulse = (t: number) =>
+    voice(at(t), 55, { dur: 0.5, type: "sine", gain: 0.05, attack: 0.03, cutoff: 180 });
+  const motif = (t: number) => {
+    const f = MEL[Math.floor(Math.random() * MEL.length)]!;
+    fm(at(t), f, { dur: 1.3 + Math.random(), gain: 0.05, ratio: 2, index: 55, send: 0.6 });
+  };
+
+  let beat = 0;
+  let next = a.currentTime + 0.2;
+  const schedule = () => {
+    if (stopped.v) return;
+    const ahead = a.currentTime + 1.6;
+    while (next < ahead) {
+      const t = next;
+      if (beat % BEATS === 0) pad(CHORDS[Math.floor(beat / BEATS) % CHORDS.length]!, t, BEATS * spb);
+      pulse(t);
+      // sparse, humanized motifs — off the downbeat so it breathes
+      if (Math.random() < 0.32) motif(t + spb * (Math.random() < 0.5 ? 0.5 : 0.25));
+      beat++;
+      next += spb;
+    }
+  };
+  schedule();
+  const timer = setInterval(schedule, 300);
+
+  return () => {
+    if (stopped.v) return;
+    stopped.v = true;
+    clearInterval(timer);
+    master.gain.cancelScheduledValues(a.currentTime);
+    master.gain.setValueAtTime(master.gain.value, a.currentTime);
+    master.gain.linearRampToValueAtTime(0, a.currentTime + 2.0); // fade out
+  };
+}
+
+// ---------------------------------------------------------------------------
 // The manager singleton + event registry
 // ---------------------------------------------------------------------------
 
@@ -582,132 +707,138 @@ export const audio = new AudioManager();
 function register(): void {
   const R = (name: string, def: SoundEvent) => audio.register(name, def);
 
-  // ---------------- UI (Mechanical / Electronic) ----------------
+  // A minor pentatonic — the shared tonal palette. Every pitched cue is drawn
+  // from these notes, so the whole app sounds like one instrument, not a pile
+  // of unrelated beeps. Warm timbres, rounded transients, a common reverb space.
+  const A2 = 110, C3 = 130.81, E3 = 164.81, A3 = 220, C4 = 261.63, D4 = 293.66,
+    E4 = 329.63, G4 = 392.0, A4 = 440, C5 = 523.25, D5 = 587.33, E5 = 659.25,
+    G5 = 783.99, A5 = 880, C6 = 1046.5, E6 = 1318.51;
+
+  // A soft, warm tap — the cohesive "touch" under UI + trades. No hiss.
+  const tap = (c: RenderCtx, o: { gain?: number; bright?: number } = {}) => {
+    const { gain = 1, bright = 1 } = o;
+    noiseBurst(c, { dur: 0.012, gain: 0.03 * gain, type: "bandpass", cutoff: 1500 * bright, q: 1.1 });
+    voice(c, 300 * bright, { dur: 0.05, type: "triangle", gain: 0.05 * gain, glideTo: 200 * bright, pitchDur: 0.035, cutoff: 1500 * bright, drive: 1.4 });
+  };
+
+  // ---------------- UI (warm, soft, mechanical-electronic) ----------------
   R("ui.hover", {
     category: "ui",
     cooldownMs: 30,
-    render: (c) => voice(c, 2200, { dur: 0.03, type: "sine", gain: 0.03, cutoff: 6000 }),
+    render: (c) => voice(c, A5 * 2, { dur: 0.03, type: "sine", gain: 0.018, cutoff: 5000, send: 0.12 }),
   });
   R("ui.click", {
     category: "ui",
     cooldownMs: 40,
-    render: (c) => {
-      noiseBurst(c, { dur: 0.02, gain: 0.05, type: "bandpass", cutoff: 2400, q: 1.4 });
-      voice(c, 320, { dur: 0.04, type: "square", gain: 0.05, cutoff: 1400 });
-    },
+    render: (c) => tap(c, { gain: 1, bright: 1 }),
   });
   R("ui.confirm", {
     category: "ui",
     render: (c) => {
-      noiseBurst(c, { dur: 0.025, gain: 0.05, type: "highpass", cutoff: 2600 });
-      voice(c, 440, { dur: 0.12, type: "triangle", gain: 0.1, glideTo: 560, cutoff: 1800, cutoffTo: 4000, send: 0.15 });
-      sub(c, 150, { dur: 0.08, gain: 0.07 });
+      tap(c, { gain: 0.7, bright: 1.1 });
+      // A → E: a small consonant lift that reads as "yes".
+      voice(c, A4, { dur: 0.13, type: "triangle", gain: 0.09, glideTo: E5, pitchDur: 0.1, cutoff: 2200, send: 0.25 });
+      sub(c, A2, { dur: 0.09, gain: 0.06, drive: 1.4 });
     },
   });
   R("ui.cancel", {
     category: "ui",
-    render: (c) => voice(c, 300, { dur: 0.1, type: "triangle", gain: 0.08, glideTo: 180, cutoff: 1200 }),
+    render: (c) => voice(c, E4, { dur: 0.11, type: "triangle", gain: 0.07, glideTo: C4, pitchDur: 0.09, cutoff: 1300, send: 0.15 }),
   });
   R("ui.tab", {
     category: "ui",
     cooldownMs: 60,
-    render: (c) => noiseBurst(c, { dur: 0.12, gain: 0.045, type: "bandpass", cutoff: 900, cutoffTo: 2600, q: 0.6, send: 0.1 }),
+    render: (c) => noiseBurst(c, { dur: 0.11, gain: 0.03, type: "bandpass", cutoff: 700, cutoffTo: 2000, q: 0.6, send: 0.14 }),
   });
   R("ui.modalOpen", {
     category: "ui",
     render: (c) => {
-      noiseBurst(c, { dur: 0.18, gain: 0.05, type: "bandpass", cutoff: 500, cutoffTo: 3200, q: 0.5, send: 0.15 });
-      voice(c, 520, { dur: 0.14, type: "sine", gain: 0.05, glideTo: 700, send: 0.15 });
+      noiseBurst(c, { dur: 0.16, gain: 0.035, type: "bandpass", cutoff: 400, cutoffTo: 2400, q: 0.5, send: 0.18 });
+      voice(c, A4, { dur: 0.15, type: "sine", gain: 0.05, glideTo: D5, pitchDur: 0.12, send: 0.2 });
     },
   });
   R("ui.modalClose", {
     category: "ui",
-    render: (c) => noiseBurst(c, { dur: 0.16, gain: 0.045, type: "bandpass", cutoff: 3200, cutoffTo: 500, q: 0.5, send: 0.1 }),
+    render: (c) => noiseBurst(c, { dur: 0.15, gain: 0.03, type: "bandpass", cutoff: 2400, cutoffTo: 450, q: 0.5, send: 0.12 }),
   });
   R("ui.walletConnect", {
     category: "ui",
     render: (c) => {
-      // A secure locking click — two mechanical taps into a warm confirm.
-      noiseBurst(c, { dur: 0.03, gain: 0.06, type: "bandpass", cutoff: 1800, q: 2 });
-      noiseBurst(c, { at: 0.07, dur: 0.03, gain: 0.06, type: "bandpass", cutoff: 2200, q: 2 });
-      fm(c, 587.33, { at: 0.1, dur: 0.4, gain: 0.09, ratio: 2, index: 90, send: 0.3 });
-      sub(c, 120, { at: 0.1, dur: 0.14, gain: 0.08 });
+      // A warm secure "lock in" — two soft taps into an A-major-ish bell + sub.
+      tap(c, { gain: 0.8, bright: 0.9 });
+      tap(c, { gain: 0.8, bright: 1.1 });
+      fm(c, A4, { at: 0.08, dur: 0.42, gain: 0.08, ratio: 2, index: 70, send: 0.32 });
+      fm(c, E5, { at: 0.12, dur: 0.5, gain: 0.06, ratio: 2, index: 70, send: 0.36 });
+      sub(c, A2, { at: 0.08, dur: 0.16, gain: 0.07, drive: 1.4 });
     },
   });
 
-  // ---------------- Trading (Mechanical + Electronic) ----------------
-  // Buy: a tactile confirm — a crisp click over a saturated "vwip" that snaps
-  // upward, with a sub tap for weight. Reads as an action, not a note.
+  // ---------------- Trading (satisfying, warm confirms) ----------------
+  // Buy: a rounded tap over a warm body that lifts C→G, with a soft sub for weight.
   R("trade.buy", {
     category: "trading",
     cooldownMs: 45,
     render: (c) => {
-      click(c, { gain: 1, bright: 1.15 });
-      voice(c, 300, { dur: 0.11, type: "sawtooth", gain: 0.1, glideTo: 470, pitchDur: 0.08, cutoff: 900, cutoffTo: 3600, q: 1.2, drive: 4, send: 0.08 });
-      sub(c, 150, { dur: 0.11, gain: 0.11, drop: 90, dropDur: 0.05 });
+      tap(c, { gain: 1, bright: 1.1 });
+      voice(c, C4, { dur: 0.12, type: "triangle", gain: 0.1, glideTo: G4, pitchDur: 0.09, cutoff: 1400, cutoffTo: 3200, q: 0.9, drive: 2, send: 0.16 });
+      sub(c, A2, { dur: 0.12, gain: 0.1, drop: 82, dropDur: 0.06, drive: 1.6 });
     },
   });
-  // Sell: same gesture, darker filter, pitch snapping down.
+  // Sell: the same gesture, warmer and falling G→C. Decisive, not harsh.
   R("trade.sell", {
     category: "trading",
     cooldownMs: 45,
     render: (c) => {
-      click(c, { gain: 0.9, bright: 0.8 });
-      voice(c, 360, { dur: 0.13, type: "sawtooth", gain: 0.1, glideTo: 185, pitchDur: 0.09, cutoff: 2700, cutoffTo: 650, q: 1.2, drive: 4, send: 0.08 });
-      sub(c, 140, { dur: 0.12, gain: 0.1, drop: 80, dropDur: 0.06 });
+      tap(c, { gain: 0.9, bright: 0.85 });
+      voice(c, G4, { dur: 0.13, type: "triangle", gain: 0.1, glideTo: C4, pitchDur: 0.1, cutoff: 2400, cutoffTo: 900, q: 0.9, drive: 2, send: 0.16 });
+      sub(c, A2, { dur: 0.12, gain: 0.09, drop: 72, dropDur: 0.07, drive: 1.6 });
     },
   });
-  // Other players' fills — tiny crisp ticks. Frequent, so short and quiet.
+  // Other players' fills — soft pentatonic ticks. Frequent, so tiny + warm.
   R("trade.tickBuy", {
     category: "trading",
     cooldownMs: 25,
-    render: (c) => {
-      noiseBurst(c, { dur: 0.018, gain: 0.03, type: "highpass", cutoff: 3800 });
-      voice(c, 900, { dur: 0.04, type: "square", gain: 0.04, glideTo: 1180, pitchDur: 0.03, cutoff: 5200, drive: 2 });
-    },
+    render: (c) => voice(c, E5, { dur: 0.05, type: "triangle", gain: 0.035, glideTo: G5, pitchDur: 0.035, cutoff: 3800, send: 0.14 }),
   });
   R("trade.tickSell", {
     category: "trading",
     cooldownMs: 25,
-    render: (c) => {
-      noiseBurst(c, { dur: 0.018, gain: 0.025, type: "bandpass", cutoff: 1300, q: 1.4 });
-      voice(c, 520, { dur: 0.05, type: "square", gain: 0.04, glideTo: 330, pitchDur: 0.035, cutoff: 1800, drive: 2 });
-    },
+    render: (c) => voice(c, C5, { dur: 0.055, type: "triangle", gain: 0.032, glideTo: A4, pitchDur: 0.04, cutoff: 2400, send: 0.12 }),
   });
   R("trade.deposit", {
     category: "trading",
     render: (c) => {
-      fm(c, 392.0, { dur: 0.6, gain: 0.11, ratio: 2, index: 120, send: 0.3 });
-      fm(c, 587.33, { at: 0.05, dur: 0.6, gain: 0.09, ratio: 2, index: 120, send: 0.3 });
-      fm(c, 783.99, { at: 0.1, dur: 0.7, gain: 0.08, ratio: 3, index: 90, send: 0.35 });
-      sub(c, 98, { dur: 0.18, gain: 0.1 });
+      // A warm A–C–E arpeggio of bells — "chips in", never a slot payout.
+      fm(c, A3, { dur: 0.55, gain: 0.1, ratio: 2, index: 80, send: 0.32 });
+      fm(c, C4, { at: 0.06, dur: 0.55, gain: 0.09, ratio: 2, index: 80, send: 0.32 });
+      fm(c, E4, { at: 0.12, dur: 0.7, gain: 0.09, ratio: 2, index: 70, send: 0.38 });
+      sub(c, A2, { dur: 0.18, gain: 0.09, drive: 1.4 });
     },
   });
 
-  // ---------------- Market events (Impact) ----------------
-  // Whale buy: a deep punchy hit that rises into saturated power. It should
-  // land in your chest and grab attention.
+  // ---------------- Market events (warm impact) ----------------
+  // Whale buy: a deep, warm swell that rises A2→A4. Lands in the chest.
   R("market.whaleBuy", {
     category: "market",
     priority: 5,
     duck: true,
     cooldownMs: 300,
     render: (c) => {
-      sub(c, 95, { dur: 0.8, gain: 0.26, drop: 45, dropDur: 0.08, drive: 2 });
-      voice(c, 180, { at: 0.01, dur: 0.55, type: "sawtooth", gain: 0.1, glideTo: 520, pitchDur: 0.4, cutoff: 300, cutoffTo: 2900, q: 2.2, detune: 12, drive: 5, send: 0.3 });
-      noiseBurst(c, { dur: 0.45, gain: 0.06, type: "bandpass", cutoff: 200, cutoffTo: 4200, q: 0.5, send: 0.4 }); // rising air
+      sub(c, A2 * 0.82, { dur: 0.8, gain: 0.24, drop: 45, dropDur: 0.09, drive: 1.8 });
+      voice(c, A3, { at: 0.01, dur: 0.55, type: "sawtooth", gain: 0.09, glideTo: A4, pitchDur: 0.42, cutoff: 320, cutoffTo: 2600, q: 1.8, detune: 10, drive: 3.5, send: 0.34 });
+      noiseBurst(c, { dur: 0.45, gain: 0.045, type: "bandpass", cutoff: 220, cutoffTo: 3600, q: 0.5, send: 0.42 }); // rising air
     },
   });
-  // Whale sell: heavy and dark — a distorted metallic fall. Danger.
+  // Whale sell: heavy and dark, a warm fall. A warning, not a screech.
   R("market.whaleSell", {
     category: "market",
     priority: 5,
     duck: true,
     cooldownMs: 300,
     render: (c) => {
-      sub(c, 100, { dur: 0.75, gain: 0.26, drop: 36, dropDur: 0.1, drive: 2 });
-      voice(c, 220, { at: 0.01, dur: 0.6, type: "sawtooth", gain: 0.1, glideTo: 70, pitchDur: 0.5, cutoff: 1400, cutoffTo: 220, q: 3, detune: 14, drive: 5, send: 0.35 });
-      noiseBurst(c, { dur: 0.3, gain: 0.06, type: "lowpass", cutoff: 800, cutoffTo: 140 });
+      sub(c, A2, { dur: 0.75, gain: 0.24, drop: 34, dropDur: 0.1, drive: 1.8 });
+      voice(c, A3, { at: 0.01, dur: 0.6, type: "sawtooth", gain: 0.09, glideTo: 65, pitchDur: 0.5, cutoff: 1300, cutoffTo: 220, q: 2.6, detune: 12, drive: 4, send: 0.36 });
+      noiseBurst(c, { dur: 0.32, gain: 0.05, type: "lowpass", cutoff: 800, cutoffTo: 150, send: 0.2 });
     },
   });
   R("market.milestone", {
@@ -715,36 +846,38 @@ function register(): void {
     priority: 3,
     cooldownMs: 200,
     render: (c) => {
-      sub(c, 120, { dur: 0.12, gain: 0.08, drop: 80, dropDur: 0.05 }); // a tap so it lands
-      fm(c, 523.25, { dur: 0.16, gain: 0.1, ratio: 2, index: 130, send: 0.28 });
-      fm(c, 659.25, { at: 0.07, dur: 0.16, gain: 0.1, ratio: 2, index: 130, send: 0.28 });
-      fm(c, 783.99, { at: 0.14, dur: 0.16, gain: 0.1, ratio: 2, index: 130, send: 0.28 });
-      fm(c, 1046.5, { at: 0.21, dur: 0.45, gain: 0.11, ratio: 2, index: 120, send: 0.4 });
+      sub(c, A2, { dur: 0.12, gain: 0.07, drop: 80, dropDur: 0.05, drive: 1.4 });
+      // C–E–G–C: a bright, warm pentatonic climb.
+      fm(c, C5, { dur: 0.16, gain: 0.1, ratio: 2, index: 110, send: 0.3 });
+      fm(c, E5, { at: 0.07, dur: 0.16, gain: 0.1, ratio: 2, index: 110, send: 0.3 });
+      fm(c, G5, { at: 0.14, dur: 0.16, gain: 0.1, ratio: 2, index: 110, send: 0.3 });
+      fm(c, C6, { at: 0.21, dur: 0.5, gain: 0.11, ratio: 2, index: 100, send: 0.42 });
     },
   });
   R("market.ath", {
     category: "market",
     cooldownMs: 400,
     render: (c) => {
-      fm(c, 1568, { dur: 0.2, gain: 0.07, ratio: 3, index: 80, send: 0.4 });
-      fm(c, 2093, { at: 0.08, dur: 0.24, gain: 0.06, ratio: 3, index: 80, send: 0.45 });
-      fm(c, 2637, { at: 0.16, dur: 0.4, gain: 0.05, ratio: 3, index: 70, send: 0.5 });
-      noiseBurst(c, { dur: 0.35, gain: 0.02, type: "highpass", cutoff: 6000, cutoffTo: 13000, send: 0.4 });
+      // Glassy pentatonic sparkle A5→C6→E6 — bright but soft, well reverbed.
+      fm(c, A5, { dur: 0.22, gain: 0.06, ratio: 3, index: 60, send: 0.42 });
+      fm(c, C6, { at: 0.09, dur: 0.26, gain: 0.055, ratio: 3, index: 60, send: 0.48 });
+      fm(c, E6, { at: 0.18, dur: 0.42, gain: 0.05, ratio: 3, index: 55, send: 0.54 });
+      noiseBurst(c, { dur: 0.35, gain: 0.015, type: "highpass", cutoff: 6000, cutoffTo: 12000, send: 0.4 });
     },
   });
 
-  // ---------------- Countdown (Impact, escalating) ----------------
+  // ---------------- Countdown (warm impact, escalating) ----------------
   for (const n of [5, 4, 3, 2, 1] as const) {
-    // Each tick is a punchy percussive impact; pitch and bite climb toward COOK.
+    // Each tick is a warm percussive impact; pitch + presence climb toward COOK.
     const climb = (6 - n) / 5; // 0.2 → 1.0
     R(`countdown.${n}`, {
       category: "countdown",
       priority: 6,
       duck: n === 1,
       render: (c) => {
-        sub(c, 80 + climb * 45, { dur: 0.14, gain: 0.15 + climb * 0.07, drop: 50, dropDur: 0.05, drive: 2 });
-        noiseBurst(c, { dur: 0.03 + climb * 0.02, gain: 0.06 + climb * 0.05, type: "bandpass", cutoff: 900 + climb * 1300, q: 1.4 });
-        voice(c, 220 + climb * 180, { dur: 0.09, type: "square", gain: 0.06 + climb * 0.05, glideTo: 140 + climb * 120, pitchDur: 0.05, cutoff: 1600 + climb * 2200, drive: 3 });
+        sub(c, 70 + climb * 40, { dur: 0.16, gain: 0.15 + climb * 0.07, drop: 45, dropDur: 0.06, drive: 1.8 });
+        noiseBurst(c, { dur: 0.03 + climb * 0.02, gain: 0.035 + climb * 0.03, type: "bandpass", cutoff: 700 + climb * 900, q: 1 });
+        voice(c, A3 + climb * 120, { dur: 0.1, type: "triangle", gain: 0.06 + climb * 0.04, glideTo: A2 + climb * 90, pitchDur: 0.06, cutoff: 1400 + climb * 1600, drive: 2 });
       },
     });
   }
@@ -753,22 +886,22 @@ function register(): void {
     priority: 10,
     duck: true,
     render: (c) => {
-      // The defining moment: a massive saturated impact + air rush + bright lift.
-      sub(c, 65, { dur: 0.95, gain: 0.3, drop: 42, dropDur: 0.12, drive: 2.2 });
-      noiseBurst(c, { dur: 0.6, gain: 0.11, type: "bandpass", cutoff: 250, cutoffTo: 8000, q: 0.5, send: 0.5 }); // air rush up
-      voice(c, 180, { dur: 0.55, type: "sawtooth", gain: 0.11, glideTo: 900, pitchDur: 0.4, cutoff: 500, cutoffTo: 4500, q: 2, detune: 14, drive: 5, send: 0.4 });
-      fm(c, 523.25, { at: 0.06, dur: 0.7, gain: 0.1, ratio: 2, index: 150, send: 0.45 }); // bright stab
+      // THE drop: a huge warm impact, a fire-ignition air rush, and a bright A→A lift.
+      sub(c, 55, { dur: 0.95, gain: 0.3, drop: 40, dropDur: 0.13, drive: 2 });
+      noiseBurst(c, { dur: 0.6, gain: 0.09, type: "bandpass", cutoff: 250, cutoffTo: 7000, q: 0.5, send: 0.5 }); // air rush up
+      voice(c, A3, { dur: 0.55, type: "sawtooth", gain: 0.1, glideTo: A5, pitchDur: 0.42, cutoff: 500, cutoffTo: 4200, q: 1.8, detune: 12, drive: 4, send: 0.42 });
+      fm(c, A4, { at: 0.06, dur: 0.7, gain: 0.09, ratio: 2, index: 130, send: 0.46 }); // warm bell bloom
     },
   });
   R("round.launch", {
-    // Auction settlement / doors open — the sporting-event kickoff.
+    // Auction settlement / doors open — the warm sporting kickoff.
     category: "round",
     priority: 9,
     duck: true,
     render: (c) => {
-      sub(c, 58, { dur: 0.85, gain: 0.27, drop: 40, dropDur: 0.1, drive: 2 });
-      noiseBurst(c, { dur: 0.5, gain: 0.1, type: "bandpass", cutoff: 350, cutoffTo: 7000, q: 0.6, send: 0.45 });
-      voice(c, 220, { at: 0.02, dur: 0.5, type: "sawtooth", gain: 0.09, glideTo: 560, pitchDur: 0.35, cutoff: 600, cutoffTo: 3800, q: 1.6, detune: 12, drive: 4, send: 0.35 });
+      sub(c, 58, { dur: 0.85, gain: 0.25, drop: 40, dropDur: 0.1, drive: 1.8 });
+      noiseBurst(c, { dur: 0.5, gain: 0.08, type: "bandpass", cutoff: 350, cutoffTo: 6000, q: 0.6, send: 0.44 });
+      voice(c, A3, { at: 0.02, dur: 0.5, type: "sawtooth", gain: 0.08, glideTo: E5, pitchDur: 0.36, cutoff: 600, cutoffTo: 3400, q: 1.5, detune: 10, drive: 3, send: 0.34 });
     },
   });
 
@@ -778,13 +911,13 @@ function register(): void {
     priority: 8,
     duck: true,
     render: (c) => {
-      // Deep impact → saturated brass rise → metallic shimmer → crowd swell.
-      sub(c, 62, { dur: 0.55, gain: 0.17, drop: 46, dropDur: 0.1, drive: 2 });
-      voice(c, 523.25, { dur: 0.75, type: "sawtooth", gain: 0.08, cutoff: 900, cutoffTo: 3200, q: 1.4, detune: 12, attack: 0.04, drive: 4, send: 0.35 });
-      voice(c, 659.25, { dur: 0.75, type: "sawtooth", gain: 0.07, cutoff: 900, cutoffTo: 3200, q: 1.4, detune: 12, attack: 0.05, drive: 4, send: 0.35 });
-      voice(c, 783.99, { dur: 0.8, type: "sawtooth", gain: 0.07, cutoff: 900, cutoffTo: 3400, q: 1.4, detune: 12, attack: 0.05, drive: 4, send: 0.35 });
-      fm(c, 1046.5, { at: 0.28, dur: 0.7, gain: 0.11, ratio: 3, index: 130, send: 0.5 }); // metallic shimmer
-      noiseBurst(c, { at: 0.1, dur: 0.5, gain: 0.05, type: "bandpass", cutoff: 400, cutoffTo: 5500, q: 0.6, send: 0.5 }); // crowd swell
+      // Deep impact → warm pentatonic chord swell → bell shimmer → crowd air.
+      sub(c, 62, { dur: 0.55, gain: 0.16, drop: 46, dropDur: 0.1, drive: 1.8 });
+      voice(c, A4, { dur: 0.8, type: "sawtooth", gain: 0.07, cutoff: 800, cutoffTo: 3000, q: 1.2, detune: 10, attack: 0.05, drive: 3, send: 0.36 });
+      voice(c, C5, { dur: 0.8, type: "sawtooth", gain: 0.065, cutoff: 800, cutoffTo: 3000, q: 1.2, detune: 10, attack: 0.06, drive: 3, send: 0.36 });
+      voice(c, E5, { dur: 0.85, type: "sawtooth", gain: 0.06, cutoff: 800, cutoffTo: 3200, q: 1.2, detune: 10, attack: 0.06, drive: 3, send: 0.36 });
+      fm(c, A5, { at: 0.28, dur: 0.7, gain: 0.1, ratio: 2, index: 120, send: 0.5 }); // bell shimmer
+      noiseBurst(c, { at: 0.1, dur: 0.5, gain: 0.04, type: "bandpass", cutoff: 400, cutoffTo: 5000, q: 0.6, send: 0.5 }); // crowd swell
     },
   });
   R("round.rug", {
@@ -792,19 +925,19 @@ function register(): void {
     priority: 8,
     duck: true,
     render: (c) => {
-      // Silence handled by the caller. Bass drop → crack → extinguish → dark fall.
-      sub(c, 100, { dur: 0.55, gain: 0.22, drop: 32, dropDur: 0.12, drive: 2.5 });
-      noiseBurst(c, { at: 0.05, dur: 0.035, gain: 0.13, type: "bandpass", cutoff: 2400, q: 3 }); // wood crack
-      noiseBurst(c, { at: 0.13, dur: 0.5, gain: 0.08, type: "lowpass", cutoff: 1600, cutoffTo: 180, send: 0.4 }); // extinguish hiss
-      voice(c, 300, { at: 0.09, dur: 0.75, type: "sawtooth", gain: 0.08, glideTo: 60, pitchDur: 0.6, cutoff: 1400, cutoffTo: 200, q: 5, detune: 14, drive: 5, send: 0.4 }); // dark fall
+      // Bass drop → crack → extinguish hiss → dark fall. Dread, warm not shrill.
+      sub(c, 100, { dur: 0.55, gain: 0.2, drop: 32, dropDur: 0.12, drive: 2.2 });
+      noiseBurst(c, { at: 0.05, dur: 0.035, gain: 0.1, type: "bandpass", cutoff: 2000, q: 2.6 }); // wood crack
+      noiseBurst(c, { at: 0.13, dur: 0.5, gain: 0.06, type: "lowpass", cutoff: 1400, cutoffTo: 180, send: 0.4 }); // extinguish hiss
+      voice(c, A3 + 80, { at: 0.09, dur: 0.75, type: "sawtooth", gain: 0.07, glideTo: 60, pitchDur: 0.6, cutoff: 1300, cutoffTo: 200, q: 4, detune: 12, drive: 4, send: 0.4 }); // dark fall
     },
   });
   R("round.over", {
     category: "round",
     priority: 6,
     render: (c) => {
-      sub(c, 110, { dur: 0.3, gain: 0.14, drop: 55, dropDur: 0.08 });
-      voice(c, 300, { dur: 0.4, type: "triangle", gain: 0.08, glideTo: 210, pitchDur: 0.3, cutoff: 1400, drive: 2, send: 0.2 });
+      sub(c, A2, { dur: 0.3, gain: 0.13, drop: 55, dropDur: 0.08, drive: 1.4 });
+      voice(c, E4, { dur: 0.4, type: "triangle", gain: 0.08, glideTo: A3, pitchDur: 0.3, cutoff: 1400, send: 0.22 });
     },
   });
 
@@ -814,9 +947,9 @@ function register(): void {
     priority: 4,
     cooldownMs: 500,
     render: (c) => {
-      // A small achievement sting — a brass stab into a bell.
-      voice(c, 392, { dur: 0.16, type: "sawtooth", gain: 0.07, cutoff: 900, cutoffTo: 2400, q: 2.5, detune: 12, attack: 0.03, send: 0.2 });
-      fm(c, 659.25, { at: 0.12, dur: 0.35, gain: 0.09, ratio: 2, index: 120, send: 0.3 });
+      // A small warm sting — a soft body into a bell, A → E.
+      voice(c, A4, { dur: 0.16, type: "triangle", gain: 0.07, cutoff: 900, cutoffTo: 2400, q: 1.4, attack: 0.02, send: 0.22 });
+      fm(c, E5, { at: 0.12, dur: 0.36, gain: 0.09, ratio: 2, index: 100, send: 0.32 });
     },
   });
   R("leaderboard.lostFirst", {
@@ -824,8 +957,8 @@ function register(): void {
     priority: 3,
     cooldownMs: 500,
     render: (c) => {
-      sub(c, 120, { dur: 0.22, gain: 0.12, drop: 60 });
-      voice(c, 300, { dur: 0.16, type: "triangle", gain: 0.06, glideTo: 200, cutoff: 1000 });
+      sub(c, A2, { dur: 0.22, gain: 0.1, drop: 60, drive: 1.4 });
+      voice(c, E4, { dur: 0.16, type: "triangle", gain: 0.06, glideTo: C4, cutoff: 1000, send: 0.12 });
     },
   });
 
@@ -835,14 +968,14 @@ function register(): void {
     priority: 10,
     duck: true,
     render: (c) => {
-      sub(c, 55, { dur: 0.7, gain: 0.24, drop: 41 }); // deep cinematic hit
-      // Orchestral rise.
-      voice(c, 392, { dur: 1.0, type: "sawtooth", gain: 0.07, glideTo: 784, cutoff: 700, cutoffTo: 3600, q: 1.3, detune: 12, attack: 0.08, send: 0.4 });
-      voice(c, 523, { at: 0.05, dur: 1.0, type: "sawtooth", gain: 0.06, glideTo: 1046, cutoff: 800, cutoffTo: 3800, q: 1.3, detune: 12, attack: 0.09, send: 0.4 });
-      // Firework shimmer cascade.
-      fm(c, 1568, { at: 0.5, dur: 0.5, gain: 0.06, ratio: 3, index: 90, send: 0.5 });
-      fm(c, 2093, { at: 0.62, dur: 0.5, gain: 0.05, ratio: 3, index: 90, send: 0.55 });
-      fm(c, 2637, { at: 0.74, dur: 0.6, gain: 0.05, ratio: 3, index: 80, send: 0.6 });
+      sub(c, 55, { dur: 0.7, gain: 0.22, drop: 41, drive: 1.8 }); // deep cinematic hit
+      // Warm pentatonic rise A→A, C→C.
+      voice(c, A3, { dur: 1.0, type: "sawtooth", gain: 0.065, glideTo: A4, cutoff: 700, cutoffTo: 3400, q: 1.2, detune: 10, attack: 0.09, send: 0.42 });
+      voice(c, C4, { at: 0.05, dur: 1.0, type: "sawtooth", gain: 0.055, glideTo: C5, cutoff: 800, cutoffTo: 3600, q: 1.2, detune: 10, attack: 0.1, send: 0.42 });
+      // Firework shimmer cascade, pentatonic.
+      fm(c, A5, { at: 0.5, dur: 0.5, gain: 0.055, ratio: 3, index: 80, send: 0.52 });
+      fm(c, C6, { at: 0.62, dur: 0.5, gain: 0.05, ratio: 3, index: 80, send: 0.56 });
+      fm(c, E6, { at: 0.74, dur: 0.6, gain: 0.045, ratio: 3, index: 70, send: 0.6 });
     },
   });
 
@@ -851,47 +984,50 @@ function register(): void {
     category: "notify",
     priority: 4,
     render: (c) => {
-      fm(c, 659.25, { dur: 0.24, gain: 0.11, ratio: 2, index: 140, send: 0.3 });
-      fm(c, 830.61, { at: 0.1, dur: 0.24, gain: 0.11, ratio: 2, index: 140, send: 0.3 });
-      fm(c, 987.77, { at: 0.2, dur: 0.28, gain: 0.11, ratio: 2, index: 140, send: 0.3 });
-      fm(c, 1318.5, { at: 0.3, dur: 0.55, gain: 0.12, ratio: 3, index: 120, send: 0.4 });
-      noiseBurst(c, { at: 0.3, dur: 0.4, gain: 0.025, type: "highpass", cutoff: 5000, cutoffTo: 11000, send: 0.3 });
+      // A rewarding A–C–E–A pentatonic bell run, softly reverbed.
+      fm(c, A4, { dur: 0.24, gain: 0.1, ratio: 2, index: 120, send: 0.32 });
+      fm(c, C5, { at: 0.1, dur: 0.24, gain: 0.1, ratio: 2, index: 120, send: 0.32 });
+      fm(c, E5, { at: 0.2, dur: 0.28, gain: 0.1, ratio: 2, index: 120, send: 0.32 });
+      fm(c, A5, { at: 0.3, dur: 0.55, gain: 0.11, ratio: 2, index: 110, send: 0.44 });
+      noiseBurst(c, { at: 0.3, dur: 0.4, gain: 0.015, type: "highpass", cutoff: 5000, cutoffTo: 10000, send: 0.3 });
     },
   });
   R("notify.quest", {
     category: "notify",
     priority: 3,
     render: (c) => {
-      fm(c, 587.33, { dur: 0.22, gain: 0.1, ratio: 2, index: 90, send: 0.25 });
-      fm(c, 880.0, { at: 0.11, dur: 0.42, gain: 0.1, ratio: 2, index: 90, send: 0.3 });
+      // Friendly two-note A → E lift (also the @-mention ping).
+      fm(c, A4, { dur: 0.22, gain: 0.095, ratio: 2, index: 80, send: 0.28 });
+      fm(c, E5, { at: 0.11, dur: 0.42, gain: 0.095, ratio: 2, index: 80, send: 0.34 });
     },
   });
   R("notify.xp", {
     category: "notify",
     priority: 2,
-    render: (c) => voice(c, 660, { dur: 0.14, type: "triangle", gain: 0.07, glideTo: 990, cutoff: 4000, send: 0.2 }),
+    render: (c) => voice(c, E5, { dur: 0.14, type: "triangle", gain: 0.06, glideTo: G5, pitchDur: 0.1, cutoff: 4000, send: 0.22 }),
   });
 
-  // ---------------- Chat (Mechanical / radio) ----------------
+  // ---------------- Chat (soft comms) ----------------
   R("chat.mention", {
     category: "chat",
     cooldownMs: 300,
     render: (c) => {
-      voice(c, 880, { dur: 0.08, type: "sine", gain: 0.07, cutoff: 5000, send: 0.2 });
-      voice(c, 1320, { at: 0.06, dur: 0.14, type: "sine", gain: 0.06, send: 0.25 });
+      // A gentle comms ping, A5 → E6.
+      voice(c, A5, { dur: 0.08, type: "sine", gain: 0.06, cutoff: 5000, send: 0.22 });
+      voice(c, E6, { at: 0.06, dur: 0.16, type: "sine", gain: 0.05, send: 0.28 });
     },
   });
   R("chat.system", {
     category: "chat",
     cooldownMs: 300,
-    render: (c) => noiseBurst(c, { dur: 0.06, gain: 0.04, type: "bandpass", cutoff: 1800, q: 3, send: 0.15 }), // radio chirp
+    render: (c) => noiseBurst(c, { dur: 0.06, gain: 0.03, type: "bandpass", cutoff: 1600, q: 2.6, send: 0.15 }), // soft radio chirp
   });
   R("chat.announce", {
     category: "chat",
     cooldownMs: 400,
     render: (c) => {
-      noiseBurst(c, { dur: 0.05, gain: 0.045, type: "bandpass", cutoff: 1400, q: 2.5 });
-      voice(c, 700, { at: 0.04, dur: 0.16, type: "triangle", gain: 0.06, glideTo: 900, send: 0.2 });
+      noiseBurst(c, { dur: 0.05, gain: 0.035, type: "bandpass", cutoff: 1300, q: 2.2, send: 0.12 });
+      voice(c, E5, { at: 0.04, dur: 0.16, type: "triangle", gain: 0.055, glideTo: G5, pitchDur: 0.12, send: 0.2 });
     },
   });
 }
