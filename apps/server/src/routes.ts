@@ -1,6 +1,7 @@
 import express, { type Express, type Request, type Response } from "express";
 import {
   COSMETICS,
+  DEV_DUMP_FRACTION,
   MATCH_MINUTE_OPTIONS,
   MAX_TOKEN_SUPPLY,
   MIN_TOKEN_SUPPLY,
@@ -838,11 +839,27 @@ export function createApp(
       const intents = (store.intents.get(round.id) ?? []).filter(
         (i) => i.userAddress === req.userAddress,
       );
+      // Rug meter — creator-only. How close the dev is to auto-rugging their own
+      // coin: a rug fires the instant cumulative sells cross DEV_DUMP_FRACTION of
+      // the most they ever held. Only computed live, and only for the creator, so
+      // nobody else can read the dev's hand.
+      let rug: { sold: number; maxHeld: number; threshold: number; fraction: number } | undefined;
+      if (round.creatorAddress === req.userAddress && round.state === "live") {
+        const m = engine.meta(round.id, req.userAddress!);
+        const threshold = DEV_DUMP_FRACTION * m.maxTokens;
+        rug = {
+          sold: m.tokensSoldBeforeEnd,
+          maxHeld: m.maxTokens,
+          threshold,
+          fraction: threshold > 0 ? Math.min(1, m.tokensSoldBeforeEnd / threshold) : 0,
+        };
+      }
       res.json({
         position: pos,
         intents,
         balance: store.getOrCreateUser(req.userAddress!).arenaBalance ?? 0,
         prediction: store.predictions.get(round.id)?.get(req.userAddress!)?.call ?? null,
+        rug,
       });
     }),
   );

@@ -232,7 +232,7 @@ export function TradePanel({
 
           <div className="mx-1 h-7 w-px bg-zinc-800" />
 
-          {[25, 50, 75].map((p) => (
+          {[5, 25, 50].map((p) => (
             <button
               key={p}
               disabled={pending}
@@ -419,7 +419,7 @@ export function TradePanel({
       </button>
 
       {/* quick chips */}
-      <div className="mt-2 grid grid-cols-3 gap-1.5">
+      <div className={`mt-2 grid gap-1.5 ${buying ? "grid-cols-3" : "grid-cols-4"}`}>
         {buying
           ? quickChips.map((v) => (
               <button
@@ -430,7 +430,7 @@ export function TradePanel({
                 {chipLabel(v)}
               </button>
             ))
-          : [25, 50, 100].map((p) => (
+          : [5, 25, 50, 100].map((p) => (
               <button
                 key={p}
                 onClick={() => setPct(String(p))}
