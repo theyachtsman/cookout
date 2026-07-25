@@ -12,13 +12,14 @@ import { audio } from "../lib/audio";
 export function AudioMixer() {
   const [mix, setMix] = useState(() => audio.getMix());
 
-  const set = (which: "master" | "ui" | "gameplay", v: number) => {
+  const set = (which: "master" | "ui" | "gameplay" | "music", v: number) => {
     audio.setVolume(which, v);
     setMix(audio.getMix());
   };
 
-  const sliders: Array<["master" | "ui" | "gameplay", string, string]> = [
+  const sliders: Array<["master" | "ui" | "gameplay" | "music", string, string]> = [
     ["master", "Master", "Everything at once"],
+    ["music", "Music", "The ambient background bed"],
     ["gameplay", "Gameplay", "Countdowns, trades, whales, graduations"],
     ["ui", "Interface", "Clicks, chat pings, menus"],
   ];
@@ -41,6 +42,34 @@ export function AudioMixer() {
           {mix.muted ? "Muted" : "On"}
         </button>
       </div>
+
+      {/* Ambient music — a first-class toggle; off by default, remembered here. */}
+      <button
+        onClick={() => {
+          audio.toggleMusic();
+          setMix(audio.getMix());
+        }}
+        className={`mb-4 flex w-full items-center justify-between rounded-lg border px-4 py-3 text-left transition ${
+          mix.musicOn
+            ? "border-lime-400/40 bg-lime-400/10"
+            : "border-zinc-800 bg-zinc-900/40 hover:border-zinc-700"
+        }`}
+      >
+        <span>
+          <span className="block text-sm font-bold text-zinc-100">🎵 Ambient music</span>
+          <span className="block text-[11px] text-zinc-500">
+            Warm, evolving background bed. Loops without repeating.
+          </span>
+        </span>
+        <span
+          className={`rounded-full px-3 py-1 text-xs font-black transition ${
+            mix.musicOn ? "bg-lime-400 text-zinc-950" : "bg-zinc-800 text-zinc-400"
+          }`}
+        >
+          {mix.musicOn ? "On" : "Off"}
+        </span>
+      </button>
+
       <div className={`space-y-4 ${mix.muted ? "pointer-events-none opacity-40" : ""}`}>
         {sliders.map(([key, label, hint]) => (
           <label key={key} className="block">
