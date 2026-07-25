@@ -41,8 +41,10 @@ export class PitBoss {
       return;
     }
     await this.api.setMyCommands(COMMANDS);
-    // Tap the live activity stream instead of polling game state.
+    // Tap the live streams instead of polling game state: player activity
+    // (personal + follower DMs) and round lifecycle (the community feed).
     this.store.onActivityEvent((e) => this.notifier.handleActivity(e));
+    this.store.onRoundEvent((e) => this.notifier.handleRoundEvent(e));
     console.log(`[pitboss] online as @${me.username} — companion armed`);
     this.startSeeding();
     void this.pollLoop();
