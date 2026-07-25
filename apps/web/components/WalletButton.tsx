@@ -87,7 +87,7 @@ export function WalletButton() {
               onClick={() => setOpen(false)}
               className="block px-3 py-2 text-sm hover:bg-zinc-800"
             >
-              ⚡ Arena Account
+              ⚡ Cook Out Balance
             </Link>
             <Link
               href={`/profile/${profile.address}`}

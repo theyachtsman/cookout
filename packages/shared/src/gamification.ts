@@ -172,7 +172,7 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "lucky_bastard", name: "Lucky Bastard", description: "Bought within 5 seconds of the round bottom", rarity: "rare" },
   { id: "graduate_launcher", name: "Launched a Graduate", description: "Created a round that graduated", rarity: "epic" },
   { id: "community_pick", name: "Community Pick", description: "Won a community vote as creator", rarity: "rare" },
-  { id: "degen_survivor", name: "Degen Arena Survivor", description: "Profitable round in the Degen Arena", rarity: "epic" },
+  { id: "degen_survivor", name: "Degen Survivor", description: "Profitable round in the Degen tier", rarity: "epic" },
   { id: "streak_5", name: "Heater", description: "5 winning rounds in a row", rarity: "rare" },
   { id: "oracle", name: "Oracle", description: "10 correct Moon-or-Rug predictions", rarity: "rare" },
 ];

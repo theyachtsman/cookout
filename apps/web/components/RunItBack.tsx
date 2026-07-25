@@ -97,7 +97,7 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
                     When a coin doesn&apos;t graduate, its developer gets a second serving:{" "}
                     <b className="text-zinc-200">Run It Back</b> re-launches the coin with the
                     exact same setup (same tier, same match length, same tokenomics) straight
-                    into the Arena, no new vote needed.
+                    back to the Cook Out, no new vote needed.
                   </p>
                   <p className="mt-2 text-sm text-zinc-400">
                     Only <b className="text-zinc-200">${round.token.symbol}</b>&apos;s developer
@@ -108,7 +108,7 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
                       href="/submissions"
                       className="rounded-lg bg-lime-400 px-4 py-2 text-sm font-black text-zinc-950 hover:bg-lime-300"
                     >
-                      🔥 Make a Coin
+                      🔥 Launch a Coin
                     </a>
                     <button
                       onClick={close}

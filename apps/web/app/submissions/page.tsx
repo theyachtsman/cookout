@@ -108,11 +108,11 @@ export default function Submissions() {
   return (
     <div className="space-y-8">
       <section className="rounded-xl border border-zinc-800 p-5">
-        <h1 className="mb-1 text-xl font-black">Make a Coin</h1>
+        <h1 className="mb-1 text-xl font-black">Launch a Coin</h1>
         <p className="mb-4 text-xs text-zinc-500">
           Tokens deploy from the platform-audited template only. You supply the metadata, never the
           code, and there are no mint, pause, or blacklist controls. Hit the vote bar and your coin
-          goes straight into the Arena at your chosen tier.
+          goes straight to the Cook Out at your chosen tier.
         </p>
         {!profile ? (
           <button
@@ -184,7 +184,7 @@ export default function Submissions() {
                 {(
                   [
                     ["rookie", "🥾", "Training grounds. Gentler stakes, forgiving pace."],
-                    ["standard", "⚔️", "The main arena. Real pace, real crowds."],
+                    ["standard", "⚔️", "The main floor. Real pace, real crowds."],
                     ["degen", "☠️", "Max stakes, max chaos. Not for the faint."],
                   ] as Array<[RiskTier, string, string]>
                 ).map(([tier, icon, blurb]) => {
@@ -337,7 +337,7 @@ export default function Submissions() {
                   Look it over. Are you sure?
                 </h2>
                 <p className="mt-1 text-sm text-zinc-400">
-                  This is exactly how your coin will appear on the ballot and across the Arena,
+                  This is exactly how your coin will appear on the ballot and across the Cook Out,
                   from the lineup to the live chart. Once submitted it can&apos;t be edited.
                 </p>
               </div>
@@ -390,8 +390,8 @@ export default function Submissions() {
                   Your coin is on the ballot!
                 </h2>
                 <p className="mt-1 text-sm text-zinc-400">
-                  This is how it&apos;ll look in the arena. The crowd votes now. Hit the bar and
-                  it goes straight into the Arena at your tier.
+                  This is how it&apos;ll look at the Cook Out. The crowd votes now. Hit the bar and
+                  it goes straight to the Cook Out at your tier.
                 </p>
               </div>
               <CoinCard coin={created} />

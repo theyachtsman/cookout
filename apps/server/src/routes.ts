@@ -173,9 +173,15 @@ export function createApp(
     auth,
     wrap((req, res) => {
       const u = store.getOrCreateUser(req.userAddress!);
-      const { displayName, avatarUrl } = req.body as { displayName?: string; avatarUrl?: string };
+      const { displayName, avatarUrl, bannerUrl } = req.body as {
+        displayName?: string;
+        avatarUrl?: string;
+        bannerUrl?: string;
+      };
       if (displayName !== undefined) u.displayName = String(displayName).slice(0, 24);
       if (avatarUrl !== undefined) u.avatarUrl = sanitizeImageUrl(avatarUrl);
+      // Empty string clears the banner (revert to the default wash).
+      if (bannerUrl !== undefined) u.bannerUrl = bannerUrl === "" ? undefined : sanitizeImageUrl(bannerUrl);
       res.json(publicProfile(u, true));
     }),
   );
@@ -330,6 +336,7 @@ export function createApp(
         address,
         displayName: u.displayName,
         avatarUrl: u.avatarUrl,
+        bannerUrl: u.bannerUrl,
         level: u.level,
         title: u.title,
         creatorReputation: u.creatorReputation,

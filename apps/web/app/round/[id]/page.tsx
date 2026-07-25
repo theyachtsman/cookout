@@ -500,7 +500,7 @@ export default function RoundPage() {
               <TradePanel
                 round={round}
                 position={position}
-                ethUsd={ticker?.ethUsd}
+                ethUsd={ticker?.ethUsd ?? pegUsd ?? 1925}
                 variant="bar"
                 onTraded={() => {
                   void loadMe();

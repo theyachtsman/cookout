@@ -44,8 +44,8 @@ export default function WalletPage() {
 }
 
 /**
- * Paper beta: the same arena-wallet habit, denominated in pETH. Money in the
- * bank is safe and unplayable; money in the arena is what matches spend.
+ * Paper beta: the same Cook Out balance habit, denominated in pETH. Money in the
+ * bank is safe and unplayable; money at the Cook Out is what matches spend.
  */
 function PaperWalletPage() {
   const { profile, promptPlayNow, refresh } = useSession();
@@ -60,7 +60,7 @@ function PaperWalletPage() {
   if (!profile)
     return (
       <div className="mx-auto max-w-3xl py-16 text-center">
-        <h1 className="text-2xl font-black">⚡ Arena Account</h1>
+        <h1 className="text-2xl font-black">⚡ Cook Out Balance</h1>
         <p className="mt-2 text-sm text-zinc-500">Create your account to start playing.</p>
         <button
           onClick={promptPlayNow}
@@ -108,7 +108,7 @@ function PaperWalletPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
         <h1 className="text-2xl font-black">
-          ⚡ Arena Account
+          ⚡ Cook Out Balance
           {arena > 0 && (
             <span className="ml-2 rounded bg-lime-400/15 px-2 py-0.5 text-xs font-bold text-lime-300">
               READY
@@ -116,7 +116,7 @@ function PaperWalletPage() {
           )}
         </h1>
         <p className="mt-1 text-sm text-zinc-500">
-          This is your game account. Rounds spend your arena balance, never your bank. It works
+          This is your game account. Rounds spend your Cook Out balance, never your bank. It works
           exactly like the real thing will, so you build the habit here, where it&apos;s only paper.
         </p>
       </header>
@@ -129,7 +129,7 @@ function PaperWalletPage() {
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="rounded-xl border border-lime-400/40 bg-lime-400/5 p-5">
-          <div className="text-xs uppercase tracking-wide text-zinc-500">In the arena</div>
+          <div className="text-xs uppercase tracking-wide text-zinc-500">At the Cook Out</div>
           <div className="mt-1 font-mono text-3xl font-black text-lime-300">
             {usd ? fmtAmount(arena, true, peg) : arena.toFixed(3)}
           </div>
@@ -163,14 +163,14 @@ function PaperWalletPage() {
             onClick={() => void move("deposit")}
             className="rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300 disabled:opacity-50"
           >
-            {busy === "deposit" ? "…" : "Bank → Arena"}
+            {busy === "deposit" ? "…" : "Bank → Cook Out"}
           </button>
           <button
             disabled={busy !== ""}
             onClick={() => void move("withdraw")}
             className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-bold text-zinc-300 hover:border-zinc-500 disabled:opacity-50"
           >
-            {busy === "withdraw" ? "…" : "Arena → Bank"}
+            {busy === "withdraw" ? "…" : "Cook Out → Bank"}
           </button>
         </div>
         <p className="mt-3 text-xs text-zinc-600">
@@ -195,7 +195,7 @@ function PaperWalletPage() {
                   <span className="text-lg">{deposit ? "⬇️" : "⬆️"}</span>
                   <div className="min-w-0 flex-1">
                     <div className={`font-bold ${deposit ? "text-lime-300" : "text-zinc-300"}`}>
-                      {deposit ? "Bank → Arena" : "Arena → Bank"}
+                      {deposit ? "Bank → Cook Out" : "Cook Out → Bank"}
                     </div>
                     <div className="text-[11px] text-zinc-600">{when(h.at)}</div>
                   </div>
@@ -205,7 +205,7 @@ function PaperWalletPage() {
                       {h.amount.toFixed(3)} pETH
                     </div>
                     <div className="font-mono text-[11px] text-zinc-600">
-                      arena {h.arenaAfter.toFixed(2)} · bank {h.bankAfter.toFixed(2)}
+                      cook out {h.arenaAfter.toFixed(2)} · bank {h.bankAfter.toFixed(2)}
                     </div>
                   </div>
                 </div>
@@ -277,7 +277,7 @@ function PrivyWalletCard({ address }: { address: string }) {
         {address} {copied ? "✓ copied" : "⧉"}
       </button>
       <p className="mt-3 border-t border-zinc-800 pt-3 text-[11px] text-zinc-600">
-        Depositing real ETH here and funding your arena from it open at mainnet. The beta is paper
+        Depositing real ETH here and funding your Cook Out balance from it open at mainnet. The beta is paper
         money, so this stays near 0 for now.
       </p>
     </div>
@@ -341,7 +341,7 @@ function ChainWalletPage() {
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
         <h1 className="text-2xl font-black">
-          ⚡ Arena Account
+          ⚡ Cook Out Balance
           {hot && (
             <span className="ml-2 rounded bg-lime-400/15 px-2 py-0.5 text-xs font-bold text-lime-300">
               HOT · instant trades

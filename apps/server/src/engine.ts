@@ -260,7 +260,7 @@ export class RoundEngine {
     if (cap > 0 && committed + ethAmount > cap)
       throw new Err(400, `queue position cap is ${cap} paper ETH for this tier; live trading is uncapped`);
     if ((user.arenaBalance ?? 0) < ethAmount)
-      throw new Err(400, "not enough in your arena wallet: deposit pETH to pull up");
+      throw new Err(400, "not enough in your Cook Out balance: deposit pETH to pull up");
     user.arenaBalance = (user.arenaBalance ?? 0) - ethAmount; // escrow until settlement
     if (mine.length === 0) this.store.trackActivity(user.address, "auctions_entered", 1, now);
     const intent = {
@@ -403,7 +403,7 @@ export class RoundEngine {
       const ethIn = amount.eth ?? 0;
       if (!(ethIn > 0)) throw new Err(400, "eth amount required");
       if ((user.arenaBalance ?? 0) < ethIn)
-        throw new Err(400, "not enough in your arena wallet: deposit pETH to trade");
+        throw new Err(400, "not enough in your Cook Out balance: deposit pETH to trade");
       // Beginner tiers keep a live position ceiling (liveMaxPositionEth): the
       // total ETH you have deployed at once can't exceed it, so a rookie can't
       // dump their whole bag in a single match. Selling frees the room back up.

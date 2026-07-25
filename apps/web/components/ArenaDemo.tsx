@@ -23,7 +23,7 @@ import { ChartCanvas } from "./ChartCanvas";
  */
 
 const SCENES = [
-  { key: "launchpad", label: "Make a Coin", blurb: "Name it, draw it, send it", dur: 7600 },
+  { key: "launchpad", label: "Launch a Coin", blurb: "Name it, draw it, send it", dur: 7600 },
   { key: "upvote", label: "Community Upvote", blurb: "Vote coins into the Arena", dur: 7000 },
   { key: "calendar", label: "The Arena", blurb: "Queued lobbies + a live match", dur: 5200 },
   { key: "queue", label: "Pre-Launch Queue", blurb: "Place your buy before the open", dur: 8200 },

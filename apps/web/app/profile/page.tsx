@@ -57,6 +57,7 @@ export default function ProfilePage() {
   const s = profile.stats;
   const displayName = profile.displayName ?? `${profile.address.slice(0, 8)}…`;
   const avatarUrl = (profile as unknown as { avatarUrl?: string }).avatarUrl;
+  const bannerUrl = (profile as unknown as { bannerUrl?: string }).bannerUrl;
   const referralCount = (profile as unknown as { referralCount?: number }).referralCount ?? 0;
   const referralEarnings =
     (profile as unknown as { referralEarnings?: number }).referralEarnings ?? 0;
@@ -81,6 +82,7 @@ export default function ProfilePage() {
     <div className="mx-auto max-w-5xl space-y-6">
       <ProfileHero
         avatar={<Avatar url={avatarUrl} name={displayName} level={profile.level} />}
+        bannerUrl={bannerUrl}
         name={displayName}
         level={profile.level}
         title={profile.title}
@@ -104,7 +106,7 @@ export default function ProfilePage() {
               <div className="font-mono text-2xl font-black text-lime-400">
                 ⚡ {arenaBal !== null ? arenaBal.toFixed(4) : "—"}
               </div>
-              <div className="text-[11px] text-zinc-500">ETH · arena wallet →</div>
+              <div className="text-[11px] text-zinc-500">ETH · Cook Out Balance →</div>
             </Link>
           ) : (
             <Link href="/wallet" className="block hover:opacity-80">
@@ -129,28 +131,52 @@ export default function ProfilePage() {
         </div>
 
         {editing && (
-          <div className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-950/50 p-3">
-            <ImagePicker
-              label="Profile picture"
-              round
-              value={avatarUrl}
-              onChange={(dataUrl) =>
-                void api("/api/me", { method: "PATCH", body: { avatarUrl: dataUrl } }).then(refresh)
-              }
-            />
-            <div className="flex items-center gap-2">
-              <input
-                placeholder={profile.displayName ?? "set a display name"}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm outline-none focus:border-lime-400/50"
+          <div className="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-950/50 p-3">
+            <div className="flex flex-wrap items-center gap-4">
+              <ImagePicker
+                label="Profile picture"
+                round
+                value={avatarUrl}
+                onChange={(dataUrl) =>
+                  void api("/api/me", { method: "PATCH", body: { avatarUrl: dataUrl } }).then(refresh)
+                }
               />
-              <button
-                onClick={() => void saveName()}
-                className="rounded-lg bg-lime-400 px-3 py-1.5 text-sm font-black text-zinc-950 hover:bg-lime-300"
-              >
-                Save
-              </button>
+              <div className="flex items-center gap-2">
+                <input
+                  placeholder={profile.displayName ?? "set a display name"}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm outline-none focus:border-lime-400/50"
+                />
+                <button
+                  onClick={() => void saveName()}
+                  className="rounded-lg bg-lime-400 px-3 py-1.5 text-sm font-black text-zinc-950 hover:bg-lime-300"
+                >
+                  Save
+                </button>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-4 border-t border-zinc-800 pt-3">
+              <ImagePicker
+                label="Header banner (wide)"
+                wide
+                aspect={4}
+                size={1200}
+                value={bannerUrl}
+                onChange={(dataUrl) =>
+                  void api("/api/me", { method: "PATCH", body: { bannerUrl: dataUrl } }).then(refresh)
+                }
+              />
+              {bannerUrl && (
+                <button
+                  onClick={() =>
+                    void api("/api/me", { method: "PATCH", body: { bannerUrl: "" } }).then(refresh)
+                  }
+                  className="text-xs font-bold text-zinc-500 hover:text-red-300"
+                >
+                  Remove banner
+                </button>
+              )}
             </div>
           </div>
         )}

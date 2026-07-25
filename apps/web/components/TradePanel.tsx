@@ -155,15 +155,14 @@ export function TradePanel({
   const setValue = buying ? setAmount : setPct;
   const ready = Number(value) > 0;
   const usdMode = buying && denom === "usd" && !!peg;
-  // Quick-buy sizes are native amounts (so a chip always buys the same coin
-  // size); the label shows the live USD equivalent when in dollar mode.
-  // Rookie rounds get a tiny 0.001 starter clip on top of the usual sizes.
-  const quickBuys = onChain
-    ? [0.0005, 0.001, 0.002, 0.005]
-    : round.tier === "rookie"
-      ? [0.001, 0.01, 0.05, 0.1]
-      : [0.01, 0.05, 0.1, 0.25];
-  const quickLabel = (v: number) => (usdMode && peg ? `$${(v * peg).toFixed(2)}` : `${v}`);
+  // Quick-buy chips: fixed dollar clips for paper play ($5 / $20 / $50); on-chain
+  // rounds spend real testnet ETH, so they keep tiny native clips instead.
+  const quickChips = onChain ? [0.0005, 0.001, 0.005] : [5, 20, 50];
+  const chipEth = (v: number) => (onChain ? v : peg ? v / peg : 0);
+  const chipLabel = (v: number) => (onChain ? `${v}` : `$${v}`);
+  // Widget fill: put a chip's size in the input, honoring the active denom.
+  const chipFill = (v: number) =>
+    onChain ? String(v) : usdMode ? String(v) : peg ? (v / peg).toFixed(4) : "0";
   // What the typed amount is worth in the other denomination.
   const typedNum = Number(amount);
   const convertedHint =
@@ -220,14 +219,14 @@ export function TradePanel({
           >
             {pending ? "…" : "Buy"}
           </button>
-          {quickBuys.slice(0, 3).map((v) => (
+          {quickChips.map((v) => (
             <button
               key={v}
-              disabled={pending}
-              onClick={() => void fire("buy", { eth: v })}
+              disabled={pending || (!onChain && !peg)}
+              onClick={() => void fire("buy", { eth: chipEth(v) })}
               className="rounded bg-emerald-600/20 px-2.5 py-2 text-xs font-bold text-emerald-300 transition hover:bg-emerald-600/40 active:scale-95 disabled:opacity-50"
             >
-              +{quickLabel(v)}
+              +{chipLabel(v)}
             </button>
           ))}
 
@@ -261,14 +260,35 @@ export function TradePanel({
           >
             {muted ? "🔇" : "🔊"}
           </button>
-          <span className="font-mono text-[11px] text-zinc-500">
-            {balance !== null && balance !== undefined ? balance.toFixed(onChain ? 4 : 2) : "…"}{" "}
-            {unit} · {holdingTokens !== null ? holdingTokens.toLocaleString() : "…"}{" "}
-            {round.token.symbol}
-          </span>
         </div>
-        {convertedHint && <div className="mt-1 font-mono text-[10px] text-zinc-500">{convertedHint}</div>}
-        {error && <div className="mt-1 text-xs text-red-400">{error}</div>}
+
+        {/* Account line — two clear, roomy stats instead of one cramped string. */}
+        <div className="mt-2.5 grid grid-cols-2 gap-2">
+          <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2">
+            <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">Balance</div>
+            <div className="mt-0.5 flex items-baseline gap-1.5">
+              <span className="font-mono text-base font-black text-zinc-100">
+                {balance !== null && balance !== undefined ? balance.toFixed(onChain ? 4 : 2) : "…"}
+              </span>
+              <span className="text-[11px] font-bold text-zinc-500">{unit}</span>
+              {peg > 0 && balance !== null && balance !== undefined && (
+                <span className="ml-auto font-mono text-[11px] text-emerald-400/80">
+                  ${(balance * peg).toFixed(2)}
+                </span>
+              )}
+            </div>
+          </div>
+          <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2">
+            <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">
+              Holding {round.token.symbol}
+            </div>
+            <div className="mt-0.5 font-mono text-base font-black text-zinc-100">
+              {holdingTokens !== null ? holdingTokens.toLocaleString() : "…"}
+            </div>
+          </div>
+        </div>
+        {convertedHint && <div className="mt-1.5 font-mono text-[11px] text-zinc-400">{convertedHint}</div>}
+        {error && <div className="mt-1.5 text-xs text-red-400">{error}</div>}
       </div>
     );
   }
@@ -399,15 +419,15 @@ export function TradePanel({
       </button>
 
       {/* quick chips */}
-      <div className={`mt-2 grid gap-1.5 ${buying ? "grid-cols-4" : "grid-cols-3"}`}>
+      <div className="mt-2 grid grid-cols-3 gap-1.5">
         {buying
-          ? quickBuys.map((v) => (
+          ? quickChips.map((v) => (
               <button
                 key={v}
-                onClick={() => setAmount(usdMode && peg ? (v * peg).toFixed(2) : String(v))}
+                onClick={() => setAmount(chipFill(v))}
                 className="rounded-full border border-emerald-500/30 bg-emerald-500/10 py-1.5 text-[11px] font-bold text-emerald-300 hover:bg-emerald-500/25"
               >
-                {quickLabel(v)}
+                {chipLabel(v)}
               </button>
             ))
           : [25, 50, 100].map((p) => (

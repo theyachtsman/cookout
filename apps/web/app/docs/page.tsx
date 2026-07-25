@@ -28,7 +28,7 @@ import {
   xpForLevel,
 } from "@cookout/shared";
 
-/** Product wiki: everything a new player needs, in the arena's own voice. */
+/** Product wiki: everything a new player needs, in the Cook Out's own voice. */
 
 const SECTIONS = [
   ["what", "What is The Cookout?"],
@@ -79,7 +79,7 @@ export default function Docs() {
 
         <Section id="what" title="What is The Cookout?">
           <p>
-            The Cookout is a <b>live multiplayer trading arena</b>. Every match in the Arena is a
+            The Cookout is a <b>live multiplayer trading game</b>. Every match at the Cook Out is a
             brand-new token created for that match by a community creator. It opens through a fair
             batch auction, trades live for a few minutes in front of a crowd, then ends one of three
             ways: graduation, timer, or a rug.
@@ -91,7 +91,7 @@ export default function Docs() {
           </p>
           <p>
             Getting in takes under a minute: sign in with an email, Google, X, or your own wallet
-            and you&apos;re in the Arena. No whitelist, nothing to deposit. The beta is free to
+            and you&apos;re at the Cook Out. No whitelist, nothing to deposit. The beta is free to
             play. <a href="#account" className="text-lime-400 underline">How accounts work →</a>
           </p>
         </Section>
@@ -113,20 +113,20 @@ export default function Docs() {
             manage keys to play; the blockchain stays in the background.
           </p>
           <p>
-            Your money lives in your <b>⚡ Arena Account</b> (in the profile menu):
+            Your money lives in your <b>⚡ Cook Out Balance</b> (in the profile menu):
           </p>
           <ul className="list-disc space-y-2 pl-5">
             <li>
-              <b>Arena balance</b>: the stake matches can spend. Your starter 10 pETH is staked
+              <b>Cook Out balance</b>: the stake matches can spend. Your starter 10 pETH is staked
               here automatically on sign-up so you can walk straight into a lobby.
             </li>
             <li>
               <b>Bank</b>: the rest of your paper money. Safe, can&apos;t trade. Move funds
-              between bank and arena any time you&apos;re not queued into a match.
+              between bank and Cook Out any time you&apos;re not queued into a match.
             </li>
             <li>
               <b>Your wallet</b>: the real on-chain address behind your login, shown with its live
-              balance. Real deposits, withdrawals, and funding the arena with real ETH open at
+              balance. Real deposits, withdrawals, and funding your Cook Out balance with real ETH open at
               mainnet; during the beta everything you play with is pETH.
             </li>
           </ul>
@@ -140,7 +140,7 @@ export default function Docs() {
         <Section id="round" title="Anatomy of a Round">
           <ol className="list-decimal space-y-2 pl-5">
             <li>
-              <b>Scheduled</b>: the match is booked into the Arena. You see the theme; the token stays a
+              <b>Scheduled</b>: the match is booked at the Cook Out. You see the theme; the token stays a
               teaser until the lobby opens.
             </li>
             <li>
@@ -211,7 +211,7 @@ export default function Docs() {
           <ul className="list-disc space-y-2 pl-5">
             <li>
               <b>🎓 Graduation</b>: market cap, volume, and holder targets all met (watch the
-              bonding bars above the chart). The token becomes an <b>Arena Alumni</b>; holders keep
+              bonding bars above the chart). The token becomes a <b>Cook Out Alumni</b>; holders keep
               their position.
             </li>
             <li>
@@ -319,8 +319,8 @@ export default function Docs() {
             </table></div>
           </div>
           <p className="text-zinc-400">
-            Deep liquidity means gentle moves; thin liquidity means violence. Degen Arena is earned,
-            not given.
+            Deep liquidity means gentle moves; thin liquidity means violence. The Degen tier is
+            earned, not given.
           </p>
         </Section>
 
@@ -329,7 +329,7 @@ export default function Docs() {
             You earn XP every round <b>regardless of profit</b>: participation, first buys,
             diamond hands, perfect exits, rug survival, and more. Every point counts toward your{" "}
             <b>level for life</b>. Levels never reset. Each bracket carries a <b>title</b> that
-            rides next to your name everywhere, and two brackets also <b>unlock a new arena</b>. The
+            rides next to your name everywhere, and two brackets also <b>unlock a new tier</b>. The
             curve steepens as you climb (XP to reach a level ≈{" "}
             <span className="font-mono text-zinc-300">80·(L−1)^1.6</span>).
           </p>
@@ -360,7 +360,7 @@ export default function Docs() {
                         </td>
                         <td className="py-2 text-zinc-400">
                           {unlock ? (
-                            <span className="capitalize">🔓 {unlock} Arena</span>
+                            <span className="capitalize">🔓 {unlock} tier</span>
                           ) : (
                             <span className="text-zinc-600">—</span>
                           )}
@@ -799,8 +799,8 @@ export default function Docs() {
               exist.
             </li>
             <li>
-              The community votes. <b>{VOTE_THRESHOLD} upvotes</b> puts your coin straight into the
-              Arena at your chosen tier and length; the window closes after 24 hours.
+              The community votes. <b>{VOTE_THRESHOLD} upvotes</b> sends your coin straight to the
+              Cook Out at your chosen tier and length; the window closes after 24 hours.
             </li>
             <li>
               Your round runs. You earn <b>{CREATOR_FEE_SHARE * 100}% of the round&apos;s trading
@@ -828,11 +828,11 @@ export default function Docs() {
           <p>
             A coin that doesn&apos;t graduate isn&apos;t done. Its developer gets a second serving.
             On any of your failed coins you&apos;ll see a <b>Run It Back</b> button: on the coin
-            card in the <Link href="/matches" className="text-lime-400 underline">Arena</Link>
+            card in the <Link href="/matches" className="text-lime-400 underline">Cook Out</Link>
             &apos;s Past Results, and on your{" "}
             <Link href="/profile" className="text-lime-400 underline">creator page</Link> launches.
             One click re-launches the coin with the <b>exact same setup</b> (same tier, same match
-            length, same tokenomics) straight back into the Arena, no new vote needed.
+            length, same tokenomics) straight back to the Cook Out, no new vote needed.
           </p>
           <p className="text-zinc-400">
             Only the coin&apos;s own developer can run it back. (If you launched under a rug ban,
@@ -873,8 +873,8 @@ export default function Docs() {
             </Faq>
             <Faq q="How do I start playing?">
               Hit <b>Play Now</b> and sign in with an email, Google, X, or your own wallet. Under
-              a minute, free, no whitelist, no deposit. Your starter pETH is staked into the arena
-              for you, so you can pull up to the next match immediately. Details in{" "}
+              a minute, free, no whitelist, no deposit. Your starter pETH is staked into your Cook
+              Out balance for you, so you can pull up to the next match immediately. Details in{" "}
               <a href="#account" className="text-lime-400 underline">Getting In &amp; Your Account</a>.
             </Faq>
             <Faq q="Do I need a crypto wallet?">
@@ -939,7 +939,7 @@ function GrillDiagram() {
         </div>
         {/* pinned bar */}
         <div className="flex items-center gap-1.5 border-b border-amber-400/30 bg-amber-400/[0.08] px-3 py-1.5 text-[11px] font-bold text-amber-200">
-          📌 New here? Menu → Make a Coin to launch your own.
+          📌 New here? Menu → Launch a Coin to launch your own.
           <span className="ml-auto"><Pin n={3} /></span>
         </div>
         {/* messages */}

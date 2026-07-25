@@ -321,6 +321,8 @@ export interface UserProfile {
   address: Address;
   displayName?: string;
   avatarUrl?: string;
+  /** Wide header banner shown behind the avatar + level on profiles. */
+  bannerUrl?: string;
   xp: number;
   level: number;
   title: string;
