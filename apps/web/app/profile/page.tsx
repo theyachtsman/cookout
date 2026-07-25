@@ -13,6 +13,7 @@ import { ImagePicker } from "../../components/ImagePicker";
 import { Missions } from "../../components/Missions";
 import { Progress } from "../../components/Progress";
 import { ReputationPanel } from "../../components/Reputation";
+import { TelegramConnect } from "../../components/TelegramConnect";
 import {
   Avatar,
   ProfileHero,
@@ -195,6 +196,9 @@ export default function ProfilePage() {
           </span>
         </div>
       </ProfileHero>
+
+      {/* Telegram companion — hidden until the server has a bot configured */}
+      <TelegramConnect />
 
       {/* Career stats */}
       <section>

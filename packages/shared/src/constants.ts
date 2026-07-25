@@ -1,4 +1,48 @@
-import type { RiskTier, RoundConfig } from "./types.js";
+import type { NotifyCategory, NotificationPrefs, RiskTier, RoundConfig } from "./types.js";
+
+/** Total permanent Founding Member seats. Founder numbers never repeat. */
+export const FOUNDER_CAP = 500;
+
+/**
+ * The Telegram notification switches, in display order. `feed` items also post
+ * to the community channel; the rest are personal DMs from The Pit Boss.
+ */
+export const NOTIFY_CATEGORIES: {
+  key: NotifyCategory;
+  label: string;
+  desc: string;
+  group: "you" | "community";
+}[] = [
+  { key: "levelUps", label: "Level ups", desc: "When you reach a new level", group: "you" },
+  { key: "titles", label: "New titles", desc: "When you earn a new title", group: "you" },
+  { key: "achievements", label: "Achievements", desc: "Badges you unlock", group: "you" },
+  { key: "quests", label: "Quests", desc: "Quests and missions completed", group: "you" },
+  { key: "streaks", label: "Streaks", desc: "Daily play-streak milestones", group: "you" },
+  { key: "leaderboard", label: "Leaderboard moves", desc: "When you gain or lose a rank", group: "you" },
+  { key: "reputation", label: "Reputation", desc: "Creator reputation changes", group: "you" },
+  { key: "launchBans", label: "Launch bans", desc: "Bans and when they clear", group: "you" },
+  { key: "followedPlayers", label: "Players you follow", desc: "Big moments from people you follow", group: "you" },
+  { key: "jackpot", label: "Jackpot", desc: "Jackpot growth and payouts", group: "community" },
+  { key: "votingMilestones", label: "Voting", desc: "Coins hitting the vote bar", group: "community" },
+  { key: "fairOpen", label: "Fair Open", desc: "Auctions opening and settling", group: "community" },
+  { key: "trading", label: "Trading opens", desc: "When a round goes live", group: "community" },
+  { key: "graduations", label: "Graduations", desc: "Coins that serve up", group: "community" },
+  { key: "rugs", label: "Burns & rugs", desc: "Coins that get burnt", group: "community" },
+  { key: "runItBack", label: "Run It Back", desc: "Failed coins relaunching", group: "community" },
+  { key: "patchNotes", label: "Patch notes", desc: "Product updates", group: "community" },
+  { key: "announcements", label: "Announcements", desc: "Official announcements", group: "community" },
+];
+
+/** Every switch on by default — players opt out, not in. */
+export const DEFAULT_NOTIFICATION_PREFS: NotificationPrefs = NOTIFY_CATEGORIES.reduce(
+  (acc, c) => ((acc[c.key] = true), acc),
+  {} as NotificationPrefs,
+);
+
+/** Resolve a player's effective prefs (stored partial over the defaults). */
+export function resolveNotifyPrefs(p?: Partial<NotificationPrefs>): NotificationPrefs {
+  return { ...DEFAULT_NOTIFICATION_PREFS, ...(p ?? {}) };
+}
 
 /** Paper balance every new profile starts with (paper ETH). */
 export const STARTING_PAPER_BALANCE = 10;

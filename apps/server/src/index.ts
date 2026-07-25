@@ -8,6 +8,7 @@ import { FilePersistence, PgPersistence, type Persistence } from "./persistence.
 import { createApp } from "./routes.js";
 import { autoScheduler, evaluateVoting, seedDemo } from "./seed.js";
 import { Store } from "./store.js";
+import { createPitBoss } from "./telegram/index.js";
 import { Hub } from "./ws.js";
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -33,7 +34,10 @@ if (snapshot) {
 const hub = new Hub(store);
 const engine = new RoundEngine(store, hub.broadcast, hub.spectatorCount, hub.system);
 const chain = new ChainService(store, engine);
-const app = createApp(store, engine, ADMIN_KEY, hub.broadcast, chain, hub.presence);
+// The Telegram companion (The Pit Boss). Null unless TELEGRAM_BOT_TOKEN is set,
+// so a deployment that hasn't opted in is entirely unaffected.
+const pitBoss = createPitBoss(store);
+const app = createApp(store, engine, ADMIN_KEY, hub.broadcast, chain, hub.presence, undefined, pitBoss);
 // The paper bot swarm: a crowd to trade against on the paper beta. Hard-off
 // on chain-only deployments and via BOTS=0; otherwise the admin Live Ops
 // toggle (store.settings.bots) turns it on and off at runtime.
@@ -144,6 +148,7 @@ setInterval(() => {
 
 const shutdown = async () => {
   try {
+    pitBoss?.stop();
     await persistence.save(store.snapshot());
     await persistence.close();
   } catch (e) {
@@ -158,4 +163,9 @@ server.listen(PORT, HOST, () => {
   console.log(`The Cookout server listening on ${HOST}:${PORT} (ws at /ws)`);
   if (ADMIN_KEY === "dev-admin")
     console.log("warning: using default ADMIN_KEY — set ADMIN_KEY in production");
+  // Start the Pit Boss once the server's up. It self-guards and never throws
+  // into the game loop — a Telegram outage can't affect play.
+  if (pitBoss) void pitBoss.start().catch((e) => console.error("pitboss start error", e));
+  else if (process.env.TELEGRAM_BOT_TOKEN === undefined)
+    console.log("Telegram companion off (set TELEGRAM_BOT_TOKEN to enable The Pit Boss)");
 });

@@ -317,12 +317,54 @@ export interface Prediction {
   at: number;
 }
 
+/** A player's linked Telegram account (companion notifications via The Pit Boss). */
+export interface TelegramLink {
+  /** Telegram user id (numeric, stored as string). */
+  userId: string;
+  /** @handle, when the user has one set. */
+  username?: string;
+  /** The private chat id the bot DMs — usually equal to userId. */
+  chatId: string;
+  linkedAt: number;
+}
+
+/** The granular notification switches a linked player controls. */
+export type NotifyCategory =
+  | "levelUps"
+  | "titles"
+  | "achievements"
+  | "quests"
+  | "streaks"
+  | "leaderboard"
+  | "jackpot"
+  | "votingMilestones"
+  | "fairOpen"
+  | "trading"
+  | "graduations"
+  | "rugs"
+  | "reputation"
+  | "launchBans"
+  | "runItBack"
+  | "patchNotes"
+  | "announcements"
+  | "followedPlayers";
+
+export type NotificationPrefs = Record<NotifyCategory, boolean>;
+
 export interface UserProfile {
   address: Address;
   displayName?: string;
   avatarUrl?: string;
   /** Wide header banner shown behind the avatar + level on profiles. */
   bannerUrl?: string;
+  /** Linked Telegram companion account, if any. */
+  telegram?: TelegramLink;
+  /** Per-category Telegram notification switches (defaults applied when unset). */
+  notifyPrefs?: Partial<NotificationPrefs>;
+  /** Permanent Founding Member number (assigned once, never reused). */
+  founderNumber?: number;
+  /** When they claimed founder status. */
+  founderSince?: number;
   xp: number;
   level: number;
   title: string;
