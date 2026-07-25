@@ -115,7 +115,7 @@ export function createPitBoss(store: Store): PitBoss | null {
   if (!token) return null;
   const num = (v?: string) => (v && Number.isFinite(Number(v)) ? Number(v) : undefined);
   const config: PitBossConfig = {
-    botUsername: process.env.TELEGRAM_BOT_USERNAME ?? "pitboss_cookout_bot",
+    botUsername: process.env.TELEGRAM_BOT_USERNAME ?? "pitboss_thecookout_bot",
     webBase: process.env.WEB_BASE_URL ?? "https://www.thecookout.fun",
     groupChatId: process.env.TELEGRAM_GROUP_CHAT_ID,
     announcementChatId: process.env.TELEGRAM_ANNOUNCEMENT_CHAT_ID,
