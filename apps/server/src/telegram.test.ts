@@ -9,7 +9,7 @@ import { Notifier } from "./telegram/notify.js";
 
 const ADDR = "0x1111111111111111111111111111111111111111" as Address;
 const CONFIG: PitBossConfig = {
-  botUsername: "pitboss_cookout_bot",
+  botUsername: "pitboss_thecookout_bot",
   webBase: "https://www.thecookout.fun",
   groupChatId: "group",
   announcementChatId: "chan",
@@ -27,7 +27,7 @@ function fakeApi() {
         ok: true,
         result:
           method === "getMe"
-            ? { id: 1, is_bot: true, username: "pitboss_cookout_bot" }
+            ? { id: 1, is_bot: true, username: "pitboss_thecookout_bot" }
             : { message_id: 1, chat: { id: body.chat_id } },
       }),
     };
