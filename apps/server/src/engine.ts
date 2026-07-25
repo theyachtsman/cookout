@@ -189,6 +189,7 @@ export class RoundEngine {
             `Queue is OPEN. Pull up. Everyone settles at one price in ${round.config.queueSeconds}s.`,
           );
           this.emitState(round);
+          this.store.emitRoundEvent({ kind: "fair_open", roundId: round.id, symbol: round.token.symbol });
           return true;
         }
         return false;
@@ -376,6 +377,7 @@ export class RoundEngine {
     );
     this.broadcast(round.id, { type: "auction_settled", result });
     this.emitState(round);
+    this.store.emitRoundEvent({ kind: "live", roundId: round.id, symbol: round.token.symbol });
   }
 
   trade(
@@ -780,6 +782,11 @@ export class RoundEngine {
           s.totalVolume >= cfg.graduationMinVolume));
     round.graduated = graduated;
 
+    // Community feed: a burn is a rug-class ending. Graduations already fan out
+    // through the activity stream, so we don't double-post them here.
+    if (!graduated && (reason === "rug_detected" || reason === "liquidity_removed"))
+      this.store.emitRoundEvent({ kind: "burnt", roundId: round.id, symbol: round.token.symbol });
+
     if (graduated) {
       // Served Up: liquidity locks in a permanent pool, holders keep their
       // tokens, and the market keeps trading "in the wild" (alumniTick).
@@ -936,6 +943,7 @@ export class RoundEngine {
     }
     this.broadcast(round.id, { type: "auction_settled", result });
     this.emitState(round);
+    this.store.emitRoundEvent({ kind: "live", roundId: round.id, symbol: round.token.symbol });
   }
 
   /** Mirror one on-chain Bought/Sold event: full bookkeeping, no balances. */

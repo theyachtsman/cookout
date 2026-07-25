@@ -79,6 +79,22 @@ export interface SeasonStats {
   trades: number;
 }
 
+/** A round-lifecycle moment for the community feed. */
+export type RoundEventKind =
+  | "scheduled"
+  | "votes_hit"
+  | "fair_open"
+  | "live"
+  | "burnt"
+  | "run_it_back";
+export interface RoundEvent {
+  kind: RoundEventKind;
+  roundId: string;
+  symbol: string;
+  /** Vote count, for "votes_hit". */
+  votes?: number;
+}
+
 export interface StoredUser extends UserProfile {
   /** Wallets this player follows — drives their activity feed. */
   following?: Address[];
@@ -197,6 +213,24 @@ export class Store {
   private activityTaps: Array<(e: ActivityEvent) => void> = [];
   onActivityEvent(fn: (e: ActivityEvent) => void): void {
     this.activityTaps.push(fn);
+  }
+
+  /** Round-lifecycle events — the marquee moments the community feed cares
+   *  about (a coin booked, the Fair Open, trading live, a burn, a run-it-back).
+   *  A separate stream from `activity` because these are about rounds, not
+   *  players, and the Telegram feed routes them to their own topics. */
+  private roundTaps: Array<(e: RoundEvent) => void> = [];
+  onRoundEvent(fn: (e: RoundEvent) => void): void {
+    this.roundTaps.push(fn);
+  }
+  emitRoundEvent(e: RoundEvent): void {
+    for (const tap of this.roundTaps) {
+      try {
+        tap(e);
+      } catch {
+        /* a bad tap must never break the round engine */
+      }
+    }
   }
 
   /** Record something the crowd should see. Bots are excluded by the caller. */

@@ -1,5 +1,5 @@
 import { resolveNotifyPrefs, type ActivityEvent, type Address, type NotifyCategory } from "@cookout/shared";
-import type { Store } from "../store.js";
+import type { RoundEvent, Store } from "../store.js";
 import type { InlineKeyboard, TelegramApi } from "./api.js";
 import type { PitBossConfig, TopicKey } from "./config.js";
 import { makeKeyboards, type Keyboards } from "./keyboards.js";
@@ -110,6 +110,25 @@ export class Notifier {
         this.toFollowers(e.address, say.followed(who, `pulled up${sym ? ` to $${esc(sym)}` : ""}`), sym && e.roundId ? this.kb.round(e.roundId, sym) : undefined);
         break;
       // "joined" is intentionally quiet — no one needs a ping for every arrival.
+    }
+  }
+
+  // ---- the round-lifecycle tap ---------------------------------------------
+
+  handleRoundEvent(e: RoundEvent): void {
+    switch (e.kind) {
+      case "scheduled":
+        return this.scheduled(e.symbol, e.roundId);
+      case "votes_hit":
+        return this.votesHit(e.symbol, e.votes ?? 0);
+      case "fair_open":
+        return this.fairOpen(e.symbol, e.roundId);
+      case "live":
+        return this.live(e.symbol, e.roundId);
+      case "burnt":
+        return this.burnt(e.symbol, e.roundId);
+      case "run_it_back":
+        return this.runItBack(e.symbol, e.roundId);
     }
   }
 
