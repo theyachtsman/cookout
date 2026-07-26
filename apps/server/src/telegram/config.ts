@@ -31,6 +31,9 @@ export interface PitBossConfig {
   /** The group's invite link (t.me/+…), surfaced as a one-tap Join button after
    *  linking. Bots can't force-add members, so an invite button is the way in. */
   groupInvite?: string;
+  /** Gate new members behind a click-to-verify captcha (mute → verify → unmute,
+   *  kick on timeout). Needs the bot to have restrict + delete admin rights. */
+  captcha?: boolean;
 }
 
 /** The deep link a player follows to bind their account (carries a one-time token). */

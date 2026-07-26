@@ -57,10 +57,35 @@ export interface TgCallbackQuery {
   data?: string;
   message?: TgMessage;
 }
+export interface TgChatMember {
+  status: string; // creator | administrator | member | restricted | left | kicked
+  user: TgUser;
+}
+export interface TgChatMemberUpdated {
+  chat: TgChat;
+  from: TgUser;
+  old_chat_member: TgChatMember;
+  new_chat_member: TgChatMember;
+}
 export interface TgUpdate {
   update_id: number;
   message?: TgMessage;
   callback_query?: TgCallbackQuery;
+  chat_member?: TgChatMemberUpdated;
+}
+
+/** Telegram ChatPermissions — the muteable message rights. */
+export interface ChatPermissions {
+  can_send_messages: boolean;
+  can_send_audios: boolean;
+  can_send_documents: boolean;
+  can_send_photos: boolean;
+  can_send_videos: boolean;
+  can_send_video_notes: boolean;
+  can_send_voice_notes: boolean;
+  can_send_polls: boolean;
+  can_send_other_messages: boolean;
+  can_add_web_page_previews: boolean;
 }
 
 type FetchLike = typeof fetch;
@@ -113,8 +138,46 @@ export class TelegramApi {
     return this.call<TgUpdate[]>("getUpdates", {
       offset,
       timeout: timeoutSec,
-      allowed_updates: ["message", "callback_query"],
+      // chat_member needs the bot to be admin; it's the reliable join/leave
+      // signal (invite-link joins don't always emit a service message).
+      allowed_updates: ["message", "callback_query", "chat_member"],
     });
+  }
+
+  editMessageText(
+    chatId: string | number,
+    messageId: number,
+    text: string,
+    keyboard?: InlineKeyboard,
+  ): Promise<unknown> {
+    return this.call("editMessageText", {
+      chat_id: chatId,
+      message_id: messageId,
+      text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true,
+      ...(keyboard ? { reply_markup: { inline_keyboard: keyboard } } : {}),
+    });
+  }
+
+  deleteMessage(chatId: string | number, messageId: number): Promise<unknown> {
+    return this.call("deleteMessage", { chat_id: chatId, message_id: messageId });
+  }
+
+  restrictChatMember(
+    chatId: string | number,
+    userId: number,
+    permissions: ChatPermissions,
+  ): Promise<unknown> {
+    return this.call("restrictChatMember", { chat_id: chatId, user_id: userId, permissions });
+  }
+
+  banChatMember(chatId: string | number, userId: number): Promise<unknown> {
+    return this.call("banChatMember", { chat_id: chatId, user_id: userId });
+  }
+
+  unbanChatMember(chatId: string | number, userId: number): Promise<unknown> {
+    return this.call("unbanChatMember", { chat_id: chatId, user_id: userId, only_if_banned: true });
   }
 
   setMyCommands(commands: { command: string; description: string }[]): Promise<unknown> {

@@ -1,7 +1,15 @@
 import { FOUNDER_CAP, type Address, type Round } from "@cookout/shared";
 import { BOT_ADDRESSES } from "../bots.js";
 import type { Store } from "../store.js";
-import type { InlineKeyboard, TelegramApi, TgCallbackQuery, TgMessage } from "./api.js";
+import type {
+  InlineKeyboard,
+  TelegramApi,
+  TgCallbackQuery,
+  TgChatMemberUpdated,
+  TgMessage,
+  TgUser,
+} from "./api.js";
+import { Captcha } from "./captcha.js";
 import type { PitBossConfig } from "./config.js";
 import { makeKeyboards, type Keyboards } from "./keyboards.js";
 import { esc, gate, signoff } from "./voice.js";
@@ -26,6 +34,7 @@ export const COMMANDS: { command: string; description: string }[] = [
  */
 export class Commands {
   private kb: Keyboards;
+  private captcha: Captcha;
 
   constructor(
     private store: Store,
@@ -33,6 +42,7 @@ export class Commands {
     private config: PitBossConfig,
   ) {
     this.kb = makeKeyboards(config.webBase);
+    this.captcha = new Captcha(api, config);
   }
 
   private reply(chatId: number, text: string, keyboard?: InlineKeyboard, threadId?: number): void {
@@ -49,10 +59,6 @@ export class Commands {
   }
 
   async handleMessage(msg: TgMessage): Promise<void> {
-    // Service messages first: greet joiners, (optionally) send off leavers.
-    if (msg.new_chat_members?.length) return this.welcome(msg);
-    if (msg.left_chat_member) return this.goodbye(msg);
-
     const text = msg.text?.trim();
     if (!text || !text.startsWith("/")) return;
     const [raw, ...args] = text.split(/\s+/);
@@ -83,30 +89,41 @@ export class Commands {
   }
 
   async handleCallback(q: TgCallbackQuery): Promise<void> {
-    // Every button we send is a URL deep link, so there's nothing to compute —
-    // just clear the client's loading spinner.
+    // Captcha "I'm human" taps are the one interactive callback; everything else
+    // is a URL deep link, so just clear the client's loading spinner.
+    if (await this.captcha.onCallback(q)) return;
     await this.api.answerCallbackQuery(q.id);
   }
 
-  // ---- welcome / goodbye ---------------------------------------------------
+  // ---- welcome / goodbye / captcha (join & leave) --------------------------
 
-  private welcome(msg: TgMessage): void {
-    const thread = this.config.topics?.general ?? msg.message_thread_id;
-    for (const m of msg.new_chat_members ?? []) {
-      if (m.is_bot) continue;
-      const label = esc(m.first_name || m.username || "friend");
-      const mention = `<a href="tg://user?id=${m.id}">${label}</a>`;
-      this.reply(msg.chat.id, gate.welcome(mention), this.kb.playNow(), thread);
+  /** chat_member is the reliable join/leave signal — it fires for invite-link
+   *  joins, which don't always emit a service message. */
+  async handleChatMember(u: TgChatMemberUpdated): Promise<void> {
+    const om = u.old_chat_member.status;
+    const nm = u.new_chat_member.status;
+    const user = u.new_chat_member.user;
+    const joined = (om === "left" || om === "kicked") && nm === "member";
+    const left =
+      (om === "member" || om === "administrator" || om === "restricted") &&
+      (nm === "left" || nm === "kicked");
+    if (joined && !user.is_bot) {
+      // Captcha owns the welcome when it's on; otherwise greet directly.
+      if (this.captcha.enabled) return this.captcha.onJoin(u.chat.id, user);
+      return this.welcomeUser(u.chat.id, user);
     }
+    if (left && this.config.goodbye && !user.is_bot) this.goodbyeUser(u.chat.id, user);
   }
 
-  private goodbye(msg: TgMessage): void {
-    if (!this.config.goodbye) return; // off by default — leave-spam is noise
-    const m = msg.left_chat_member;
-    if (!m || m.is_bot) return;
+  private welcomeUser(chatId: number, user: TgUser): void {
+    const mention = `<a href="tg://user?id=${user.id}">${esc(user.first_name || user.username || "friend")}</a>`;
+    this.reply(chatId, gate.welcome(mention), this.kb.playNow(), this.config.topics?.general);
+  }
+
+  private goodbyeUser(chatId: number, user: TgUser): void {
     this.reply(
-      msg.chat.id,
-      gate.goodbye(m.first_name || m.username || "someone"),
+      chatId,
+      gate.goodbye(user.first_name || user.username || "someone"),
       undefined,
       this.config.topics?.general,
     );
