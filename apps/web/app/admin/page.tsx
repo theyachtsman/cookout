@@ -638,6 +638,137 @@ function FeedbackList({ adminKey }: { adminKey: string }) {
   );
 }
 
+interface TgAdminStatus {
+  configured: boolean;
+  botUsername: string | null;
+  group: boolean;
+  channel: boolean;
+  linkedUsers: number;
+  founders: number;
+}
+
+/** The Pit Boss (Telegram) control panel: status, feed broadcasts, pinned setup. */
+function PitBossPanel({ adminKey }: { adminKey: string }) {
+  const [status, setStatus] = useState<TgAdminStatus | null>(null);
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState("");
+  const [msg, setMsg] = useState("");
+
+  const load = useCallback(() => {
+    api<TgAdminStatus>("/api/admin/telegram/status", { admin: adminKey })
+      .then(setStatus)
+      .catch(() => {});
+  }, [adminKey]);
+  useEffect(() => void load(), [load]);
+
+  const broadcast = async (kind: "announce" | "patch") => {
+    if (!text.trim()) return;
+    setBusy(kind);
+    setMsg("");
+    try {
+      await api("/api/admin/telegram/broadcast", { admin: adminKey, body: { text, kind } });
+      setMsg("Sent to the feed.");
+      setText("");
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  };
+
+  const setup = async (force: boolean) => {
+    setBusy("setup");
+    setMsg("");
+    try {
+      const r = await api<{ posted: number; alreadyDone: boolean }>("/api/admin/telegram/setup", {
+        admin: adminKey,
+        body: { force },
+      });
+      setMsg(r.alreadyDone ? "Already pinned (use force to re-post)." : `Posted & pinned ${r.posted} messages.`);
+      load();
+    } catch (e) {
+      setMsg((e as Error).message);
+    } finally {
+      setBusy("");
+    }
+  };
+
+  if (!status) return <div className="text-xs text-zinc-500">Loading…</div>;
+  if (!status.configured)
+    return (
+      <div className="rounded-lg border border-zinc-800 p-3 text-xs text-zinc-500">
+        Telegram isn&apos;t configured on the server. Set <code>TELEGRAM_BOT_TOKEN</code> and restart
+        to arm The Pit Boss.
+      </div>
+    );
+
+  return (
+    <div className="space-y-3 rounded-lg border border-sky-500/30 bg-sky-500/[0.04] p-3">
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs">
+        <span className="font-bold text-sky-300">@{status.botUsername}</span>
+        <span className="text-zinc-400">🔗 {status.linkedUsers} linked</span>
+        <span className="text-zinc-400">🥇 {status.founders} founders</span>
+        <span className={status.group ? "text-lime-400" : "text-zinc-600"}>
+          {status.group ? "✓ group" : "no group"}
+        </span>
+        <span className={status.channel ? "text-lime-400" : "text-zinc-600"}>
+          {status.channel ? "✓ channel" : "topics-in-group"}
+        </span>
+      </div>
+
+      <div>
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={2}
+          placeholder="Broadcast to the community feed…"
+          className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-sm outline-none focus:border-sky-400/50"
+        />
+        <div className="mt-1 flex flex-wrap gap-2">
+          <button
+            onClick={() => void broadcast("announce")}
+            disabled={busy !== "" || !text.trim()}
+            className="rounded bg-sky-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-sky-400 disabled:opacity-50"
+          >
+            {busy === "announce" ? "…" : "📣 Announce"}
+          </button>
+          <button
+            onClick={() => void broadcast("patch")}
+            disabled={busy !== "" || !text.trim()}
+            className="rounded border border-zinc-700 px-3 py-1.5 text-xs font-bold text-zinc-300 hover:border-zinc-500 disabled:opacity-50"
+          >
+            {busy === "patch" ? "…" : "🛠️ Patch notes"}
+          </button>
+        </div>
+      </div>
+
+      <div className="border-t border-zinc-800 pt-3">
+        <div className="mb-1 text-[11px] text-zinc-500">
+          Post &amp; pin the Welcome / Useful Links / Founding Members messages (once).
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => void setup(false)}
+            disabled={busy !== ""}
+            className="rounded bg-lime-500 px-3 py-1.5 text-xs font-bold text-zinc-950 hover:bg-lime-400 disabled:opacity-50"
+          >
+            {busy === "setup" ? "…" : "📌 Post & pin welcome set"}
+          </button>
+          <button
+            onClick={() => void setup(true)}
+            disabled={busy !== ""}
+            className="rounded border border-zinc-700 px-3 py-1.5 text-xs font-bold text-zinc-400 hover:border-zinc-500 disabled:opacity-50"
+          >
+            force re-post
+          </button>
+        </div>
+      </div>
+
+      {msg && <div className="text-xs text-zinc-400">{msg}</div>}
+    </div>
+  );
+}
+
 export default function AdminPage() {
   const chainOnly = useChainOnly();
   const { profile } = useSession();
@@ -968,6 +1099,11 @@ export default function AdminPage() {
       <section>
         <h2 className="mb-2 font-bold">🔥 Grill Moderation</h2>
         <GrillModeration act={act} />
+      </section>
+
+      <section>
+        <h2 className="mb-2 font-bold">📣 The Pit Boss (Telegram)</h2>
+        <PitBossPanel adminKey={key} />
       </section>
 
       <section>

@@ -46,6 +46,10 @@ export interface TgMessage {
   chat: TgChat;
   text?: string;
   message_thread_id?: number;
+  /** Service message: members who just joined. */
+  new_chat_members?: TgUser[];
+  /** Service message: a member who left. */
+  left_chat_member?: TgUser;
 }
 export interface TgCallbackQuery {
   id: string;

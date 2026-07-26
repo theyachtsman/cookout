@@ -3,7 +3,7 @@ import { TelegramApi } from "./api.js";
 import { Commands, COMMANDS } from "./commands.js";
 import type { PitBossConfig } from "./config.js";
 import { Notifier } from "./notify.js";
-import { seedPrompt } from "./voice.js";
+import { pins, seedPrompt } from "./voice.js";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -54,6 +54,36 @@ export class PitBoss {
     this.running = false;
     if (this.seedTimer) clearInterval(this.seedTimer);
     this.seedTimer = null;
+  }
+
+  /**
+   * Post the three pinned messages (Welcome, Useful Links, Founding Members) and
+   * pin them. Idempotent via a persisted flag unless `force` is set. Admin-only,
+   * so nothing lands in the community until an operator asks for it.
+   */
+  async setupPins(force = false): Promise<{ posted: number; alreadyDone: boolean }> {
+    const chatId = this.config.announcementChatId ?? this.config.groupChatId;
+    if (!chatId) return { posted: 0, alreadyDone: false };
+    if (this.store.settings.telegramPinsDone && !force)
+      return { posted: 0, alreadyDone: true };
+    const thread = !this.config.announcementChatId ? this.config.topics?.announcements : undefined;
+    const p = pins(this.config.webBase);
+    const kb = this.notifier.kb;
+    const items: [string, ReturnType<typeof kb.playNow>][] = [
+      [p.welcome, kb.playNow()],
+      [p.links, kb.openCookout()],
+      [p.founders, kb.openCookout()],
+    ];
+    let posted = 0;
+    for (const [text, keyboard] of items) {
+      const m = await this.api.sendMessage({ chatId, text, keyboard, messageThreadId: thread });
+      if (m) {
+        await this.api.pinChatMessage(chatId, m.message_id);
+        posted++;
+      }
+    }
+    this.store.settings.telegramPinsDone = true;
+    return { posted, alreadyDone: false };
   }
 
   private async pollLoop(): Promise<void> {
@@ -130,6 +160,7 @@ export function createPitBoss(store: Store): PitBoss | null {
       leaderboards: num(process.env.TELEGRAM_TOPIC_LEADERBOARDS),
       support: num(process.env.TELEGRAM_TOPIC_SUPPORT),
     },
+    goodbye: process.env.TELEGRAM_GOODBYE === "1",
   };
   return new PitBoss(store, new TelegramApi(token), config);
 }
