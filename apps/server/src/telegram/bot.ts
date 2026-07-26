@@ -103,6 +103,8 @@ export class PitBoss {
             await this.commands.handleMessage(up.message);
           } else if (up.callback_query) {
             await this.commands.handleCallback(up.callback_query);
+          } else if (up.chat_member) {
+            await this.commands.handleChatMember(up.chat_member);
           }
         } catch (e) {
           console.warn("[pitboss] update error:", (e as Error).message);
@@ -162,6 +164,7 @@ export function createPitBoss(store: Store): PitBoss | null {
     },
     goodbye: process.env.TELEGRAM_GOODBYE === "1",
     groupInvite: process.env.TELEGRAM_GROUP_INVITE,
+    captcha: process.env.TELEGRAM_CAPTCHA === "1",
   };
   return new PitBoss(store, new TelegramApi(token), config);
 }
