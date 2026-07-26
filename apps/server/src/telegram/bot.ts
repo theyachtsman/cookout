@@ -21,6 +21,7 @@ export class PitBoss {
   private lastGroupActivityAt = Date.now();
   private lastSeedAt = 0;
   private seedTimer: ReturnType<typeof setInterval> | null = null;
+  private adminTimer: ReturnType<typeof setInterval> | null = null;
 
   constructor(
     private store: Store,
@@ -47,13 +48,29 @@ export class PitBoss {
     this.store.onRoundEvent((e) => this.notifier.handleRoundEvent(e));
     console.log(`[pitboss] online as @${me.username} — companion armed`);
     this.startSeeding();
+    this.startAdminRefresh();
     void this.pollLoop();
   }
 
   stop(): void {
     this.running = false;
     if (this.seedTimer) clearInterval(this.seedTimer);
+    if (this.adminTimer) clearInterval(this.adminTimer);
     this.seedTimer = null;
+    this.adminTimer = null;
+  }
+
+  /** Keep the spam guard's admin allowlist fresh so admins are never filtered. */
+  private startAdminRefresh(): void {
+    const group = this.config.groupChatId;
+    if (!group) return;
+    const refresh = async () => {
+      const admins = await this.api.getChatAdministrators(group);
+      if (admins) this.commands.setAdmins(admins.map((a) => a.user.id));
+    };
+    void refresh();
+    this.adminTimer = setInterval(() => void refresh(), 10 * 60_000);
+    this.adminTimer.unref();
   }
 
   /**
@@ -165,6 +182,10 @@ export function createPitBoss(store: Store): PitBoss | null {
     goodbye: process.env.TELEGRAM_GOODBYE === "1",
     groupInvite: process.env.TELEGRAM_GROUP_INVITE,
     captcha: process.env.TELEGRAM_CAPTCHA === "1",
+    spamFilter: process.env.TELEGRAM_SPAMGUARD === "1",
+    spamBlocklist: process.env.TELEGRAM_SPAM_BLOCKLIST?.split(",")
+      .map((s) => s.trim())
+      .filter(Boolean),
   };
   return new PitBoss(store, new TelegramApi(token), config);
 }

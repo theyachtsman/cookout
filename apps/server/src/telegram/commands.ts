@@ -12,6 +12,7 @@ import type {
 import { Captcha } from "./captcha.js";
 import type { PitBossConfig } from "./config.js";
 import { makeKeyboards, type Keyboards } from "./keyboards.js";
+import { SpamGuard } from "./spamguard.js";
 import { esc, gate, signoff } from "./voice.js";
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
@@ -35,6 +36,7 @@ export const COMMANDS: { command: string; description: string }[] = [
 export class Commands {
   private kb: Keyboards;
   private captcha: Captcha;
+  readonly spam: SpamGuard;
 
   constructor(
     private store: Store,
@@ -43,6 +45,12 @@ export class Commands {
   ) {
     this.kb = makeKeyboards(config.webBase);
     this.captcha = new Captcha(api, config);
+    this.spam = new SpamGuard(api, config);
+  }
+
+  /** Refresh the admin allowlist the spam guard exempts. */
+  setAdmins(ids: number[]): void {
+    this.spam.setAdmins(ids);
   }
 
   private reply(chatId: number, text: string, keyboard?: InlineKeyboard, threadId?: number): void {
@@ -60,7 +68,13 @@ export class Commands {
 
   async handleMessage(msg: TgMessage): Promise<void> {
     const text = msg.text?.trim();
-    if (!text || !text.startsWith("/")) return;
+    if (!text) return;
+    if (!text.startsWith("/")) {
+      // Non-command group chatter → spam guard (only the configured group).
+      if (this.spam.enabled && String(msg.chat.id) === this.config.groupChatId)
+        await this.spam.check(msg);
+      return;
+    }
     const [raw, ...args] = text.split(/\s+/);
     const cmd = raw!.replace(/@.+$/, "").toLowerCase();
     const chatId = msg.chat.id;
@@ -108,6 +122,7 @@ export class Commands {
       (om === "member" || om === "administrator" || om === "restricted") &&
       (nm === "left" || nm === "kicked");
     if (joined && !user.is_bot) {
+      this.spam.noteJoin(user.id); // start their link cooldown
       // Captcha owns the welcome when it's on; otherwise greet directly.
       if (this.captcha.enabled) return this.captcha.onJoin(u.chat.id, user);
       return this.welcomeUser(u.chat.id, user);

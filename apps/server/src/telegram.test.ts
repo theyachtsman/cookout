@@ -6,6 +6,7 @@ import { TelegramApi } from "./telegram/api.js";
 import { Commands } from "./telegram/commands.js";
 import type { PitBossConfig } from "./telegram/config.js";
 import { Notifier } from "./telegram/notify.js";
+import { SpamGuard } from "./telegram/spamguard.js";
 
 const ADDR = "0x1111111111111111111111111111111111111111" as Address;
 const CONFIG: PitBossConfig = {
@@ -236,6 +237,53 @@ test("captcha unmutes the joiner when they tap their own button", async () => {
   const unmute = calls.filter((c) => c.method === "restrictChatMember").at(-1);
   assert.equal((unmute!.body.permissions as { can_send_messages: boolean }).can_send_messages, true, "unmuted");
   assert.ok(calls.some((c) => c.method === "editMessageText"), "gate becomes the welcome");
+});
+
+const SPAM_CFG: PitBossConfig = {
+  botUsername: "b",
+  webBase: "https://w",
+  groupChatId: "-100",
+  topics: { general: 5 },
+  spamFilter: true,
+};
+const groupMsg = (text: string, fromId = 42) => ({
+  message_id: 10,
+  chat: { id: -100, type: "supergroup" },
+  from: { id: fromId, is_bot: false, first_name: "Sam" },
+  text,
+});
+
+test("spam guard deletes + mutes phishing (blocklist)", async () => {
+  const { api, calls } = fakeApi();
+  const g = new SpamGuard(api, SPAM_CFG);
+  assert.equal(await g.check(groupMsg("dm me your seed phrase to verify")), true);
+  assert.ok(calls.some((c) => c.method === "deleteMessage"), "deleted");
+  assert.ok(calls.some((c) => c.method === "restrictChatMember"), "muted the scammer");
+});
+
+test("spam guard removes foreign group invites", async () => {
+  const { api, calls } = fakeApi();
+  const g = new SpamGuard(api, SPAM_CFG);
+  assert.equal(await g.check(groupMsg("join us https://t.me/+abc123")), true);
+  assert.ok(calls.some((c) => c.method === "deleteMessage"), "deleted the invite");
+});
+
+test("spam guard holds new-member links but lets established members post", async () => {
+  const { api } = fakeApi();
+  const g = new SpamGuard(api, SPAM_CFG);
+  // Established member (no join noted) → link allowed.
+  assert.equal(await g.check(groupMsg("gm, chart at https://coingecko.com", 7)), false);
+  // Brand-new member → link held.
+  g.noteJoin(42);
+  assert.equal(await g.check(groupMsg("check https://foo.xyz", 42)), true);
+});
+
+test("spam guard exempts admins", async () => {
+  const { api } = fakeApi();
+  const g = new SpamGuard(api, SPAM_CFG);
+  g.setAdmins([42]);
+  g.noteJoin(42);
+  assert.equal(await g.check(groupMsg("https://t.me/+abc", 42)), false, "admins post freely");
 });
 
 test("captcha rejects someone else tapping your button", async () => {
