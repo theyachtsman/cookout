@@ -844,6 +844,8 @@ export interface OpsSettings {
   selfServeUnban: boolean;
   /** Wait-out ban lengths in hours by offense count; last entry repeats. */
   rugBanHours: number[];
+  /** True once the Telegram Welcome/Links/Founders messages have been pinned. */
+  telegramPinsDone?: boolean;
 }
 
 /**

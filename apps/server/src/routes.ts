@@ -303,6 +303,17 @@ export function createApp(
     }),
   );
 
+  // Admin: post + pin the Welcome / Useful Links / Founding Members messages.
+  app.post(
+    "/api/admin/telegram/setup",
+    admin,
+    wrap(async (req, res) => {
+      if (!pitBoss) throw new Err(503, "Telegram isn't configured");
+      const force = !!(req.body as { force?: boolean }).force;
+      res.json(await pitBoss.setupPins(force));
+    }),
+  );
+
   /** Paper-beta self-service: clear your own rug ban. The record stays on the
    *  profile — lifting a ban never erases the history. Wait-out environments
    *  (selfServeUnban off) refuse: time or an admin lifts those. */

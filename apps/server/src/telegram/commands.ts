@@ -4,7 +4,7 @@ import type { Store } from "../store.js";
 import type { InlineKeyboard, TelegramApi, TgCallbackQuery, TgMessage } from "./api.js";
 import type { PitBossConfig } from "./config.js";
 import { makeKeyboards, type Keyboards } from "./keyboards.js";
-import { esc, signoff } from "./voice.js";
+import { esc, gate, signoff } from "./voice.js";
 
 const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-4)}`;
 
@@ -40,6 +40,10 @@ export class Commands {
   }
 
   async handleMessage(msg: TgMessage): Promise<void> {
+    // Service messages first: greet joiners, (optionally) send off leavers.
+    if (msg.new_chat_members?.length) return this.welcome(msg);
+    if (msg.left_chat_member) return this.goodbye(msg);
+
     const text = msg.text?.trim();
     if (!text || !text.startsWith("/")) return;
     const [raw, ...args] = text.split(/\s+/);
@@ -73,6 +77,30 @@ export class Commands {
     // Every button we send is a URL deep link, so there's nothing to compute —
     // just clear the client's loading spinner.
     await this.api.answerCallbackQuery(q.id);
+  }
+
+  // ---- welcome / goodbye ---------------------------------------------------
+
+  private welcome(msg: TgMessage): void {
+    const thread = this.config.topics?.general ?? msg.message_thread_id;
+    for (const m of msg.new_chat_members ?? []) {
+      if (m.is_bot) continue;
+      const label = esc(m.first_name || m.username || "friend");
+      const mention = `<a href="tg://user?id=${m.id}">${label}</a>`;
+      this.reply(msg.chat.id, gate.welcome(mention), this.kb.playNow(), thread);
+    }
+  }
+
+  private goodbye(msg: TgMessage): void {
+    if (!this.config.goodbye) return; // off by default — leave-spam is noise
+    const m = msg.left_chat_member;
+    if (!m || m.is_bot) return;
+    this.reply(
+      msg.chat.id,
+      gate.goodbye(m.first_name || m.username || "someone"),
+      undefined,
+      this.config.topics?.general,
+    );
   }
 
   // ---- account linking via deep link ---------------------------------------

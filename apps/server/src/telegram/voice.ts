@@ -100,6 +100,49 @@ export const feed = {
   announce: (text: string) => `📣 ${esc(text)}`,
 };
 
+// ---- welcome / goodbye -----------------------------------------------------
+
+export const gate = {
+  // `mention` is pre-built safe HTML (a tg://user link), so it isn't re-escaped.
+  welcome: (mention: string) =>
+    `🔥 Pull up, ${b(mention)} — welcome to ${b("The Cookout")}.\n\n` +
+    `This is the live trading pit: real coins, real crowds, one fair price on every open. ` +
+    `Grab a plate — launch a coin, vote on what cooks next, or jump into a live round. ` +
+    `What are you cooking first?`,
+  goodbye: (name: string) => `👋 ${esc(name)} stepped off the pit. Grill stays hot. ${signoff()}`,
+};
+
+// ---- pinned messages (posted + pinned by an admin action) ------------------
+
+export function pins(webBase: string) {
+  const u = (p: string) => webBase.replace(/\/$/, "") + p;
+  return {
+    welcome:
+      `🔥 <b>Welcome to The Cookout</b>\n\n` +
+      `The live multiplayer trading pit. Every match is a brand-new coin, opened through a fair ` +
+      `batch auction (one price, no snipers), traded live in front of the crowd, then it graduates, ` +
+      `times out, or gets burnt.\n\n` +
+      `<b>The pit, by topic:</b>\n` +
+      `📣 Announcements · 💬 General · 💡 Feedback &amp; Ideas · 🍳 Launch a Coin · 📈 Trading &amp; ` +
+      `Strategy · 🏆 Leaderboards &amp; Wins · 🆘 Support\n\n` +
+      `New here? Hit <b>Play Now</b> and pull up. 🍖`,
+    links:
+      `🔗 <b>Useful Links</b>\n\n` +
+      `🎮 Play: ${u("/")}\n` +
+      `📖 How it works: ${u("/docs")}\n` +
+      `🍳 Launch a Coin: ${u("/submissions")}\n` +
+      `🗳️ Vote: ${u("/vote")}\n` +
+      `🔥 The Cook Out: ${u("/matches")}\n` +
+      `🏆 Leaderboard: ${u("/leaderboard")}\n` +
+      `💰 Jackpot: ${u("/jackpot")}`,
+    founders:
+      `🥇 <b>Founding Members</b>\n\n` +
+      `The first crew at the pit get a <b>permanent Founding Member number</b> — capped, never ` +
+      `reused, shown on your profile forever. Claim yours from your profile on the website, then ` +
+      `link Telegram so the Pit Boss knows who you are. Early is earned.`,
+  };
+}
+
 // ---- conversation seeding --------------------------------------------------
 
 export const seeds: string[] = [

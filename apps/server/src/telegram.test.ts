@@ -153,6 +153,43 @@ test("round-lifecycle events fan out to the community feed", async () => {
   assert.ok(chan.some((m) => /10 votes/.test(m.text)), "votes-hit post");
 });
 
+test("greets a new member in General with a tappable mention", async () => {
+  const store = new Store();
+  const { api, sent } = fakeApi();
+  const cfg: PitBossConfig = {
+    botUsername: "b",
+    webBase: "https://w",
+    groupChatId: "group",
+    topics: { general: 5 },
+  };
+  const commands = new Commands(store, api, cfg);
+  await commands.handleMessage({
+    message_id: 1,
+    chat: { id: -100, type: "supergroup" },
+    new_chat_members: [{ id: 42, is_bot: false, first_name: "Sam" }],
+  });
+  await flush();
+
+  const g = to(sent, "-100");
+  assert.equal(g.length, 1, "one welcome");
+  assert.ok(/welcome/i.test(g[0]!.text), "says welcome");
+  assert.equal(g[0]!.message_thread_id, 5, "posts to the General topic");
+  assert.ok(/tg:\/\/user\?id=42/.test(g[0]!.text), "mentions the joiner");
+});
+
+test("does not greet joining bots", async () => {
+  const store = new Store();
+  const { api, sent } = fakeApi();
+  const commands = new Commands(store, api, CONFIG);
+  await commands.handleMessage({
+    message_id: 1,
+    chat: { id: -100, type: "supergroup" },
+    new_chat_members: [{ id: 7, is_bot: true, username: "spam_bot" }],
+  });
+  await flush();
+  assert.equal(sent.length, 0, "no welcome for a bot");
+});
+
 test("with forum topics, feed posts target the right thread", async () => {
   const store = new Store();
   const { api, sent } = fakeApi();
