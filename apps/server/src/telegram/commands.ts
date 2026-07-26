@@ -39,6 +39,15 @@ export class Commands {
     void this.api.sendMessage({ chatId, text, keyboard, messageThreadId: threadId });
   }
 
+  /** Buttons for the linking DM: join the group (one tap) + open the site. */
+  private joinKb(): InlineKeyboard {
+    const rows: InlineKeyboard = [];
+    if (this.config.groupInvite)
+      rows.push([{ text: "🔥 Join The Cookout group", url: this.config.groupInvite }]);
+    rows.push([{ text: "🎮 Open The Cookout", url: this.config.webBase.replace(/\/$/, "") + "/matches" }]);
+    return rows;
+  }
+
   async handleMessage(msg: TgMessage): Promise<void> {
     // Service messages first: greet joiners, (optionally) send off leavers.
     if (msg.new_chat_members?.length) return this.welcome(msg);
@@ -112,8 +121,9 @@ export class Commands {
       this.reply(
         chatId,
         `🔥 Welcome to The Cookout. I'm the ${esc("Pit Boss")}, the host of the pit.\n\n` +
-          `Link your account from your profile on the website and I'll ping you when something's cooking. ${signoff()}`,
-        this.kb.openCookout(),
+          `Join the group below to hang with the crew, and link your account from your profile on ` +
+          `the website so I can ping you when something's cooking. ${signoff()}`,
+        this.joinKb(),
       );
       return;
     }
@@ -135,9 +145,10 @@ export class Commands {
     const name = u.displayName ?? short(u.address);
     this.reply(
       chatId,
-      `🔥 You're linked, <b>${esc(name)}</b>. I'll holler when something's cooking. ` +
-        `Tune what I ping you about back on your profile. ${signoff()}`,
-      this.kb.openCookout(),
+      `🔥 You're linked, <b>${esc(name)}</b>. Now pull up a chair — <b>join the group</b> below to ` +
+        `hang with the crew. I'll holler when something's cooking; tune your pings back on your ` +
+        `profile. ${signoff()}`,
+      this.joinKb(),
     );
   }
 

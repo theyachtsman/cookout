@@ -161,6 +161,7 @@ export function createPitBoss(store: Store): PitBoss | null {
       support: num(process.env.TELEGRAM_TOPIC_SUPPORT),
     },
     goodbye: process.env.TELEGRAM_GOODBYE === "1",
+    groupInvite: process.env.TELEGRAM_GROUP_INVITE,
   };
   return new PitBoss(store, new TelegramApi(token), config);
 }

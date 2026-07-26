@@ -28,6 +28,9 @@ export interface PitBossConfig {
   topics?: Partial<Record<TopicKey, number>>;
   /** Post a goodbye when someone leaves (default off — leave-spam is noise). */
   goodbye?: boolean;
+  /** The group's invite link (t.me/+…), surfaced as a one-tap Join button after
+   *  linking. Bots can't force-add members, so an invite button is the way in. */
+  groupInvite?: string;
 }
 
 /** The deep link a player follows to bind their account (carries a one-time token). */

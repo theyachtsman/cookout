@@ -17,6 +17,7 @@ interface TgStatus {
   linkedAt: number | null;
   prefs: Record<NotifyCategory, boolean>;
   founderNumber: number | null;
+  groupInvite: string | null;
 }
 
 export function TelegramConnect() {
@@ -162,6 +163,17 @@ export function TelegramConnect() {
               Disconnect
             </button>
           </div>
+
+          {st.groupInvite && (
+            <a
+              href={st.groupInvite}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mt-2 flex items-center justify-center gap-2 rounded-lg bg-sky-500 px-4 py-2.5 text-sm font-black text-white hover:bg-sky-400"
+            >
+              🔥 Join the Cook Out group on Telegram
+            </a>
+          )}
 
           <div className="mt-4 grid gap-4 sm:grid-cols-2">
             {groups.map((g) => (
