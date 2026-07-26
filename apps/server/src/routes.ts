@@ -202,6 +202,7 @@ export function createApp(
     linkedAt: u.telegram?.linkedAt ?? null,
     prefs: resolveNotifyPrefs(u.notifyPrefs),
     founderNumber: u.founderNumber ?? null,
+    groupInvite: pitBoss?.config.groupInvite ?? null,
   });
 
   app.get(
