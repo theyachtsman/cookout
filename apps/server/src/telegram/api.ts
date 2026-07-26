@@ -188,6 +188,10 @@ export class TelegramApi {
     return this.call<TgUser>("getMe", {});
   }
 
+  getChatAdministrators(chatId: string | number): Promise<TgChatMember[] | null> {
+    return this.call<TgChatMember[]>("getChatAdministrators", { chat_id: chatId });
+  }
+
   pinChatMessage(chatId: string | number, messageId: number): Promise<unknown> {
     return this.call("pinChatMessage", { chat_id: chatId, message_id: messageId, disable_notification: true });
   }

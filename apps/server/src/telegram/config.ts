@@ -34,6 +34,11 @@ export interface PitBossConfig {
   /** Gate new members behind a click-to-verify captcha (mute → verify → unmute,
    *  kick on timeout). Needs the bot to have restrict + delete admin rights. */
   captcha?: boolean;
+  /** Delete spam: new-member link cooldown, foreign group invites, and a scam
+   *  phrase blocklist. Needs the bot's privacy mode OFF to see group messages. */
+  spamFilter?: boolean;
+  /** Extra scam phrases (lowercased substring match) on top of the defaults. */
+  spamBlocklist?: string[];
 }
 
 /** The deep link a player follows to bind their account (carries a one-time token). */

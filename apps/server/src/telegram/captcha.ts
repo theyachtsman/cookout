@@ -12,7 +12,7 @@ import { esc, gate } from "./voice.js";
  * (banned-then-unbanned, so a real person can rejoin and try again). This stops
  * the bot-join floods that plague crypto groups without paying a bouncer.
  */
-const DENY: ChatPermissions = {
+export const DENY: ChatPermissions = {
   can_send_messages: false,
   can_send_audios: false,
   can_send_documents: false,
