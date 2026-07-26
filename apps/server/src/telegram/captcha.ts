@@ -24,7 +24,7 @@ export const DENY: ChatPermissions = {
   can_send_other_messages: false,
   can_add_web_page_previews: false,
 };
-const ALLOW: ChatPermissions = {
+export const ALLOW: ChatPermissions = {
   can_send_messages: true,
   can_send_audios: true,
   can_send_documents: true,

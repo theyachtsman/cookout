@@ -326,3 +326,60 @@ test("with forum topics, feed posts target the right thread", async () => {
   assert.equal(g.find((m) => /LIVE/.test(m.text))?.message_thread_id, 24, "live → trading thread");
   assert.equal(g.find((m) => /burnt/i.test(m.text))?.message_thread_id, 20, "burn → leaderboards thread");
 });
+
+const MOD_CFG: PitBossConfig = { botUsername: "b", webBase: "https://w", groupChatId: "-100" };
+const modMsg = (fromId: number, text: string, targetId = 42) => ({
+  message_id: 5,
+  chat: { id: -100, type: "supergroup" },
+  from: { id: fromId, is_bot: false, first_name: "U" + fromId },
+  text,
+  reply_to_message: {
+    message_id: 4,
+    chat: { id: -100, type: "supergroup" },
+    from: { id: targetId, is_bot: false, first_name: "Target" },
+    text: "spam",
+  },
+});
+
+test("an admin can mute a replied-to user (timed)", async () => {
+  const { api, calls } = fakeApi();
+  const commands = new Commands(new Store(), api, MOD_CFG);
+  commands.setAdmins([1]);
+  await commands.handleMessage(modMsg(1, "/mute 1h"));
+  await flush();
+  const r = calls.find((c) => c.method === "restrictChatMember");
+  assert.ok(r, "muted");
+  assert.equal(r!.body.user_id, 42);
+  assert.ok(r!.body.until_date, "timed mute set an until_date");
+});
+
+test("a non-admin cannot run mod commands", async () => {
+  const { api, calls, sent } = fakeApi();
+  const commands = new Commands(new Store(), api, MOD_CFG);
+  commands.setAdmins([1]);
+  await commands.handleMessage(modMsg(99, "/ban"));
+  await flush();
+  assert.ok(!calls.some((c) => c.method === "banChatMember"), "no ban from a non-admin");
+  assert.ok(sent.some((m) => /admins only/i.test(m.text)), "told them admins only");
+});
+
+test("admins can't be moderated", async () => {
+  const { api, calls, sent } = fakeApi();
+  const commands = new Commands(new Store(), api, MOD_CFG);
+  commands.setAdmins([1, 2]);
+  await commands.handleMessage(modMsg(1, "/ban", 2));
+  await flush();
+  assert.ok(!calls.some((c) => c.method === "banChatMember"), "no ban of a fellow admin");
+  assert.ok(sent.some((m) => /another admin/i.test(m.text)));
+});
+
+test("/warn mutes on the third warning", async () => {
+  const { api, calls } = fakeApi();
+  const commands = new Commands(new Store(), api, MOD_CFG);
+  commands.setAdmins([1]);
+  await commands.handleMessage(modMsg(1, "/warn"));
+  await commands.handleMessage(modMsg(1, "/warn"));
+  await commands.handleMessage(modMsg(1, "/warn"));
+  await flush();
+  assert.ok(calls.some((c) => c.method === "restrictChatMember"), "3rd warn auto-mutes");
+});

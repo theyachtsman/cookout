@@ -46,6 +46,8 @@ export interface TgMessage {
   chat: TgChat;
   text?: string;
   message_thread_id?: number;
+  /** The message this one replies to — the target for reply-based mod commands. */
+  reply_to_message?: TgMessage;
   /** Service message: members who just joined. */
   new_chat_members?: TgUser[];
   /** Service message: a member who left. */
@@ -168,12 +170,22 @@ export class TelegramApi {
     chatId: string | number,
     userId: number,
     permissions: ChatPermissions,
+    untilDate?: number,
   ): Promise<unknown> {
-    return this.call("restrictChatMember", { chat_id: chatId, user_id: userId, permissions });
+    return this.call("restrictChatMember", {
+      chat_id: chatId,
+      user_id: userId,
+      permissions,
+      ...(untilDate ? { until_date: untilDate } : {}),
+    });
   }
 
-  banChatMember(chatId: string | number, userId: number): Promise<unknown> {
-    return this.call("banChatMember", { chat_id: chatId, user_id: userId });
+  banChatMember(chatId: string | number, userId: number, untilDate?: number): Promise<unknown> {
+    return this.call("banChatMember", {
+      chat_id: chatId,
+      user_id: userId,
+      ...(untilDate ? { until_date: untilDate } : {}),
+    });
   }
 
   unbanChatMember(chatId: string | number, userId: number): Promise<unknown> {
