@@ -12,6 +12,7 @@ import type {
 import { Captcha } from "./captcha.js";
 import type { PitBossConfig } from "./config.js";
 import { makeKeyboards, type Keyboards } from "./keyboards.js";
+import { Mod, MOD_COMMANDS } from "./mod.js";
 import { SpamGuard } from "./spamguard.js";
 import { esc, gate, signoff } from "./voice.js";
 
@@ -36,6 +37,8 @@ export const COMMANDS: { command: string; description: string }[] = [
 export class Commands {
   private kb: Keyboards;
   private captcha: Captcha;
+  private mod: Mod;
+  private admins = new Set<number>();
   readonly spam: SpamGuard;
 
   constructor(
@@ -46,10 +49,12 @@ export class Commands {
     this.kb = makeKeyboards(config.webBase);
     this.captcha = new Captcha(api, config);
     this.spam = new SpamGuard(api, config);
+    this.mod = new Mod(api);
   }
 
-  /** Refresh the admin allowlist the spam guard exempts. */
+  /** Refresh the group admin allowlist (spam-exempt + who can run mod commands). */
   setAdmins(ids: number[]): void {
+    this.admins = new Set(ids);
     this.spam.setAdmins(ids);
   }
 
@@ -81,6 +86,8 @@ export class Commands {
     const userId = String(msg.from?.id ?? "");
     const thread = msg.message_thread_id;
 
+    if (MOD_COMMANDS.has(cmd)) return this.moderate(cmd, msg, args);
+
     switch (cmd) {
       case "/start":
         return this.start(msg, args[0]);
@@ -107,6 +114,33 @@ export class Commands {
     // is a URL deep link, so just clear the client's loading spinner.
     if (await this.captcha.onCallback(q)) return;
     await this.api.answerCallbackQuery(q.id);
+  }
+
+  // ---- admin moderation (reply-based) --------------------------------------
+
+  private async moderate(cmd: string, msg: TgMessage, args: string[]): Promise<void> {
+    const chatId = msg.chat.id;
+    const thread = msg.message_thread_id;
+    if (String(chatId) !== this.config.groupChatId) return; // group only
+    const fromId = msg.from?.id;
+    if (!fromId || !this.admins.has(fromId)) {
+      this.reply(chatId, "🔒 Admins only.", undefined, thread);
+      return;
+    }
+    const target = msg.reply_to_message?.from;
+    if (!target) {
+      this.reply(chatId, "↩️ Reply to someone's message, then run the command.", undefined, thread);
+      return;
+    }
+    if (target.is_bot) {
+      this.reply(chatId, "I don't moderate bots.", undefined, thread);
+      return;
+    }
+    if (this.admins.has(target.id)) {
+      this.reply(chatId, "You can't moderate another admin.", undefined, thread);
+      return;
+    }
+    await this.mod.run(cmd, chatId, thread, target, args[0]);
   }
 
   // ---- welcome / goodbye / captcha (join & leave) --------------------------
