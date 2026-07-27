@@ -1,4 +1,4 @@
-import type { NotifyCategory, NotificationPrefs, RiskTier, RoundConfig } from "./types.js";
+import type { GameMode, NotifyCategory, NotificationPrefs, RiskTier, RoundConfig } from "./types.js";
 
 /** Total permanent Founding Member seats. Founder numbers never repeat. */
 export const FOUNDER_CAP = 500;
@@ -73,7 +73,101 @@ export const DEFAULT_ETH_USD = 1925;
  * BOND_TARGET_USD and the live ETH price when each round is scheduled.
  */
 /** Creator-selectable live-trading lengths for a match, in minutes. */
-export const MATCH_MINUTE_OPTIONS = [10, 5, 1] as const;
+export const MATCH_MINUTE_OPTIONS = [10, 7, 5, 1] as const;
+
+/**
+ * The four curated launch modes (plus a reserved fifth). The launchpad shows
+ * these as a single, guided choice instead of a tier + duration matrix — clean
+ * onboarding, fast mastery. Each mode bundles a live-trading length and whether
+ * rug mechanics apply, over a base economics tier:
+ *
+ *  - Classic  — 10m, standard rules. The balanced default.
+ *  - Pressure —  7m, standard rules. A tighter clock for max tension.
+ *  - Blitz    —  5m, rug rules OFF. Thin, violent, high-energy.
+ *  - Reflex   —  1m, rug rules OFF. Pure dopamine chaos.
+ *  - Endurance — no timer. Listed but disabled until a later unlock.
+ */
+export interface GameModeDef {
+  key: GameMode;
+  name: string;
+  /** Live-trading minutes; null = no timer (Endurance). */
+  minutes: number | null;
+  /** Whether rug mechanics apply (dev-dump auto-rug, drain detector, sell lock). */
+  rugRules: boolean;
+  /** Base economics tier the mode runs on. */
+  tier: RiskTier;
+  /** One-line label under the mode name. */
+  tagline: string;
+  /** The longer sell. */
+  blurb: string;
+  /** Level required to launch in this mode. */
+  unlockLevel: number;
+  /** Listed in the picker but not yet launchable. */
+  disabled?: boolean;
+}
+
+export const GAME_MODES: GameModeDef[] = [
+  {
+    key: "classic",
+    name: "Classic",
+    minutes: 10,
+    rugRules: true,
+    tier: "standard",
+    unlockLevel: 1,
+    tagline: "10 min · standard rules",
+    blurb: "The balanced match: ten minutes, full rules, real crowds. The default way to cook.",
+  },
+  {
+    key: "pressure",
+    name: "Pressure",
+    minutes: 7,
+    rugRules: true,
+    tier: "standard",
+    unlockLevel: 1,
+    tagline: "7 min · standard rules",
+    blurb:
+      "Same rules, a tighter seven-minute clock. Less room to breathe — maximum tension and skill expression.",
+  },
+  {
+    key: "blitz",
+    name: "Blitz",
+    minutes: 5,
+    rugRules: false,
+    tier: "degen",
+    unlockLevel: 1,
+    tagline: "5 min · rug rules off",
+    blurb:
+      "Five minutes, no rug mechanics, thin liquidity. Aggressive, high-energy, violent price action.",
+  },
+  {
+    key: "reflex",
+    name: "Reflex",
+    minutes: 1,
+    rugRules: false,
+    tier: "degen",
+    unlockLevel: 1,
+    tagline: "1 min · rug rules off",
+    blurb: "Sixty seconds. No rug rules, no safety net. Pure dopamine — blink and it's over.",
+  },
+  {
+    key: "endurance",
+    name: "Endurance",
+    minutes: null,
+    rugRules: true,
+    tier: "standard",
+    unlockLevel: 999,
+    tagline: "No timer · coming soon",
+    blurb: "A marathon with no clock — it runs until the market decides. Reserved for a later unlock.",
+    disabled: true,
+  },
+];
+
+export const GAME_MODE_MAP: Record<GameMode, GameModeDef> = Object.fromEntries(
+  GAME_MODES.map((m) => [m.key, m]),
+) as Record<GameMode, GameModeDef>;
+
+/** The launchpad's default selection. */
+export const DEFAULT_GAME_MODE: GameMode = "classic";
 
 export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
   rookie: {

@@ -2,6 +2,7 @@ import express, { type Express, type Request, type Response } from "express";
 import {
   COSMETICS,
   DEV_DUMP_FRACTION,
+  GAME_MODE_MAP,
   MATCH_MINUTE_OPTIONS,
   MAX_TOKEN_SUPPLY,
   MIN_TOKEN_SUPPLY,
@@ -11,6 +12,7 @@ import {
   unlockedCosmetics,
   weekKey,
   type CosmeticType,
+  type GameMode,
   type NotifyCategory,
   type RiskTier,
   type TokenConcept,
@@ -733,27 +735,43 @@ export function createApp(
           );
       }
       const creator = store.getOrCreateUser(req.userAddress!);
-      // Risk tier is creator-chosen but level-gated — same gate as playing in
-      // that tier. Legacy/absent tier falls back to rookie.
-      const rawTier = (req.body as { tier?: string }).tier;
+      // The launchpad's single curated choice: a game mode bundles risk tier,
+      // match length, and rug rules. Modes are level-gated (Endurance is
+      // reserved). The legacy tier+matchMinutes path stays for back-compat.
+      const rawMode = (req.body as { mode?: string }).mode;
+      let mode: GameMode | undefined;
       let tier: RiskTier = "rookie";
-      if (rawTier !== undefined) {
-        if (!["rookie", "standard", "degen"].includes(rawTier)) throw new Err(400, "bad tier");
-        tier = rawTier as RiskTier;
-        if (creator.level < TIER_UNLOCK_LEVEL[tier])
+      let matchMinutes: number | undefined;
+      if (rawMode !== undefined) {
+        const def = GAME_MODE_MAP[rawMode as GameMode];
+        if (!def) throw new Err(400, "unknown game mode");
+        if (def.disabled) throw new Err(403, `${def.name} isn't available yet — it unlocks later`);
+        if (creator.level < def.unlockLevel)
           throw new Err(
             403,
-            `level ${TIER_UNLOCK_LEVEL[tier]} required to launch a ${tier} coin (you're level ${creator.level})`,
+            `reach level ${def.unlockLevel} to launch a ${def.name} coin (you're level ${creator.level})`,
           );
-      }
-      // Match length is creator-chosen from a fixed menu; anything else falls
-      // back to the tier's default duration.
-      const rawMinutes = (req.body as { matchMinutes?: number }).matchMinutes;
-      let matchMinutes: number | undefined;
-      if (rawMinutes !== undefined && rawMinutes !== null) {
-        matchMinutes = Number(rawMinutes);
-        if (!MATCH_MINUTE_OPTIONS.includes(matchMinutes as 10 | 5 | 1))
-          throw new Err(400, `matchMinutes must be one of ${MATCH_MINUTE_OPTIONS.join(", ")}`);
+        mode = def.key;
+        tier = def.tier;
+        matchMinutes = def.minutes ?? undefined;
+      } else {
+        // Legacy: risk tier is creator-chosen but level-gated. Absent → rookie.
+        const rawTier = (req.body as { tier?: string }).tier;
+        if (rawTier !== undefined) {
+          if (!["rookie", "standard", "degen"].includes(rawTier)) throw new Err(400, "bad tier");
+          tier = rawTier as RiskTier;
+          if (creator.level < TIER_UNLOCK_LEVEL[tier])
+            throw new Err(
+              403,
+              `level ${TIER_UNLOCK_LEVEL[tier]} required to launch a ${tier} coin (you're level ${creator.level})`,
+            );
+        }
+        const rawMinutes = (req.body as { matchMinutes?: number }).matchMinutes;
+        if (rawMinutes !== undefined && rawMinutes !== null) {
+          matchMinutes = Number(rawMinutes);
+          if (!MATCH_MINUTE_OPTIONS.includes(matchMinutes as (typeof MATCH_MINUTE_OPTIONS)[number]))
+            throw new Err(400, `matchMinutes must be one of ${MATCH_MINUTE_OPTIONS.join(", ")}`);
+        }
       }
       // Creator vetting (spec §5.2): cooldown + rug-ban screen, audit-trailed.
       const ban = activeRugBan(creator);
@@ -777,6 +795,7 @@ export function createApp(
         bannerUrl: bannerUrl ? sanitizeImageUrl(bannerUrl) : undefined,
         totalSupply,
         tier,
+        mode,
         matchMinutes,
         status: "submitted",
         votes: 0,
@@ -980,8 +999,13 @@ export function createApp(
       // coin: a rug fires the instant cumulative sells cross DEV_DUMP_FRACTION of
       // the most they ever held. Only computed live, and only for the creator, so
       // nobody else can read the dev's hand.
+      // Only when rug rules apply — Blitz/Reflex have no auto-rug, so no meter.
       let rug: { sold: number; maxHeld: number; threshold: number; fraction: number } | undefined;
-      if (round.creatorAddress === req.userAddress && round.state === "live") {
+      if (
+        round.creatorAddress === req.userAddress &&
+        round.state === "live" &&
+        round.config.rugRules !== false
+      ) {
         const m = engine.meta(round.id, req.userAddress!);
         const threshold = DEV_DUMP_FRACTION * m.maxTokens;
         rug = {

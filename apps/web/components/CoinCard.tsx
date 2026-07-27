@@ -1,7 +1,24 @@
 "use client";
 
-import type { RiskTier } from "@cookout/shared";
+import { GAME_MODE_MAP, type GameMode, type RiskTier } from "@cookout/shared";
 import { TierChip } from "./TierChip";
+
+/** A single mode badge — red when rug rules are off (Blitz/Reflex). */
+export function ModeChip({ mode }: { mode: GameMode }) {
+  const def = GAME_MODE_MAP[mode];
+  if (!def) return null;
+  const noRug = !def.rugRules;
+  return (
+    <span
+      className={`rounded px-1.5 py-0.5 text-[10px] font-black uppercase ${
+        noRug ? "bg-red-500/20 text-red-300" : "bg-lime-400/15 text-lime-300"
+      }`}
+      title={`${def.name} · ${def.tagline}`}
+    >
+      {noRug ? "🔥" : "🍳"} {def.name} · {def.minutes ? `${def.minutes}m` : "∞"}
+    </span>
+  );
+}
 
 /**
  * The one coin card, used everywhere a coin is billboarded: the post-submit
@@ -25,7 +42,9 @@ export interface CoinIdentity {
   artworkUrl?: string;
   bannerUrl?: string;
   tier?: RiskTier;
-  /** Creator-chosen live-trading length (10/5/1 min) — shown as a chip. */
+  /** Curated launch mode — shown as a single badge (supersedes tier/length). */
+  mode?: GameMode;
+  /** Creator-chosen live-trading length (min) — shown as a chip (legacy). */
   matchMinutes?: number;
 }
 
@@ -118,22 +137,28 @@ export function CoinCard({
               {teaser ? "???" : coin.name}
             </span>
             {!teaser && <span className="font-mono text-sm text-zinc-500">${coin.symbol}</span>}
-            <TierChip tier={coin.tier} />
-            {coin.matchMinutes === 1 ? (
-              <span
-                className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-black uppercase text-red-300"
-                title="1-Minute Blitz: rug-and-dodge mode — the dev can dump freely, no penalty"
-              >
-                ⚡ 1m blitz
-              </span>
-            ) : coin.matchMinutes ? (
-              <span
-                className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-bold text-sky-300"
-                title="Live-trading length the creator picked for this match"
-              >
-                ⏱ {coin.matchMinutes}m
-              </span>
-            ) : null}
+            {coin.mode ? (
+              <ModeChip mode={coin.mode} />
+            ) : (
+              <>
+                <TierChip tier={coin.tier} />
+                {coin.matchMinutes === 1 ? (
+                  <span
+                    className="rounded bg-red-500/20 px-1.5 py-0.5 text-[10px] font-black uppercase text-red-300"
+                    title="1-Minute Blitz: rug-and-dodge mode — the dev can dump freely, no penalty"
+                  >
+                    ⚡ 1m blitz
+                  </span>
+                ) : coin.matchMinutes ? (
+                  <span
+                    className="rounded bg-sky-500/15 px-1.5 py-0.5 text-[10px] font-bold text-sky-300"
+                    title="Live-trading length the creator picked for this match"
+                  >
+                    ⏱ {coin.matchMinutes}m
+                  </span>
+                ) : null}
+              </>
+            )}
           </div>
           <div className="truncate text-xs text-zinc-400">
             {teaser ? `Theme: ${coin.theme}` : coin.theme}

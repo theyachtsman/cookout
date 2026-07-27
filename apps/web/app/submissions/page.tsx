@@ -6,10 +6,11 @@ import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CREATOR_FEE_SHARE,
-  MATCH_MINUTE_OPTIONS,
+  DEFAULT_GAME_MODE,
+  GAME_MODES,
+  GAME_MODE_MAP,
   TIER_CONFIGS,
-  TIER_UNLOCK_LEVEL,
-  type RiskTier,
+  type GameMode,
   type TokenConcept,
 } from "@cookout/shared";
 import { api } from "../../lib/api";
@@ -30,8 +31,7 @@ export default function Submissions() {
     artworkUrl: "",
     bannerUrl: "",
     totalSupply: "",
-    tier: "rookie" as RiskTier,
-    matchMinutes: 10,
+    mode: DEFAULT_GAME_MODE as GameMode,
   });
   const [error, setError] = useState("");
   // The just-submitted concept — drives the "your coin is live" preview modal.
@@ -84,8 +84,7 @@ export default function Submissions() {
         artworkUrl: "",
         bannerUrl: "",
         totalSupply: "",
-        tier: "rookie",
-        matchMinutes: 10,
+        mode: DEFAULT_GAME_MODE,
       });
       load();
     } catch (e) {
@@ -175,94 +174,81 @@ export default function Submissions() {
                 />
               </label>
             </div>
-            {/* Risk tier — creator-chosen, level-gated like playing the tier. */}
+            {/* Game mode — the single curated choice: bundles length + rules. */}
             <div className="md:col-span-2">
               <div className="mb-1.5 text-xs text-zinc-500">
-                Risk tier · sets the stakes and pace of your coin&apos;s match
+                Game mode · picks the length and the rules of your coin&apos;s match
               </div>
-              <div className="grid gap-2 sm:grid-cols-3">
-                {(
-                  [
-                    ["rookie", "🥾", "Training grounds. Gentler stakes, forgiving pace."],
-                    ["standard", "⚔️", "The main floor. Real pace, real crowds."],
-                    ["degen", "☠️", "Max stakes, max chaos. Not for the faint."],
-                  ] as Array<[RiskTier, string, string]>
-                ).map(([tier, icon, blurb]) => {
-                  const unlockAt = TIER_UNLOCK_LEVEL[tier];
-                  const locked = (profile.level ?? 1) < unlockAt;
-                  const active = form.tier === tier;
+              <div className="grid gap-2 sm:grid-cols-2">
+                {GAME_MODES.map((m) => {
+                  const locked = m.disabled || (profile.level ?? 1) < m.unlockLevel;
+                  const active = !locked && form.mode === m.key;
+                  const noRug = !m.rugRules;
                   return (
                     <button
-                      key={tier}
+                      key={m.key}
                       disabled={locked}
-                      onClick={() => setForm({ ...form, tier })}
-                      title={locked ? `Reach level ${unlockAt} to launch ${tier} coins` : blurb}
+                      onClick={() => !locked && setForm({ ...form, mode: m.key })}
+                      title={
+                        m.disabled
+                          ? `${m.name} unlocks later`
+                          : locked
+                            ? `Reach level ${m.unlockLevel} to launch ${m.name}`
+                            : m.blurb
+                      }
                       className={`rounded-xl border p-3 text-left transition ${
                         active
-                          ? "border-lime-400/70 bg-lime-400/10"
+                          ? noRug
+                            ? "border-red-400/70 bg-red-400/10"
+                            : "border-lime-400/70 bg-lime-400/10"
                           : locked
                             ? "cursor-not-allowed border-zinc-800 opacity-45"
                             : "border-zinc-700 hover:border-zinc-500"
                       }`}
                     >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-black capitalize">
-                          {icon} {tier}
-                        </span>
-                        {locked ? (
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-black">{m.name}</span>
+                        {m.disabled ? (
                           <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-bold text-zinc-400">
-                            🔒 Lv{unlockAt}
+                            🔒 Soon
+                          </span>
+                        ) : locked ? (
+                          <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-bold text-zinc-400">
+                            🔒 Lv{m.unlockLevel}
                           </span>
                         ) : active ? (
-                          <span className="rounded bg-lime-400/20 px-1.5 py-0.5 text-[10px] font-bold text-lime-300">
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              noRug ? "bg-red-400/20 text-red-300" : "bg-lime-400/20 text-lime-300"
+                            }`}
+                          >
                             selected
                           </span>
-                        ) : null}
+                        ) : (
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              noRug ? "bg-red-500/15 text-red-300/80" : "bg-zinc-800 text-zinc-400"
+                            }`}
+                          >
+                            {noRug ? "rug rules off" : "standard rules"}
+                          </span>
+                        )}
                       </div>
-                      <div className="mt-1 text-[11px] leading-snug text-zinc-500">{blurb}</div>
+                      <div className="mt-0.5 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+                        {m.tagline}
+                      </div>
+                      <div className="mt-1 text-[11px] leading-snug text-zinc-500">{m.blurb}</div>
                     </button>
                   );
                 })}
               </div>
-            </div>
-            {/* Match length — creator-chosen live-trading window. */}
-            <div className="md:col-span-2">
-              <div className="mb-1.5 text-xs text-zinc-500">
-                Match length · how long live trading runs before the market closes
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {MATCH_MINUTE_OPTIONS.map((mins) => {
-                  const active = form.matchMinutes === mins;
-                  const blitz = mins === 1;
-                  const blurb =
-                    mins === 10 ? "the classic" : mins === 5 ? "fast hands" : "⚡ blitz · special rules";
-                  return (
-                    <button
-                      key={mins}
-                      onClick={() => setForm({ ...form, matchMinutes: mins })}
-                      className={`rounded-xl border px-4 py-2 text-left transition ${
-                        active
-                          ? blitz
-                            ? "border-red-400/70 bg-red-400/10"
-                            : "border-sky-400/70 bg-sky-400/10"
-                          : "border-zinc-700 hover:border-zinc-500"
-                      }`}
-                    >
-                      <span className="text-sm font-black">⏱ {mins} min</span>
-                      <span className={`ml-2 text-[11px] ${blitz ? "font-bold text-red-300" : "text-zinc-500"}`}>
-                        {blurb}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              {form.matchMinutes === 1 && (
+              {!GAME_MODE_MAP[form.mode].rugRules && (
                 <div className="mt-2 rounded-lg border border-red-500/40 bg-red-500/[0.06] p-3 text-xs text-zinc-300">
-                  <b className="text-red-300">⚡ 1-Minute Blitz — different rules.</b> This is a
-                  rug-and-dodge sprint. As the dev you can <b>sell whenever you want</b> (no sell
-                  lock) and <b>dump 100% of your bag with zero reputation hit and no launch ban</b> —
-                  the rug is the whole game. Traders: get in, grab a small bag, and get out before
-                  the inevitable pull. There is no &quot;playing it safe&quot; here.
+                  <b className="text-red-300">🔥 {GAME_MODE_MAP[form.mode].name} — rug rules off.</b>{" "}
+                  No dev-dump auto-rug, no pool-drain rug, no dev sell lock. As the dev you can{" "}
+                  <b>sell whenever and however much you want</b> with zero reputation hit and no
+                  launch ban — nobody gets &quot;rugged,&quot; the price action is the whole game.
+                  Traders: it&apos;s fast and it&apos;s violent. Get in, get a bag, get out.
                 </div>
               )}
             </div>
@@ -286,10 +272,10 @@ export default function Submissions() {
         <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
           {[
             ["Supply in pool at open", "50%"],
-            ["Seed liquidity (rookie)", `${TIER_CONFIGS.rookie.initialEthLiquidity} ${unit}`],
-            ["Trade fee", `${TIER_CONFIGS.rookie.tradeFeeBps / 100}% (creator gets ${CREATOR_FEE_SHARE * 100}% of fees)`],
-            ["Auction fee", `${TIER_CONFIGS.rookie.auctionFeeBps / 100}%`],
-            ["Serves up at", `$40,000 mcap · ${TIER_CONFIGS.rookie.graduationMinHolders} holders · ${TIER_CONFIGS.rookie.graduationMinVolume} ${unit} vol`],
+            ["Seed liquidity (Classic)", `${TIER_CONFIGS.standard.initialEthLiquidity} ${unit}`],
+            ["Trade fee", `${TIER_CONFIGS.standard.tradeFeeBps / 100}% (creator gets ${CREATOR_FEE_SHARE * 100}% of fees)`],
+            ["Auction fee", `${TIER_CONFIGS.standard.auctionFeeBps / 100}%`],
+            ["Serves up at", `$40,000 mcap · ${TIER_CONFIGS.standard.graduationMinHolders} holders · ${TIER_CONFIGS.standard.graduationMinVolume} ${unit} vol`],
           ].map(([k, v]) => (
             <div key={k as string} className="rounded-lg bg-zinc-900 p-3">
               <div className="text-[10px] uppercase tracking-wide text-zinc-500">{k}</div>
@@ -298,12 +284,12 @@ export default function Submissions() {
           ))}
         </div>
         <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/[0.05] p-3 text-xs text-zinc-300">
-          <b className="text-red-300">🔥 The rug rule:</b> you can trade your own coin like anyone
-          else, but <b>selling 75% of the most you ever held</b> (cumulative) pulls the launch and
-          brands it Burnt — that tanks your reputation and bans you from launching. Trim to take
-          profit; don&apos;t full-send your own bag.{" "}
-          <b className="text-amber-300">Exception: 1-minute Blitz coins</b> are built for rugging —
-          the dev can dump freely with no penalty (see the Blitz note above).
+          <b className="text-red-300">🔥 The rug rule:</b> in <b>Classic</b> and <b>Pressure</b> you
+          can trade your own coin like anyone else, but <b>selling 75% of the most you ever held</b>{" "}
+          (cumulative) pulls the launch and brands it Burnt — that tanks your reputation and bans you
+          from launching. Trim to take profit; don&apos;t full-send your own bag.{" "}
+          <b className="text-amber-300">Blitz and Reflex turn rug rules off</b> — no auto-rug, no
+          sell lock, no penalty. The price action is the whole game.
         </div>
       </section>
 
@@ -348,8 +334,9 @@ export default function Submissions() {
                   theme: form.theme.trim(),
                   artworkUrl: form.artworkUrl || undefined,
                   bannerUrl: form.bannerUrl || undefined,
-                  tier: form.tier,
-                  matchMinutes: form.matchMinutes,
+                  mode: form.mode,
+                  tier: GAME_MODE_MAP[form.mode].tier,
+                  matchMinutes: GAME_MODE_MAP[form.mode].minutes ?? undefined,
                 }}
               />
               {error && <p className="mt-3 text-center text-sm text-red-400">{error}</p>}

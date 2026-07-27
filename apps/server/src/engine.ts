@@ -1,6 +1,7 @@
 import {
   BOND_TARGET_USD,
   DEV_DUMP_FRACTION,
+  GAME_MODE_MAP,
   GLOBAL_ROOM,
   MCAP_MILESTONES,
   RUG_DRAIN_FRACTION,
@@ -84,12 +85,17 @@ export class RoundEngine {
     const config = { ...TIER_CONFIGS[tier] };
     // Bond pegged to $40k mcap at the live ETH price, frozen per round.
     config.graduationMcap = BOND_TARGET_USD / this.store.ethUsd;
-    // Creator-chosen match length (10/5/1 min) overrides the tier default.
+    // Creator-chosen match length overrides the tier default.
     if (concept.matchMinutes) config.maxDurationSeconds = concept.matchMinutes * 60;
+    // The curated mode decides whether rug mechanics apply. Blitz/Reflex turn
+    // them off — nobody can be rugged, price action is the whole game. Legacy
+    // concepts (no mode) keep rug rules on.
+    const rugRules = concept.mode ? GAME_MODE_MAP[concept.mode].rugRules : true;
+    config.rugRules = rugRules;
     // 1-minute Blitz: rug-and-dodge mode. The dev can sell the instant it's
-    // live (no sell lock) and dumping their bag rugs the coin penalty-free.
+    // live (no sell lock). Rug-rules-off modes also drop the lock.
     const blitz = concept.matchMinutes === 1;
-    if (blitz) config.devSellLockSeconds = 0;
+    if (blitz || !rugRules) config.devSellLockSeconds = 0;
     if (concept.totalSupply) {
       // Creator tokenomics: keep the tier's pool-share ratio at the new supply.
       const poolShare = config.initialTokenLiquidity / config.totalSupply;
@@ -108,6 +114,7 @@ export class RoundEngine {
       },
       creatorAddress: concept.creatorAddress,
       tier,
+      mode: concept.mode,
       matchMinutes: concept.matchMinutes,
       blitz,
       state: "scheduled",
@@ -481,7 +488,12 @@ export class RoundEngine {
         // A rug is now defined by the creator dumping the bulk of their OWN
         // bag: once their cumulative sells cross DEV_DUMP_FRACTION of the most
         // they ever held, the coin is pulled. Trimming below that is fine.
-        if (m.maxTokens > 0 && m.tokensSoldBeforeEnd >= DEV_DUMP_FRACTION * m.maxTokens)
+        // Skipped entirely when rug rules are off (Blitz/Reflex).
+        if (
+          round.config.rugRules !== false &&
+          m.maxTokens > 0 &&
+          m.tokensSoldBeforeEnd >= DEV_DUMP_FRACTION * m.maxTokens
+        )
           this.endRound(round, "rug_detected", now);
       }
     }
@@ -580,7 +592,8 @@ export class RoundEngine {
       this.endRound(round, "mcap_target", now);
       return;
     }
-    this.checkRugDrain(round, now);
+    // Pool-drain rug detector — off when rug rules are off (Blitz/Reflex).
+    if (round.config.rugRules !== false) this.checkRugDrain(round, now);
   }
 
   private currentLeader(round: Round): Address | undefined {
