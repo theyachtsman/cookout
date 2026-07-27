@@ -307,6 +307,63 @@ test("captcha rejects someone else tapping your button", async () => {
   assert.ok(/yours/i.test(String(answer!.body.text ?? "")), "tells them it isn't their button");
 });
 
+test("a new submission posts to the Vote Shilling pit with a card + X-share button", async () => {
+  const store = new Store();
+  const { api, sent } = fakeApi();
+  const cfg: PitBossConfig = {
+    botUsername: "b",
+    webBase: "https://www.thecookout.fun",
+    groupChatId: "group",
+    topics: { voteshill: 191, launch: 26 },
+  };
+  const n = new Notifier(store, api, cfg);
+  n.handleRoundEvent({ kind: "submitted", roundId: "c9", symbol: "FOO", name: "Foo Coin", by: "chef" });
+  await flush();
+
+  const g = to(sent, "group") as unknown as {
+    text: string;
+    message_thread_id?: number;
+    reply_markup?: { inline_keyboard: { text: string; url: string }[][] };
+  }[];
+  assert.equal(g.length, 1, "one shill post");
+  assert.equal(g[0]!.message_thread_id, 191, "→ Vote Shilling thread");
+  assert.ok(/up for a vote/i.test(g[0]!.text), "shill copy");
+  const btns = g[0]!.reply_markup!.inline_keyboard.flat();
+  const card = btns.find((b) => /Vote \$FOO/.test(b.text))!;
+  assert.ok(card.url.endsWith("/vote#coin-c9"), "vote button deep-links the card");
+  const x = btns.find((b) => /Shill on X/.test(b.text))!;
+  assert.ok(x.url.startsWith("https://twitter.com/intent/tweet?text="), "X intent button");
+  assert.ok(
+    decodeURIComponent(x.url).includes("/vote#coin-c9"),
+    "prefilled tweet carries the card link",
+  );
+});
+
+test("a coin that passed the vote posts to Trading with an Enter-the-match button", async () => {
+  const store = new Store();
+  const { api, sent } = fakeApi();
+  const cfg: PitBossConfig = {
+    botUsername: "b",
+    webBase: "https://www.thecookout.fun",
+    groupChatId: "group",
+    topics: { announcements: 33, trading: 24 },
+  };
+  const n = new Notifier(store, api, cfg);
+  n.handleRoundEvent({ kind: "votes_hit", roundId: "r7", symbol: "BAR", votes: 10 });
+  await flush();
+
+  const g = to(sent, "group") as unknown as {
+    text: string;
+    message_thread_id?: number;
+    reply_markup?: { inline_keyboard: { text: string; url: string }[][] };
+  }[];
+  assert.equal(g.length, 1, "one post");
+  assert.equal(g[0]!.message_thread_id, 24, "votes-hit → Trading thread, not Announcements");
+  const btn = g[0]!.reply_markup!.inline_keyboard.flat()[0]!;
+  assert.ok(/Enter \$BAR/.test(btn.text), "button says Enter, not Vote");
+  assert.ok(btn.url.endsWith("/round/r7"), "button enters the coin match");
+});
+
 test("with forum topics, feed posts target the right thread", async () => {
   const store = new Store();
   const { api, sent } = fakeApi();

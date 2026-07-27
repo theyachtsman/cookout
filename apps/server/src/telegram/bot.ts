@@ -175,6 +175,7 @@ export function createPitBoss(store: Store): PitBoss | null {
       general: num(process.env.TELEGRAM_TOPIC_GENERAL),
       feedback: num(process.env.TELEGRAM_TOPIC_FEEDBACK),
       launch: num(process.env.TELEGRAM_TOPIC_LAUNCH),
+      voteshill: num(process.env.TELEGRAM_TOPIC_VOTESHILL),
       trading: num(process.env.TELEGRAM_TOPIC_TRADING),
       leaderboards: num(process.env.TELEGRAM_TOPIC_LEADERBOARDS),
       support: num(process.env.TELEGRAM_TOPIC_SUPPORT),

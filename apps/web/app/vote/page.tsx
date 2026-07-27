@@ -87,6 +87,23 @@ export default function VotePage() {
   const voting = concepts
     .filter((c) => c.status === "submitted")
     .sort((a, b) => b.votes - a.votes);
+
+  // Deep link from the Pit Boss shill post (/vote#coin-<id>): once the concept
+  // is loaded, scroll its card into view and flash a ring so it's obvious which
+  // coin they came to shill for.
+  const [highlight, setHighlight] = useState("");
+  useEffect(() => {
+    const hash = window.location.hash;
+    if (!hash.startsWith("#coin-")) return;
+    const id = hash.slice("#coin-".length);
+    if (!concepts.some((c) => c.id === id)) return;
+    const el = document.getElementById(`coin-${id}`);
+    if (!el) return;
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+    setHighlight(id);
+    const t = setTimeout(() => setHighlight(""), 2600);
+    return () => clearTimeout(t);
+  }, [concepts]);
   const archive = useMemo(
     () =>
       [...concepts]
@@ -161,10 +178,12 @@ export default function VotePage() {
             {voting.map((c) => {
               const pct = Math.min(100, (c.votes / VOTE_THRESHOLD) * 100);
               return (
+                <div key={c.id} id={`coin-${c.id}`} className="scroll-mt-24">
                 <CoinCard
-                  key={c.id}
                   coin={c}
-                  className="transition hover:border-lime-400/50"
+                  className={`transition hover:border-lime-400/50 ${
+                    highlight === c.id ? "ring-2 ring-lime-400 ring-offset-2 ring-offset-zinc-950" : ""
+                  }`}
                   corner={
                     <span className="font-mono text-2xl font-black text-lime-300 drop-shadow">
                       {c.votes}
@@ -208,6 +227,7 @@ export default function VotePage() {
                     </Link>
                   </div>
                 </CoinCard>
+                </div>
               );
             })}
           </div>

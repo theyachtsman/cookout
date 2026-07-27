@@ -8,6 +8,7 @@ export type TopicKey =
   | "general"
   | "feedback"
   | "launch"
+  | "voteshill"
   | "trading"
   | "leaderboards"
   | "support";
