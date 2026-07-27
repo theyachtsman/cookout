@@ -829,6 +829,44 @@ export function createApp(
     }),
   );
 
+  /** A single concept — public, powers the /coin/:id share page and its card. */
+  app.get(
+    "/api/concepts/:id",
+    wrap((req, res) => {
+      const concept = store.concepts.get(req.params.id!);
+      if (!concept) throw new Err(404, "concept not found");
+      res.json(concept);
+    }),
+  );
+
+  /**
+   * The concept's coin image as a real, fetchable file — so a shared /coin/:id
+   * link unfurls with the coin's art on X/Telegram (crawlers can't read the
+   * data-URL that lives in JSON). Data-URL uploads are decoded to bytes; plain
+   * https artwork is redirected to; anything missing falls back to the site's
+   * default share image.
+   */
+  app.get(
+    "/api/concepts/:id/image",
+    wrap((req, res) => {
+      const concept = store.concepts.get(req.params.id!);
+      const art = concept?.artworkUrl;
+      const fallback =
+        (process.env.WEB_BASE_URL ?? "https://www.thecookout.fun").replace(/\/$/, "") +
+        "/opengraph-image";
+      if (!art) return res.redirect(302, fallback);
+      const m = /^data:(image\/(?:png|jpeg|webp|gif));base64,([A-Za-z0-9+/=]+)$/.exec(art);
+      if (m) {
+        const buf = Buffer.from(m[2]!, "base64");
+        res.setHeader("content-type", m[1]!);
+        res.setHeader("cache-control", "public, max-age=86400, immutable");
+        return res.end(buf);
+      }
+      if (/^https?:\/\//.test(art)) return res.redirect(302, art);
+      return res.redirect(302, fallback);
+    }),
+  );
+
   app.post(
     "/api/concepts/:id/vote",
     auth,
@@ -974,8 +1012,28 @@ export function createApp(
         (r) => r.conceptId === round.conceptId && r.state !== "results",
       );
       if (pending) throw new Err(409, "this coin is already back on the calendar");
+      // Run It Back now lets the dev pick a fresh mode. Absent → same setup as
+      // the original round. The chosen mode re-derives tier, length, and rug
+      // rules; it's stamped onto the concept so the rerun (and its card) reflect
+      // the new settings.
+      const rawMode = (req.body as { mode?: string }).mode;
+      let tier = round.tier;
+      if (rawMode !== undefined) {
+        const def = GAME_MODE_MAP[rawMode as GameMode];
+        if (!def) throw new Err(400, "unknown game mode");
+        if (def.disabled) throw new Err(403, `${def.name} isn't available yet — it unlocks later`);
+        if (creator.level < def.unlockLevel)
+          throw new Err(
+            403,
+            `reach level ${def.unlockLevel} to run it back as ${def.name} (you're level ${creator.level})`,
+          );
+        concept.mode = def.key;
+        concept.tier = def.tier;
+        concept.matchMinutes = def.minutes ?? undefined;
+        tier = def.tier;
+      }
       const at = nextFreeSlot(store, store.settings.leadSeconds * 1000, Date.now());
-      const rerun = engine.scheduleRound(concept, round.tier, at);
+      const rerun = engine.scheduleRound(concept, tier, at);
       store.emitRoundEvent({ kind: "run_it_back", roundId: rerun.id, symbol: concept.symbol });
       store.logAdmin(
         "runback",

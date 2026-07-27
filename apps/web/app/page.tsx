@@ -42,10 +42,8 @@ export default function Landing() {
       <Pillars />
       <FoundingPlayers />
       <Access />
-      <footer className="border-t border-zinc-800 px-6 py-8 text-center text-xs text-zinc-600">
-        The Cookout · paper-money beta, so nothing here is real money yet · we only ever make money
-        on fees · <Link href="/docs" className="underline hover:text-zinc-400">the menu</Link>
-      </footer>
+      {/* The shared SiteFooter (Telegram + house links) is rendered site-wide
+          from the root layout, so the landing page no longer needs its own. */}
     </div>
   );
 }
