@@ -4,6 +4,13 @@ export type Address = string;
 
 export type RiskTier = "rookie" | "standard" | "degen";
 
+/**
+ * Curated launch modes (the launchpad's single choice). Each mode bundles a
+ * live-trading length and whether rug mechanics apply, over a base economics
+ * tier — see GAME_MODES. "endurance" is listed but not yet launchable.
+ */
+export type GameMode = "classic" | "pressure" | "blitz" | "reflex" | "endurance";
+
 /** Round lifecycle. Linear except ENDED can be reached from any live-ish state. */
 export type RoundState =
   | "scheduled" // on the match calendar, teaser visible
@@ -45,10 +52,15 @@ export interface TokenConcept {
   totalSupply?: number;
   /** Wide promo banner (data URL), shown behind the trading header. */
   bannerUrl?: string;
-  /** Creator-chosen risk tier (level-gated); legacy concepts default rookie. */
+  /** Creator-chosen risk tier (level-gated); legacy concepts default rookie.
+   *  When `mode` is set it derives the tier — this stays populated for display
+   *  and the economics engine. */
   tier?: RiskTier;
-  /** Creator-chosen live-trading length in minutes (10, 5, or 1); the tier's
-   *  default duration when unset. */
+  /** Curated launch mode (Classic/Pressure/Blitz/Reflex). Drives tier, match
+   *  length, and rug rules. Absent on legacy concepts. */
+  mode?: GameMode;
+  /** Creator-chosen live-trading length in minutes; the tier's default duration
+   *  when unset. Derived from `mode` when a mode is chosen. */
   matchMinutes?: number;
   status: "submitted" | "shortlisted" | "scheduled" | "launched" | "rejected";
   votes: number;
@@ -90,6 +102,10 @@ export interface RoundConfig {
   liveMaxPositionEth: number;
   /** Creator cannot sell for this many seconds after open (0 = no lock). */
   devSellLockSeconds: number;
+  /** Whether rug mechanics apply: the dev-dump auto-rug, the pool-drain rug
+   *  detector, and the dev sell lock. Off for Blitz/Reflex, where price action
+   *  is the whole game and nobody can be "rugged". Undefined = on (default). */
+  rugRules?: boolean;
 }
 
 /** Deployed contract set backing an on-chain (Phase 2) round. When present,
@@ -111,9 +127,11 @@ export interface Round {
   token: { name: string; symbol: string; theme: string; artworkUrl?: string; bannerUrl?: string };
   creatorAddress: Address;
   tier: RiskTier;
+  /** The curated launch mode this round runs (Classic/Pressure/Blitz/Reflex). */
+  mode?: GameMode;
   state: RoundState;
   config: RoundConfig;
-  /** Creator-chosen live-trading length in minutes (10 / 5 / 1). */
+  /** Creator-chosen live-trading length in minutes. */
   matchMinutes?: number;
   /** 1-minute "Blitz" mode: rug-and-dodge rules. The creator can sell any
    *  time (no dev-sell lock) and dumping their whole bag rugs the coin with
