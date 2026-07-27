@@ -89,8 +89,9 @@ export class Notifier {
         this.toFollowers(e.address, say.followed(who, e.text));
         break;
       case "graduated":
+        // The public post is the round-results scoreboard (kind: "results"),
+        // so here we only DM the creator their moment.
         this.toOwner(e.address, "graduations", `🍽️ Your coin ${sym ? `$${esc(sym)} ` : ""}served up and walked out into the wild. Legendary cook.`);
-        this.toChannel(feed.graduated(sym ?? "coin"), e.roundId ? this.kb.graduated(e.roundId) : this.kb.openCookout(), "leaderboards");
         break;
       case "rekt":
         this.toOwner(e.address, "rugs", `💀 You got burnt${sym ? ` in $${esc(sym)}` : ""}. Grill's cold on that one. Onto the next.`);
@@ -131,9 +132,46 @@ export class Notifier {
         return this.live(e.symbol, e.roundId, mode);
       case "burnt":
         return this.burnt(e.symbol, e.roundId, mode);
+      case "results":
+        return this.roundResults(e.roundId, e.symbol, mode);
       case "run_it_back":
         return this.runItBack(e.symbol, e.roundId, mode);
     }
+  }
+
+  /** The round-end scoreboard: outcome + top 5 by PnL, posted to Leaderboards. */
+  roundResults(roundId: string, symbol: string, mode?: string): void {
+    const summary = this.store.summaries.get(roundId);
+    if (!summary) return;
+    const round = this.store.rounds.get(roundId);
+    const top = (summary.leaderboard ?? [])
+      .slice(0, 5)
+      .map((e) => ({ name: this.name(e.address), pnl: e.pnl }));
+    const rug = summary.endReason === "rug_detected" || summary.endReason === "liquidity_removed";
+    const [emoji, outcome] = summary.graduated
+      ? ["🍽️", "Served Up · out in the wild"]
+      : rug
+        ? ["🔥", "Burnt · rug pulled"]
+        : summary.endReason === "low_volume"
+          ? ["💤", "Went quiet"]
+          : summary.endReason === "mcap_target"
+            ? ["🎯", "Hit the target"]
+            : ["⏱️", "Time's up"];
+    this.toChannel(
+      feed.roundResults({
+        symbol,
+        mode,
+        emoji,
+        outcome,
+        volume: summary.totalVolume,
+        peakMcapUsd: Math.round(summary.peakMcap * this.store.ethUsd),
+        durationSec: summary.durationSeconds,
+        holders: summary.holderCount,
+        top,
+      }),
+      round ? this.kb.round(roundId, symbol) : this.kb.openCookout(),
+      "leaderboards",
+    );
   }
 
   // ---- explicit community-feed posts (wired from lifecycle / admin) --------

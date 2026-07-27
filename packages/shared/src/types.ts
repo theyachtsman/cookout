@@ -523,6 +523,9 @@ export interface RoundSummary {
   biggestWhale?: { address: Address; ethIn: number };
   diamondHands?: { address: Address; holdSeconds: number };
   fastestExit?: { address: Address; seconds: number };
+  /** Final standings by PnL (highest first), capped to the top few. Powers the
+   *  round-results scoreboard (e.g. the Telegram post). */
+  leaderboard?: Array<{ address: Address; pnl: number }>;
 }
 
 /** WebSocket messages: server → client. */

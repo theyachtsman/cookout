@@ -795,11 +795,6 @@ export class RoundEngine {
           s.totalVolume >= cfg.graduationMinVolume));
     round.graduated = graduated;
 
-    // Community feed: a burn is a rug-class ending. Graduations already fan out
-    // through the activity stream, so we don't double-post them here.
-    if (!graduated && (reason === "rug_detected" || reason === "liquidity_removed"))
-      this.store.emitRoundEvent({ kind: "burnt", roundId: round.id, symbol: round.token.symbol, mode: round.mode });
-
     if (graduated) {
       // Served Up: liquidity locks in a permanent pool, holders keep their
       // tokens, and the market keeps trading "in the wild" (alumniTick).
@@ -842,6 +837,10 @@ export class RoundEngine {
       now,
     });
     this.store.summaries.set(round.id, summary);
+    // One community post per round end: the scoreboard (outcome + top 5). Fires
+    // for every ending — graduation, timer, low volume, rug — so the leaderboard
+    // topic always gets the result.
+    this.store.emitRoundEvent({ kind: "results", roundId: round.id, symbol: round.token.symbol, mode: round.mode });
     // Feed-worthy outcomes. Bots (0xb07…) stay out of the feed.
     const feedOk = (a: string) => !a.startsWith("0xb07");
     if (summary.winner && feedOk(summary.winner.address))

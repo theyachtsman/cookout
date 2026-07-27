@@ -273,5 +273,8 @@ export function evaluateRoundEnd(ctx: {
     biggestWhale,
     diamondHands,
     fastestExit,
+    // Final standings for the results scoreboard: everyone who traded, best
+    // PnL first, capped so the summary (and its snapshot) stays lean.
+    leaderboard: [...podium].sort((a, b) => b.pnl - a.pnl).slice(0, 10),
   };
 }
