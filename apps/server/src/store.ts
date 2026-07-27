@@ -88,6 +88,7 @@ export type RoundEventKind =
   | "fair_open"
   | "live"
   | "burnt"
+  | "results"
   | "run_it_back";
 export interface RoundEvent {
   kind: RoundEventKind;

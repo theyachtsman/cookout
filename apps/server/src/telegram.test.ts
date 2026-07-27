@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { ActivityEvent, Address } from "@cookout/shared";
+import type { ActivityEvent, Address, RoundSummary } from "@cookout/shared";
 import { Store } from "./store.js";
 import { TelegramApi } from "./telegram/api.js";
 import { Commands } from "./telegram/commands.js";
@@ -98,32 +98,77 @@ test("a spent or bogus token does not link", async () => {
   assert.equal(store.resolveTelegram("999"), undefined);
 });
 
-test("graduation notifies the owner (DM) and the community channel", async () => {
+/** A finished-round summary, enough to build the results scoreboard post. */
+const summary = (over: Partial<RoundSummary> = {}): RoundSummary => ({
+  roundId: "r1",
+  endReason: "graduated",
+  graduated: true,
+  durationSeconds: 132,
+  totalVolume: 5.5,
+  peakMcap: 10,
+  finalMcap: 9,
+  holderCount: 3,
+  averageReturnPct: 12,
+  leaderboard: [{ address: ADDR, pnl: 0.5 }],
+  ...over,
+});
+
+test("graduation DMs the owner; the results event posts the scoreboard", async () => {
   const store = new Store();
   const { api, sent } = fakeApi();
   const notifier = new Notifier(store, api, CONFIG);
   store.linkTelegram(ADDR, { userId: "999", chatId: "555", linkedAt: Date.now() });
+  store.summaries.set("r1", summary());
 
   notifier.handleActivity(activity({ kind: "graduated", roundId: "r1", roundSymbol: "FOO" }));
+  notifier.handleRoundEvent({ kind: "results", roundId: "r1", symbol: "FOO" });
   await flush();
 
   assert.equal(to(sent, "555").length, 1, "owner gets one DM");
-  assert.equal(to(sent, "chan").length, 1, "channel gets one post");
-  assert.ok(/FOO/.test(to(sent, "chan")[0]!.text), "channel post names the coin");
+  const chan = to(sent, "chan");
+  assert.equal(chan.length, 1, "one results post to the channel");
+  assert.ok(/Round Results/.test(chan[0]!.text), "it's the scoreboard");
+  assert.ok(/FOO/.test(chan[0]!.text), "names the coin");
+  assert.ok(/Top 5/.test(chan[0]!.text), "lists the top finishers");
 });
 
-test("notification prefs gate the personal DM but not the channel", async () => {
+test("round results post to the Leaderboards topic with the top 5", async () => {
+  const store = new Store();
+  const { api, sent } = fakeApi();
+  const cfg: PitBossConfig = {
+    botUsername: "b",
+    webBase: "https://w",
+    groupChatId: "group",
+    topics: { leaderboards: 20 },
+  };
+  const n = new Notifier(store, api, cfg);
+  store.getOrCreateUser(ADDR).displayName = "alice";
+  store.summaries.set("r1", summary({ endReason: "timer", graduated: false, leaderboard: [{ address: ADDR, pnl: 0.42 }] }));
+  n.handleRoundEvent({ kind: "results", roundId: "r1", symbol: "FOO", mode: "blitz" });
+  await flush();
+
+  const g = to(sent, "group") as unknown as { text: string; message_thread_id?: number }[];
+  assert.equal(g.length, 1, "one post");
+  assert.equal(g[0]!.message_thread_id, 20, "lands in Leaderboards (topic 20)");
+  assert.ok(/alice/.test(g[0]!.text), "names the top finisher");
+  assert.ok(/\+0\.420 pETH/.test(g[0]!.text), "shows their PnL");
+  assert.ok(/Blitz/.test(g[0]!.text), "names the game mode");
+});
+
+test("notification prefs gate the personal DM but not the community post", async () => {
   const store = new Store();
   const { api, sent } = fakeApi();
   const notifier = new Notifier(store, api, CONFIG);
   store.linkTelegram(ADDR, { userId: "999", chatId: "555", linkedAt: Date.now() });
   store.getOrCreateUser(ADDR).notifyPrefs = { graduations: false };
+  store.summaries.set("r1", summary());
 
   notifier.handleActivity(activity({ kind: "graduated", roundId: "r1", roundSymbol: "FOO" }));
+  notifier.handleRoundEvent({ kind: "results", roundId: "r1", symbol: "FOO" });
   await flush();
 
-  assert.equal(to(sent, "555").length, 0, "owner opted out — no DM");
-  assert.equal(to(sent, "chan").length, 1, "channel still posts");
+  assert.equal(to(sent, "555").length, 0, "owner opted out, so no DM");
+  assert.equal(to(sent, "chan").length, 1, "the results post still goes to the channel");
 });
 
 test("followers who opted in get DM'd about a followed player", async () => {
