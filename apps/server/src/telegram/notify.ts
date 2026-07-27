@@ -1,4 +1,4 @@
-import { resolveNotifyPrefs, type ActivityEvent, type Address, type NotifyCategory } from "@cookout/shared";
+import { GAME_MODE_MAP, resolveNotifyPrefs, type ActivityEvent, type Address, type NotifyCategory } from "@cookout/shared";
 import type { RoundEvent, Store } from "../store.js";
 import type { InlineKeyboard, TelegramApi } from "./api.js";
 import type { PitBossConfig, TopicKey } from "./config.js";
@@ -116,21 +116,23 @@ export class Notifier {
   // ---- the round-lifecycle tap ---------------------------------------------
 
   handleRoundEvent(e: RoundEvent): void {
+    // The coin's game mode, as a display name for the feed copy.
+    const mode = e.mode ? GAME_MODE_MAP[e.mode]?.name : undefined;
     switch (e.kind) {
       case "submitted":
-        return this.submittedForVote(e.roundId, e.symbol, e.name, e.by);
+        return this.submittedForVote(e.roundId, e.symbol, e.name, e.by, mode);
       case "scheduled":
-        return this.scheduled(e.symbol, e.roundId);
+        return this.scheduled(e.symbol, e.roundId, mode);
       case "votes_hit":
-        return this.votesHit(e.symbol, e.roundId, e.votes ?? 0);
+        return this.votesHit(e.symbol, e.roundId, e.votes ?? 0, mode);
       case "fair_open":
-        return this.fairOpen(e.symbol, e.roundId);
+        return this.fairOpen(e.symbol, e.roundId, mode);
       case "live":
-        return this.live(e.symbol, e.roundId);
+        return this.live(e.symbol, e.roundId, mode);
       case "burnt":
-        return this.burnt(e.symbol, e.roundId);
+        return this.burnt(e.symbol, e.roundId, mode);
       case "run_it_back":
-        return this.runItBack(e.symbol, e.roundId);
+        return this.runItBack(e.symbol, e.roundId, mode);
     }
   }
 
@@ -140,29 +142,29 @@ export class Notifier {
    *  creator (and the crowd) can rally votes: a jump-to-card button and a
    *  prefilled X post carrying the vote-card link. Goes to voteshill, which
    *  falls back to launch, then General. */
-  submittedForVote(conceptId: string, symbol: string, name?: string, by?: string): void {
+  submittedForVote(conceptId: string, symbol: string, name?: string, by?: string, mode?: string): void {
     const topic: TopicKey = this.config.topics?.voteshill ? "voteshill" : "launch";
-    this.toChannel(feed.voteShill(symbol, name, by), this.kb.voteShill(conceptId, symbol, name), topic);
+    this.toChannel(feed.voteShill(symbol, name, by, mode), this.kb.voteShill(conceptId, symbol, name), topic);
   }
-  votesHit(symbol: string, roundId: string, votes: number): void {
+  votesHit(symbol: string, roundId: string, votes: number, mode?: string): void {
     // It's booked for the Cook Out now — the button enters the match, not the
     // vote page. Lands in Trading, where the live crowd is.
-    this.toChannel(feed.votesHit(symbol, votes), this.kb.enterRound(roundId, symbol), "trading");
+    this.toChannel(feed.votesHit(symbol, votes, mode), this.kb.enterRound(roundId, symbol), "trading");
   }
-  scheduled(symbol: string, roundId: string): void {
-    this.toChannel(feed.scheduled(symbol), this.kb.round(roundId, symbol), "announcements");
+  scheduled(symbol: string, roundId: string, mode?: string): void {
+    this.toChannel(feed.scheduled(symbol, mode), this.kb.round(roundId, symbol), "announcements");
   }
-  fairOpen(symbol: string, roundId: string): void {
-    this.toChannel(feed.fairOpen(symbol), this.kb.round(roundId, symbol), "trading");
+  fairOpen(symbol: string, roundId: string, mode?: string): void {
+    this.toChannel(feed.fairOpen(symbol, mode), this.kb.round(roundId, symbol), "trading");
   }
-  live(symbol: string, roundId: string): void {
-    this.toChannel(feed.live(symbol), this.kb.round(roundId, symbol), "trading");
+  live(symbol: string, roundId: string, mode?: string): void {
+    this.toChannel(feed.live(symbol, mode), this.kb.round(roundId, symbol), "trading");
   }
-  burnt(symbol: string, roundId?: string): void {
-    this.toChannel(feed.burnt(symbol), roundId ? this.kb.round(roundId, symbol) : this.kb.openCookout(), "leaderboards");
+  burnt(symbol: string, roundId?: string, mode?: string): void {
+    this.toChannel(feed.burnt(symbol, mode), roundId ? this.kb.round(roundId, symbol) : this.kb.openCookout(), "leaderboards");
   }
-  runItBack(symbol: string, roundId: string): void {
-    this.toChannel(feed.runItBack(symbol), this.kb.runItBack(roundId), "launch");
+  runItBack(symbol: string, roundId: string, mode?: string): void {
+    this.toChannel(feed.runItBack(symbol, mode), this.kb.runItBack(roundId), "launch");
   }
   jackpotGrew(eth: number, usd?: number): void {
     this.toChannel(feed.jackpot(eth, usd), this.kb.jackpot(), "announcements");

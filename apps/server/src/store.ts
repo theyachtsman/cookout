@@ -28,6 +28,7 @@ import {
   type ActivityEvent,
   type ActivityKind,
   type Address,
+  type GameMode,
   type AuctionIntent,
   type AuctionResult,
   type ChatMessage,
@@ -94,6 +95,8 @@ export interface RoundEvent {
    *  concept id — it deep-links the vote card. */
   roundId: string;
   symbol: string;
+  /** The coin's game mode, so the community feed can name it. */
+  mode?: GameMode;
   /** Vote count, for "votes_hit". */
   votes?: number;
   /** Coin name, for "submitted" (drives the shill post + prefilled tweet). */

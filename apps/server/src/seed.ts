@@ -37,7 +37,7 @@ export function evaluateVoting(store: Store, engine: RoundEngine, now = Date.now
       c.status = "scheduled";
       // Community feed: hitting the vote bar is its own beat, and it books the
       // slot — one message covers both ("$X hit the bar, it's on the calendar").
-      store.emitRoundEvent({ kind: "votes_hit", roundId: round.id, symbol: c.symbol, votes: c.votes });
+      store.emitRoundEvent({ kind: "votes_hit", roundId: round.id, symbol: c.symbol, votes: c.votes, mode: c.mode });
       store.logAdmin(
         "vote_scheduled",
         `concept ${c.id} (${c.symbol}, ${tier}) hit ${VOTE_THRESHOLD} votes → round ${round.id}`,
@@ -102,6 +102,6 @@ export function autoScheduler(store: Store, engine: RoundEngine): void {
   // legacy concepts submitted before tiers were selectable.
   const tier = next.tier ?? store.settings.tier;
   const round = engine.scheduleRound(next, tier, Date.now() + store.settings.leadSeconds * 1000);
-  store.emitRoundEvent({ kind: "scheduled", roundId: round.id, symbol: next.symbol });
+  store.emitRoundEvent({ kind: "scheduled", roundId: round.id, symbol: next.symbol, mode: next.mode });
   store.logAdmin("auto_schedule", `round ${round.id} (${next.symbol}, ${tier})`);
 }
