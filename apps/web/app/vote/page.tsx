@@ -71,6 +71,21 @@ export default function VotePage() {
     return m;
   }, [rounds]);
 
+  // Open X's composer with a ready-made promo. The tweet links to the coin's
+  // share page (/coin/:id), which carries per-coin OpenGraph tags so the post
+  // unfurls with the coin card image; the link itself leads to the vote page.
+  const shillOnX = (c: TokenConcept) => {
+    const base = typeof window !== "undefined" ? window.location.origin : "";
+    const url = `${base}/coin/${c.id}`;
+    const text =
+      `🍳 $${c.symbol} (${c.name}) just dropped on The Cookout — the live trading pit.\n` +
+      `Vote it onto the grill and get ready for the Cookout 🔥🗳️`;
+    const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+      text,
+    )}&url=${encodeURIComponent(url)}`;
+    window.open(intent, "_blank", "noopener,noreferrer");
+  };
+
   const vote = async (id: string) => {
     setError("");
     setBusy(id);
@@ -219,9 +234,16 @@ export default function VotePage() {
                         Connect to vote
                       </button>
                     )}
+                    <button
+                      onClick={() => shillOnX(c)}
+                      title="Post it to your X — a ready-made promo with the coin card and a link to vote"
+                      className="rounded-lg border border-sky-500/50 px-4 py-1.5 text-sm font-black text-sky-300 transition hover:border-sky-400 hover:bg-sky-500/10 active:scale-95"
+                    >
+                      𝕏 Shill
+                    </button>
                     <Link
                       href={`/creator/${c.creatorAddress}`}
-                      className="text-xs text-zinc-600 hover:text-zinc-400"
+                      className="ml-auto text-xs text-zinc-600 hover:text-zinc-400"
                     >
                       by {c.creatorAddress.slice(0, 6)}…{c.creatorAddress.slice(-4)}
                     </Link>

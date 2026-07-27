@@ -8,6 +8,7 @@ import { UnlockToasts } from "../components/UnlockToasts";
 import { BetaGate } from "../components/BetaGate";
 import { FeedbackWidget } from "../components/FeedbackWidget";
 import { Providers } from "../components/Providers";
+import { SiteFooter } from "../components/SiteFooter";
 import { TopNav } from "../components/TopNav";
 import "./globals.css";
 
@@ -56,6 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     overflow-x-clip is a mobile safety net against any stray wide child */}
                 <main className="mx-auto max-w-6xl overflow-x-clip px-3 pb-24 pt-6 sm:px-4">
                   <BetaGate>{children}</BetaGate>
+                  <SiteFooter />
                 </main>
                 <SocialDock />
                 <UnlockToasts />
