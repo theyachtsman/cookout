@@ -34,8 +34,8 @@ export async function generateMetadata({
   const { id } = await params;
   const c = await getConcept(id);
   if (!c) return { title: "Coin not found · The Cookout" };
-  const title = `$${c.symbol} — ${c.name} · Vote it onto the grill`;
-  const description = `${c.theme} · Up for a vote at The Cookout. Send $${c.symbol} to the Cook Out and get ready.`;
+  const title = `$${c.symbol} · ${c.name} · Vote it onto the grill`;
+  const description = `${c.theme}. Up for a vote at The Cookout. Send $${c.symbol} to the Cook Out and get ready.`;
   const image = `${API_URL}/api/concepts/${c.id}/image`;
   const url = `${SITE_URL}/coin/${c.id}`;
   return {
@@ -47,7 +47,7 @@ export async function generateMetadata({
       url,
       title,
       description,
-      images: [{ url: image, width: 1200, height: 630, alt: `$${c.symbol} — ${c.name}` }],
+      images: [{ url: image, width: 1200, height: 630, alt: `$${c.symbol} ${c.name}` }],
     },
     twitter: {
       card: "summary_large_image",

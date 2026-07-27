@@ -93,7 +93,7 @@ export class Notifier {
         this.toChannel(feed.graduated(sym ?? "coin"), e.roundId ? this.kb.graduated(e.roundId) : this.kb.openCookout(), "leaderboards");
         break;
       case "rekt":
-        this.toOwner(e.address, "rugs", `💀 You got burnt${sym ? ` in $${esc(sym)}` : ""}. Grill's cold on that one — onto the next.`);
+        this.toOwner(e.address, "rugs", `💀 You got burnt${sym ? ` in $${esc(sym)}` : ""}. Grill's cold on that one. Onto the next.`);
         break;
       case "won":
         this.toOwner(e.address, "trading", `🍖 You cooked${sym ? ` in $${esc(sym)}` : ""}. That's a plate.`);

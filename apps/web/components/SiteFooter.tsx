@@ -20,7 +20,7 @@ export function SiteFooter() {
             Join the cookout
           </div>
           <p className="mt-2 text-zinc-400">
-            The whole crowd hangs in Telegram — live match calls, launches, shilling, and{" "}
+            The whole crowd hangs out in Telegram. Live match calls, launches, shilling, and{" "}
             <span className="font-bold text-zinc-200">The Pit Boss</span> keeping the grill hot.
             Pull up.
           </p>
@@ -69,11 +69,11 @@ export function SiteFooter() {
 
       <div className="mt-8 flex flex-col items-start justify-between gap-2 border-t border-zinc-800/70 py-6 text-xs text-zinc-600 sm:flex-row sm:items-center">
         <span>
-          The Cookout · paper-money beta — nothing here is real money yet · we only ever make money
-          on fees.
+          The Cookout · paper-money beta. Nothing here is real money yet, and we only ever make
+          money on fees.
         </span>
         <span>
-          {X_URL.replace("https://", "")} is our only official account — we never DM first.
+          {X_URL.replace("https://", "")} is our only official account. We never DM first.
         </span>
       </div>
     </footer>

@@ -244,11 +244,11 @@ export default function Submissions() {
               </div>
               {!GAME_MODE_MAP[form.mode].rugRules && (
                 <div className="mt-2 rounded-lg border border-red-500/40 bg-red-500/[0.06] p-3 text-xs text-zinc-300">
-                  <b className="text-red-300">🔥 {GAME_MODE_MAP[form.mode].name} — rug rules off.</b>{" "}
+                  <b className="text-red-300">🔥 {GAME_MODE_MAP[form.mode].name}: rug rules off.</b>{" "}
                   No dev-dump auto-rug, no pool-drain rug, no dev sell lock. As the dev you can{" "}
                   <b>sell whenever and however much you want</b> with zero reputation hit and no
-                  launch ban — nobody gets &quot;rugged,&quot; the price action is the whole game.
-                  Traders: it&apos;s fast and it&apos;s violent. Get in, get a bag, get out.
+                  launch ban. Nobody gets &quot;rugged,&quot; the price action is the whole game.
+                  Traders, it&apos;s fast and it&apos;s violent. Get in, get a bag, get out.
                 </div>
               )}
             </div>
@@ -286,9 +286,9 @@ export default function Submissions() {
         <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/[0.05] p-3 text-xs text-zinc-300">
           <b className="text-red-300">🔥 The rug rule:</b> in <b>Classic</b> and <b>Pressure</b> you
           can trade your own coin like anyone else, but <b>selling 75% of the most you ever held</b>{" "}
-          (cumulative) pulls the launch and brands it Burnt — that tanks your reputation and bans you
+          (cumulative) pulls the launch and brands it Burnt, which tanks your reputation and bans you
           from launching. Trim to take profit; don&apos;t full-send your own bag.{" "}
-          <b className="text-amber-300">Blitz and Reflex turn rug rules off</b> — no auto-rug, no
+          <b className="text-amber-300">Blitz and Reflex turn rug rules off</b>: no auto-rug, no
           sell lock, no penalty. The price action is the whole game.
         </div>
       </section>

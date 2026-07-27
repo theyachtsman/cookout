@@ -56,7 +56,7 @@ export default function SettingsPage() {
           Tune your Cookout.
         </h1>
         <p className="mt-1.5 text-sm text-zinc-400">
-          Your account, what The Pit Boss pings you about, and how the game sounds — all in one
+          Your account, what The Pit Boss pings you about, and how the game sounds, all in one
           place.
         </p>
       </header>
@@ -88,7 +88,7 @@ export default function SettingsPage() {
             {saving ? "Saving…" : "Save"}
           </button>
         </div>
-        <p className="mt-1 text-[11px] text-zinc-600">Shown across the Cookout — up to 24 characters.</p>
+        <p className="mt-1 text-[11px] text-zinc-600">Shown across the Cookout, up to 24 characters.</p>
 
         <div className="mt-4 flex flex-wrap gap-2 border-t border-zinc-800/70 pt-4">
           <Link

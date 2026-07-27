@@ -126,7 +126,7 @@ export const GAME_MODES: GameModeDef[] = [
     unlockLevel: 1,
     tagline: "7 min · standard rules",
     blurb:
-      "Same rules, a tighter seven-minute clock. Less room to breathe — maximum tension and skill expression.",
+      "Same rules on a tighter seven-minute clock. Less room to breathe, so it's all tension and skill expression.",
   },
   {
     key: "blitz",
@@ -147,7 +147,7 @@ export const GAME_MODES: GameModeDef[] = [
     tier: "degen",
     unlockLevel: 1,
     tagline: "1 min · rug rules off",
-    blurb: "Sixty seconds. No rug rules, no safety net. Pure dopamine — blink and it's over.",
+    blurb: "Sixty seconds. No rug rules, no safety net. Pure dopamine, and it's over before you blink.",
   },
   {
     key: "endurance",
@@ -157,7 +157,7 @@ export const GAME_MODES: GameModeDef[] = [
     tier: "standard",
     unlockLevel: 999,
     tagline: "No timer · coming soon",
-    blurb: "A marathon with no clock — it runs until the market decides. Reserved for a later unlock.",
+    blurb: "A marathon with no clock that runs until the market decides. Reserved for a later unlock.",
     disabled: true,
   },
 ];

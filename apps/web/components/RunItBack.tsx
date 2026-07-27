@@ -79,7 +79,7 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
             ? "bg-lime-400 text-zinc-950 hover:bg-lime-300"
             : "border border-zinc-700 text-zinc-400 hover:border-lime-400/50 hover:text-zinc-200"
         } ${className}`}
-        title={isDev ? "Re-launch this coin — pick a fresh mode" : "What's Run It Back?"}
+        title={isDev ? "Re-launch this coin, pick a fresh mode" : "What's Run It Back?"}
       >
         🔁 Run It Back
       </button>
@@ -102,7 +102,7 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
                     <h3 className="mt-1 text-xl font-black">Run it back</h3>
                     <p className="mt-1 text-sm text-zinc-400">
                       Send <b className="text-zinc-200">${round.token.symbol}</b> straight back to
-                      the Cook Out — no new vote. Pick how it runs this time.
+                      the Cook Out, no new vote. Pick how it runs this time.
                     </p>
                   </div>
 
@@ -193,7 +193,7 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
                   <p className="mt-2 text-sm text-zinc-400">
                     When a coin doesn&apos;t graduate, its developer gets a second serving:{" "}
                     <b className="text-zinc-200">Run It Back</b> re-launches the coin straight back
-                    to the Cook Out — in whatever mode they choose — no new vote needed.
+                    to the Cook Out in whatever mode they choose, no new vote needed.
                   </p>
                   <p className="mt-2 text-sm text-zinc-400">
                     Only <b className="text-zinc-200">${round.token.symbol}</b>&apos;s developer can
