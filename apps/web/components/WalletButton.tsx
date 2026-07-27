@@ -96,6 +96,13 @@ export function WalletButton() {
             >
               🌐 Public view
             </Link>
+            <Link
+              href="/settings"
+              onClick={() => setOpen(false)}
+              className="block px-3 py-2 text-sm hover:bg-zinc-800"
+            >
+              ⚙️ Settings
+            </Link>
             <button
               onClick={() => {
                 setOpen(false);

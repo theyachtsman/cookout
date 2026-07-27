@@ -7,13 +7,11 @@ import { api } from "../../lib/api";
 import { DEFAULT_CHAIN_ID, arenaBalance, hasArenaWallet } from "../../lib/arenaWallet";
 import { useChainOnly, useUnit } from "../../lib/chainOnly";
 import { useSession } from "../../lib/session";
-import { AudioMixer } from "../../components/AudioSettings";
 import { CosmeticsLocker } from "../../components/CosmeticsLocker";
 import { ImagePicker } from "../../components/ImagePicker";
 import { Missions } from "../../components/Missions";
 import { Progress } from "../../components/Progress";
 import { ReputationPanel } from "../../components/Reputation";
-import { TelegramConnect } from "../../components/TelegramConnect";
 import {
   Avatar,
   ProfileHero,
@@ -197,8 +195,20 @@ export default function ProfilePage() {
         </div>
       </ProfileHero>
 
-      {/* Telegram companion — hidden until the server has a bot configured */}
-      <TelegramConnect />
+      {/* Pit Boss (Telegram) and Sound settings now live on the Settings page,
+          reached from the wallet drop-down in the top nav. */}
+      <Link
+        href="/settings"
+        className="flex items-center justify-between rounded-2xl border border-zinc-800 px-4 py-3 text-sm transition hover:border-lime-400/50 hover:bg-zinc-900/50"
+      >
+        <span className="font-bold text-zinc-300">
+          ⚙️ Settings ·{" "}
+          <span className="font-normal text-zinc-500">
+            Pit Boss notifications, sound &amp; account
+          </span>
+        </span>
+        <span className="text-zinc-500">→</span>
+      </Link>
 
       {/* Career stats */}
       <section>
@@ -327,10 +337,8 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      {/* Cosmetics + settings carry their own headers */}
+      {/* Cosmetics carries its own header */}
       <CosmeticsLocker />
-
-      <AudioMixer />
     </div>
   );
 }
