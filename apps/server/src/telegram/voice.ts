@@ -65,6 +65,13 @@ export const feed = {
     `🍳 ${b("Fresh coin on the board")} — $${esc(symbol)} (${esc(name)}) by ${esc(by)}. ` +
     `Get it to the vote bar and it hits the grill.`,
 
+  /** The shill-pit post: a new submission, with a call to rally votes. */
+  voteShill: (symbol: string, name?: string, by?: string) =>
+    `🍳 ${b("Fresh coin up for a vote")} — $${esc(symbol)}${name ? ` (${esc(name)})` : ""}` +
+    `${by ? ` by ${esc(by)}` : ""}.\n` +
+    `This is the shill pit — make your case, rally the crowd, and get it voted onto the grill. ` +
+    `Hit ${b("Shill on X")} to drop it on your timeline. 🔥`,
+
   votesHit: (symbol: string, votes: number) =>
     `🗳️ $${esc(symbol)} just hit ${b(votes + " votes")}. It's booked for The Cookout.`,
 

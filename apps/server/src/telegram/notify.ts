@@ -117,10 +117,12 @@ export class Notifier {
 
   handleRoundEvent(e: RoundEvent): void {
     switch (e.kind) {
+      case "submitted":
+        return this.submittedForVote(e.roundId, e.symbol, e.name, e.by);
       case "scheduled":
         return this.scheduled(e.symbol, e.roundId);
       case "votes_hit":
-        return this.votesHit(e.symbol, e.votes ?? 0);
+        return this.votesHit(e.symbol, e.roundId, e.votes ?? 0);
       case "fair_open":
         return this.fairOpen(e.symbol, e.roundId);
       case "live":
@@ -134,8 +136,18 @@ export class Notifier {
 
   // ---- explicit community-feed posts (wired from lifecycle / admin) --------
 
-  votesHit(symbol: string, votes: number): void {
-    this.toChannel(feed.votesHit(symbol, votes), this.kb.vote(), "announcements");
+  /** A brand-new submission — announce it in the Vote Shilling pit so its
+   *  creator (and the crowd) can rally votes: a jump-to-card button and a
+   *  prefilled X post carrying the vote-card link. Goes to voteshill, which
+   *  falls back to launch, then General. */
+  submittedForVote(conceptId: string, symbol: string, name?: string, by?: string): void {
+    const topic: TopicKey = this.config.topics?.voteshill ? "voteshill" : "launch";
+    this.toChannel(feed.voteShill(symbol, name, by), this.kb.voteShill(conceptId, symbol, name), topic);
+  }
+  votesHit(symbol: string, roundId: string, votes: number): void {
+    // It's booked for the Cook Out now — the button enters the match, not the
+    // vote page. Lands in Trading, where the live crowd is.
+    this.toChannel(feed.votesHit(symbol, votes), this.kb.enterRound(roundId, symbol), "trading");
   }
   scheduled(symbol: string, roundId: string): void {
     this.toChannel(feed.scheduled(symbol), this.kb.round(roundId, symbol), "announcements");

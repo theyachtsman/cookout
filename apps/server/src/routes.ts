@@ -787,6 +787,14 @@ export function createApp(
         "vetting",
         `concept ${concept.id} (${concept.symbol}, ${tier}) accepted: template-only deploy, rug-flag check passed, cooldown ok`,
       );
+      // Announce it in the Vote Shilling pit so the creator can rally votes.
+      store.emitRoundEvent({
+        kind: "submitted",
+        roundId: concept.id,
+        symbol: concept.symbol,
+        name: concept.name,
+        by: creator.displayName,
+      });
       res.json(concept);
     }),
   );

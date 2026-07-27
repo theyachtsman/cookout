@@ -81,6 +81,7 @@ export interface SeasonStats {
 
 /** A round-lifecycle moment for the community feed. */
 export type RoundEventKind =
+  | "submitted"
   | "scheduled"
   | "votes_hit"
   | "fair_open"
@@ -89,10 +90,16 @@ export type RoundEventKind =
   | "run_it_back";
 export interface RoundEvent {
   kind: RoundEventKind;
+  /** For lifecycle events, the round id. For "submitted" (no round yet), the
+   *  concept id — it deep-links the vote card. */
   roundId: string;
   symbol: string;
   /** Vote count, for "votes_hit". */
   votes?: number;
+  /** Coin name, for "submitted" (drives the shill post + prefilled tweet). */
+  name?: string;
+  /** Creator display name, for "submitted". */
+  by?: string;
 }
 
 export interface StoredUser extends UserProfile {
