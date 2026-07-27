@@ -1034,7 +1034,7 @@ export function createApp(
       }
       const at = nextFreeSlot(store, store.settings.leadSeconds * 1000, Date.now());
       const rerun = engine.scheduleRound(concept, tier, at);
-      store.emitRoundEvent({ kind: "run_it_back", roundId: rerun.id, symbol: concept.symbol });
+      store.emitRoundEvent({ kind: "run_it_back", roundId: rerun.id, symbol: concept.symbol, mode: concept.mode });
       store.logAdmin(
         "runback",
         `${req.userAddress} ran back $${concept.symbol} (round ${round.id} → ${rerun.id})`,

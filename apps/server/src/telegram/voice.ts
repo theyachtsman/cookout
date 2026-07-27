@@ -60,36 +60,43 @@ export const say = {
 
 // ---- community feed (channel / group) -------------------------------------
 
+/** A one-line tag naming the coin's game mode, appended to feed posts. Empty
+ *  for legacy coins that predate modes. `mode` is a display name (e.g. "Blitz"). */
+const modeTag = (mode?: string) => (mode ? `\n🎮 Game mode: ${b(esc(mode))}` : "");
+
 export const feed = {
-  submitted: (symbol: string, name: string, by: string) =>
+  submitted: (symbol: string, name: string, by: string, mode?: string) =>
     `🍳 ${b("Fresh coin on the board")}: $${esc(symbol)} (${esc(name)}) by ${esc(by)}. ` +
-    `Get it to the vote bar and it hits the grill.`,
+    `Get it to the vote bar and it hits the grill.${modeTag(mode)}`,
 
   /** The shill-pit post: a new submission, with a call to rally votes. */
-  voteShill: (symbol: string, name?: string, by?: string) =>
+  voteShill: (symbol: string, name?: string, by?: string, mode?: string) =>
     `🍳 ${b("Fresh coin up for a vote")}: $${esc(symbol)}${name ? ` (${esc(name)})` : ""}` +
     `${by ? ` by ${esc(by)}` : ""}.\n` +
     `This is the shill pit. Make your case, rally the crowd, and get it voted onto the grill. ` +
-    `Hit ${b("Shill on X")} to drop it on your timeline. 🔥`,
+    `Hit ${b("Shill on X")} to drop it on your timeline. 🔥${modeTag(mode)}`,
 
-  votesHit: (symbol: string, votes: number) =>
-    `🗳️ $${esc(symbol)} just hit ${b(votes + " votes")}. It's booked for The Cookout.`,
+  votesHit: (symbol: string, votes: number, mode?: string) =>
+    `🗳️ $${esc(symbol)} just hit ${b(votes + " votes")}. It's booked for The Cookout.${modeTag(mode)}`,
 
-  scheduled: (symbol: string) =>
-    `📅 $${esc(symbol)} is on the calendar. ${b("Get your people gathered")} before the Pull Up.`,
+  scheduled: (symbol: string, mode?: string) =>
+    `📅 $${esc(symbol)} is on the calendar. ${b("Get your people gathered")} before the Pull Up.${modeTag(mode)}`,
 
-  fairOpen: (symbol: string) =>
-    `⚖️ ${b("Fair Open")} on $${esc(symbol)}. One price, no snipers, no front-runs. Pull up.`,
+  fairOpen: (symbol: string, mode?: string) =>
+    `⚖️ ${b("It's time to pull up")}. The ${b("Fair Open")} for $${esc(symbol)} is here: ` +
+    `one price, no snipers, no front-runs. Get your buy in before the bell.${modeTag(mode)}`,
 
-  live: (symbol: string) => `🔥 $${esc(symbol)} is ${b("LIVE")}. Fresh serving on the grill, get in.`,
+  live: (symbol: string, mode?: string) =>
+    `🔥 $${esc(symbol)} is ${b("LIVE")}. Fresh serving on the grill, get in.${modeTag(mode)}`,
 
   graduated: (symbol: string) =>
     `🍽️ ${b("SOMEBODY COOKED")}. $${esc(symbol)} served up and walked out into the wild. Legendary.`,
 
-  burnt: (symbol: string) => `💀 $${esc(symbol)} got burnt. Rug pulled, grill's cold. Onto the next.`,
+  burnt: (symbol: string, mode?: string) =>
+    `💀 $${esc(symbol)} got burnt. Rug pulled, grill's cold. Onto the next.${modeTag(mode)}`,
 
-  runItBack: (symbol: string) =>
-    `🔁 $${esc(symbol)} is running it back. Same setup, fresh shot. Second serving coming up.`,
+  runItBack: (symbol: string, mode?: string) =>
+    `🔁 $${esc(symbol)} is running it back. Fresh shot, second serving coming up.${modeTag(mode)}`,
 
   jackpot: (eth: number, usd?: number) =>
     `💰 The ${b("weekly jackpot")} is up to ${b(eth.toFixed(2) + " pETH")}` +
