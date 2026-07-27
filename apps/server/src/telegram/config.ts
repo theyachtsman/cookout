@@ -42,6 +42,23 @@ export interface PitBossConfig {
   spamBlocklist?: string[];
 }
 
+/**
+ * Telegram's "General" topic is the forum ROOT: it has no addressable thread id,
+ * and posting with message_thread_id=1 throws "message thread not found". A
+ * message sent with no thread lands in General — so strip any topic pinned to id
+ * 1 (the General sentinel) and let it fall through to the root. Mutates in place
+ * and returns the same object for convenience.
+ */
+export function normalizeTopics(
+  topics?: Partial<Record<TopicKey, number>>,
+): Partial<Record<TopicKey, number>> | undefined {
+  if (!topics) return topics;
+  for (const k of Object.keys(topics) as TopicKey[]) {
+    if (topics[k] === 1) topics[k] = undefined;
+  }
+  return topics;
+}
+
 /** The deep link a player follows to bind their account (carries a one-time token). */
 export function linkDeepLink(botUsername: string, token: string): string {
   return `https://t.me/${botUsername}?start=${token}`;

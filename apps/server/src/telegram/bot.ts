@@ -1,7 +1,7 @@
 import type { Store } from "../store.js";
 import { TelegramApi } from "./api.js";
 import { Commands, COMMANDS } from "./commands.js";
-import type { PitBossConfig } from "./config.js";
+import { normalizeTopics, type PitBossConfig } from "./config.js";
 import { Notifier } from "./notify.js";
 import { pins, seedPrompt } from "./voice.js";
 
@@ -188,5 +188,8 @@ export function createPitBoss(store: Store): PitBoss | null {
       .map((s) => s.trim())
       .filter(Boolean),
   };
+  // General is the forum root (see normalizeTopics): keep welcomes and the
+  // conversation seeder landing there instead of throwing on a bad thread id.
+  normalizeTopics(config.topics);
   return new PitBoss(store, new TelegramApi(token), config);
 }
