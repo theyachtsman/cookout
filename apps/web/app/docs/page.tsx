@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  GAME_MODES,
   LEVEL_TITLES,
   TIER_CONFIGS,
   TIER_UNLOCK_LEVEL,
@@ -37,8 +38,9 @@ const SECTIONS = [
   ["auction", "The Fair Open"],
   ["trading", "Live Trading"],
   ["endings", "Rugs, Redemption & Graduation"],
+  ["modes", "Game Modes"],
   ["reputation", "Reputation & Rug Bans"],
-  ["tiers", "Risk Tiers"],
+  ["tiers", "Risk Tiers (under the hood)"],
   ["progression", "XP, Levels & Titles"],
   ["jackpot", "The Weekly Jackpot"],
   ["quests", "Quests & Earning XP"],
@@ -135,6 +137,19 @@ export default function Docs() {
             differently every round, so there&apos;s always a market to out-trade. As real players
             fill the lobbies, they take the Swarm&apos;s seats.
           </p>
+          <p className="text-zinc-400">
+            The crowd also hangs out in our <b>Telegram</b>, where launches, live matches, and wins
+            get called out as they happen.{" "}
+            <a
+              href="https://t.me/+lrFJm9wS9-tiOTYx"
+              target="_blank"
+              rel="noreferrer"
+              className="text-lime-400 underline"
+            >
+              Join the group
+            </a>{" "}
+            and pull up.
+          </p>
         </Section>
 
         <Section id="round" title="Anatomy of a Round">
@@ -222,19 +237,84 @@ export default function Docs() {
             <li>
               <b>🔥 Rug</b>: the pool drains hard, or the creator dumps their own bag. Specifically,
               a launch is pulled once the creator has <b>sold 75% of the most they ever held</b> of
-              their own coin (cumulative, not one trade) — trimming a little to take profit is fine.
+              their own coin (cumulative, not one trade). Trimming a little to take profit is fine.
               The kill feed calls it <b>Burnt</b>. Rugging tanks the creator&apos;s reputation and
               earns their wallet a <b>launch ban</b> (see{" "}
-              <a href="#reputation" className="text-lime-400 underline">Reputation &amp; Rug Bans</a>) —
-              unless it&apos;s a <b className="text-red-300">1-minute Blitz</b> coin, where rugging is
-              the game and costs the creator nothing (see{" "}
-              <a href="#creators" className="text-lime-400 underline">Launching Your Own Coin</a>).
-              Note: creator sells are also time-locked briefly after the open on lower tiers.
+              <a href="#reputation" className="text-lime-400 underline">Reputation &amp; Rug Bans</a>).
+              This is the full ruleset, and it applies in <b>Classic</b> and <b>Pressure</b> matches.{" "}
+              <b>Blitz</b> and <b>Reflex</b> run with <b className="text-red-300">rug rules off</b>,
+              so there is no auto-rug at all (see{" "}
+              <a href="#modes" className="text-lime-400 underline">Game Modes</a>). Creator sells are
+              also time-locked briefly after the open when rug rules are on.
             </li>
           </ul>
           <p className="text-zinc-400">
             Rounds last minutes, exposure is capped on lower tiers, and there is no such thing as
             being stuck holding an unsellable token here.
+          </p>
+        </Section>
+
+        <Section id="modes" title="Game Modes">
+          <p>
+            Every coin launches in one of four curated <b>game modes</b>. A mode bundles two things:
+            how long the match runs, and whether <b>rug rules</b> are on. The creator picks it at
+            launch, and you&apos;ll see it as a badge on the coin card so you know what you&apos;re
+            walking into.
+          </p>
+
+          <div className="overflow-x-auto">
+            <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[30rem] text-sm">
+              <thead className="text-left text-xs uppercase text-zinc-500">
+                <tr>
+                  <th className="py-2 pr-4">Mode</th>
+                  <th className="py-2 pr-4">Length</th>
+                  <th className="py-2 pr-4">Rug rules</th>
+                  <th className="py-2">The vibe</th>
+                </tr>
+              </thead>
+              <tbody className="align-top">
+                {GAME_MODES.map((m) => (
+                  <tr key={m.key} className="border-t border-zinc-800">
+                    <td className="py-2 pr-4 font-bold">
+                      {m.name}
+                      {m.disabled && (
+                        <span className="ml-1.5 rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-bold text-zinc-400">
+                          soon
+                        </span>
+                      )}
+                    </td>
+                    <td className="py-2 pr-4 font-mono text-zinc-300">
+                      {m.minutes ? `${m.minutes} min` : "no timer"}
+                    </td>
+                    <td className="py-2 pr-4 font-mono">
+                      {m.rugRules ? (
+                        <span className="text-lime-300">on</span>
+                      ) : (
+                        <span className="text-red-300">off</span>
+                      )}
+                    </td>
+                    <td className="py-2 text-zinc-400">{m.blurb}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table></div>
+          </div>
+
+          <p>
+            <b>Standard rules (Classic &amp; Pressure):</b> the full ruleset. The dev-dump rug, the
+            pool-drain rug detector, and the brief dev sell lock all apply, exactly as described in{" "}
+            <a href="#endings" className="text-lime-400 underline">Rugs, Redemption &amp; Graduation</a>.
+          </p>
+          <p>
+            <b className="text-red-300">Rug rules off (Blitz &amp; Reflex):</b> no auto-rug, no drain
+            detector, no dev sell lock. Nobody gets rugged. The coin simply runs its clock, and the
+            price action is the whole game. The dev can trade their own bag freely with no reputation
+            hit. These modes run on thin liquidity, so they are fast and violent by design.
+          </p>
+          <p className="rounded-xl border border-lime-400/30 bg-lime-400/[0.05] p-3 text-sm text-zinc-300">
+            <b className="text-lime-300">Beta:</b> every mode is open to everyone from level 1, so
+            you can try them all. <b>Endurance</b> (no timer) is on the menu but locked for now, and
+            unlocks later.
           </p>
         </Section>
 
@@ -290,7 +370,14 @@ export default function Docs() {
           </p>
         </Section>
 
-        <Section id="tiers" title="Risk Tiers">
+        <Section id="tiers" title="Risk Tiers (under the hood)">
+          <p>
+            Under every <a href="#modes" className="text-lime-400 underline">game mode</a> sits an
+            economics <b>tier</b> that sets the liquidity depth, position caps, and dev sell lock.
+            Classic and Pressure run on <b>standard</b>; Blitz and Reflex run on <b>degen</b>. You
+            don&apos;t pick a tier directly anymore, the mode does it for you, but here&apos;s what
+            each one means for the market:
+          </p>
           <div className="overflow-x-auto">
             <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[30rem] text-sm">
               <thead className="text-left text-xs uppercase text-zinc-500">
@@ -319,8 +406,9 @@ export default function Docs() {
             </table></div>
           </div>
           <p className="text-zinc-400">
-            Deep liquidity means gentle moves; thin liquidity means violence. The Degen tier is
-            earned, not given.
+            Deep liquidity means gentle moves; thin liquidity means violence. During the beta the
+            unlock levels are all set to 1 so everyone can try every mode. They come back as a
+            progression gate later.
           </p>
         </Section>
 
@@ -329,7 +417,9 @@ export default function Docs() {
             You earn XP every round <b>regardless of profit</b>: participation, first buys,
             diamond hands, perfect exits, rug survival, and more. Every point counts toward your{" "}
             <b>level for life</b>. Levels never reset. Each bracket carries a <b>title</b> that
-            rides next to your name everywhere, and two brackets also <b>unlock a new tier</b>. The
+            rides next to your name everywhere. (Risk tiers used to unlock with levels; during the
+            beta every tier is open, so you can play any{" "}
+            <a href="#modes" className="text-lime-400 underline">game mode</a> right away.) The
             curve steepens as you climb (XP to reach a level ≈{" "}
             <span className="font-mono text-zinc-300">80·(L−1)^1.6</span>).
           </p>
@@ -793,36 +883,30 @@ export default function Docs() {
           <ol className="list-decimal space-y-2 pl-5">
             <li>
               Submit a concept on the <Link href="/submissions" className="text-lime-400 underline">Launchpad</Link>:
-              name, symbol, theme, art, your own total supply, a <b>risk tier</b>, and a{" "}
-              <b>match length</b> (10, 5, or 1 minute of live trading). Tokens deploy from the
-              platform template only. You never supply code, and no mint/pause/blacklist functions
-              exist.
+              name, symbol, theme, art, your own total supply, and a{" "}
+              <a href="#modes" className="text-lime-400 underline">game mode</a> (Classic, Pressure,
+              Blitz, or Reflex). The mode sets the match length and whether rug rules apply. Tokens
+              deploy from the platform template only. You never supply code, and no
+              mint/pause/blacklist functions exist.
             </li>
             <li>
               The community votes. <b>{VOTE_THRESHOLD} upvotes</b> sends your coin straight to the
-              Cook Out at your chosen tier and length; the window closes after 24 hours.
+              Cook Out in your chosen mode; the window closes after 24 hours. While it&apos;s up for
+              a vote, hit the <b>𝕏 Shill</b> button on your coin&apos;s vote card to fire off a
+              ready-made post (with the coin card art and a link to vote) to your followers.
             </li>
             <li>
               Your round runs. You earn <b>{CREATOR_FEE_SHARE * 100}% of the round&apos;s trading
               fees</b>, reputation for clean launches (double for graduations), and a permanent
-              &quot;Launched by&quot; credit. You can trade your own coin freely — but{" "}
-              <b>dumping 75% of your holdings rugs it</b>, which tanks your reputation and{" "}
+              &quot;Launched by&quot; credit. In <b>Classic</b> and <b>Pressure</b> you can trade
+              your own coin freely, but <b>dumping 75% of your holdings rugs it</b>, which tanks your
+              reputation and{" "}
               <a href="#reputation" className="text-lime-400 underline">bans you from launching</a>{" "}
-              until the ban clears. Take profit in trims, not a full send.
+              until the ban clears. A live <b>rug meter</b> on your trading screen shows how close
+              your selling is to the line. In <b>Blitz</b> and <b>Reflex</b> rug rules are off, so
+              none of that applies (see <a href="#modes" className="text-lime-400 underline">Game Modes</a>).
             </li>
           </ol>
-
-          <div className="mt-4 rounded-xl border border-red-500/40 bg-red-500/[0.06] p-4">
-            <h3 className="text-base font-black text-red-300">⚡ 1-Minute Blitz — a different game</h3>
-            <p className="mt-1 text-sm text-zinc-300">
-              Pick the <b>1-minute</b> match length and the normal rug rules are off. Blitz is
-              built for rugging: as the dev you have <b>no sell lock</b> (dump the instant it&apos;s
-              live) and you can <b>rug 100% of your bag with zero reputation hit and no launch
-              ban</b>. The coin still burns when you pull — that&apos;s the point. For traders it&apos;s
-              pure reflex: get in, grab a small bag, and get out before the inevitable rug. Dodging
-              the pull is the whole skill.
-            </p>
-          </div>
 
           <h3 className="mt-6 text-lg font-black text-zinc-100">🔁 Run It Back</h3>
           <p>
@@ -830,9 +914,9 @@ export default function Docs() {
             On any of your failed coins you&apos;ll see a <b>Run It Back</b> button: on the coin
             card in the <Link href="/matches" className="text-lime-400 underline">Cook Out</Link>
             &apos;s Past Results, and on your{" "}
-            <Link href="/profile" className="text-lime-400 underline">creator page</Link> launches.
-            One click re-launches the coin with the <b>exact same setup</b> (same tier, same match
-            length, same tokenomics) straight back to the Cook Out, no new vote needed.
+            <Link href="/profile" className="text-lime-400 underline">creator page</Link> launches. It
+            opens a quick confirm with your coin card and a <b>mode picker</b>, so you can relaunch
+            in a fresh mode. Confirm, and it goes straight back to the Cook Out, no new vote needed.
           </p>
           <p className="text-zinc-400">
             Only the coin&apos;s own developer can run it back. (If you launched under a rug ban,
@@ -857,7 +941,7 @@ export default function Docs() {
             </Faq>
             <Faq q="My coin rugged or didn't graduate. Can I launch again?">
               A coin that <b>didn&apos;t graduate</b> (timed out or went quiet) can be re-launched
-              instantly with <b>Run It Back</b>: same setup, no new vote. A coin that{" "}
+              with <b>Run It Back</b>: pick a mode and confirm, no new vote. A coin that{" "}
               <b>rugged</b> earns your wallet a launch ban first; clear it from the Reputation panel
               on your <a href="#reputation" className="text-lime-400 underline">Profile</a> (or wait
               it out, in real-money phases), then you&apos;re free to launch again.
