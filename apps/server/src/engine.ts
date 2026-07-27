@@ -815,6 +815,11 @@ export class RoundEngine {
           if (!round.chain) {
             const holder = this.store.getOrCreateUser(p.userAddress);
             holder.arenaBalance = (holder.arenaBalance ?? 0) + share;
+            // Show the redemption in the player's Cook Out balance ledger.
+            if (share > 0 && !p.userAddress.startsWith("0xb07"))
+              this.store.recordLedger(p.userAddress, "redeem", share, {
+                symbol: round.token.symbol,
+              });
           }
           p.realizedPnl += share - p.costBasisEth;
           p.tokens = 0;

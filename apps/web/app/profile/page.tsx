@@ -8,6 +8,7 @@ import { DEFAULT_CHAIN_ID, arenaBalance, hasArenaWallet } from "../../lib/arenaW
 import { useChainOnly, useUnit } from "../../lib/chainOnly";
 import { useSession } from "../../lib/session";
 import { CosmeticsLocker } from "../../components/CosmeticsLocker";
+import { FeesEarned } from "../../components/FeesEarned";
 import { ImagePicker } from "../../components/ImagePicker";
 import { Missions } from "../../components/Missions";
 import { Progress } from "../../components/Progress";
@@ -278,6 +279,11 @@ export default function ProfilePage() {
           onCleared={() => void refresh()}
         />
       </section>
+
+      {/* Creator fees — shown once you've earned any */}
+      {(profile.feesEarned ?? 0) > 0 && (
+        <FeesEarned eth={profile.feesEarned ?? 0} unit={unit} self />
+      )}
 
       {/* Quests */}
       <section>

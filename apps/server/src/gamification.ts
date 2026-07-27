@@ -42,6 +42,13 @@ export function evaluateRoundEnd(ctx: {
   let returnCount = 0;
   const podium: Array<{ address: Address; pnl: number }> = [];
 
+  // Snapshot each trader's XP before this round's end-of-round awards, so the
+  // results scoreboard can rank by XP earned THIS round. Trade XP was already
+  // added live (tracked per-player in meta), so it's added back in below.
+  const xpBefore = new Map<Address, number>();
+  for (const pos of positions.values())
+    xpBefore.set(pos.userAddress as Address, store.getOrCreateUser(pos.userAddress as Address).xp);
+
   for (const pos of positions.values()) {
     const addr = pos.userAddress as Address;
     const m = meta.get(addr);
@@ -210,12 +217,18 @@ export function evaluateRoundEnd(ctx: {
   const creator = store.getOrCreateUser(round.creatorAddress);
   const fees = store.feesByRound.get(round.id) ?? 0;
   // Weekly Jackpot accrues from every round's fees — volume drives the pot,
-  // regardless of whether the creator forfeited their share to a rug.
+  // regardless of whether the creator forfeited their share to a rug. The same
+  // fees + volume feed this week's site totals (shown on the jackpot page).
   accrueJackpot(store, fees);
+  store.accrueWeeklyTotals(ctx.totalVolume, fees, now);
   if (!rugged) {
     const creatorCut = fees * CREATOR_FEE_SHARE;
-    creator.paperBalance += creatorCut;
+    // Creator fees land in the creator's Cook Out balance (and show in the
+    // wallet's history ledger), not the bank.
+    creator.arenaBalance = (creator.arenaBalance ?? 0) + creatorCut;
     creator.feesEarned += creatorCut;
+    if (creatorCut > 0)
+      store.recordLedger(creator.address, "creator_fee", creatorCut, { symbol: round.token.symbol });
     creator.creatorReputation += round.graduated ? 2 : 1;
     if (round.graduated) {
       store.addXp(round.creatorAddress, XP_AWARDS.launched_graduate);
@@ -273,8 +286,17 @@ export function evaluateRoundEnd(ctx: {
     biggestWhale,
     diamondHands,
     fastestExit,
-    // Final standings for the results scoreboard: everyone who traded, best
-    // PnL first, capped so the summary (and its snapshot) stays lean.
-    leaderboard: [...podium].sort((a, b) => b.pnl - a.pnl).slice(0, 10),
+    // Final standings for the results scoreboard: everyone who traded, ranked by
+    // XP earned this round (trade XP + this round's end-of-round awards), capped
+    // so the summary (and its snapshot) stays lean.
+    leaderboard: podium
+      .map((p) => {
+        const before = xpBefore.get(p.address);
+        const endXp = before === undefined ? 0 : store.getOrCreateUser(p.address).xp - before;
+        const xp = (meta.get(p.address)?.tradeXpEarned ?? 0) + endXp;
+        return { address: p.address, xp, pnl: p.pnl };
+      })
+      .sort((a, b) => b.xp - a.xp)
+      .slice(0, 10),
   };
 }

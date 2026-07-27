@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import type { Round, RoundSummary, RugBan, TokenConcept } from "@cookout/shared";
 import { api } from "../../../lib/api";
 import { useUnit } from "../../../lib/chainOnly";
+import { FeesEarned } from "../../../components/FeesEarned";
 import { ReputationPanel, repStanding } from "../../../components/Reputation";
 import { RunItBackButton } from "../../../components/RunItBack";
 import { Avatar, ProfileHero, SectionTitle, StatCard, StatGrid } from "../../../components/ProfileUI";
@@ -114,6 +115,9 @@ export default function CreatorPage() {
           banned={!!view.banned}
         />
       </section>
+
+      {/* Accrued creator fees, with a native/USD toggle */}
+      <FeesEarned eth={view.feesEarned} unit={unit} />
 
       {/* Track record */}
       <section>

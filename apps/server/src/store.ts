@@ -29,6 +29,8 @@ import {
   type ActivityKind,
   type Address,
   type GameMode,
+  type LedgerEntry,
+  type LedgerKind,
   type AuctionIntent,
   type AuctionResult,
   type ChatMessage,
@@ -133,6 +135,9 @@ export interface StoredUser extends UserProfile {
   bestWeekStreak?: number;
   lastWeekSetKey?: string;
   feesEarned: number;
+  /** Cook Out balance movements (stakes, redemptions, creator fees), newest
+   *  last. The wallet's history ledger. */
+  ledger?: LedgerEntry[];
   /** Activity counters keyed by period ("2026-07-14" and "2026-W29"). */
   activity: Record<string, Partial<Record<MissionMetric, number>>>;
   /** Completed missions keyed "<periodKey>:<missionId>". */
@@ -212,6 +217,19 @@ export class Store {
   /** Lifetime jackpot paid out (paper ETH) — headline stat. */
   jackpotLifetimeEth = 0;
 
+  // ---- Weekly site totals (drive the jackpot page's "where it comes from") --
+  /** Site-wide trading volume per ISO week (pETH). */
+  weeklyVolume: Record<string, number> = {};
+  /** Site-wide trading fees collected per ISO week (pETH). */
+  weeklyFees: Record<string, number> = {};
+
+  /** Accrue a finished round's volume + fees into this week's site totals. */
+  accrueWeeklyTotals(volume: number, fees: number, now = Date.now()): void {
+    const wk = weekKey(now);
+    if (volume > 0) this.weeklyVolume[wk] = (this.weeklyVolume[wk] ?? 0) + volume;
+    if (fees > 0) this.weeklyFees[wk] = (this.weeklyFees[wk] ?? 0) + fees;
+  }
+
   /** arena (burner) wallet address → owner profile address. */
   private arenaIndex = new Map<string, Address>();
 
@@ -274,6 +292,31 @@ export class Store {
     }
   }
 
+  /**
+   * Record a Cook Out balance movement in the user's history ledger. Assumes
+   * arenaBalance has already been updated, so it snapshots the running balance.
+   * `amount` is signed (positive credit, negative debit).
+   */
+  recordLedger(
+    address: Address,
+    kind: LedgerKind,
+    amount: number,
+    opts: { symbol?: string } = {},
+  ): void {
+    if (amount === 0) return;
+    const u = this.getOrCreateUser(address);
+    const list = (u.ledger ??= []);
+    list.push({
+      id: this.id(),
+      at: Date.now(),
+      kind,
+      amount,
+      balanceAfter: u.arenaBalance ?? 0,
+      ...(opts.symbol ? { symbol: opts.symbol } : {}),
+    });
+    if (list.length > 250) list.splice(0, list.length - 250);
+  }
+
   /** Move paper money into the arena balance (what matches spend). */
   arenaDeposit(address: Address, amount: number): StoredUser {
     const u = this.getOrCreateUser(address);
@@ -281,6 +324,7 @@ export class Store {
     if (amt <= 0) return u;
     u.paperBalance -= amt;
     u.arenaBalance = (u.arenaBalance ?? 0) + amt;
+    this.recordLedger(address, "stake", amt);
     return u;
   }
 
@@ -291,6 +335,7 @@ export class Store {
     if (amt <= 0) return u;
     u.arenaBalance = (u.arenaBalance ?? 0) - amt;
     u.paperBalance += amt;
+    this.recordLedger(address, "unstake", -amt);
     return u;
   }
 
@@ -779,6 +824,8 @@ export class Store {
       jackpotWeekKey: this.jackpotWeekKey,
       jackpotHistory: this.jackpotHistory.slice(-52),
       jackpotLifetimeEth: this.jackpotLifetimeEth,
+      weeklyVolume: this.weeklyVolume,
+      weeklyFees: this.weeklyFees,
     };
   }
 
@@ -822,6 +869,8 @@ export class Store {
     this.jackpotWeekKey = snap.jackpotWeekKey ?? weekKey();
     this.jackpotHistory = snap.jackpotHistory ?? [];
     this.jackpotLifetimeEth = snap.jackpotLifetimeEth ?? 0;
+    this.weeklyVolume = snap.weeklyVolume ?? {};
+    this.weeklyFees = snap.weeklyFees ?? {};
     this.reindexArena();
     this.reindexTelegram();
   }
@@ -894,4 +943,6 @@ export interface Snapshot {
   jackpotWeekKey?: string;
   jackpotHistory?: JackpotPayout[];
   jackpotLifetimeEth?: number;
+  weeklyVolume?: Record<string, number>;
+  weeklyFees?: Record<string, number>;
 }

@@ -108,6 +108,34 @@ export default function JackpotPage() {
             of every trading fee, half of the platform&apos;s house cut. Nothing is minted for it. It is
             pure fee revenue, so a busy trading week directly means a bigger jackpot.
           </p>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 border-t border-zinc-800 pt-4">
+            <div className="rounded-xl bg-zinc-900/60 p-3">
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500">
+                This week&apos;s volume
+              </div>
+              <div className="mt-0.5 font-mono text-lg font-black text-zinc-100">
+                {jp.weekVolumeEth.toLocaleString(undefined, { maximumFractionDigits: 2 })} {cur}
+              </div>
+              <div className="font-mono text-[11px] text-zinc-500">
+                ≈ {usd0(jp.weekVolumeEth * jp.ethUsd)}
+              </div>
+            </div>
+            <div className="rounded-xl bg-zinc-900/60 p-3">
+              <div className="text-[10px] uppercase tracking-wide text-zinc-500">
+                This week&apos;s fees
+              </div>
+              <div className="mt-0.5 font-mono text-lg font-black text-amber-300">
+                {jp.weekFeesEth.toLocaleString(undefined, { maximumFractionDigits: 3 })} {cur}
+              </div>
+              <div className="font-mono text-[11px] text-zinc-500">
+                ≈ {usd2(jp.weekFeesEth * jp.ethUsd)}
+              </div>
+            </div>
+          </div>
+          <p className="mt-2 text-[11px] text-zinc-600">
+            Site-wide totals for the current week (resets Monday 00:00 UTC with the pot).
+          </p>
         </div>
 
         <div className="rounded-2xl border border-zinc-800 p-5">

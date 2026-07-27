@@ -471,6 +471,10 @@ export interface JackpotStatus {
   paperMode: boolean;
   /** Fee routing, percentages of every trade fee. */
   breakdown: { creatorPct: number; referralPct: number; jackpotPct: number; housePct: number };
+  /** Site-wide trading volume this week (pETH) — what fed the fees. */
+  weekVolumeEth: number;
+  /** Site-wide trading fees collected this week (pETH). */
+  weekFeesEth: number;
   payoutWeights: number[];
   nextPayoutAt: number;
   lifetimePaidEth: number;
@@ -523,9 +527,24 @@ export interface RoundSummary {
   biggestWhale?: { address: Address; ethIn: number };
   diamondHands?: { address: Address; holdSeconds: number };
   fastestExit?: { address: Address; seconds: number };
-  /** Final standings by PnL (highest first), capped to the top few. Powers the
-   *  round-results scoreboard (e.g. the Telegram post). */
-  leaderboard?: Array<{ address: Address; pnl: number }>;
+  /** Final standings by XP earned this round (highest first), capped to the top
+   *  few. Powers the round-results scoreboard (e.g. the Telegram post). Carries
+   *  PnL too, for anywhere that wants it. */
+  leaderboard?: Array<{ address: Address; xp: number; pnl: number }>;
+}
+
+/** A Cook Out balance movement, for the wallet's history ledger. */
+export type LedgerKind = "stake" | "unstake" | "redeem" | "creator_fee" | "jackpot";
+export interface LedgerEntry {
+  id: string;
+  at: number;
+  kind: LedgerKind;
+  /** Signed change to the Cook Out balance (pETH): positive credits, negative debits. */
+  amount: number;
+  /** Cook Out balance immediately after this entry. */
+  balanceAfter: number;
+  /** Coin symbol for round-scoped entries (redeem, creator_fee). */
+  symbol?: string;
 }
 
 /** WebSocket messages: server → client. */
