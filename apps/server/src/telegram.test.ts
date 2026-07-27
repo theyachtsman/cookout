@@ -4,7 +4,7 @@ import type { ActivityEvent, Address } from "@cookout/shared";
 import { Store } from "./store.js";
 import { TelegramApi } from "./telegram/api.js";
 import { Commands } from "./telegram/commands.js";
-import type { PitBossConfig } from "./telegram/config.js";
+import { normalizeTopics, type PitBossConfig } from "./telegram/config.js";
 import { Notifier } from "./telegram/notify.js";
 import { SpamGuard } from "./telegram/spamguard.js";
 
@@ -305,6 +305,36 @@ test("captcha rejects someone else tapping your button", async () => {
   assert.equal(after, before, "no unmute for the wrong user");
   const answer = calls.find((c) => c.method === "answerCallbackQuery");
   assert.ok(/yours/i.test(String(answer!.body.text ?? "")), "tells them it isn't their button");
+});
+
+test("General topic (id 1) is normalized to the forum root so posts don't 404", () => {
+  const topics = normalizeTopics({ general: 1, trading: 24, announcements: 33 })!;
+  assert.equal(topics.general, undefined, "general=1 → root (no thread)");
+  assert.equal(topics.trading, 24, "real threads are untouched");
+  assert.equal(topics.announcements, 33, "real threads are untouched");
+});
+
+test("a new member is welcomed in General when General is the forum root", async () => {
+  const store = new Store();
+  const { api, sent } = fakeApi();
+  const cfg: PitBossConfig = {
+    botUsername: "b",
+    webBase: "https://w",
+    groupChatId: "group",
+    // General swapped to the root id 1 → normalized away, so the welcome posts
+    // to the group with no thread (which Telegram delivers to General).
+    topics: normalizeTopics({ general: 1 }),
+  };
+  const commands = new Commands(store, api, cfg);
+  await commands.handleChatMember(
+    memberUpdate({ id: 77, is_bot: false, first_name: "Ada" }, "left", "member"),
+  );
+  await flush();
+
+  const g = to(sent, "-100") as unknown as { text: string; message_thread_id?: number }[];
+  assert.equal(g.length, 1, "one welcome");
+  assert.ok(/welcome/i.test(g[0]!.text), "says welcome");
+  assert.equal(g[0]!.message_thread_id, undefined, "no thread → lands in General");
 });
 
 test("a new submission posts to the Vote Shilling pit with a card + X-share button", async () => {
