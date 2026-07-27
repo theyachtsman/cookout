@@ -139,11 +139,17 @@ export function titleForLevel(level: number): string {
   return LEVEL_TITLES.find((t) => level >= t.minLevel)!.title;
 }
 
-/** Risk-tier access is gated by level only — never by payment. */
+/**
+ * Risk-tier access is gated by level only, never by payment.
+ *
+ * BETA: every tier is open at level 1 so players can try every game mode
+ * (Classic/Pressure run as standard, Blitz/Reflex as degen). Re-gate later by
+ * restoring the progression values, e.g. { rookie: 1, standard: 10, degen: 35 }.
+ */
 export const TIER_UNLOCK_LEVEL: Record<RiskTier, number> = {
   rookie: 1,
-  standard: 10,
-  degen: 35,
+  standard: 1,
+  degen: 1,
 };
 
 export interface AchievementDef {
