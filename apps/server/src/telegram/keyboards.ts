@@ -27,7 +27,7 @@ export function makeKeyboards(webBase: string) {
       const tweet =
         `https://twitter.com/intent/tweet?text=` +
         encodeURIComponent(
-          `🍳 $${symbol}${name ? ` (${name})` : ""} is up for a vote at The Cookout — the live ` +
+          `🍳 $${symbol}${name ? ` (${name})` : ""} is up for a vote at The Cookout, the live ` +
             `trading pit. Send it to the grill 🔥👇`,
         ) +
         `&url=${encodeURIComponent(card)}`;

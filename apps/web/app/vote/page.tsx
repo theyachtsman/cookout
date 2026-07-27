@@ -78,7 +78,7 @@ export default function VotePage() {
     const base = typeof window !== "undefined" ? window.location.origin : "";
     const url = `${base}/coin/${c.id}`;
     const text =
-      `🍳 $${c.symbol} (${c.name}) just dropped on The Cookout — the live trading pit.\n` +
+      `🍳 $${c.symbol} (${c.name}) just dropped on The Cookout, the live trading pit.\n` +
       `Vote it onto the grill and get ready for the Cookout 🔥🗳️`;
     const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
       text,
@@ -236,7 +236,7 @@ export default function VotePage() {
                     )}
                     <button
                       onClick={() => shillOnX(c)}
-                      title="Post it to your X — a ready-made promo with the coin card and a link to vote"
+                      title="Post it to your X. A ready-made promo with the coin card and a link to vote."
                       className="rounded-lg border border-sky-500/50 px-4 py-1.5 text-sm font-black text-sky-300 transition hover:border-sky-400 hover:bg-sky-500/10 active:scale-95"
                     >
                       𝕏 Shill
