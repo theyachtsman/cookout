@@ -109,7 +109,7 @@ const summary = (over: Partial<RoundSummary> = {}): RoundSummary => ({
   finalMcap: 9,
   holderCount: 3,
   averageReturnPct: 12,
-  leaderboard: [{ address: ADDR, pnl: 0.5 }],
+  leaderboard: [{ address: ADDR, xp: 120, pnl: 0.5 }],
   ...over,
 });
 
@@ -143,7 +143,7 @@ test("round results post to the Leaderboards topic with the top 5", async () => 
   };
   const n = new Notifier(store, api, cfg);
   store.getOrCreateUser(ADDR).displayName = "alice";
-  store.summaries.set("r1", summary({ endReason: "timer", graduated: false, leaderboard: [{ address: ADDR, pnl: 0.42 }] }));
+  store.summaries.set("r1", summary({ endReason: "timer", graduated: false, leaderboard: [{ address: ADDR, xp: 142, pnl: 0.42 }] }));
   n.handleRoundEvent({ kind: "results", roundId: "r1", symbol: "FOO", mode: "blitz" });
   await flush();
 
@@ -151,7 +151,8 @@ test("round results post to the Leaderboards topic with the top 5", async () => 
   assert.equal(g.length, 1, "one post");
   assert.equal(g[0]!.message_thread_id, 20, "lands in Leaderboards (topic 20)");
   assert.ok(/alice/.test(g[0]!.text), "names the top finisher");
-  assert.ok(/\+0\.420 pETH/.test(g[0]!.text), "shows their PnL");
+  assert.ok(/142 XP/.test(g[0]!.text), "shows their round XP");
+  assert.ok(/Top 5 by XP/.test(g[0]!.text), "ranked by XP");
   assert.ok(/Blitz/.test(g[0]!.text), "names the game mode");
 });
 

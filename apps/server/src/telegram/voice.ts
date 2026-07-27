@@ -95,7 +95,7 @@ export const feed = {
   burnt: (symbol: string, mode?: string) =>
     `💀 $${esc(symbol)} got burnt. Rug pulled, grill's cold. Onto the next.${modeTag(mode)}`,
 
-  /** The round-end scoreboard: outcome, the top 5 by PnL, and the headline stats. */
+  /** The round-end scoreboard: outcome, the top 5 by XP earned, headline stats. */
   roundResults: (o: {
     symbol: string;
     mode?: string;
@@ -105,15 +105,12 @@ export const feed = {
     peakMcapUsd: number;
     durationSec: number;
     holders: number;
-    top: Array<{ name: string; pnl: number }>;
+    top: Array<{ name: string; xp: number }>;
   }) => {
     const medal = ["🥇", "🥈", "🥉"];
     const rows = o.top.length
       ? o.top
-          .map(
-            (t, i) =>
-              `${medal[i] ?? `${i + 1}.`} ${b(esc(t.name))}  ${t.pnl >= 0 ? "+" : ""}${t.pnl.toFixed(3)} pETH`,
-          )
+          .map((t, i) => `${medal[i] ?? `${i + 1}.`} ${b(esc(t.name))}  ${t.xp} XP`)
           .join("\n")
       : "<i>no traders this round</i>";
     const mins = Math.floor(o.durationSec / 60);
@@ -121,7 +118,7 @@ export const feed = {
     return (
       `🏁 ${b("Round Results")} · $${esc(o.symbol)}\n` +
       `${o.emoji} ${b(o.outcome)}\n\n` +
-      `${b("🏆 Top 5")}\n${rows}\n\n` +
+      `${b("🏆 Top 5 by XP")}\n${rows}\n\n` +
       `📊 ${o.volume.toFixed(2)} pETH volume · peak $${o.peakMcapUsd.toLocaleString()} mcap · ` +
       `${o.holders} holder${o.holders === 1 ? "" : "s"} · ${mins}m ${secs}s${modeTag(o.mode)}`
     );

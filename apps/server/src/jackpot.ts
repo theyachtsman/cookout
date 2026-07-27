@@ -132,6 +132,8 @@ export function jackpotStatus(store: Store, now = Date.now()): JackpotStatus {
       housePct: 100 - creatorPct - referralPct - jackpotPct,
     },
     payoutWeights: [...JACKPOT_PAYOUT_WEIGHTS],
+    weekVolumeEth: store.weeklyVolume[weekKey(now)] ?? 0,
+    weekFeesEth: store.weeklyFees[weekKey(now)] ?? 0,
     nextPayoutAt: nextWeekStart(now),
     lifetimePaidEth: store.jackpotLifetimeEth,
     standings: buildStandings(store, week, pool, ethUsd),

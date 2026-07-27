@@ -8,12 +8,10 @@ import {
   arenaWithdraw,
   balanceOf,
   hasArenaWallet,
-  logPaperArenaTx,
-  paperArenaHistory,
   registerArenaAddress,
   type ArenaTxEntry,
-  type PaperArenaTxEntry,
 } from "../../lib/arenaWallet";
+import type { LedgerEntry, LedgerKind } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useChainOnly } from "../../lib/chainOnly";
 import { fundArenaWallet } from "../../lib/chainTx";
@@ -37,6 +35,15 @@ const KIND_META: Record<ArenaTxEntry["kind"], { icon: string; label: string; cls
   approve: { icon: "✍️", label: "Approve", cls: "text-zinc-400" },
 };
 
+/** Cook Out balance ledger entry types (paper), for the History list. */
+const LEDGER_META: Record<LedgerKind, { icon: string; label: string; credit: boolean }> = {
+  stake: { icon: "⬇️", label: "Bank → Cook Out", credit: true },
+  unstake: { icon: "⬆️", label: "Cook Out → Bank", credit: false },
+  redeem: { icon: "🏦", label: "Round redemption", credit: true },
+  creator_fee: { icon: "💰", label: "Creator fees", credit: true },
+  jackpot: { icon: "🎰", label: "Jackpot payout", credit: true },
+};
+
 export default function WalletPage() {
   const chainOnly = useChainOnly();
   if (!chainOnly) return <PaperWalletPage />;
@@ -54,8 +61,13 @@ function PaperWalletPage() {
   const [amount, setAmount] = useState("1");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [history, setHistory] = useState<PaperArenaTxEntry[]>([]);
-  useEffect(() => setHistory(paperArenaHistory().slice().reverse()), []);
+  const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const loadLedger = useCallback(() => {
+    api<{ ledger: LedgerEntry[] }>("/api/me/ledger")
+      .then((d) => setLedger(d.ledger))
+      .catch(() => {});
+  }, []);
+  useEffect(() => loadLedger(), [loadLedger]);
 
   if (!profile)
     return (
@@ -78,23 +90,11 @@ function PaperWalletPage() {
     setError("");
     setBusy(direction);
     try {
-      const p = await api<{ paperBalance: number; arenaBalance?: number }>(
-        "/api/me/arena/transfer",
-        { body: { amount: Number(amount), direction } },
-      );
-      // The server clamps to available balance, so log the amount that actually
-      // moved (the balance delta), not what was typed.
-      const moved = Math.abs((p.arenaBalance ?? 0) - arena);
-      if (moved > 0) {
-        logPaperArenaTx({
-          kind: direction,
-          amount: moved,
-          bankAfter: p.paperBalance,
-          arenaAfter: p.arenaBalance ?? 0,
-          at: Date.now(),
-        });
-        setHistory(paperArenaHistory().slice().reverse());
-      }
+      await api<{ paperBalance: number; arenaBalance?: number }>("/api/me/arena/transfer", {
+        body: { amount: Number(amount), direction },
+      });
+      // The server records the move in the ledger; re-fetch it (and the profile).
+      loadLedger();
       if (direction === "deposit") playDeposit();
       refresh();
     } catch (e) {
@@ -174,38 +174,41 @@ function PaperWalletPage() {
           </button>
         </div>
         <p className="mt-3 text-xs text-zinc-600">
-          Winnings, creator fees, and jackpot payouts land in the bank. Stake what you want to
-          play with; pull the rest back out any time you&apos;re not in a queue.
+          Round redemptions and creator fees land in your Cook Out balance (you&apos;ll see them in
+          History below). Stake what you want to play with; pull the rest back out any time
+          you&apos;re not in a queue.
         </p>
         {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
       </div>
 
       <div className="rounded-xl border border-zinc-800 p-5">
-        <h2 className="mb-3 text-sm font-black text-zinc-200">History</h2>
-        {history.length === 0 ? (
+        <h2 className="mb-3 text-sm font-black text-zinc-200">Cook Out Balance History</h2>
+        {ledger.length === 0 ? (
           <p className="text-sm text-zinc-600">
-            No moves yet. Your deposits and withdrawals show up here.
+            No moves yet. Stakes, round redemptions, and creator fees show up here.
           </p>
         ) : (
           <div className="divide-y divide-zinc-800/70">
-            {history.map((h, i) => {
-              const deposit = h.kind === "deposit";
+            {ledger.map((e) => {
+              const meta = LEDGER_META[e.kind];
+              const credit = e.amount >= 0;
               return (
-                <div key={i} className="flex items-center gap-3 py-2.5 text-sm">
-                  <span className="text-lg">{deposit ? "⬇️" : "⬆️"}</span>
+                <div key={e.id} className="flex items-center gap-3 py-2.5 text-sm">
+                  <span className="text-lg">{meta.icon}</span>
                   <div className="min-w-0 flex-1">
-                    <div className={`font-bold ${deposit ? "text-lime-300" : "text-zinc-300"}`}>
-                      {deposit ? "Bank → Cook Out" : "Cook Out → Bank"}
+                    <div className={`font-bold ${credit ? "text-lime-300" : "text-zinc-300"}`}>
+                      {meta.label}
+                      {e.symbol && <span className="ml-1 text-zinc-500">${e.symbol}</span>}
                     </div>
-                    <div className="text-[11px] text-zinc-600">{when(h.at)}</div>
+                    <div className="text-[11px] text-zinc-600">{when(e.at)}</div>
                   </div>
                   <div className="text-right">
-                    <div className={`font-mono font-bold ${deposit ? "text-lime-300" : "text-zinc-300"}`}>
-                      {deposit ? "+" : "−"}
-                      {h.amount.toFixed(3)} pETH
+                    <div className={`font-mono font-bold ${credit ? "text-lime-300" : "text-zinc-300"}`}>
+                      {credit ? "+" : "−"}
+                      {usd ? fmtAmount(Math.abs(e.amount), true, peg) : `${Math.abs(e.amount).toFixed(3)} pETH`}
                     </div>
                     <div className="font-mono text-[11px] text-zinc-600">
-                      cook out {h.arenaAfter.toFixed(2)} · bank {h.bankAfter.toFixed(2)}
+                      cook out {e.balanceAfter.toFixed(2)}
                     </div>
                   </div>
                 </div>

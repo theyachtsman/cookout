@@ -368,6 +368,17 @@ export function createApp(
     }),
   );
 
+  /** The caller's Cook Out balance history (newest first): stakes, unstakes,
+   *  redemptions from ended rounds, and creator fees. */
+  app.get(
+    "/api/me/ledger",
+    auth,
+    wrap((req, res) => {
+      const u = store.getOrCreateUser(req.userAddress!);
+      res.json({ ledger: [...(u.ledger ?? [])].reverse() });
+    }),
+  );
+
   app.get(
     "/api/missions",
     auth,
@@ -1635,12 +1646,14 @@ function publicProfile(u: StoredUser, self = false) {
     referralCount,
     referralEarnings,
     arenaAddress,
+    ledger,
     ...rest
   } = u;
   void activity;
   void missionsDone;
   void weeklyXp; // internal jackpot ranking state, not public
   void history; // served via /api/profile/:address/history
+  void ledger; // private balance movements — served via /api/me/ledger
   // rest still carries jackpotWinnings + jackpotWins — shown on profiles.
   const d = new Date();
   const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;

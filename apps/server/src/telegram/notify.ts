@@ -146,7 +146,7 @@ export class Notifier {
     const round = this.store.rounds.get(roundId);
     const top = (summary.leaderboard ?? [])
       .slice(0, 5)
-      .map((e) => ({ name: this.name(e.address), pnl: e.pnl }));
+      .map((e) => ({ name: this.name(e.address), xp: Math.round(e.xp) }));
     const rug = summary.endReason === "rug_detected" || summary.endReason === "liquidity_removed";
     const [emoji, outcome] = summary.graduated
       ? ["🍽️", "Served Up · out in the wild"]

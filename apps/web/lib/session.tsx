@@ -18,6 +18,8 @@ export interface Profile {
   achievements: string[];
   referralCode: string;
   creatorReputation: number;
+  /** Lifetime creator fees earned (pETH), credited to the Cook Out balance. */
+  feesEarned?: number;
   /** Active rug ban? (server-computed; blocks launching, never chatting) */
   banned?: boolean;
   /** Rug-ban record, oldest first — history stays after a ban is lifted. */
