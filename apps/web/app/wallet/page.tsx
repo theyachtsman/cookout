@@ -40,6 +40,7 @@ const LEDGER_META: Record<LedgerKind, { icon: string; label: string; credit: boo
   stake: { icon: "⬇️", label: "Bank → Cook Out", credit: true },
   unstake: { icon: "⬆️", label: "Cook Out → Bank", credit: false },
   pull_up: { icon: "🚪", label: "Pulled up to a round", credit: false },
+  refund: { icon: "↩️", label: "Fair open refund", credit: true },
   redeem: { icon: "🏦", label: "Round redemption", credit: true },
   creator_fee: { icon: "💰", label: "Creator fees", credit: true },
   jackpot: { icon: "🎰", label: "Jackpot payout", credit: true },
@@ -209,7 +210,8 @@ function PaperWalletPage() {
                       {usd ? fmtAmount(Math.abs(e.amount), true, peg) : `${Math.abs(e.amount).toFixed(3)} pETH`}
                     </div>
                     <div className="font-mono text-[11px] text-zinc-600">
-                      cook out {e.balanceAfter.toFixed(2)}
+                      cook out{" "}
+                      {usd ? fmtAmount(e.balanceAfter, true, peg) : `${e.balanceAfter.toFixed(2)} pETH`}
                     </div>
                   </div>
                 </div>

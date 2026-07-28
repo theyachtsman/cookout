@@ -550,7 +550,14 @@ export interface RoundSummary {
 }
 
 /** A Cook Out balance movement, for the wallet's history ledger. */
-export type LedgerKind = "stake" | "unstake" | "pull_up" | "redeem" | "creator_fee" | "jackpot";
+export type LedgerKind =
+  | "stake"
+  | "unstake"
+  | "pull_up"
+  | "refund"
+  | "redeem"
+  | "creator_fee"
+  | "jackpot";
 export interface LedgerEntry {
   id: string;
   at: number;
@@ -559,7 +566,7 @@ export interface LedgerEntry {
   amount: number;
   /** Cook Out balance immediately after this entry. */
   balanceAfter: number;
-  /** Coin symbol for round-scoped entries (pull_up, redeem, creator_fee). */
+  /** Coin symbol for round-scoped entries (pull_up, refund, redeem, creator_fee). */
   symbol?: string;
 }
 
