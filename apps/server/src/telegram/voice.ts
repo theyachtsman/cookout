@@ -76,6 +76,13 @@ export const feed = {
     `This is the shill pit. Make your case, rally the crowd, and get it voted onto the grill. ` +
     `Hit ${b("Shill on X")} to drop it on your timeline. 🔥${modeTag(mode)}`,
 
+  /** The shill-pit post for a Run It Back: the coin's back up for another vote. */
+  voteShillRerun: (symbol: string, name?: string, by?: string, mode?: string) =>
+    `🔁 ${b("Running it back")}: $${esc(symbol)}${name ? ` (${esc(name)})` : ""}` +
+    `${by ? ` by ${esc(by)}` : ""} is back up for a vote.\n` +
+    `It didn't graduate last time, so it's earning its spot again. Rally the crowd and get it ` +
+    `voted back onto the grill. Hit ${b("Shill on X")} to drop it on your timeline. 🔥${modeTag(mode)}`,
+
   votesHit: (symbol: string, votes: number, mode?: string) =>
     `🗳️ $${esc(symbol)} just hit ${b(votes + " votes")}. It's booked for The Cookout.${modeTag(mode)}`,
 

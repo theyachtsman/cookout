@@ -106,6 +106,9 @@ export interface RoundEvent {
   name?: string;
   /** Creator display name, for "submitted". */
   by?: string;
+  /** "submitted" via Run It Back (a re-vote), not a brand-new coin — the shill
+   *  post says it's running it back instead of the fresh-coin copy. */
+  rerun?: boolean;
 }
 
 export interface StoredUser extends UserProfile {

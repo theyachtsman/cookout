@@ -121,7 +121,7 @@ export class Notifier {
     const mode = e.mode ? GAME_MODE_MAP[e.mode]?.name : undefined;
     switch (e.kind) {
       case "submitted":
-        return this.submittedForVote(e.roundId, e.symbol, e.name, e.by, mode);
+        return this.submittedForVote(e.roundId, e.symbol, e.name, e.by, mode, e.rerun);
       case "scheduled":
         return this.scheduled(e.symbol, e.roundId, mode);
       case "votes_hit":
@@ -180,9 +180,19 @@ export class Notifier {
    *  creator (and the crowd) can rally votes: a jump-to-card button and a
    *  prefilled X post carrying the vote-card link. Goes to voteshill, which
    *  falls back to launch, then General. */
-  submittedForVote(conceptId: string, symbol: string, name?: string, by?: string, mode?: string): void {
+  submittedForVote(
+    conceptId: string,
+    symbol: string,
+    name?: string,
+    by?: string,
+    mode?: string,
+    rerun?: boolean,
+  ): void {
     const topic: TopicKey = this.config.topics?.voteshill ? "voteshill" : "launch";
-    this.toChannel(feed.voteShill(symbol, name, by, mode), this.kb.voteShill(conceptId, symbol, name), topic);
+    const copy = rerun
+      ? feed.voteShillRerun(symbol, name, by, mode)
+      : feed.voteShill(symbol, name, by, mode);
+    this.toChannel(copy, this.kb.voteShill(conceptId, symbol, name), topic);
   }
   votesHit(symbol: string, roundId: string, votes: number, mode?: string): void {
     // It's booked for the Cook Out now — the button enters the match, not the

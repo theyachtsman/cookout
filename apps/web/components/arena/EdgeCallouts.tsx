@@ -1,19 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { KillFeedEvent, Trade } from "@cookout/shared";
+import type { KillFeedEvent } from "@cookout/shared";
 
 /**
- * Trade callouts that live on the chart's edges instead of on top of it.
+ * Structural callouts that live on the chart's edges instead of on top of it.
  *
- * The old bubbles pinned to the exact time+price of a trade, which meant the
- * most interesting moments — the ones with the most trades — were the moments
- * you could least see the candles. These anchor to the frame instead: buys on
- * the left, sells on the right, standings up top, market structure below.
- * Nothing ever covers price action, and each one leaves on its own.
+ * Per-trade buys and sells are drawn straight onto the chart now as the
+ * trader's profile-pic dot, so these edge callouts are reserved for the market
+ * structure moments: a new leader up top, a whale entering on the left, and
+ * milestones / graduations / rugs / dev sells along the bottom. Nothing ever
+ * covers price action, nothing sits on the right edge (that's the price axis),
+ * and each one leaves on its own.
  */
 
-type Edge = "left" | "right" | "top" | "bottom";
+type Edge = "left" | "top" | "bottom";
 
 interface Callout {
   id: string;
@@ -30,35 +31,23 @@ const MAX_PER_EDGE = 3;
 
 const EDGE_CLS: Record<Edge, string> = {
   left: "left-2 top-1/2 -translate-y-1/2 items-start",
-  right: "right-2 top-1/2 -translate-y-1/2 items-end",
   top: "left-1/2 top-2 -translate-x-1/2 items-center",
   bottom: "left-1/2 bottom-2 -translate-x-1/2 items-center",
 };
 
-/** Killfeed kinds that earn an edge callout, and where each one goes. */
+/** Killfeed kinds that earn an edge callout, and where each one goes. Nothing
+ *  maps to the right edge — that side of the chart stays clear for the axis. */
 const FEED_EDGE: Record<string, { edge: Edge; icon: string; cls: string }> = {
   new_leader: { edge: "top", icon: "👑", cls: "border-amber-400/60 text-amber-200" },
   whale_entered: { edge: "left", icon: "🐋", cls: "border-amber-400/60 text-amber-200" },
   mcap_milestone: { edge: "bottom", icon: "🔥", cls: "border-lime-400/60 text-lime-200" },
   graduated: { edge: "bottom", icon: "🎓", cls: "border-lime-400/60 text-lime-200" },
   rug_detected: { edge: "bottom", icon: "💀", cls: "border-red-500/60 text-red-200" },
-  dev_sell: { edge: "right", icon: "⚠️", cls: "border-orange-400/60 text-orange-200" },
+  dev_sell: { edge: "bottom", icon: "⚠️", cls: "border-orange-400/60 text-orange-200" },
 };
 
-export function EdgeCallouts({
-  trades,
-  killfeed,
-  bigTradeEth,
-  nameFor,
-}: {
-  trades: Trade[];
-  killfeed: KillFeedEvent[];
-  /** Only trades at or above this size are worth interrupting for. */
-  bigTradeEth: number;
-  nameFor?: (address: string) => string;
-}) {
+export function EdgeCallouts({ killfeed }: { killfeed: KillFeedEvent[] }) {
   const [shown, setShown] = useState<Callout[]>([]);
-  const seenTrades = useRef<Set<string> | null>(null);
   const seenFeed = useRef<Set<string> | null>(null);
 
   const push = (c: Callout) =>
@@ -71,33 +60,7 @@ export function EdgeCallouts({
       return [...trimmed, c];
     });
 
-  // Big trades → left (buys) / right (sells).
-  useEffect(() => {
-    const key = (t: Trade) => `${t.userAddress}-${t.at}`;
-    if (seenTrades.current === null) {
-      // Baseline on mount so opening a live round mid-match doesn't replay.
-      seenTrades.current = new Set(trades.map(key));
-      return;
-    }
-    for (const t of trades) {
-      const k = key(t);
-      if (seenTrades.current.has(k)) continue;
-      seenTrades.current.add(k);
-      if (t.ethAmount < bigTradeEth && !t.isCreator) continue;
-      const buy = t.side === "buy";
-      const who = t.isCreator ? "Developer" : (nameFor?.(t.userAddress) ?? short(t.userAddress));
-      push({
-        id: `${k}-${Math.random()}`,
-        edge: buy ? "left" : "right",
-        icon: buy ? "🟢" : "🔴",
-        text: `${who} ${buy ? "bought" : "sold"} ${t.ethAmount.toFixed(2)}`,
-        cls: buy ? "border-emerald-400/60 text-emerald-200" : "border-red-500/60 text-red-200",
-        at: Date.now(),
-      });
-    }
-  }, [trades, bigTradeEth, nameFor]);
-
-  // Structural events → top / bottom.
+  // Structural events → top / left / bottom.
   useEffect(() => {
     if (seenFeed.current === null) {
       seenFeed.current = new Set(killfeed.map((e) => e.id));
@@ -149,5 +112,3 @@ export function EdgeCallouts({
     </>
   );
 }
-
-const short = (a: string) => `${a.slice(0, 6)}…${a.slice(-2)}`;

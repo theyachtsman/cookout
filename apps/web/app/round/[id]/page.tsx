@@ -472,11 +472,7 @@ export default function RoundPage() {
               />
             )}
             <div className="relative">
-              <EdgeCallouts
-                trades={trades}
-                killfeed={killfeed}
-                bigTradeEth={bigEthRef.current}
-              />
+              <EdgeCallouts killfeed={killfeed} />
               <UrgencyPulse endsAt={round.endsAt} active={round.state === "live"} />
               {launching && <div className="launch-flash" />}
               {flash && <PhaseFlash text={flash.text} tone={flash.tone} />}
