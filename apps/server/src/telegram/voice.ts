@@ -60,51 +60,61 @@ export const say = {
 
 // ---- community feed (channel / group) -------------------------------------
 
-/** A one-line tag naming the coin's game mode, appended to feed posts. Empty
- *  for legacy coins that predate modes. `mode` is a display name (e.g. "Blitz"). */
-const modeTag = (mode?: string) => (mode ? `\n🎮 Game mode: ${b(esc(mode))}` : "");
+/** A game-mode line, its own paragraph at the foot of a post. Empty for legacy
+ *  coins that predate modes. `mode` is a display name (e.g. "Blitz"). */
+const modeTag = (mode?: string) => (mode ? `\n\n🎮 Game mode: ${b(esc(mode))}` : "");
+
+/** The coin's headline: the full name plus its ticker, so posts read as a coin,
+ *  not just a symbol. Falls back to the ticker alone when no name is known. */
+const coinLabel = (symbol: string, name?: string) =>
+  name ? `${b(esc(name))} ($${esc(symbol)})` : `$${esc(symbol)}`;
 
 export const feed = {
   submitted: (symbol: string, name: string, by: string, mode?: string) =>
-    `🍳 ${b("Fresh coin on the board")}: $${esc(symbol)} (${esc(name)}) by ${esc(by)}. ` +
+    `🍳 ${b("Fresh coin on the board")}: ${coinLabel(symbol, name)} by ${esc(by)}.\n\n` +
     `Get it to the vote bar and it hits the grill.${modeTag(mode)}`,
 
   /** The shill-pit post: a new submission, with a call to rally votes. */
   voteShill: (symbol: string, name?: string, by?: string, mode?: string) =>
-    `🍳 ${b("Fresh coin up for a vote")}: $${esc(symbol)}${name ? ` (${esc(name)})` : ""}` +
-    `${by ? ` by ${esc(by)}` : ""}.\n` +
-    `This is the shill pit. Make your case, rally the crowd, and get it voted onto the grill. ` +
+    `🍳 ${b("Fresh coin up for a vote")}: ${coinLabel(symbol, name)}${by ? ` by ${esc(by)}` : ""}.\n\n` +
+    `This is the shill pit. Make your case, rally the crowd, and get it voted onto the grill.\n\n` +
     `Hit ${b("Shill on X")} to drop it on your timeline. 🔥${modeTag(mode)}`,
 
   /** The shill-pit post for a Run It Back: the coin's back up for another vote. */
   voteShillRerun: (symbol: string, name?: string, by?: string, mode?: string) =>
-    `🔁 ${b("Running it back")}: $${esc(symbol)}${name ? ` (${esc(name)})` : ""}` +
-    `${by ? ` by ${esc(by)}` : ""} is back up for a vote.\n` +
+    `🔁 ${b("Running it back")}: ${coinLabel(symbol, name)}${by ? ` by ${esc(by)}` : ""} is back up for a vote.\n\n` +
     `It didn't graduate last time, so it's earning its spot again. Rally the crowd and get it ` +
-    `voted back onto the grill. Hit ${b("Shill on X")} to drop it on your timeline. 🔥${modeTag(mode)}`,
+    `voted back onto the grill.\n\n` +
+    `Hit ${b("Shill on X")} to drop it on your timeline. 🔥${modeTag(mode)}`,
 
-  votesHit: (symbol: string, votes: number, mode?: string) =>
-    `🗳️ $${esc(symbol)} just hit ${b(votes + " votes")}. It's booked for The Cookout.${modeTag(mode)}`,
+  votesHit: (symbol: string, name: string | undefined, votes: number, mode?: string) =>
+    `🗳️ ${coinLabel(symbol, name)} just hit ${b(votes + " votes")}.\n\n` +
+    `It's booked for The Cookout.${modeTag(mode)}`,
 
-  scheduled: (symbol: string, mode?: string) =>
-    `📅 $${esc(symbol)} is on the calendar. ${b("Get your people gathered")} before the Pull Up.${modeTag(mode)}`,
+  scheduled: (symbol: string, name?: string, mode?: string) =>
+    `📅 ${coinLabel(symbol, name)} is on the calendar.\n\n` +
+    `${b("Get your people gathered")} before the Pull Up.${modeTag(mode)}`,
 
-  fairOpen: (symbol: string, mode?: string) =>
-    `⚖️ ${b("It's time to pull up")}. The ${b("Fair Open")} for $${esc(symbol)} is here: ` +
-    `one price, no snipers, no front-runs. Get your buy in before the bell.${modeTag(mode)}`,
+  fairOpen: (symbol: string, name?: string, mode?: string) =>
+    `⚖️ ${b("It's time to pull up")}. The ${b("Fair Open")} for ${coinLabel(symbol, name)} is here.\n\n` +
+    `One price, no snipers, no front-runs. Get your buy in before the bell.${modeTag(mode)}`,
 
-  live: (symbol: string, mode?: string) =>
-    `🔥 $${esc(symbol)} is ${b("LIVE")}. Fresh serving on the grill, get in.${modeTag(mode)}`,
+  live: (symbol: string, name?: string, mode?: string) =>
+    `🔥 ${coinLabel(symbol, name)} is ${b("LIVE")}.\n\n` +
+    `Fresh serving on the grill, get in.${modeTag(mode)}`,
 
-  graduated: (symbol: string) =>
-    `🍽️ ${b("SOMEBODY COOKED")}. $${esc(symbol)} served up and walked out into the wild. Legendary.`,
+  graduated: (symbol: string, name?: string) =>
+    `🍽️ ${b("SOMEBODY COOKED")}.\n\n` +
+    `${coinLabel(symbol, name)} served up and walked out into the wild. Legendary.`,
 
-  burnt: (symbol: string, mode?: string) =>
-    `💀 $${esc(symbol)} got burnt. Rug pulled, grill's cold. Onto the next.${modeTag(mode)}`,
+  burnt: (symbol: string, name?: string, mode?: string) =>
+    `💀 ${coinLabel(symbol, name)} got burnt.\n\n` +
+    `Rug pulled, grill's cold. Onto the next.${modeTag(mode)}`,
 
   /** The round-end scoreboard: outcome, the top 5 by XP earned, headline stats. */
   roundResults: (o: {
     symbol: string;
+    name?: string;
     mode?: string;
     emoji: string;
     outcome: string;
@@ -123,7 +133,7 @@ export const feed = {
     const mins = Math.floor(o.durationSec / 60);
     const secs = o.durationSec % 60;
     return (
-      `🏁 ${b("Round Results")} · $${esc(o.symbol)}\n` +
+      `🏁 ${b("Round Results")} · ${coinLabel(o.symbol, o.name)}\n` +
       `${o.emoji} ${b(o.outcome)}\n\n` +
       `${b("🏆 Top 5 by XP")}\n${rows}\n\n` +
       `📊 ${o.volume.toFixed(2)} pETH volume · peak $${o.peakMcapUsd.toLocaleString()} mcap · ` +

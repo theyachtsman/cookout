@@ -16,7 +16,9 @@ const CONFIG: PitBossConfig = {
   announcementChatId: "chan",
 };
 
-/** A fake Telegram API that records every sendMessage instead of hitting the net. */
+/** A fake Telegram API that records every sendMessage / sendPhoto instead of
+ *  hitting the net. Photo captions are normalized to `text` so assertions that
+ *  read `m.text` cover both. */
 function fakeApi() {
   const sent: { chat_id: string | number; text: string; message_thread_id?: number }[] = [];
   const calls: { method: string; body: Record<string, unknown> }[] = [];
@@ -25,6 +27,7 @@ function fakeApi() {
     const body = JSON.parse(init.body);
     calls.push({ method, body });
     if (method === "sendMessage") sent.push(body);
+    if (method === "sendPhoto") sent.push({ ...body, text: body.caption });
     return {
       json: async () => ({
         ok: true,
