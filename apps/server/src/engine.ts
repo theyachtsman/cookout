@@ -111,6 +111,7 @@ export class RoundEngine {
         theme: concept.theme,
         artworkUrl: concept.artworkUrl,
         bannerUrl: concept.bannerUrl,
+        socials: concept.socials,
       },
       creatorAddress: concept.creatorAddress,
       tier,

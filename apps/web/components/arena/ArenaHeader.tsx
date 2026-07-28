@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Round } from "@cookout/shared";
+import { CoinSocials } from "../CoinSocials";
 
 /**
  * The arena header — the one piece of furniture every phase shares.
@@ -332,6 +333,9 @@ export function ArenaHeader({
                 </span>
               )}
             </div>
+            {revealed && round.token.socials && (
+              <CoinSocials socials={round.token.socials} className="mt-2" />
+            )}
           </div>
         </div>
 

@@ -17,6 +17,7 @@ export function TradePanel({
   round,
   position,
   ethUsd,
+  price,
   variant = "widget",
   onTraded,
 }: {
@@ -24,6 +25,8 @@ export function TradePanel({
   position: { tokens: number; costBasisEth: number; realizedPnl: number } | null;
   /** Live ETH/USD peg — enables entering buys in dollars. */
   ethUsd?: number;
+  /** Live spot price (native per token) — values the current holding in USD. */
+  price?: number;
   /** "bar" is the horizontal strip under the live chart (fast, one row);
    *  "widget" is the tabbed card used for graduated coins in the wild. */
   variant?: "bar" | "widget";
@@ -282,8 +285,15 @@ export function TradePanel({
             <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">
               Holding {round.token.symbol}
             </div>
-            <div className="mt-0.5 font-mono text-base font-black text-zinc-100">
-              {holdingTokens !== null ? holdingTokens.toLocaleString() : "…"}
+            <div className="mt-0.5 flex items-baseline gap-1.5">
+              <span className="font-mono text-base font-black text-zinc-100">
+                {holdingTokens !== null ? holdingTokens.toLocaleString() : "…"}
+              </span>
+              {peg > 0 && price !== undefined && holdingTokens !== null && (
+                <span className="ml-auto font-mono text-[11px] text-emerald-400/80">
+                  ${(holdingTokens * price * peg).toFixed(2)}
+                </span>
+              )}
             </div>
           </div>
         </div>

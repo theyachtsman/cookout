@@ -82,6 +82,7 @@ export function ProfileHero({
   name,
   level,
   title,
+  badge,
   xp,
   currLevelXp,
   nextLevelXp,
@@ -95,6 +96,8 @@ export function ProfileHero({
   name: string;
   level: number;
   title: string;
+  /** Equipped badge emoji, shown before the name. */
+  badge?: string;
   /** Omit the XP trio to hide the level bar (e.g. the creator page). */
   xp?: number;
   currLevelXp?: number;
@@ -144,7 +147,10 @@ export function ProfileHero({
 
           {/* identity */}
           <div className="min-w-0 flex-1 pb-1">
-            <h1 className="truncate text-2xl font-black text-zinc-50 md:text-3xl">{name}</h1>
+            <h1 className="flex items-center gap-2 truncate text-2xl font-black text-zinc-50 md:text-3xl">
+              {badge && <span className="shrink-0">{badge}</span>}
+              <span className="truncate">{name}</span>
+            </h1>
             <div className="mt-0.5 flex flex-wrap items-center gap-2 text-sm">
               <span className={`font-bold ${s.text}`}>{title}</span>
               {chips}
