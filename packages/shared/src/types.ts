@@ -184,6 +184,22 @@ export interface AuctionResult {
   auditHash: string;
 }
 
+/** A player's own Fair Open result, surfaced on the round page right after
+ *  settlement so a partial fill is obvious in the moment (not just later in the
+ *  wallet ledger). The auction is capped, so an oversubscribed pull-up fills
+ *  pro-rata and refunds the rest. */
+export interface MyFill {
+  /** What they pulled up with (pETH). */
+  committedEth: number;
+  /** What actually cleared into their open position. */
+  filledEth: number;
+  /** The unfilled portion, refunded to their Cook Out balance. */
+  refundEth: number;
+  /** filledEth / committedEth, 0..1. */
+  ratio: number;
+  tokens: number;
+}
+
 export interface Trade {
   id: string;
   roundId: string;

@@ -6,6 +6,7 @@ import type {
   AuctionResult,
   Candle,
   KillFeedEvent,
+  MyFill,
   Round,
   RoundSummary,
   Trade,
@@ -82,6 +83,11 @@ export default function RoundPage() {
   const [position, setPosition] = useState<{ tokens: number; costBasisEth: number; realizedPnl: number } | null>(null);
   // Rug meter — creator-only, delivered by /me while the round is live.
   const [rug, setRug] = useState<RugInfo | null>(null);
+  // Your Fair Open result (committed vs cleared vs refunded), from /me. Shown as
+  // a dismissible receipt over the trade deck so a partial fill is obvious the
+  // moment the round opens.
+  const [fill, setFill] = useState<MyFill | null>(null);
+  const [fillDismissed, setFillDismissed] = useState(false);
 
   // ---- battle FX: flashes/shockwaves + soundscape driven by WS events ----
   const [fx, setFx] = useState<FxEvent[]>([]);
@@ -148,9 +154,11 @@ export default function RoundPage() {
       const me = await api<{
         position: { tokens: number; costBasisEth: number; realizedPnl: number };
         rug?: RugInfo | null;
+        fill?: MyFill | null;
       }>(`/api/rounds/${id}/me`);
       setPosition(me.position);
       setRug(me.rug ?? null);
+      setFill(me.fill ?? null);
     } catch {
       /* not signed in */
     }
@@ -159,6 +167,12 @@ export default function RoundPage() {
   useEffect(() => {
     void loadMe();
   }, [loadMe]);
+
+  // Fresh round → the pull-up receipt is un-dismissed again.
+  useEffect(() => {
+    setFillDismissed(false);
+    setFill(null);
+  }, [id]);
 
   // Live per-round leaderboard while trading is open.
   useEffect(() => {
@@ -453,6 +467,14 @@ export default function RoundPage() {
               on mobile — without it the chart overflows the viewport. */}
           <div className={`relative min-w-0 space-y-4 ${shake ? "fx-shake" : ""}`}>
             <BattleFX events={fx} />
+            {fill && !fillDismissed && (round.state === "live" || round.graduated) && (
+              <PullUpReceipt
+                fill={fill}
+                unit={unit}
+                ethUsd={ticker?.ethUsd ?? pegUsd}
+                onClose={() => setFillDismissed(true)}
+              />
+            )}
             {round.state === "live" && ticker && (
               <GraduationProgress
                 config={round.config}
@@ -589,6 +611,67 @@ export default function RoundPage() {
           {(auction.fillRatio * 100).toFixed(0)}%) · audit {auction.auditHash.slice(0, 16)}…
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Your Fair Open receipt — shown over the trade deck the moment a round opens so
+ * a partial fill is obvious right then, not just later in the wallet ledger. The
+ * open is a capped batch auction: when the pull is oversubscribed, everyone
+ * fills pro-rata and the rest is refunded. A full fill gets a short confirm; a
+ * partial fill spells out committed → cleared (ratio) with the refund called out.
+ */
+function PullUpReceipt({
+  fill,
+  unit,
+  ethUsd,
+  onClose,
+}: {
+  fill: MyFill;
+  unit: string;
+  ethUsd?: number;
+  onClose: () => void;
+}) {
+  const partial = fill.ratio < 0.995;
+  const pct = Math.round(fill.ratio * 100);
+  const money = (eth: number) =>
+    ethUsd ? `$${(eth * ethUsd).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : `${eth.toFixed(4)} ${unit}`;
+  return (
+    <div
+      className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${
+        partial
+          ? "border-amber-400/40 bg-amber-400/[0.06]"
+          : "border-lime-400/40 bg-lime-400/[0.06]"
+      }`}
+    >
+      <span className="text-lg leading-none">🚪</span>
+      <div className="min-w-0 flex-1">
+        {partial ? (
+          <>
+            <div className="font-bold text-amber-200">
+              Your pull-up cleared {pct}% at the fair open.
+            </div>
+            <div className="mt-0.5 text-zinc-300">
+              You pulled up <b>{money(fill.committedEth)}</b>; <b>{money(fill.filledEth)}</b> went
+              into your position and <b>{money(fill.refundEth)}</b> was refunded to your Cook Out
+              balance. The open is a capped auction, so an oversubscribed pull fills pro-rata and the
+              rest comes straight back.
+            </div>
+          </>
+        ) : (
+          <div className="font-bold text-lime-200">
+            Your pull-up cleared in full — <b>{money(fill.filledEth)}</b> into your position.
+          </div>
+        )}
+      </div>
+      <button
+        onClick={onClose}
+        className="shrink-0 rounded px-1.5 text-zinc-500 hover:text-zinc-200"
+        title="Dismiss"
+      >
+        ✕
+      </button>
     </div>
   );
 }

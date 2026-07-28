@@ -14,6 +14,7 @@ import {
   type AccountTrade,
   type CosmeticType,
   type GameMode,
+  type MyFill,
   type NotifyCategory,
   type RiskTier,
   type TokenConcept,
@@ -1128,12 +1129,28 @@ export function createApp(
           fraction: threshold > 0 ? Math.min(1, m.tokensSoldBeforeEnd / threshold) : 0,
         };
       }
+      // Their own Fair Open result, so the round page can show — in the moment —
+      // how much of their pull-up actually cleared vs refunded (the auction is
+      // capped, so an oversubscribed pull fills pro-rata).
+      let fill: MyFill | undefined;
+      const auction = store.auctionResults.get(round.id);
+      if (auction) {
+        const mine = auction.fills.filter((f) => f.userAddress === req.userAddress);
+        const committedEth = mine.reduce((s, f) => s + f.ethIn, 0);
+        if (committedEth > 0) {
+          const filledEth = mine.reduce((s, f) => s + f.ethFilled, 0);
+          const refundEth = mine.reduce((s, f) => s + f.refund, 0);
+          const tokens = mine.reduce((s, f) => s + f.tokensOut, 0);
+          fill = { committedEth, filledEth, refundEth, ratio: filledEth / committedEth, tokens };
+        }
+      }
       res.json({
         position: pos,
         intents,
         balance: store.getOrCreateUser(req.userAddress!).arenaBalance ?? 0,
         prediction: store.predictions.get(round.id)?.get(req.userAddress!)?.call ?? null,
         rug,
+        fill,
       });
     }),
   );
