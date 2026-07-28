@@ -695,6 +695,7 @@ export class RoundEngine {
       cooking,
       athMcap: s.peakMcap,
       ethUsd: this.store.ethUsd,
+      serverNow: now,
     });
 
     // Bonding complete mid-battle ends the round on the spot: Served Up.
@@ -751,6 +752,7 @@ export class RoundEngine {
       cooking: recent30 >= Math.max(0.1, pool.ethReserve * 0.1),
       athMcap: s.peakMcap,
       ethUsd: this.store.ethUsd,
+      serverNow: now,
     });
   }
 
@@ -1128,6 +1130,7 @@ export class RoundEngine {
       committedEth: committed,
       avgEntry: players > 0 ? committed / players : 0,
       queueDepth: intents.length,
+      serverNow: Date.now(),
     });
   }
 

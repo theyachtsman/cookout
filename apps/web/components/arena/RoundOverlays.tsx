@@ -35,14 +35,21 @@ export function RoundOverlays({
   round,
   onCook,
   muted,
+  nowOffset = 0,
 }: {
   round: Round;
   /** Fires on "COOK!" so the page can shake the arena and wake the chart. */
   onCook?: () => void;
   muted?: boolean;
+  /** Server-clock offset (ms) so the 5-4-3-2-1 fires on the server's clock, not
+   *  the browser's (a skewed local clock skipped the pull-up countdown). */
+  nowOffset?: number;
 }) {
   const [banner, setBanner] = useState<Banner | null>(null);
   const idRef = useRef(0);
+  // Read the latest offset from inside the interval without re-arming it.
+  const offsetRef = useRef(nowOffset);
+  offsetRef.current = nowOffset;
   const firedRef = useRef<Set<string>>(new Set());
   /**
    * The phase we arrived on. Transition cues (COOK!, MARKET OPEN, the verdict)
@@ -71,7 +78,7 @@ export function RoundOverlays({
     };
 
     const tick = () => {
-      const now = Date.now();
+      const now = Date.now() + offsetRef.current;
       const s = showRef.current;
 
       // A 5..1 ladder into a phase boundary, reused for every gate: doors, the
@@ -182,13 +189,21 @@ export function RoundOverlays({
  * tightens as the clock runs out. Separate from the banners because it's a
  * sustained state, not an announcement.
  */
-export function UrgencyPulse({ endsAt, active }: { endsAt?: number; active: boolean }) {
+export function UrgencyPulse({
+  endsAt,
+  active,
+  nowOffset = 0,
+}: {
+  endsAt?: number;
+  active: boolean;
+  nowOffset?: number;
+}) {
   const [left, setLeft] = useState(Infinity);
   useEffect(() => {
     if (!active || !endsAt) return;
-    const t = setInterval(() => setLeft((endsAt - Date.now()) / 1000), 200);
+    const t = setInterval(() => setLeft((endsAt - (Date.now() + nowOffset)) / 1000), 200);
     return () => clearInterval(t);
-  }, [active, endsAt]);
+  }, [active, endsAt, nowOffset]);
 
   if (!active || left > 60) return null;
   const critical = left <= 10;

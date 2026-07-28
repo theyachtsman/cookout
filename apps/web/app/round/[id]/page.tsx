@@ -116,6 +116,11 @@ export default function RoundPage() {
   const [launching, setLaunching] = useState(false);
   const lastPhase = useRef<string>("");
   const positionRef = useRef<typeof position>(null);
+  // Server-clock offset: countdowns must run on the server's clock, not the
+  // browser's. A skewed local clock made rounds "end with time left" and the
+  // pull-up jump to live before the 5-4-3-2-1 could fire. Ticker + lobby
+  // messages carry serverNow; we keep the delta and add it to Date.now().
+  const clockOffset = useRef(0);
 
   // Fresh values for the socket callback without re-subscribing.
   const liveRef = useRef(false);
@@ -286,6 +291,8 @@ export default function RoundPage() {
       case "ticker": {
         const tk = e as unknown as Ticker;
         setTicker(tk);
+        const tkNow = (tk as unknown as { serverNow?: number }).serverNow;
+        if (typeof tkNow === "number") clockOffset.current = tkNow - Date.now();
         if (tk.athMcap !== undefined) {
           if (athRef.current > 0 && tk.athMcap > athRef.current * 1.001 && liveRef.current) {
             playAthSparkle();
@@ -295,9 +302,12 @@ export default function RoundPage() {
         }
         break;
       }
-      case "lobby_update":
+      case "lobby_update": {
         setLobby(e as unknown as Lobby);
+        const lbNow = (e as unknown as { serverNow?: number }).serverNow;
+        if (typeof lbNow === "number") clockOffset.current = lbNow - Date.now();
         break;
+      }
       case "auction_settled":
         setAuction(e.result as AuctionResult);
         void loadMe();
@@ -425,7 +435,7 @@ export default function RoundPage() {
         />
       )}
       {/* The announcer: countdowns, MARKET OPEN, the final ten, the verdict. */}
-      <RoundOverlays round={round} onCook={onCook} />
+      <RoundOverlays round={round} onCook={onCook} nowOffset={clockOffset.current} />
       {/* The welcome mat: fires once, after their very first match settles. */}
       <FirstMatchCelebration round={round} />
       {(round.state === "results" || round.state === "ended") && (
@@ -451,6 +461,7 @@ export default function RoundPage() {
         position={position}
         rank={myRank}
         players={lobby?.players}
+        nowOffset={clockOffset.current}
       />
       <EventStrip killfeed={killfeed} since={round.liveAt} live={round.state === "live"} />
       {/* ---- pre-launch arcade: everything on one screen ---- */}
@@ -476,8 +487,13 @@ export default function RoundPage() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
           {/* min-w-0 lets the column shrink below the canvas's intrinsic width
               on mobile — without it the chart overflows the viewport. */}
-          <div className={`relative min-w-0 space-y-4 ${shake ? "fx-shake" : ""}`}>
+          <div className="relative min-w-0">
+            {/* Kept OUT of the space-y flow below: its flashes are absolute, but
+                as direct children of a space-y container their changing count
+                flipped the top-margin on the next element and bounced the whole
+                deck on every flash. As a positioned overlay it can't. */}
             <BattleFX events={fx} />
+            <div className="space-y-4">
             {round.state === "live" && ticker && (
               <GraduationProgress
                 config={round.config}
@@ -496,9 +512,13 @@ export default function RoundPage() {
                 }
               />
             )}
-            <div className="relative">
+            <div className={`relative ${shake ? "fx-shake" : ""}`}>
               <EdgeCallouts killfeed={killfeed} />
-              <UrgencyPulse endsAt={round.endsAt} active={round.state === "live"} />
+              <UrgencyPulse
+                endsAt={round.endsAt}
+                active={round.state === "live"}
+                nowOffset={clockOffset.current}
+              />
               {launching && <div className="launch-flash" />}
               {flash && <PhaseFlash text={flash.text} tone={flash.tone} />}
               <Chart
@@ -554,6 +574,7 @@ export default function RoundPage() {
               }}
             />
             {summary && <Results round={round} summary={summary} auction={auction} />}
+            </div>
           </div>
           {/* The social column: gameplay lives on the left, the crowd on the
               right — chat, who's winning, who's holding — all visible at once. */}
