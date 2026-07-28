@@ -617,6 +617,8 @@ export type ServerEvent =
       committedEth: number;
       avgEntry: number;
       queueDepth: number;
+      /** Server wall-clock at emit — lets the client sync its countdowns. */
+      serverNow: number;
     }
   | { type: "auction_settled"; result: AuctionResult }
   | { type: "trade"; trade: Trade }
@@ -639,6 +641,8 @@ export type ServerEvent =
       cooking: boolean;
       /** Live ETH/USD used to render USD figures (bond is $-pegged). */
       ethUsd: number;
+      /** Server wall-clock at emit — lets the client sync its countdowns. */
+      serverNow: number;
     }
   | { type: "killfeed"; event: KillFeedEvent }
   | { type: "chat"; message: ChatMessage }

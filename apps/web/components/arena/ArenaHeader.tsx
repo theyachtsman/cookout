@@ -154,6 +154,7 @@ export function ArenaHeader({
   position,
   rank,
   players,
+  nowOffset = 0,
 }: {
   round: Round;
   ticker?: ArenaTicker | null;
@@ -162,6 +163,9 @@ export function ArenaHeader({
   rank?: number | null;
   /** Bodies in the room right now (queue phase mostly). */
   players?: number;
+  /** Server-clock offset (ms) added to the local clock so the countdown matches
+   *  when the server actually ends the round. */
+  nowOffset?: number;
 }) {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
@@ -170,7 +174,7 @@ export function ArenaHeader({
   }, []);
 
   const skin = skinFor(round);
-  const remaining = skin.until ? Math.max(0, skin.until - now) : null;
+  const remaining = skin.until ? Math.max(0, skin.until - (now + nowOffset)) : null;
   // Ceil the whole remaining, matching the RoundOverlays countdown so the top
   // timer and the big 5-4-3-2-1 overlay read the same number at the same time
   // (a floor here vs the overlay's ceil left them ~1s apart).
@@ -180,7 +184,7 @@ export function ArenaHeader({
   const urgent = remaining !== null && remaining < 15_000;
   const progress =
     skin.until && skin.from
-      ? Math.min(100, Math.max(0, ((now - skin.from) / (skin.until - skin.from)) * 100))
+      ? Math.min(100, Math.max(0, ((now + nowOffset - skin.from) / (skin.until - skin.from)) * 100))
       : null;
 
   const ethUsd = ticker?.ethUsd ?? 1925;
