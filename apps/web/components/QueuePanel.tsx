@@ -166,6 +166,10 @@ export function QueuePanel({
   };
 
   const queueOpen = round.state === "queue_open";
+  // The batch-auction cap and how full it is right now. Once committed meets the
+  // cap, further pull-ups only dilute the open (everyone fills pro-rata).
+  const cap = round.config.auctionMaxRaise;
+  const committed = lobby?.committedEth ?? 0;
   // Who's standing in this specific match room right now.
   const inRoom = online.filter((u) => u.roundId === round.id);
   const largestEntry = bids.reduce((m, b) => Math.max(m, b.ethAmount), 0);
@@ -200,6 +204,9 @@ export function QueuePanel({
             Oversubscribed? Pro-rata fills, and speed buys nothing here.
             {onChain && " Your ETH escrows in the round's auction contract until settlement."}
           </p>
+        )}
+        {queueOpen && cap > 0 && (
+          <AuctionCapBar committed={committed} cap={cap} unit={unit} />
         )}
         {!profile ? (
           <button
@@ -398,7 +405,10 @@ export function QueuePanel({
             <Row k="Committed" v={`${(lobby?.committedEth ?? 0).toFixed(2)} ${unit}`} />
             <Row k="Average entry" v={`${(lobby?.avgEntry ?? 0).toFixed(2)} ${unit}`} />
             <Row k="Largest entry" v={`${largestEntry.toFixed(2)} ${unit}`} />
-            <Row k="Auction cap" v={`${round.config.auctionMaxRaise} ${unit}`} />
+            <Row
+              k="Auction cap"
+              v={`${cap} ${unit}${committed >= cap - 1e-9 ? " · FULL" : ""}`}
+            />
           </dl>
         </div>
         <div className="rounded-xl border border-zinc-800 p-5">
@@ -472,6 +482,57 @@ function Row({ k, v }: { k: string; v: string }) {
     <div className="flex justify-between">
       <dt className="text-zinc-500">{k}</dt>
       <dd className="font-mono">{v}</dd>
+    </div>
+  );
+}
+
+/**
+ * How full the batch-auction cap is right now. Below the cap it's a calm lime
+ * meter; near it, an amber "filling up" nudge; at or over it, a loud amber
+ * banner that spells out the dilution — because past the cap, any new pull-up
+ * fills pro-rata and shrinks everyone's share of the open.
+ */
+function AuctionCapBar({ committed, cap, unit }: { committed: number; cap: number; unit: string }) {
+  const pct = Math.min(100, (committed / cap) * 100);
+  const met = committed >= cap - 1e-9;
+  const near = !met && pct >= 80;
+  return (
+    <div
+      className={`mb-4 rounded-lg border p-3 ${
+        met
+          ? "border-amber-400/70 bg-amber-400/10"
+          : near
+            ? "border-amber-400/40 bg-amber-400/[0.06]"
+            : "border-zinc-800 bg-zinc-950/40"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2 text-xs">
+        <span className={`font-bold ${met ? "text-amber-300" : "text-zinc-300"}`}>
+          {met ? "⚠️ Auction cap reached" : near ? "Auction cap · filling up" : "Auction cap"}
+        </span>
+        <span className={`font-mono ${met ? "text-amber-300" : "text-zinc-400"}`}>
+          {committed.toFixed(2)} / {cap.toFixed(2)} {unit} · {pct.toFixed(0)}%
+        </span>
+      </div>
+      <div className="mt-2 h-2 overflow-hidden rounded-full bg-zinc-800">
+        <div
+          className={`h-full rounded-full transition-[width] duration-300 ${
+            met ? "bg-amber-400" : near ? "bg-amber-400/80" : "bg-lime-400"
+          }`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      {met ? (
+        <p className="mt-2 text-[11px] leading-relaxed text-amber-200/90">
+          The cap is full. Everyone settles pro-rata at one price, so pulling up now{" "}
+          <b>dilutes the open</b> — your fill and everyone else&apos;s shrink, and the unfilled part
+          is refunded to your Cook Out balance.
+        </p>
+      ) : near ? (
+        <p className="mt-2 text-[11px] text-zinc-500">
+          Nearly full. Once it hits the cap, extra pull-ups fill pro-rata and dilute the open.
+        </p>
+      ) : null}
     </div>
   );
 }

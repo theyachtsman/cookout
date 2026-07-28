@@ -339,11 +339,18 @@ export function ArenaHeader({
           </div>
         </div>
 
-        <div className="flex flex-1 flex-wrap items-center justify-end gap-x-6 gap-y-2">
+        {/* A fixed grid, not flex-wrap: the row COUNT depends only on how many
+            stats there are, never on the values' widths. Per-tick the numbers
+            change but every cell stays put (tabular-nums + truncate keep each
+            cell's size constant), so the header never grows/shrinks a line and
+            the trade deck below it stays stationary. */}
+        <div className="grid flex-1 grid-cols-3 gap-x-5 gap-y-2 sm:grid-cols-5 sm:justify-items-end">
           {stats.map(([k, v, tone]) => (
-            <div key={k} className="min-w-[4.5rem]">
-              <div className="text-[9px] uppercase tracking-wide text-zinc-500">{k}</div>
-              <div className={`font-mono text-sm font-bold ${tone ?? "text-zinc-100"}`}>{v}</div>
+            <div key={k} className="min-w-0">
+              <div className="truncate text-[9px] uppercase tracking-wide text-zinc-500">{k}</div>
+              <div className={`truncate font-mono text-sm font-bold tabular-nums ${tone ?? "text-zinc-100"}`}>
+                {v}
+              </div>
             </div>
           ))}
         </div>
