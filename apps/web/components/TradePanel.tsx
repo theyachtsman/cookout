@@ -104,7 +104,7 @@ export function TradePanel({
         if (!(typed > 0)) throw new Error("enter an amount");
         // USD entry converts at the live peg; never treat a dollar figure as
         // raw coins if the peg hasn't landed (would fire a wildly wrong size).
-        if (denom === "usd" && !peg) throw new Error("price still loading — try again in a moment");
+        if (denom === "usd" && !peg) throw new Error("price still loading, try again in a moment");
         const eth = denom === "usd" ? typed / peg : typed;
         if (!(eth > 0)) throw new Error("enter an amount");
         if (onChain) await chainBuy(round, eth.toFixed(18).replace(/0+$/, "") || String(eth));
