@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   arenaAddress,
   arenaBalance,
@@ -11,7 +11,7 @@ import {
   registerArenaAddress,
   type ArenaTxEntry,
 } from "../../lib/arenaWallet";
-import type { LedgerEntry, LedgerKind } from "@cookout/shared";
+import type { AccountTrade, LedgerEntry, LedgerKind } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useChainOnly } from "../../lib/chainOnly";
 import { fundArenaWallet } from "../../lib/chainTx";
@@ -39,6 +39,7 @@ const KIND_META: Record<ArenaTxEntry["kind"], { icon: string; label: string; cls
 const LEDGER_META: Record<LedgerKind, { icon: string; label: string; credit: boolean }> = {
   stake: { icon: "⬇️", label: "Bank → Cook Out", credit: true },
   unstake: { icon: "⬆️", label: "Cook Out → Bank", credit: false },
+  pull_up: { icon: "🚪", label: "Pulled up to a round", credit: false },
   redeem: { icon: "🏦", label: "Round redemption", credit: true },
   creator_fee: { icon: "💰", label: "Creator fees", credit: true },
   jackpot: { icon: "🎰", label: "Jackpot payout", credit: true },
@@ -174,9 +175,9 @@ function PaperWalletPage() {
           </button>
         </div>
         <p className="mt-3 text-xs text-zinc-600">
-          Round redemptions and creator fees land in your Cook Out balance (you&apos;ll see them in
-          History below). Stake what you want to play with; pull the rest back out any time
-          you&apos;re not in a queue.
+          Pull-ups spend from your Cook Out balance; round redemptions and creator fees land back in
+          it (you&apos;ll see all of it in History below). Stake what you want to play with; pull the
+          rest back out any time you&apos;re not in a queue.
         </p>
         {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
       </div>
@@ -185,7 +186,7 @@ function PaperWalletPage() {
         <h2 className="mb-3 text-sm font-black text-zinc-200">Cook Out Balance History</h2>
         {ledger.length === 0 ? (
           <p className="text-sm text-zinc-600">
-            No moves yet. Stakes, round redemptions, and creator fees show up here.
+            No moves yet. Stakes, pull-ups, round redemptions, and creator fees show up here.
           </p>
         ) : (
           <div className="divide-y divide-zinc-800/70">
@@ -217,6 +218,151 @@ function PaperWalletPage() {
           </div>
         )}
       </div>
+
+      <TradeHistoryTable usd={usd} peg={peg} />
+    </div>
+  );
+}
+
+/** Columns the trade log can be sorted by. */
+type TradeSortKey = "at" | "symbol" | "side" | "ethAmount" | "tokenAmount" | "price" | "fee";
+const PAGE_SIZES: Array<number | "all"> = [50, 100, 200, 500, "all"];
+
+/**
+ * Every buy and sell this account has ever made, across all rounds. Sortable by
+ * any column (click a header to flip direction), capped to the last 50 by
+ * default with a page-size toggle up to All.
+ */
+function TradeHistoryTable({ usd, peg }: { usd: boolean; peg: number }) {
+  const [trades, setTrades] = useState<AccountTrade[]>([]);
+  const [limit, setLimit] = useState<number | "all">(50);
+  const [sort, setSort] = useState<{ key: TradeSortKey; dir: "asc" | "desc" }>({
+    key: "at",
+    dir: "desc",
+  });
+
+  useEffect(() => {
+    api<{ trades: AccountTrade[] }>("/api/me/trades")
+      .then((d) => setTrades(d.trades))
+      .catch(() => {});
+  }, []);
+
+  const sorted = useMemo(() => {
+    const { key, dir } = sort;
+    const arr = [...trades].sort((a, b) => {
+      const av = a[key];
+      const bv = b[key];
+      const cmp =
+        typeof av === "string"
+          ? av.localeCompare(bv as string)
+          : (av as number) - (bv as number);
+      return dir === "asc" ? cmp : -cmp;
+    });
+    return arr;
+  }, [trades, sort]);
+
+  const shown = limit === "all" ? sorted : sorted.slice(0, limit);
+  const toggleSort = (key: TradeSortKey) =>
+    setSort((s) =>
+      s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "desc" },
+    );
+  const arrow = (key: TradeSortKey) => (sort.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : "");
+
+  const Th = ({ k, label, right }: { k: TradeSortKey; label: string; right?: boolean }) => (
+    <th
+      onClick={() => toggleSort(k)}
+      className={`cursor-pointer select-none whitespace-nowrap px-3 py-2 font-bold text-zinc-400 hover:text-zinc-200 ${
+        right ? "text-right" : "text-left"
+      }`}
+      title="Sort"
+    >
+      {label}
+      <span className="text-lime-400">{arrow(k)}</span>
+    </th>
+  );
+
+  return (
+    <div className="rounded-xl border border-zinc-800 p-5">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-black text-zinc-200">Trade History</h2>
+        <div className="flex items-center gap-1 text-xs">
+          <span className="mr-1 text-zinc-600">Show</span>
+          {PAGE_SIZES.map((n) => (
+            <button
+              key={String(n)}
+              onClick={() => setLimit(n)}
+              className={`rounded px-2 py-1 font-bold transition ${
+                limit === n
+                  ? "bg-lime-400 text-zinc-950"
+                  : "border border-zinc-700 text-zinc-400 hover:border-zinc-500"
+              }`}
+            >
+              {n === "all" ? "All" : n}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {trades.length === 0 ? (
+        <p className="text-sm text-zinc-600">
+          No trades yet. Pull up to a round and your buys and sells land here.
+        </p>
+      ) : (
+        <>
+          <div className="-mx-1 overflow-x-auto px-1">
+            <table className="w-full min-w-[36rem] text-sm">
+              <thead>
+                <tr className="border-b border-zinc-800 text-xs uppercase tracking-wide">
+                  <Th k="at" label="Time" />
+                  <Th k="symbol" label="Coin" />
+                  <Th k="side" label="Side" />
+                  <Th k="ethAmount" label="pETH" right />
+                  <Th k="tokenAmount" label="Tokens" right />
+                  <Th k="price" label="Price" right />
+                  <Th k="fee" label="Fee" right />
+                </tr>
+              </thead>
+              <tbody>
+                {shown.map((t) => (
+                  <tr key={t.id} className="border-b border-zinc-800/60">
+                    <td className="whitespace-nowrap px-3 py-2 text-zinc-500">{when(t.at)}</td>
+                    <td className="px-3 py-2">
+                      <a href={`/round/${t.roundId}`} className="font-bold hover:underline">
+                        ${t.symbol}
+                      </a>
+                    </td>
+                    <td className="px-3 py-2">
+                      <span
+                        className={`font-bold ${
+                          t.side === "buy" ? "text-emerald-400" : "text-red-400"
+                        }`}
+                      >
+                        {t.side === "buy" ? "🟢 Buy" : "🔴 Sell"}
+                      </span>
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono">
+                      {usd ? fmtAmount(t.ethAmount, true, peg) : t.ethAmount.toFixed(4)}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-zinc-400">
+                      {t.tokenAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-zinc-400">
+                      {t.price.toPrecision(4)}
+                    </td>
+                    <td className="px-3 py-2 text-right font-mono text-zinc-600">
+                      {t.fee.toFixed(4)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-2 text-[11px] text-zinc-600">
+            Showing {shown.length} of {trades.length} trade{trades.length === 1 ? "" : "s"}. Tap a
+            column to sort; tap a coin to open its round.
+          </p>
+        </>
+      )}
     </div>
   );
 }

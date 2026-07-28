@@ -11,6 +11,7 @@ import {
   resolveNotifyPrefs,
   unlockedCosmetics,
   weekKey,
+  type AccountTrade,
   type CosmeticType,
   type GameMode,
   type NotifyCategory,
@@ -31,7 +32,6 @@ import { resolvePrivyLogin, type PrivyResolver } from "./privy.js";
 import { Err, type Broadcast, type RoundEngine } from "./engine.js";
 import { jackpotStatus } from "./jackpot.js";
 import { rateLimit } from "./ratelimit.js";
-import { nextFreeSlot } from "./seed.js";
 import { activeRugBan, type Store, type StoredUser } from "./store.js";
 import { GLOBAL_ROOM, spotPrice } from "@cookout/shared";
 
@@ -376,6 +376,37 @@ export function createApp(
     wrap((req, res) => {
       const u = store.getOrCreateUser(req.userAddress!);
       res.json({ ledger: [...(u.ledger ?? [])].reverse() });
+    }),
+  );
+
+  /** The caller's full trade log across every round (newest first): each buy
+   *  and sell joined to its coin, for the wallet's trade-history table. */
+  app.get(
+    "/api/me/trades",
+    auth,
+    wrap((req, res) => {
+      const me = req.userAddress!;
+      const out: AccountTrade[] = [];
+      for (const [roundId, list] of store.trades) {
+        const round = store.rounds.get(roundId);
+        for (const t of list) {
+          if (t.userAddress !== me) continue;
+          out.push({
+            id: t.id,
+            roundId,
+            symbol: round?.token.symbol ?? "?",
+            name: round?.token.name ?? "",
+            side: t.side,
+            ethAmount: t.ethAmount,
+            tokenAmount: t.tokenAmount,
+            price: t.price,
+            fee: t.fee,
+            at: t.at,
+          });
+        }
+      }
+      out.sort((a, b) => b.at - a.at);
+      res.json({ trades: out });
     }),
   );
 
@@ -1023,12 +1054,13 @@ export function createApp(
         (r) => r.conceptId === round.conceptId && r.state !== "results",
       );
       if (pending) throw new Err(409, "this coin is already back on the calendar");
+      if (concept.status === "submitted" || concept.status === "shortlisted")
+        throw new Err(409, "this coin is already back on the vote");
       // Run It Back now lets the dev pick a fresh mode. Absent → same setup as
       // the original round. The chosen mode re-derives tier, length, and rug
-      // rules; it's stamped onto the concept so the rerun (and its card) reflect
-      // the new settings.
+      // rules; it's stamped onto the concept so the re-vote (and its card)
+      // reflect the new settings.
       const rawMode = (req.body as { mode?: string }).mode;
-      let tier = round.tier;
       if (rawMode !== undefined) {
         const def = GAME_MODE_MAP[rawMode as GameMode];
         if (!def) throw new Err(400, "unknown game mode");
@@ -1041,16 +1073,27 @@ export function createApp(
         concept.mode = def.key;
         concept.tier = def.tier;
         concept.matchMinutes = def.minutes ?? undefined;
-        tier = def.tier;
       }
-      const at = nextFreeSlot(store, store.settings.leadSeconds * 1000, Date.now());
-      const rerun = engine.scheduleRound(concept, tier, at);
-      store.emitRoundEvent({ kind: "run_it_back", roundId: rerun.id, symbol: concept.symbol, mode: concept.mode });
+      // Instead of jumping straight onto the calendar, a run-back sends the coin
+      // back through the community vote: reset it to a fresh submission and let
+      // the crowd decide if it cooks again. The chosen mode rides on the concept.
+      concept.status = "submitted";
+      concept.votes = 0;
+      concept.createdAt = Date.now();
+      store.conceptVoters.delete(concept.id);
+      store.emitRoundEvent({
+        kind: "submitted",
+        roundId: concept.id,
+        symbol: concept.symbol,
+        name: concept.name,
+        by: creator.displayName,
+        mode: concept.mode,
+      });
       store.logAdmin(
         "runback",
-        `${req.userAddress} ran back $${concept.symbol} (round ${round.id} → ${rerun.id})`,
+        `${req.userAddress} ran back $${concept.symbol} to the vote (round ${round.id} → concept ${concept.id})`,
       );
-      res.json(rerun);
+      res.json({ conceptId: concept.id, status: concept.status });
     }),
   );
 
