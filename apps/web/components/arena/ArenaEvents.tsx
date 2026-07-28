@@ -19,6 +19,7 @@ const KIND: Record<KillFeedKind, { icon: string; cls: string; loud?: boolean }> 
   mcap_milestone: { icon: "🎯", cls: "text-lime-300", loud: true },
   new_leader: { icon: "👑", cls: "text-amber-300", loud: true },
   graduated: { icon: "🎓", cls: "text-lime-300", loud: true },
+  overtime: { icon: "⏱️", cls: "text-sky-300", loud: true },
 };
 
 const stamp = (at: number, from?: number) => {

@@ -1,9 +1,27 @@
 "use client";
 
-import { GAME_MODE_MAP, type CoinSocials, type GameMode, type RiskTier } from "@cookout/shared";
+import {
+  GAME_MODE_MAP,
+  type CoinModifiers,
+  type CoinSocials,
+  type GameMode,
+  type RiskTier,
+} from "@cookout/shared";
 import { CreatorBadge } from "./CreatorBadge";
 import { EditCoinButton } from "./EditCoinButton";
 import { TierChip } from "./TierChip";
+
+/** The Over Time modifier badge, shown on coins that opted into the bonus. */
+export function OverTimeChip() {
+  return (
+    <span
+      className="rounded px-1.5 py-0.5 text-[10px] font-black uppercase text-sky-300 bg-sky-400/15"
+      title="Over Time: near the end, a coin that's still cooking earns a bonus minute."
+    >
+      ⏱️ Over Time
+    </span>
+  );
+}
 
 /** A single mode badge — red when rug rules are off (Blitz/Reflex). */
 export function ModeChip({ mode }: { mode: GameMode }) {
@@ -57,6 +75,8 @@ export interface CoinIdentity {
   /** Creator pitch + socials, so the edit modal can prefill them. */
   pitch?: string;
   socials?: CoinSocials;
+  /** Mode modifiers (e.g. Over Time), shown as a badge. */
+  modifiers?: CoinModifiers;
 }
 
 export function CoinCard({
@@ -193,6 +213,7 @@ export function CoinCard({
                 ) : null}
               </>
             )}
+            {!teaser && coin.modifiers?.overtime && <OverTimeChip />}
           </div>
           <div className="truncate text-xs text-zinc-400">
             {teaser ? `Theme: ${coin.theme}` : coin.theme}

@@ -12,6 +12,7 @@ import {
   unlockedCosmetics,
   weekKey,
   type AccountTrade,
+  type CoinModifiers,
   type CoinSocials,
   type CosmeticType,
   type GameMode,
@@ -837,6 +838,7 @@ export function createApp(
         theme: String(theme).slice(0, 140),
         pitch: pitch ? String(pitch).slice(0, 1000) : undefined,
         socials: sanitizeSocials((req.body as { socials?: unknown }).socials),
+        modifiers: sanitizeModifiers((req.body as { modifiers?: unknown }).modifiers),
         artworkUrl: artworkUrl ? sanitizeImageUrl(artworkUrl) : undefined,
         bannerUrl: bannerUrl ? sanitizeImageUrl(bannerUrl) : undefined,
         totalSupply,
@@ -1781,6 +1783,15 @@ function sanitizeSocials(value: unknown): CoinSocials | undefined {
     const v = clean(src[key]);
     if (v) out[key] = v;
   }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** Mode modifiers a creator chose at launch. Only the ones set are kept. */
+function sanitizeModifiers(value: unknown): CoinModifiers | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const src = value as Record<string, unknown>;
+  const out: CoinModifiers = {};
+  if (src.overtime === true) out.overtime = true;
   return Object.keys(out).length ? out : undefined;
 }
 

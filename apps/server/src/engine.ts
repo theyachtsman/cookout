@@ -4,6 +4,12 @@ import {
   GAME_MODE_MAP,
   GLOBAL_ROOM,
   MCAP_MILESTONES,
+  OVERTIME_EXTENSION_SEC,
+  OVERTIME_MAX_PERIODS,
+  OVERTIME_MCAP_FRACTION,
+  OVERTIME_MIN_VOLUME,
+  OVERTIME_TRIGGER_REMAINING_SEC,
+  OVERTIME_VOLUME_FRACTION,
   RUG_DRAIN_FRACTION,
   RUG_WINDOW_SECONDS,
   TIER_CONFIGS,
@@ -62,6 +68,8 @@ interface LiveRoundState {
   lastWhaleAt?: number;
   paused: boolean;
   pausedAt?: number;
+  /** The endsAt value we last ran the Over Time checkpoint for (once per window). */
+  overtimeCheckedEndsAt?: number;
   meta: Map<Address, PlayerMeta>;
 }
 
@@ -100,6 +108,8 @@ export class RoundEngine {
     // live (no sell lock). Rug-rules-off modes also drop the lock.
     const blitz = concept.matchMinutes === 1;
     if (blitz || !rugRules) config.devSellLockSeconds = 0;
+    // Over Time modifier: near the end a still-hot coin earns a bonus minute.
+    config.overtime = !!concept.modifiers?.overtime;
     if (concept.totalSupply) {
       // Creator tokenomics: keep the tier's pool-share ratio at the new supply.
       const poolShare = config.initialTokenLiquidity / config.totalSupply;
@@ -120,6 +130,7 @@ export class RoundEngine {
       creatorAddress: concept.creatorAddress,
       tier,
       mode: concept.mode,
+      modifiers: concept.modifiers,
       matchMinutes: concept.matchMinutes,
       blitz,
       state: "scheduled",
@@ -708,6 +719,34 @@ export class RoundEngine {
       return;
     }
 
+    // Over Time: as the clock hits the checkpoint, a coin that's still cooking
+    // (hot recent volume, or close to bonding) earns a bonus minute — so a
+    // banger gets to run and a dying-but-loved coin can be saved at the buzzer.
+    // Evaluated once per endsAt window; a credit extends it and can re-trigger,
+    // up to a cap. No signal, no overtime (and no overlay).
+    if (round.config.overtime && (round.overtimeCount ?? 0) < OVERTIME_MAX_PERIODS) {
+      const remainingSec = (round.endsAt! - now) / 1000;
+      if (
+        remainingSec <= OVERTIME_TRIGGER_REMAINING_SEC &&
+        remainingSec > 0 &&
+        s.overtimeCheckedEndsAt !== round.endsAt
+      ) {
+        s.overtimeCheckedEndsAt = round.endsAt;
+        const hot =
+          recent30 >= Math.max(OVERTIME_MIN_VOLUME, pool.ethReserve * OVERTIME_VOLUME_FRACTION);
+        const nearBond = marketCap(pool) >= round.config.graduationMcap * OVERTIME_MCAP_FRACTION;
+        if (hot || nearBond) {
+          round.overtimeCount = (round.overtimeCount ?? 0) + 1;
+          round.endsAt! += OVERTIME_EXTENSION_SEC * 1000;
+          this.kill(round, "overtime", `⏱️ OVERTIME. The coin's still cooking, +1:00 on the clock`, now, {
+            minute: round.overtimeCount,
+            seconds: OVERTIME_EXTENSION_SEC,
+          });
+          this.emitState(round); // push the new endsAt so every countdown extends
+        }
+      }
+    }
+
     if (now >= round.endsAt!) {
       this.endRound(round, "timer", now);
       return;
@@ -1093,8 +1132,14 @@ export class RoundEngine {
     this.broadcast(roundId, { type: "candle", roundId, candle });
   }
 
-  private kill(round: Round, kind: KillFeedKind, text: string, now: number): void {
-    const event = { id: this.store.id(), roundId: round.id, kind, text, at: now };
+  private kill(
+    round: Round,
+    kind: KillFeedKind,
+    text: string,
+    now: number,
+    meta?: Record<string, string | number>,
+  ): void {
+    const event = { id: this.store.id(), roundId: round.id, kind, text, at: now, ...(meta ? { meta } : {}) };
     let list = this.store.killfeed.get(round.id);
     if (!list) {
       list = [];

@@ -319,6 +319,13 @@ export default function Docs() {
             pull-ups go past the cap, everyone settles pro-rata at one price and the unfilled part is
             refunded to your Cook Out balance, so the cap sizes how much can pile into the open.
           </p>
+          <p>
+            <b className="text-sky-300">⏱️ Over Time (modifier):</b> an optional toggle you can add
+            to your coin at launch. Near the end, if the coin is still cooking (trade volume,
+            liquidity, and market cap), it earns a bonus minute so a banger gets to run, up to a few
+            extra minutes. A quiet, dying coin gets nothing and no overlay. It can save a coin and
+            turn it into a winner at the last moment.
+          </p>
           <p className="rounded-xl border border-lime-400/30 bg-lime-400/[0.05] p-3 text-sm text-zinc-300">
             <b className="text-lime-300">Beta:</b> every mode is open to everyone from level 1, so
             you can try them all. <b>Endurance</b> (no timer) is on the menu but locked for now, and
