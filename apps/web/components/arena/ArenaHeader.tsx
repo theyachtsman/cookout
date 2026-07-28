@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import type { Round } from "@cookout/shared";
 import { CoinSocials } from "../CoinSocials";
+import { CreatorBadge } from "../CreatorBadge";
+import { EditCoinButton } from "../EditCoinButton";
 
 /**
  * The arena header — the one piece of furniture every phase shares.
@@ -335,6 +337,24 @@ export function ArenaHeader({
             </div>
             {revealed && round.token.socials && (
               <CoinSocials socials={round.token.socials} className="mt-2" />
+            )}
+            {revealed && (
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <CreatorBadge address={round.creatorAddress} />
+                <EditCoinButton
+                  coin={{
+                    conceptId: round.conceptId,
+                    creatorAddress: round.creatorAddress,
+                    graduated: round.graduated,
+                    name: round.token.name,
+                    symbol: round.token.symbol,
+                    theme: round.token.theme,
+                    artworkUrl: round.token.artworkUrl,
+                    bannerUrl: round.token.bannerUrl,
+                    socials: round.token.socials,
+                  }}
+                />
+              </div>
             )}
           </div>
         </div>

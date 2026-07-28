@@ -871,7 +871,12 @@ export function createApp(
       let list = [...store.concepts.values()];
       if (status) list = list.filter((c) => c.status === status);
       list.sort((a, b) => b.votes - a.votes || b.createdAt - a.createdAt);
-      res.json(list);
+      // Tag each with whether its coin has graduated (edit is socials-only after
+      // that). One pass over rounds, not one per concept.
+      const graduatedConcepts = new Set(
+        [...store.rounds.values()].filter((r) => r.graduated).map((r) => r.conceptId),
+      );
+      res.json(list.map((c) => ({ ...c, graduated: graduatedConcepts.has(c.id) })));
     }),
   );
 
@@ -881,7 +886,59 @@ export function createApp(
     wrap((req, res) => {
       const concept = store.concepts.get(req.params.id!);
       if (!concept) throw new Err(404, "concept not found");
-      res.json(concept);
+      res.json(pubConcept(store, concept));
+    }),
+  );
+
+  /**
+   * Edit a coin after launch — creator only. Socials can always be changed.
+   * Everything else (name, theme, pitch, coin image, banner) can be edited right
+   * up until the coin graduates; once it has graduated, only the socials are
+   * editable. The ticker and supply are never editable. Edits reflect onto any
+   * round of this concept so the live/cook-out card matches immediately.
+   */
+  app.patch(
+    "/api/concepts/:id",
+    auth,
+    wrap((req, res) => {
+      const concept = store.concepts.get(req.params.id!);
+      if (!concept) throw new Err(404, "concept not found");
+      if (concept.creatorAddress.toLowerCase() !== req.userAddress!.toLowerCase())
+        throw new Err(403, "only this coin's creator can edit it");
+      const roundsForConcept = [...store.rounds.values()].filter((r) => r.conceptId === concept.id);
+      const graduated = roundsForConcept.some((r) => r.graduated);
+      const body = req.body as Record<string, unknown>;
+
+      // Socials: always editable.
+      if ("socials" in body) concept.socials = sanitizeSocials(body.socials);
+      // Everything else is locked once the coin has graduated.
+      if (!graduated) {
+        if (typeof body.name === "string" && body.name.trim())
+          concept.name = body.name.trim().slice(0, 48);
+        if (typeof body.theme === "string" && body.theme.trim())
+          concept.theme = body.theme.trim().slice(0, 140);
+        if ("pitch" in body)
+          concept.pitch = body.pitch ? String(body.pitch).slice(0, 1000) : undefined;
+        if ("artworkUrl" in body)
+          concept.artworkUrl = body.artworkUrl ? sanitizeImageUrl(body.artworkUrl) : undefined;
+        if ("bannerUrl" in body)
+          concept.bannerUrl = body.bannerUrl ? sanitizeImageUrl(body.bannerUrl) : undefined;
+      }
+
+      // Reflect the edit onto any round(s) of this concept and push it live.
+      for (const r of roundsForConcept) {
+        r.token.name = concept.name;
+        r.token.theme = concept.theme;
+        r.token.artworkUrl = concept.artworkUrl;
+        r.token.bannerUrl = concept.bannerUrl;
+        r.token.socials = concept.socials;
+        broadcast(r.id, { type: "round_state", round: r });
+      }
+      store.logAdmin(
+        "concept_edit",
+        `${req.userAddress} edited $${concept.symbol}${graduated ? " (socials only, graduated)" : ""}`,
+      );
+      res.json(pubConcept(store, concept));
     }),
   );
 
@@ -1693,6 +1750,13 @@ export function createApp(
  * owns them (`self`). Positions, intents, missions, and cosmetics-equip are
  * separately auth-scoped per session token.
  */
+/** A concept for the client, tagged with whether its coin has graduated (which
+ *  limits editing to socials only). */
+function pubConcept(store: Store, c: TokenConcept) {
+  const graduated = [...store.rounds.values()].some((r) => r.conceptId === c.id && r.graduated);
+  return { ...c, graduated };
+}
+
 function sanitizeImageUrl(value: unknown): string | undefined {
   const s = String(value ?? "");
   if (!s) return undefined;

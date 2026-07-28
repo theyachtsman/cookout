@@ -269,13 +269,13 @@ export function TradePanel({
         <div className="mt-2.5 grid grid-cols-2 gap-2">
           <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2">
             <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">Balance</div>
-            <div className="mt-0.5 flex items-baseline gap-1.5">
-              <span className="font-mono text-base font-black text-zinc-100">
+            <div className="mt-0.5 flex items-baseline gap-1.5 overflow-hidden whitespace-nowrap">
+              <span className="truncate font-mono text-base font-black tabular-nums text-zinc-100">
                 {balance !== null && balance !== undefined ? balance.toFixed(onChain ? 4 : 2) : "…"}
               </span>
-              <span className="text-[11px] font-bold text-zinc-500">{unit}</span>
+              <span className="shrink-0 text-[11px] font-bold text-zinc-500">{unit}</span>
               {peg > 0 && balance !== null && balance !== undefined && (
-                <span className="ml-auto font-mono text-[11px] text-emerald-400/80">
+                <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-emerald-400/80">
                   ${(balance * peg).toFixed(2)}
                 </span>
               )}
@@ -285,12 +285,12 @@ export function TradePanel({
             <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">
               Holding {round.token.symbol}
             </div>
-            <div className="mt-0.5 flex items-baseline gap-1.5">
-              <span className="font-mono text-base font-black text-zinc-100">
+            <div className="mt-0.5 flex items-baseline gap-1.5 overflow-hidden whitespace-nowrap">
+              <span className="truncate font-mono text-base font-black tabular-nums text-zinc-100">
                 {holdingTokens !== null ? holdingTokens.toLocaleString() : "…"}
               </span>
               {peg > 0 && price !== undefined && holdingTokens !== null && (
-                <span className="ml-auto font-mono text-[11px] text-emerald-400/80">
+                <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-emerald-400/80">
                   ${(holdingTokens * price * peg).toFixed(2)}
                 </span>
               )}

@@ -155,6 +155,9 @@ export default function Home() {
                       ...r.token,
                       tier: r.tier,
                       matchMinutes: Math.round(r.config.maxDurationSeconds / 60),
+                      id: r.conceptId,
+                      creatorAddress: r.creatorAddress,
+                      graduated: r.graduated,
                     }}
                     borderClass={
                       r.graduated
@@ -223,6 +226,9 @@ function RoundCard({ round, highlight }: { round: Round; highlight?: boolean }) 
         ...round.token,
         tier: round.tier,
         matchMinutes: Math.round(round.config.maxDurationSeconds / 60),
+        id: round.conceptId,
+        creatorAddress: round.creatorAddress,
+        graduated: round.graduated,
       }}
       teaser={teaser}
       borderClass={highlight ? "border-lime-400/60" : "border-zinc-800"}
