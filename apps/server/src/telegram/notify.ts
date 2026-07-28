@@ -199,7 +199,8 @@ export class Notifier {
           : summary.endReason === "mcap_target"
             ? ["🎯", "Hit the target"]
             : ["⏱️", "Time's up"];
-    this.toChannel(
+    this.toChannelPhoto(
+      round?.conceptId,
       feed.roundResults({
         symbol,
         name: round?.token.name,
@@ -286,7 +287,13 @@ export class Notifier {
     );
   }
   runItBack(symbol: string, roundId: string, mode?: string): void {
-    this.toChannel(feed.runItBack(symbol, mode), this.kb.runItBack(roundId), "launch");
+    const conceptId = this.conceptIdFor(roundId);
+    this.toChannelPhoto(
+      conceptId,
+      feed.runItBack(symbol, this.coinName(conceptId), mode),
+      this.kb.runItBack(roundId),
+      "launch",
+    );
   }
   jackpotGrew(eth: number, usd?: number): void {
     this.toChannel(feed.jackpot(eth, usd), this.kb.jackpot(), "announcements");
