@@ -96,6 +96,9 @@ export interface GameModeDef {
   rugRules: boolean;
   /** Base economics tier the mode runs on. */
   tier: RiskTier;
+  /** The Fair Open cap (pETH): the most the batch auction accepts at the open.
+   *  Fixed per mode and shown at launch. Beyond it, pull-ups fill pro-rata. */
+  pullUpCap: number;
   /** One-line label under the mode name. */
   tagline: string;
   /** The longer sell. */
@@ -113,6 +116,7 @@ export const GAME_MODES: GameModeDef[] = [
     minutes: 10,
     rugRules: true,
     tier: "standard",
+    pullUpCap: 1.5,
     unlockLevel: 1,
     tagline: "10 min · standard rules",
     blurb: "The balanced match: ten minutes, full rules, real crowds. The default way to cook.",
@@ -123,6 +127,7 @@ export const GAME_MODES: GameModeDef[] = [
     minutes: 7,
     rugRules: true,
     tier: "standard",
+    pullUpCap: 1.25,
     unlockLevel: 1,
     tagline: "7 min · standard rules",
     blurb:
@@ -134,6 +139,7 @@ export const GAME_MODES: GameModeDef[] = [
     minutes: 5,
     rugRules: false,
     tier: "degen",
+    pullUpCap: 1.0,
     unlockLevel: 1,
     tagline: "5 min · rug rules off",
     blurb:
@@ -145,6 +151,7 @@ export const GAME_MODES: GameModeDef[] = [
     minutes: 1,
     rugRules: false,
     tier: "degen",
+    pullUpCap: 0.75,
     unlockLevel: 1,
     tagline: "1 min · rug rules off",
     blurb: "Sixty seconds. No rug rules, no safety net. Pure dopamine, and it's over before you blink.",
@@ -155,6 +162,7 @@ export const GAME_MODES: GameModeDef[] = [
     minutes: null,
     rugRules: true,
     tier: "standard",
+    pullUpCap: 2.0,
     unlockLevel: 999,
     tagline: "No timer · coming soon",
     blurb: "A marathon with no clock that runs until the market decides. Reserved for a later unlock.",

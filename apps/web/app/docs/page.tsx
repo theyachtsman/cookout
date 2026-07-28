@@ -269,6 +269,7 @@ export default function Docs() {
                   <th className="py-2 pr-4">Mode</th>
                   <th className="py-2 pr-4">Length</th>
                   <th className="py-2 pr-4">Rug rules</th>
+                  <th className="py-2 pr-4">Pull-up cap</th>
                   <th className="py-2">The vibe</th>
                 </tr>
               </thead>
@@ -293,6 +294,7 @@ export default function Docs() {
                         <span className="text-red-300">off</span>
                       )}
                     </td>
+                    <td className="py-2 pr-4 font-mono text-zinc-300">{m.pullUpCap} pETH</td>
                     <td className="py-2 text-zinc-400">{m.blurb}</td>
                   </tr>
                 ))}
@@ -310,6 +312,12 @@ export default function Docs() {
             detector, no dev sell lock. Nobody gets rugged. The coin simply runs its clock, and the
             price action is the whole game. The dev can trade their own bag freely with no reputation
             hit. These modes run on thin liquidity, so they are fast and violent by design.
+          </p>
+          <p>
+            <b>Pull-up cap:</b> each mode also sets the Fair Open cap, the most the opening batch
+            auction accepts. It is shown when you launch and on the coin&apos;s pull-up meter. If
+            pull-ups go past the cap, everyone settles pro-rata at one price and the unfilled part is
+            refunded to your Cook Out balance, so the cap sizes how much can pile into the open.
           </p>
           <p className="rounded-xl border border-lime-400/30 bg-lime-400/[0.05] p-3 text-sm text-zinc-300">
             <b className="text-lime-300">Beta:</b> every mode is open to everyone from level 1, so
