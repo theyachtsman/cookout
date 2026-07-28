@@ -327,7 +327,24 @@ export class RoundEngine {
     });
     for (const fill of result.fills) {
       const user = this.store.getOrCreateUser(fill.userAddress);
+      const human = !fill.userAddress.startsWith("0xb07");
+      const committed = fill.ethFilled + fill.refund;
+      // Pull-up receipt (humans only). The Fair Open is a batch auction capped
+      // at the raise, so when the pull is oversubscribed only part of a pull-up
+      // clears and the rest comes straight back. We log the FULL amount they
+      // committed as the pull-up (snapshotted before the refund lands so the
+      // running balance reads right), then the unfilled portion as its own
+      // refund line — so the receipt reconciles instead of looking like the
+      // pull-up itself shrank.
+      if (human && fill.ethFilled > 0)
+        this.store.recordLedger(fill.userAddress, "pull_up", -committed, {
+          symbol: round.token.symbol,
+        });
       user.arenaBalance = (user.arenaBalance ?? 0) + fill.refund; // unfilled escrow back
+      if (human && fill.ethFilled > 0 && fill.refund > 1e-9)
+        this.store.recordLedger(fill.userAddress, "refund", fill.refund, {
+          symbol: round.token.symbol,
+        });
       if (fill.tokensOut > 0) {
         const pos = this.store.position(round.id, fill.userAddress);
         pos.tokens += fill.tokensOut;
@@ -338,13 +355,6 @@ export class RoundEngine {
         m.maxTokens = Math.max(m.maxTokens, pos.tokens);
         m.ethInvested += fill.ethFilled;
         m.biggestBuyEth = Math.max(m.biggestBuyEth, fill.ethFilled);
-        // Pull-up receipt: log what actually cleared into their open position
-        // (the escrow churn and any unfilled refund stay off the ledger). Bots
-        // don't keep a wallet history.
-        if (fill.ethFilled > 0 && !fill.userAddress.startsWith("0xb07"))
-          this.store.recordLedger(fill.userAddress, "pull_up", -fill.ethFilled, {
-            symbol: round.token.symbol,
-          });
       }
     }
     const fee = result.totalRaised - (result.poolAfter.ethReserve - pool.ethReserve);
