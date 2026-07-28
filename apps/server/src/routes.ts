@@ -1088,6 +1088,7 @@ export function createApp(
         name: concept.name,
         by: creator.displayName,
         mode: concept.mode,
+        rerun: true,
       });
       store.logAdmin(
         "runback",

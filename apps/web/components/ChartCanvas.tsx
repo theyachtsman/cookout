@@ -403,19 +403,34 @@ export function ChartCanvas(props: Props) {
         const color = buy ? UP : DOWN;
         const mine = !!highlightAddress && t.userAddress === highlightAddress;
         const big = t.ethAmount >= threshold || t.isCreator || mine;
-        ctx.beginPath();
-        ctx.arc(tx, ty, mine ? 4.5 : big ? 4 : 2.2, 0, Math.PI * 2);
-        ctx.fillStyle = color;
-        ctx.fill();
-        if (mine) {
-          // Your own entries/exits pin to the chart permanently — a lime-ringed
-          // bubble only this viewer sees (the ring keys off their own address).
-          ctx.strokeStyle = "#a3e635";
-          ctx.lineWidth = 1.8;
+        // Every trade marker is the trader's profile-pic circle with a
+        // color-coded ring (green buy, red sell; lime for your own). Whales and
+        // the developer ride bigger so their pic reads across the room. The tag
+        // resolves the avatar asynchronously; until it lands (or if they have
+        // none) we fall back to a solid color dot the same size.
+        const ring = mine ? "#a3e635" : color;
+        const tag = tagFor(t.userAddress);
+        const r = mine || big ? 9 : 5.5;
+        if (tag.img) {
+          ctx.save();
+          ctx.beginPath();
+          ctx.arc(tx, ty, r, 0, Math.PI * 2);
+          ctx.closePath();
+          ctx.clip();
+          ctx.drawImage(tag.img, tx - r, ty - r, r * 2, r * 2);
+          ctx.restore();
+          ctx.beginPath();
+          ctx.arc(tx, ty, r, 0, Math.PI * 2);
+          ctx.strokeStyle = ring;
+          ctx.lineWidth = mine || big ? 2.5 : 1.8;
           ctx.stroke();
         } else {
-          ctx.strokeStyle = "#09090b";
-          ctx.lineWidth = 1;
+          ctx.beginPath();
+          ctx.arc(tx, ty, mine || big ? 5 : 2.6, 0, Math.PI * 2);
+          ctx.fillStyle = color;
+          ctx.fill();
+          ctx.strokeStyle = mine ? ring : "#09090b";
+          ctx.lineWidth = mine ? 1.8 : 1;
           ctx.stroke();
         }
 
