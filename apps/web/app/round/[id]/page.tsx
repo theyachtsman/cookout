@@ -527,6 +527,7 @@ export default function RoundPage() {
                 round={round}
                 position={position}
                 ethUsd={ticker?.ethUsd ?? pegUsd ?? 1925}
+                price={ticker?.price}
                 variant="bar"
                 onTraded={() => {
                   void loadMe();

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ACHIEVEMENTS, xpForLevel } from "@cookout/shared";
+import { ACHIEVEMENTS, COSMETICS, xpForLevel } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { DEFAULT_CHAIN_ID, arenaBalance, hasArenaWallet } from "../../lib/arenaWallet";
 import { useChainOnly, useUnit } from "../../lib/chainOnly";
@@ -58,6 +58,10 @@ export default function ProfilePage() {
   const displayName = profile.displayName ?? `${profile.address.slice(0, 8)}…`;
   const avatarUrl = (profile as unknown as { avatarUrl?: string }).avatarUrl;
   const bannerUrl = (profile as unknown as { bannerUrl?: string }).bannerUrl;
+  // Equipped cosmetics: an equipped title overrides the level title; the badge
+  // shows before the name. Founder cosmetics land here once claimed.
+  const equippedTitle = COSMETICS.find((c) => c.id === profile.equipped?.title)?.value;
+  const equippedBadge = COSMETICS.find((c) => c.id === profile.equipped?.badge)?.value;
   const referralCount = (profile as unknown as { referralCount?: number }).referralCount ?? 0;
   const referralEarnings =
     (profile as unknown as { referralEarnings?: number }).referralEarnings ?? 0;
@@ -85,7 +89,8 @@ export default function ProfilePage() {
         bannerUrl={bannerUrl}
         name={displayName}
         level={profile.level}
-        title={profile.title}
+        title={equippedTitle ?? profile.title}
+        badge={equippedBadge}
         xp={profile.xp}
         currLevelXp={xpForLevel(profile.level)}
         nextLevelXp={xpForLevel(profile.level + 1)}

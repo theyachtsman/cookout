@@ -19,6 +19,15 @@ import { useSession } from "../../lib/session";
 import { CoinCard } from "../../components/CoinCard";
 import { ImagePicker } from "../../components/ImagePicker";
 
+/** The coin's social inputs, in display order. Keys match CoinSocials. */
+const SOCIAL_FIELDS = [
+  { key: "x", icon: "𝕏", placeholder: "@handle or x.com/…" },
+  { key: "telegram", icon: "✈️", placeholder: "@group or t.me/…" },
+  { key: "youtube", icon: "▶️", placeholder: "youtube.com/@…" },
+  { key: "instagram", icon: "📸", placeholder: "@handle or instagram.com/…" },
+  { key: "website", icon: "🌐", placeholder: "yourcoin.xyz" },
+] as const;
+
 export default function Submissions() {
   const unit = useUnit();
   const { profile, signIn } = useSession();
@@ -32,6 +41,7 @@ export default function Submissions() {
     bannerUrl: "",
     totalSupply: "",
     mode: DEFAULT_GAME_MODE as GameMode,
+    socials: { x: "", telegram: "", youtube: "", instagram: "", website: "" },
   });
   const [error, setError] = useState("");
   // The just-submitted concept — drives the "your coin is live" preview modal.
@@ -85,6 +95,7 @@ export default function Submissions() {
         bannerUrl: "",
         totalSupply: "",
         mode: DEFAULT_GAME_MODE,
+        socials: { x: "", telegram: "", youtube: "", instagram: "", website: "" },
       });
       load();
     } catch (e) {
@@ -147,6 +158,30 @@ export default function Submissions() {
               className="rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm md:col-span-2"
               rows={2}
             />
+            {/* Socials — shown as interactive badges on the coin's trading banner. */}
+            <div className="md:col-span-2">
+              <div className="mb-1.5 text-xs text-zinc-500">
+                Socials (optional) · shown as badges on your coin&apos;s trading banner
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {SOCIAL_FIELDS.map((f) => (
+                  <div
+                    key={f.key}
+                    className="flex items-center gap-2 rounded border border-zinc-700 bg-zinc-900 px-2.5"
+                  >
+                    <span className="w-5 shrink-0 text-center text-sm">{f.icon}</span>
+                    <input
+                      placeholder={f.placeholder}
+                      value={form.socials[f.key]}
+                      onChange={(e) =>
+                        setForm({ ...form, socials: { ...form.socials, [f.key]: e.target.value } })
+                      }
+                      className="min-w-0 flex-1 bg-transparent py-2 text-sm outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
             <div className="flex flex-wrap items-end gap-6 md:col-span-2">
               <ImagePicker
                 label="Coin image"

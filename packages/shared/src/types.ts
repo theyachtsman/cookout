@@ -40,6 +40,17 @@ export interface PoolState {
   totalSupply: number;
 }
 
+/** Creator-supplied social links for a coin, shown as interactive badges on the
+ *  trading banner. All optional — only the ones set render. Stored as the raw
+ *  handle or URL the creator entered; the client normalizes to a full link. */
+export interface CoinSocials {
+  x?: string;
+  telegram?: string;
+  youtube?: string;
+  instagram?: string;
+  website?: string;
+}
+
 export interface TokenConcept {
   id: string;
   creatorAddress: Address;
@@ -47,6 +58,8 @@ export interface TokenConcept {
   symbol: string;
   theme: string;
   pitch?: string;
+  /** The coin's socials (X / Telegram / YouTube / Instagram / website). */
+  socials?: CoinSocials;
   artworkUrl?: string;
   /** Creator-chosen total supply (tokenomics); tier default when unset. */
   totalSupply?: number;
@@ -124,7 +137,14 @@ export interface ChainRoundInfo {
 export interface Round {
   id: string;
   conceptId: string;
-  token: { name: string; symbol: string; theme: string; artworkUrl?: string; bannerUrl?: string };
+  token: {
+    name: string;
+    symbol: string;
+    theme: string;
+    artworkUrl?: string;
+    bannerUrl?: string;
+    socials?: CoinSocials;
+  };
   creatorAddress: Address;
   tier: RiskTier;
   /** The curated launch mode this round runs (Classic/Pressure/Blitz/Reflex). */

@@ -12,6 +12,7 @@ import {
   unlockedCosmetics,
   weekKey,
   type AccountTrade,
+  type CoinSocials,
   type CosmeticType,
   type GameMode,
   type MyFill,
@@ -429,6 +430,7 @@ export function createApp(
     achievements: u.achievements,
     bestSeasonRank: u.bestSeasonRank,
     monthlyXp: u.seasons[store.seasonKey()]?.xp ?? 0,
+    founder: !!u.founderNumber,
   });
 
   app.get(
@@ -834,6 +836,7 @@ export function createApp(
         symbol: String(symbol).toUpperCase().slice(0, 8),
         theme: String(theme).slice(0, 140),
         pitch: pitch ? String(pitch).slice(0, 1000) : undefined,
+        socials: sanitizeSocials((req.body as { socials?: unknown }).socials),
         artworkUrl: artworkUrl ? sanitizeImageUrl(artworkUrl) : undefined,
         bannerUrl: bannerUrl ? sanitizeImageUrl(bannerUrl) : undefined,
         totalSupply,
@@ -1291,6 +1294,12 @@ export function createApp(
         throw new Err(409, "round already ended");
       const { call } = req.body as { call?: "moon" | "rug" };
       if (call !== "moon" && call !== "rug") throw new Err(400, "call must be moon or rug");
+      // The developer can't call rug on their own ruggable coin — they hold the
+      // rug switch, so that'd be an insider bet. They can only call moon.
+      const isDev = round.creatorAddress.toLowerCase() === req.userAddress!.toLowerCase();
+      const ruggable = round.config.rugRules !== false;
+      if (call === "rug" && isDev && ruggable)
+        throw new Err(403, "the developer can only call moon on their own coin");
       let preds = store.predictions.get(round.id);
       if (!preds) {
         preds = new Map();
@@ -1691,6 +1700,24 @@ function sanitizeImageUrl(value: unknown): string | undefined {
   if (/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(s) && s.length <= 800_000)
     return s;
   throw new Err(400, "image must be an https URL or a small png/jpg/webp/gif upload");
+}
+
+/** Coin socials: keep the raw handle or URL the creator entered (the client
+ *  normalizes each to a full link), trimmed and length-capped, with any embedded
+ *  markup stripped. Returns undefined when nothing usable was provided. */
+function sanitizeSocials(value: unknown): CoinSocials | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const src = value as Record<string, unknown>;
+  const clean = (v: unknown) =>
+    String(v ?? "")
+      .replace(/[<>"'\s]/g, "")
+      .slice(0, 200);
+  const out: CoinSocials = {};
+  for (const key of ["x", "telegram", "youtube", "instagram", "website"] as const) {
+    const v = clean(src[key]);
+    if (v) out[key] = v;
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 function publicProfile(u: StoredUser, self = false) {

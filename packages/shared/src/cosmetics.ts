@@ -12,7 +12,14 @@ export interface CosmeticDef {
   name: string;
   /** Rendered value: emoji for badges, hex for chat colors, css class for frames. */
   value: string;
-  unlock: { level?: number; achievement?: string; seasonTop?: number; monthlyXp?: number };
+  unlock: {
+    level?: number;
+    achievement?: string;
+    seasonTop?: number;
+    monthlyXp?: number;
+    /** Unlocked once the account has claimed a Founding Member number. */
+    founder?: boolean;
+  };
 }
 
 export const COSMETICS: CosmeticDef[] = [
@@ -27,7 +34,9 @@ export const COSMETICS: CosmeticDef[] = [
   { id: "b_oracle", type: "badge", name: "Oracle Eye", value: "🔮", unlock: { achievement: "oracle" } },
   { id: "b_podium", type: "badge", name: "Podium", value: "🏆", unlock: { seasonTop: 100 } },
   { id: "b_pass", type: "badge", name: "Season Pass", value: "🎟️", unlock: { monthlyXp: 800 } },
+  { id: "b_founder", type: "badge", name: "Founding Member", value: "🥇", unlock: { founder: true } },
   // Titles (vanity display titles, separate from level titles)
+  { id: "t_founder", type: "title", name: "Founding Member", value: "Founding Member", unlock: { founder: true } },
   { id: "t_early", type: "title", name: "Day One", value: "Day One", unlock: { level: 2 } },
   { id: "t_grill", type: "title", name: "Grillmaster", value: "Grillmaster", unlock: { level: 25 } },
   { id: "t_perfect", type: "title", name: "Clean Exit", value: "Clean Exit", unlock: { achievement: "perfect_exit" } },
@@ -59,6 +68,8 @@ export function unlockedCosmetics(user: {
   bestSeasonRank?: number;
   /** This month's season XP — unlocks season-pass cosmetics. */
   monthlyXp?: number;
+  /** Has claimed a Founding Member number — unlocks the founder cosmetics. */
+  founder?: boolean;
 }): CosmeticDef[] {
   return COSMETICS.filter((c) => {
     if (c.unlock.level !== undefined) return user.level >= c.unlock.level;
@@ -66,6 +77,7 @@ export function unlockedCosmetics(user: {
     if (c.unlock.seasonTop !== undefined)
       return user.bestSeasonRank !== undefined && user.bestSeasonRank <= c.unlock.seasonTop;
     if (c.unlock.monthlyXp !== undefined) return (user.monthlyXp ?? 0) >= c.unlock.monthlyXp;
+    if (c.unlock.founder) return !!user.founder;
     return false;
   });
 }

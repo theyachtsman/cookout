@@ -5,7 +5,9 @@ import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   ACHIEVEMENTS,
+  COSMETICS,
   xpForLevel,
+  type EquippedCosmetics,
   type JackpotWin,
   type RoundHistoryEntry,
   type RugBan,
@@ -34,6 +36,7 @@ interface PublicProfile {
   creatorReputation: number;
   banned?: boolean;
   rugBans?: RugBan[];
+  equipped?: EquippedCosmetics;
   stats: Record<string, number>;
   jackpotWinnings?: number;
   jackpotWins?: JackpotWin[];
@@ -66,6 +69,8 @@ export default function PublicProfilePage() {
 
   const s = profile.stats;
   const name = profile.displayName ?? `${profile.address.slice(0, 8)}…${profile.address.slice(-6)}`;
+  const equippedTitle = COSMETICS.find((c) => c.id === profile.equipped?.title)?.value;
+  const equippedBadge = COSMETICS.find((c) => c.id === profile.equipped?.badge)?.value;
   const unlocked = [...ACHIEVEMENTS]
     .filter((a) => profile.achievements.includes(a.id))
     .sort(
@@ -82,7 +87,8 @@ export default function PublicProfilePage() {
         bannerUrl={profile.bannerUrl}
         name={name}
         level={profile.level}
-        title={profile.title}
+        title={equippedTitle ?? profile.title}
+        badge={equippedBadge}
         xp={profile.xp}
         currLevelXp={xpForLevel(profile.level)}
         nextLevelXp={xpForLevel(profile.level + 1)}

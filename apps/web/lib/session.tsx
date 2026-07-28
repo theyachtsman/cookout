@@ -16,6 +16,10 @@ export interface Profile {
   /** Staked into the arena — the only money matches can spend. */
   arenaBalance?: number;
   achievements: string[];
+  /** Equipped cosmetics (title/badge/chatColor/frame cosmetic ids). */
+  equipped?: import("@cookout/shared").EquippedCosmetics;
+  /** Founding Member number, once claimed (unlocks founder cosmetics). */
+  founderNumber?: number | null;
   referralCode: string;
   creatorReputation: number;
   /** Lifetime creator fees earned (pETH), credited to the Cook Out balance. */

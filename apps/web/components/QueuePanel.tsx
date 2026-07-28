@@ -44,6 +44,10 @@ export function QueuePanel({
   const { online } = useSocial();
   const onChain = !!round.chain;
   const unit = onChain ? "ETH" : "pETH";
+  // The dev holds the rug switch on a ruggable coin, so they can only call moon
+  // — calling rug on your own coin would be an insider bet.
+  const isDev = !!profile && profile.address.toLowerCase() === round.creatorAddress.toLowerCase();
+  const devNoRug = isDev && round.config.rugRules !== false;
   // Default sits in the dollar denom below (paper ≈ $20, chain small).
   const [amount, setAmount] = useState(onChain ? "0.001" : "20");
   // Pull up in native units or dollars — converted at the live peg. Default to
@@ -413,8 +417,9 @@ export function QueuePanel({
               🌕 Moon ({preds.moon})
             </button>
             <button
-              disabled={!!myCall || !profile}
+              disabled={!!myCall || !profile || devNoRug}
               onClick={() => void predict("rug")}
+              title={devNoRug ? "You can't call rug on your own coin — only moon." : undefined}
               className={`flex-1 rounded px-3 py-1.5 text-sm font-bold text-red-300 disabled:opacity-40 ${
                 myCall === "rug"
                   ? "bg-red-600/50 ring-1 ring-red-400 !opacity-100"
@@ -424,6 +429,11 @@ export function QueuePanel({
               🧨 Rug ({preds.rug})
             </button>
           </div>
+          {devNoRug && !myCall && (
+            <p className="mt-2 text-xs text-zinc-500">
+              It&apos;s your coin — you hold the rug switch, so you can only call 🌕 Moon here.
+            </p>
+          )}
           {myCall && (
             <p className="mt-2 text-xs font-bold text-zinc-300">
               You called {myCall === "moon" ? "🌕 Moon" : "🧨 Rug"}. Locked in.

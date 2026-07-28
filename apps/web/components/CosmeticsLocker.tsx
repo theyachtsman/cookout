@@ -49,11 +49,15 @@ export function CosmeticsLocker() {
   };
 
   const unlockText = (c: CosmeticDef) =>
-    c.unlock.level !== undefined
-      ? `level ${c.unlock.level}`
-      : c.unlock.achievement !== undefined
-        ? `achievement: ${c.unlock.achievement.replace(/_/g, " ")}`
-        : `season top ${c.unlock.seasonTop}`;
+    c.unlock.founder
+      ? "claim Founding Member"
+      : c.unlock.level !== undefined
+        ? `level ${c.unlock.level}`
+        : c.unlock.achievement !== undefined
+          ? `achievement: ${c.unlock.achievement.replace(/_/g, " ")}`
+          : c.unlock.monthlyXp !== undefined
+            ? `${c.unlock.monthlyXp.toLocaleString()} monthly XP`
+            : `season top ${c.unlock.seasonTop}`;
 
   return (
     <div>
