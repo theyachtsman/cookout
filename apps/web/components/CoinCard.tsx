@@ -1,6 +1,8 @@
 "use client";
 
-import { GAME_MODE_MAP, type GameMode, type RiskTier } from "@cookout/shared";
+import { GAME_MODE_MAP, type CoinSocials, type GameMode, type RiskTier } from "@cookout/shared";
+import { CreatorBadge } from "./CreatorBadge";
+import { EditCoinButton } from "./EditCoinButton";
 import { TierChip } from "./TierChip";
 
 /** A single mode badge — red when rug rules are off (Blitz/Reflex). */
@@ -46,6 +48,15 @@ export interface CoinIdentity {
   mode?: GameMode;
   /** Creator-chosen live-trading length (min) — shown as a chip (legacy). */
   matchMinutes?: number;
+  /** Concept id — enables the creator's edit button when set. */
+  id?: string;
+  /** Creator wallet — drives the "by {creator}" badge and edit permission. */
+  creatorAddress?: string;
+  /** Coin graduated? Limits post-launch editing to socials only. */
+  graduated?: boolean;
+  /** Creator pitch + socials, so the edit modal can prefill them. */
+  pitch?: string;
+  socials?: CoinSocials;
 }
 
 export function CoinCard({
@@ -55,6 +66,7 @@ export function CoinCard({
   teaser = false,
   borderClass = "border-zinc-700",
   className = "",
+  onEdited,
 }: {
   coin: CoinIdentity;
   /** Element pinned top-right over the banner (state chip, vote count…). */
@@ -65,8 +77,11 @@ export function CoinCard({
   teaser?: boolean;
   borderClass?: string;
   className?: string;
+  /** Called after the creator saves an edit, so the parent can refetch. */
+  onEdited?: () => void;
 }) {
   const fullBlur = !coin.bannerUrl && !!coin.artworkUrl;
+  const canEdit = !teaser && !!coin.id && !!coin.creatorAddress;
   return (
     <div
       className={`group relative overflow-hidden rounded-2xl border bg-zinc-950 ${borderClass} ${className}`}
@@ -113,6 +128,25 @@ export function CoinCard({
           />
         ) : null}
         {corner && <div className="absolute right-3 top-3">{corner}</div>}
+        {canEdit && (
+          <div className="absolute left-3 top-3 z-10">
+            <EditCoinButton
+              coin={{
+                conceptId: coin.id!,
+                creatorAddress: coin.creatorAddress!,
+                graduated: coin.graduated,
+                name: coin.name,
+                symbol: coin.symbol,
+                theme: coin.theme,
+                pitch: coin.pitch,
+                artworkUrl: coin.artworkUrl,
+                bannerUrl: coin.bannerUrl,
+                socials: coin.socials,
+              }}
+              onSaved={onEdited}
+            />
+          </div>
+        )}
       </div>
 
       {/* identity row overlapping the fold */}
@@ -163,6 +197,11 @@ export function CoinCard({
           <div className="truncate text-xs text-zinc-400">
             {teaser ? `Theme: ${coin.theme}` : coin.theme}
           </div>
+          {!teaser && coin.creatorAddress && (
+            <div className="mt-1.5">
+              <CreatorBadge address={coin.creatorAddress} />
+            </div>
+          )}
         </div>
       </div>
 

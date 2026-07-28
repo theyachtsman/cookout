@@ -196,6 +196,7 @@ export default function VotePage() {
                 <div key={c.id} id={`coin-${c.id}`} className="scroll-mt-24">
                 <CoinCard
                   coin={c}
+                  onEdited={load}
                   className={`transition hover:border-lime-400/50 ${
                     highlight === c.id ? "ring-2 ring-lime-400 ring-offset-2 ring-offset-zinc-950" : ""
                   }`}

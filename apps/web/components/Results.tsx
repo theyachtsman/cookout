@@ -1,6 +1,7 @@
 "use client";
 
 import type { AuctionResult, Round, RoundSummary } from "@cookout/shared";
+import { CreatorBadge } from "./CreatorBadge";
 
 function addr(a?: { address: string }) {
   return a ? `${a.address.slice(0, 6)}…${a.address.slice(-4)}` : "—";
@@ -18,8 +19,10 @@ export function Results({
   const unit = round.chain ? "ETH" : "pETH";
   return (
     <div className="rounded-xl border border-zinc-800 p-5">
-      <div className="mb-3 flex items-center gap-3">
-        <h3 className="text-lg font-black">Round Over</h3>
+      <div className="mb-3 flex flex-wrap items-center gap-3">
+        <h3 className="text-lg font-black">
+          Round Over <span className="font-mono text-zinc-500">${round.token.symbol}</span>
+        </h3>
         <span
           className={`rounded px-2 py-0.5 text-xs font-bold ${
             summary.graduated
@@ -30,6 +33,10 @@ export function Results({
           }`}
         >
           {summary.graduated ? "🍽️ SERVED UP · Cook Out Alumni" : summary.endReason.replace("_", " ")}
+        </span>
+        <span className="ml-auto flex items-center gap-2 text-sm">
+          <span className="text-zinc-500">Created by</span>
+          <CreatorBadge address={round.creatorAddress} />
         </span>
       </div>
       <div className="grid grid-cols-2 gap-x-8 gap-y-2 text-sm md:grid-cols-3">
@@ -51,12 +58,6 @@ export function Results({
           published intents to verify settlement.
         </p>
       )}
-      <p className="mt-2 text-xs text-zinc-600">
-        Launched by{" "}
-        <a href={`/creator/${round.creatorAddress}`} className="text-zinc-400 hover:underline">
-          {`${round.creatorAddress.slice(0, 6)}…${round.creatorAddress.slice(-4)}`}
-        </a>
-      </p>
     </div>
   );
 }

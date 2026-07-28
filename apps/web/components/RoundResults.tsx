@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { RoundSummary } from "@cookout/shared";
+import { CreatorBadge } from "./CreatorBadge";
 import { PnlShareCard } from "./PnlShareCard";
 
 /**
@@ -59,6 +60,7 @@ export function RoundResultsOverlay({
   symbol,
   artworkUrl,
   shareName,
+  creatorAddress,
   unit,
   ethUsd,
   breakdown,
@@ -69,6 +71,8 @@ export function RoundResultsOverlay({
   symbol: string;
   artworkUrl?: string;
   shareName?: string;
+  /** The coin's creator, stated on the results. */
+  creatorAddress?: string;
   unit: string;
   ethUsd: number;
   breakdown: EndBreakdown | null;
@@ -105,7 +109,14 @@ export function RoundResultsOverlay({
         <div className="text-center">
           <div className="text-5xl">{r.emoji}</div>
           <h2 className={`mt-2 text-3xl font-black tracking-tight ${r.tone}`}>{r.title}</h2>
+          <div className="mt-1 font-mono text-sm text-zinc-500">${symbol}</div>
           <p className="mx-auto mt-2 max-w-sm text-xs leading-relaxed text-zinc-500">{r.note}</p>
+          {creatorAddress && (
+            <div className="mt-3 flex items-center justify-center gap-2 text-xs">
+              <span className="text-zinc-500">Created by</span>
+              <CreatorBadge address={creatorAddress} />
+            </div>
+          )}
         </div>
 
         {played && breakdown && (

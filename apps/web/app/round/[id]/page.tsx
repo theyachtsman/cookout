@@ -402,6 +402,7 @@ export default function RoundPage() {
           summary={endResults.summary}
           symbol={round.token.symbol}
           artworkUrl={round.token.artworkUrl}
+          creatorAddress={round.creatorAddress}
           shareName={
             profile?.displayName ??
             (profile ? `${profile.address.slice(0, 6)}…${profile.address.slice(-4)}` : undefined)
@@ -636,8 +637,15 @@ function PullUpReceipt({
 }) {
   const partial = fill.ratio < 0.995;
   const pct = Math.round(fill.ratio * 100);
+  // Freeze the peg the first time we can: this receipt describes a fill that
+  // already happened, so its numbers must be static. Re-converting on every
+  // ticker tick made the dollar figures wiggle and the text reflow, which
+  // bounced the whole trade deck below it.
+  const pegRef = useRef<number | undefined>(undefined);
+  if (pegRef.current === undefined && ethUsd) pegRef.current = ethUsd;
+  const peg = pegRef.current;
   const money = (eth: number) =>
-    ethUsd ? `$${(eth * ethUsd).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : `${eth.toFixed(4)} ${unit}`;
+    peg ? `$${(eth * peg).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : `${eth.toFixed(4)} ${unit}`;
   return (
     <div
       className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${

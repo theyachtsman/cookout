@@ -117,12 +117,31 @@ export default function Submissions() {
 
   return (
     <div className="space-y-8">
+      <header className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-gradient-to-br from-lime-400/[0.07] via-zinc-950 to-zinc-950 p-6">
+        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">
+          Launch a Coin
+        </div>
+        <h1 className="mt-2 text-3xl font-black tracking-tight md:text-4xl">
+          Put your coin on the grill.
+        </h1>
+        <p className="mt-2 max-w-2xl text-sm text-zinc-400">
+          Supply the name, art, and story. Your token deploys from the platform-audited template, so
+          there are no mint, pause, or blacklist controls. Pick a game mode, rally the votes, and it
+          heads straight to the Cook Out.
+        </p>
+        <Link
+          href="/vote"
+          className="mt-4 inline-block rounded-lg border border-zinc-700 px-5 py-2 font-bold text-zinc-200 transition hover:border-lime-400/50 hover:text-lime-300"
+        >
+          See what&apos;s up for a vote →
+        </Link>
+      </header>
+
       <section className="rounded-xl border border-zinc-800 p-5">
-        <h1 className="mb-1 text-xl font-black">Launch a Coin</h1>
+        <h2 className="mb-1 text-lg font-black">Your coin</h2>
         <p className="mb-4 text-xs text-zinc-500">
-          Tokens deploy from the platform-audited template only. You supply the metadata, never the
-          code, and there are no mint, pause, or blacklist controls. Hit the vote bar and your coin
-          goes straight to the Cook Out at your chosen tier.
+          You supply the metadata, never the code. Hit the vote bar and your coin goes straight to
+          the Cook Out in its chosen mode.
         </p>
         {!profile ? (
           <button
