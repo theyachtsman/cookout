@@ -79,11 +79,11 @@ export function GraduationProgress({
           🎯 Bonding passed {celebrating}%
         </div>
       )}
-      <div className="mb-2 flex items-center justify-between text-xs">
-        <span className="font-bold text-zinc-300">
+      <div className="mb-2 flex items-center justify-between gap-2 whitespace-nowrap text-xs">
+        <span className="truncate font-bold text-zinc-300">
           🍽️ Bonding progress {graduating && "· targets met, serving up!"}
         </span>
-        <span className="font-mono text-zinc-400">
+        <span className="shrink-0 font-mono tabular-nums text-zinc-400">
           {usd(bars[0]!.now * ethUsd)} / {usd(bars[0]!.goal * ethUsd)} ·{" "}
           {Math.min(100, overall * 100).toFixed(0)}%
         </span>
@@ -101,9 +101,9 @@ export function GraduationProgress({
                   style={{ width: `${pct}%` }}
                 />
               </div>
-              <div className="mt-1 flex justify-between text-[10px] text-zinc-500">
-                <span>{b.label}</span>
-                <span className="font-mono">
+              <div className="mt-1 flex justify-between gap-1 whitespace-nowrap text-[10px] text-zinc-500">
+                <span className="truncate">{b.label}</span>
+                <span className="shrink-0 font-mono tabular-nums">
                   {b.fmt(b.now)}/{b.fmt(b.goal)}
                 </span>
               </div>

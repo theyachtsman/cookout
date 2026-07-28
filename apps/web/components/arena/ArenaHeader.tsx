@@ -281,8 +281,10 @@ export function ArenaHeader({
         </div>
       )}
 
-      {/* identity + live stats */}
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-t border-zinc-800/80 px-4 py-3">
+      {/* identity + live stats. Stacked below lg, side by side above — never a
+          flex-wrap, so a per-tick width change (the cooking chip, a growing
+          number) can't re-wrap a row and change the header's height. */}
+      <div className="flex flex-col gap-3 border-t border-zinc-800/80 px-4 py-3 lg:flex-row lg:items-center lg:gap-x-6">
         <div className="flex items-center gap-3">
           {round.token.artworkUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -364,7 +366,7 @@ export function ArenaHeader({
             change but every cell stays put (tabular-nums + truncate keep each
             cell's size constant), so the header never grows/shrinks a line and
             the trade deck below it stays stationary. */}
-        <div className="grid flex-1 grid-cols-3 gap-x-5 gap-y-2 sm:grid-cols-5 sm:justify-items-end">
+        <div className="grid w-full grid-cols-3 gap-x-5 gap-y-2 sm:grid-cols-5 sm:justify-items-end lg:flex-1">
           {stats.map(([k, v, tone]) => (
             <div key={k} className="min-w-0">
               <div className="truncate text-[9px] uppercase tracking-wide text-zinc-500">{k}</div>

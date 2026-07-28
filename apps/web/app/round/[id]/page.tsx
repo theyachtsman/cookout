@@ -397,6 +397,16 @@ export default function RoundPage() {
   return (
     <div className="relative space-y-3">
       <FloatingReactions reactions={reactions} />
+      {/* The Fair Open receipt pops in as a corner toast (like an achievement),
+          never in the trade column, so it can't shift the deck. */}
+      {fill && !fillDismissed && (round.state === "live" || round.graduated) && (
+        <PullUpReceipt
+          fill={fill}
+          unit={unit}
+          ethUsd={ticker?.ethUsd ?? pegUsd}
+          onClose={() => setFillDismissed(true)}
+        />
+      )}
       {endResults && resultsOpen && (
         <RoundResultsOverlay
           summary={endResults.summary}
@@ -468,14 +478,6 @@ export default function RoundPage() {
               on mobile — without it the chart overflows the viewport. */}
           <div className={`relative min-w-0 space-y-4 ${shake ? "fx-shake" : ""}`}>
             <BattleFX events={fx} />
-            {fill && !fillDismissed && (round.state === "live" || round.graduated) && (
-              <PullUpReceipt
-                fill={fill}
-                unit={unit}
-                ethUsd={ticker?.ethUsd ?? pegUsd}
-                onClose={() => setFillDismissed(true)}
-              />
-            )}
             {round.state === "live" && ticker && (
               <GraduationProgress
                 config={round.config}
@@ -637,50 +639,59 @@ function PullUpReceipt({
 }) {
   const partial = fill.ratio < 0.995;
   const pct = Math.round(fill.ratio * 100);
-  // Freeze the peg the first time we can: this receipt describes a fill that
-  // already happened, so its numbers must be static. Re-converting on every
-  // ticker tick made the dollar figures wiggle and the text reflow, which
-  // bounced the whole trade deck below it.
+  // Freeze the peg the first time we can: the fill already happened, so its
+  // numbers are static (no re-converting on every ticker tick).
   const pegRef = useRef<number | undefined>(undefined);
   if (pegRef.current === undefined && ethUsd) pegRef.current = ethUsd;
   const peg = pegRef.current;
   const money = (eth: number) =>
     peg ? `$${(eth * peg).toLocaleString(undefined, { maximumFractionDigits: 2 })}` : `${eth.toFixed(4)} ${unit}`;
+
+  // Console-style toast: slide in, linger, then fade and dismiss itself.
+  const [leaving, setLeaving] = useState(false);
+  useEffect(() => {
+    const t1 = window.setTimeout(() => setLeaving(true), partial ? 12000 : 7000);
+    const t2 = window.setTimeout(onClose, (partial ? 12000 : 7000) + 700);
+    return () => {
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+    };
+  }, [partial, onClose]);
+
   return (
-    <div
-      className={`flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${
-        partial
-          ? "border-amber-400/40 bg-amber-400/[0.06]"
-          : "border-lime-400/40 bg-lime-400/[0.06]"
-      }`}
-    >
-      <span className="text-lg leading-none">🚪</span>
-      <div className="min-w-0 flex-1">
-        {partial ? (
-          <>
-            <div className="font-bold text-amber-200">
-              Your pull-up cleared {pct}% at the fair open.
-            </div>
-            <div className="mt-0.5 text-zinc-300">
-              You pulled up <b>{money(fill.committedEth)}</b>; <b>{money(fill.filledEth)}</b> went
-              into your position and <b>{money(fill.refundEth)}</b> was refunded to your Cook Out
-              balance. The open is a capped auction, so an oversubscribed pull fills pro-rata and the
-              rest comes straight back.
-            </div>
-          </>
-        ) : (
-          <div className="font-bold text-lime-200">
-            Your pull-up cleared in full. <b>{money(fill.filledEth)}</b> went into your position.
-          </div>
-        )}
-      </div>
-      <button
-        onClick={onClose}
-        className="shrink-0 rounded px-1.5 text-zinc-500 hover:text-zinc-200"
-        title="Dismiss"
+    <div className="pointer-events-none fixed right-4 top-16 z-50 w-80 max-w-[calc(100vw-2rem)]">
+      <div
+        className={`pointer-events-auto flex items-start gap-3 rounded-xl border bg-zinc-950/95 px-4 py-3 text-sm shadow-2xl shadow-black/60 backdrop-blur transition-all duration-700 ${
+          leaving ? "translate-x-6 opacity-0" : "translate-x-0 opacity-100 animate-[fadein_.3s_ease]"
+        } ${partial ? "border-amber-400/50" : "border-lime-400/50"}`}
       >
-        ✕
-      </button>
+        <span className="text-lg leading-none">🚪</span>
+        <div className="min-w-0 flex-1">
+          {partial ? (
+            <>
+              <div className="font-bold text-amber-200">
+                Your pull-up cleared {pct}% at the fair open.
+              </div>
+              <div className="mt-0.5 text-xs leading-relaxed text-zinc-300">
+                You pulled up <b>{money(fill.committedEth)}</b>; <b>{money(fill.filledEth)}</b> went
+                into your position and <b>{money(fill.refundEth)}</b> came back to your Cook Out
+                balance. The open is a capped auction, so an oversubscribed pull fills pro-rata.
+              </div>
+            </>
+          ) : (
+            <div className="font-bold text-lime-200">
+              Your pull-up cleared in full. <b>{money(fill.filledEth)}</b> went into your position.
+            </div>
+          )}
+        </div>
+        <button
+          onClick={onClose}
+          className="shrink-0 rounded px-1.5 text-zinc-500 hover:text-zinc-200"
+          title="Dismiss"
+        >
+          ✕
+        </button>
+      </div>
     </div>
   );
 }
