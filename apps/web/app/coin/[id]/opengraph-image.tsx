@@ -1,4 +1,5 @@
 import { ImageResponse } from "next/og";
+import sharp from "sharp";
 import type { TokenConcept } from "@cookout/shared";
 
 /**
@@ -8,6 +9,8 @@ import type { TokenConcept } from "@cookout/shared";
  * coin art + name + $ticker up front, mode and modifier chips, theme, brand.
  */
 
+// sharp is a native module — force the Node runtime (not edge).
+export const runtime = "nodejs";
 export const alt = "Coin card · The Cookout";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -32,14 +35,47 @@ async function getConcept(id: string): Promise<TokenConcept | null> {
   }
 }
 
+/**
+ * Normalize any uploaded image to a PNG data URL sized for the card. Uploads are
+ * saved as webp, which satori/next-og can't decode for embedded <img> (it 500s
+ * the whole card), so we transcode to PNG with sharp up front. Returns undefined
+ * on any failure so a bad image degrades to a placeholder, never a crash.
+ */
+async function pngDataUrl(
+  src: string | undefined,
+  resize: { width: number; height: number },
+): Promise<string | undefined> {
+  if (!src) return undefined;
+  try {
+    let buf: Buffer;
+    const m = /^data:image\/[a-z0-9.+-]+;base64,(.+)$/i.exec(src);
+    if (m) buf = Buffer.from(m[1]!, "base64");
+    else if (/^https?:\/\//.test(src)) {
+      const res = await fetch(src);
+      if (!res.ok) return undefined;
+      buf = Buffer.from(await res.arrayBuffer());
+    } else return undefined;
+    const png = await sharp(buf)
+      .resize(resize.width, resize.height, { fit: "cover" })
+      .png()
+      .toBuffer();
+    return `data:image/png;base64,${png.toString("base64")}`;
+  } catch {
+    return undefined;
+  }
+}
+
 export default async function Image({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const c = await getConcept(id);
   const name = c?.name ?? "The Cookout";
   const symbol = c?.symbol ?? "COIN";
   const theme = (c?.theme ?? "").slice(0, 140);
-  const art = c?.artworkUrl;
-  const banner = c?.bannerUrl;
+  // Transcode uploads (webp) to PNG so satori can embed them without crashing.
+  const [art, banner] = await Promise.all([
+    pngDataUrl(c?.artworkUrl, { width: 368, height: 368 }),
+    pngDataUrl(c?.bannerUrl, { width: 1200, height: 300 }),
+  ]);
   const modeLabel = c?.mode ? MODE_LABEL[c.mode] : undefined;
   const noRug = c?.mode === "blitz" || c?.mode === "reflex";
   const overtime = !!c?.modifiers?.overtime;
