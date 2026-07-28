@@ -92,6 +92,10 @@ export class RoundEngine {
     // concepts (no mode) keep rug rules on.
     const rugRules = concept.mode ? GAME_MODE_MAP[concept.mode].rugRules : true;
     config.rugRules = rugRules;
+    // The Fair Open cap is fixed per mode (published at launch), sized so the
+    // swarm can't saturate it and real players always have room to fill. Legacy
+    // concepts (no mode) keep the tier default.
+    if (concept.mode) config.auctionMaxRaise = GAME_MODE_MAP[concept.mode].pullUpCap;
     // 1-minute Blitz: rug-and-dodge mode. The dev can sell the instant it's
     // live (no sell lock). Rug-rules-off modes also drop the lock.
     const blitz = concept.matchMinutes === 1;

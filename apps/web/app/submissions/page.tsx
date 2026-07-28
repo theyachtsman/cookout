@@ -270,7 +270,7 @@ export default function Submissions() {
                         )}
                       </div>
                       <div className="mt-0.5 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
-                        {m.tagline}
+                        {m.tagline} · {m.pullUpCap} {unit} pull-up cap
                       </div>
                       <div className="mt-1 text-[11px] leading-snug text-zinc-500">{m.blurb}</div>
                     </button>

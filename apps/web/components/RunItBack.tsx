@@ -162,7 +162,7 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
                               ) : null}
                             </div>
                             <div className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
-                              {m.tagline}
+                              {m.tagline} · {m.pullUpCap} pull-up cap
                             </div>
                           </button>
                         );

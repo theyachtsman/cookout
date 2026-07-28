@@ -40,6 +40,15 @@ interface Persona {
   diamond?: boolean;
 }
 
+/**
+ * How much of a persona's natural intent size it actually pulls up with. The
+ * swarm used to bid its full appetite (~2 pETH of collective demand), which
+ * blew past the Fair Open cap several times over and pro-rated real players down
+ * to a sliver. Scaling the pull-up down keeps the lobby looking busy (same
+ * number of entries) while leaving the cap with real headroom for humans.
+ */
+const SWARM_PULLUP_SCALE = 0.3;
+
 const P = (
   i: number,
   name: string,
@@ -389,7 +398,8 @@ export class BotSwarm {
           s.joined = true;
           try {
             const jit = plan.jitter.get(p.address)!;
-            const raw = rand(p.intent[0], p.intent[1]) * plan.regime.sizeBias * jit.clip;
+            const raw =
+              rand(p.intent[0], p.intent[1]) * plan.regime.sizeBias * jit.clip * SWARM_PULLUP_SCALE;
             const size = Math.min(raw, round.config.maxPositionEth || 1);
             this.engine.submitIntent(round.id, p.address, Number(size.toFixed(3)), undefined, now);
             if (Math.random() < p.chatty * 0.6) this.say(round, p, pick(QUEUE_LINES));
