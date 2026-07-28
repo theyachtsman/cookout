@@ -662,7 +662,7 @@ function PullUpReceipt({
           </>
         ) : (
           <div className="font-bold text-lime-200">
-            Your pull-up cleared in full — <b>{money(fill.filledEth)}</b> into your position.
+            Your pull-up cleared in full. <b>{money(fill.filledEth)}</b> went into your position.
           </div>
         )}
       </div>

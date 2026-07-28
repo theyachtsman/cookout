@@ -119,7 +119,7 @@ export function QueuePanel({
       // USD entry converts at the live peg before it ever leaves the client.
       // Never fall back to treating a dollar figure as raw coins if the peg
       // hasn't landed yet — that would submit a wildly wrong size.
-      if (denom === "usd" && !peg) throw new Error("price still loading — try again in a moment");
+      if (denom === "usd" && !peg) throw new Error("price still loading, try again in a moment");
       const ethAmount = denom === "usd" ? typed / peg : typed;
       if (onChain) {
         // Real ETH escrows into the round's auction contract; the server
@@ -429,7 +429,7 @@ export function QueuePanel({
             <button
               disabled={!!myCall || !profile || devNoRug}
               onClick={() => void predict("rug")}
-              title={devNoRug ? "You can't call rug on your own coin — only moon." : undefined}
+              title={devNoRug ? "You can't call rug on your own coin. You can only call moon." : undefined}
               className={`flex-1 rounded px-3 py-1.5 text-sm font-bold text-red-300 disabled:opacity-40 ${
                 myCall === "rug"
                   ? "bg-red-600/50 ring-1 ring-red-400 !opacity-100"
@@ -441,7 +441,7 @@ export function QueuePanel({
           </div>
           {devNoRug && !myCall && (
             <p className="mt-2 text-xs text-zinc-500">
-              It&apos;s your coin — you hold the rug switch, so you can only call 🌕 Moon here.
+              It&apos;s your coin, so you hold the rug switch. You can only call 🌕 Moon here.
             </p>
           )}
           {myCall && (
@@ -525,7 +525,7 @@ function AuctionCapBar({ committed, cap, unit }: { committed: number; cap: numbe
       {met ? (
         <p className="mt-2 text-[11px] leading-relaxed text-amber-200/90">
           The cap is full. Everyone settles pro-rata at one price, so pulling up now{" "}
-          <b>dilutes the open</b> — your fill and everyone else&apos;s shrink, and the unfilled part
+          <b>dilutes the open</b>. Your fill and everyone else&apos;s shrink, and the unfilled part
           is refunded to your Cook Out balance.
         </p>
       ) : near ? (
