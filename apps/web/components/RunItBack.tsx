@@ -13,10 +13,10 @@ import { CoinCard } from "./CoinCard";
  *
  * The button shows on every failed coin card; only the coin's developer can
  * actually fire it (the server re-checks). The dev gets a confirm modal: their
- * coin card, a mode picker (re-launch it however they want this time), then
- * Confirm / Cancel. Anyone else gets the explainer modal instead of a dead
- * click, which doubles as marketing for making your own coin. On success we
- * jump straight to the fresh round's page.
+ * coin card, a mode picker (pick how it runs next time), then Confirm / Cancel.
+ * Anyone else gets the explainer modal instead of a dead click, which doubles
+ * as marketing for making your own coin. On success the coin goes back onto the
+ * community vote, and we jump to the vote page so the dev can rally support.
  */
 
 interface RunnableRound {
@@ -55,8 +55,10 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
     setBusy(true);
     setError("");
     try {
-      const rerun = await api<{ id: string }>(`/api/rounds/${round.id}/runback`, { body: { mode } });
-      router.push(`/round/${rerun.id}`);
+      const back = await api<{ conceptId: string }>(`/api/rounds/${round.id}/runback`, {
+        body: { mode },
+      });
+      router.push(`/vote#coin-${back.conceptId}`);
     } catch (err) {
       setError((err as Error).message);
       setModal("error");
@@ -79,7 +81,7 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
             ? "bg-lime-400 text-zinc-950 hover:bg-lime-300"
             : "border border-zinc-700 text-zinc-400 hover:border-lime-400/50 hover:text-zinc-200"
         } ${className}`}
-        title={isDev ? "Re-launch this coin, pick a fresh mode" : "What's Run It Back?"}
+        title={isDev ? "Put this coin back up for a vote, pick a fresh mode" : "What's Run It Back?"}
       >
         🔁 Run It Back
       </button>
@@ -101,8 +103,9 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
                     <div className="text-3xl">🔁</div>
                     <h3 className="mt-1 text-xl font-black">Run it back</h3>
                     <p className="mt-1 text-sm text-zinc-400">
-                      Send <b className="text-zinc-200">${round.token.symbol}</b> straight back to
-                      the Cook Out, no new vote. Pick how it runs this time.
+                      Put <b className="text-zinc-200">${round.token.symbol}</b> back up for a
+                      community vote. Pick how it runs, then rally the crowd to send it to the grill
+                      again.
                     </p>
                   </div>
 
@@ -175,7 +178,7 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
                       disabled={busy}
                       className="rounded-xl bg-lime-400 px-6 py-2.5 font-black text-zinc-950 shadow-lg shadow-lime-400/25 transition hover:bg-lime-300 disabled:opacity-50"
                     >
-                      {busy ? "Running it back…" : "🔁 Confirm Run It Back"}
+                      {busy ? "Sending to the vote…" : "🔁 Send Back to the Vote"}
                     </button>
                     <button
                       onClick={(e) => close(e)}
@@ -192,8 +195,9 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
                   <h3 className="mt-2 text-xl font-black">Run It Back</h3>
                   <p className="mt-2 text-sm text-zinc-400">
                     When a coin doesn&apos;t graduate, its developer gets a second serving:{" "}
-                    <b className="text-zinc-200">Run It Back</b> re-launches the coin straight back
-                    to the Cook Out in whatever mode they choose, no new vote needed.
+                    <b className="text-zinc-200">Run It Back</b> puts the coin back up for a
+                    community vote in whatever mode they choose. Get the votes and it heads to the
+                    grill again.
                   </p>
                   <p className="mt-2 text-sm text-zinc-400">
                     Only <b className="text-zinc-200">${round.token.symbol}</b>&apos;s developer can

@@ -201,6 +201,22 @@ export interface Trade {
   avatarUrl?: string;
 }
 
+/** A trade joined with its round's coin identity, for the wallet's account-wide
+ *  trade log. Carries every field the history table shows. */
+export interface AccountTrade {
+  id: string;
+  roundId: string;
+  symbol: string;
+  name: string;
+  side: "buy" | "sell";
+  /** ETH into the pool (buy) or out of it (sell). */
+  ethAmount: number;
+  tokenAmount: number;
+  price: number;
+  fee: number;
+  at: number;
+}
+
 export interface Candle {
   /** Epoch seconds, 1-second buckets. */
   t: number;
@@ -534,7 +550,7 @@ export interface RoundSummary {
 }
 
 /** A Cook Out balance movement, for the wallet's history ledger. */
-export type LedgerKind = "stake" | "unstake" | "redeem" | "creator_fee" | "jackpot";
+export type LedgerKind = "stake" | "unstake" | "pull_up" | "redeem" | "creator_fee" | "jackpot";
 export interface LedgerEntry {
   id: string;
   at: number;
@@ -543,7 +559,7 @@ export interface LedgerEntry {
   amount: number;
   /** Cook Out balance immediately after this entry. */
   balanceAfter: number;
-  /** Coin symbol for round-scoped entries (redeem, creator_fee). */
+  /** Coin symbol for round-scoped entries (pull_up, redeem, creator_fee). */
   symbol?: string;
 }
 

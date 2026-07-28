@@ -338,6 +338,13 @@ export class RoundEngine {
         m.maxTokens = Math.max(m.maxTokens, pos.tokens);
         m.ethInvested += fill.ethFilled;
         m.biggestBuyEth = Math.max(m.biggestBuyEth, fill.ethFilled);
+        // Pull-up receipt: log what actually cleared into their open position
+        // (the escrow churn and any unfilled refund stay off the ledger). Bots
+        // don't keep a wallet history.
+        if (fill.ethFilled > 0 && !fill.userAddress.startsWith("0xb07"))
+          this.store.recordLedger(fill.userAddress, "pull_up", -fill.ethFilled, {
+            symbol: round.token.symbol,
+          });
       }
     }
     const fee = result.totalRaised - (result.poolAfter.ethReserve - pool.ethReserve);
