@@ -925,6 +925,8 @@ export function createApp(
           concept.artworkUrl = body.artworkUrl ? sanitizeImageUrl(body.artworkUrl) : undefined;
         if ("bannerUrl" in body)
           concept.bannerUrl = body.bannerUrl ? sanitizeImageUrl(body.bannerUrl) : undefined;
+        // Modifiers (e.g. Over Time) can be toggled until the coin launches.
+        if ("modifiers" in body) concept.modifiers = sanitizeModifiers(body.modifiers);
       }
 
       // Reflect the edit onto any round(s) of this concept and push it live.
@@ -1137,6 +1139,9 @@ export function createApp(
         concept.tier = def.tier;
         concept.matchMinutes = def.minutes ?? undefined;
       }
+      // The dev can also flip modifiers (e.g. Over Time) on the re-run.
+      if ("modifiers" in (req.body as object))
+        concept.modifiers = sanitizeModifiers((req.body as { modifiers?: unknown }).modifiers);
       // Instead of jumping straight onto the calendar, a run-back sends the coin
       // back through the community vote: reset it to a fresh submission and let
       // the crowd decide if it cooks again. The chosen mode rides on the concept.

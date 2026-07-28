@@ -68,6 +68,48 @@ export class Notifier {
     void this.api.sendMessage({ chatId: this.channelId, text, keyboard, messageThreadId: threadId });
   }
 
+  /** The rendered coin-card image for a concept (the web's OG-image route). */
+  private cardImage(conceptId: string): string {
+    return `${this.config.webBase.replace(/\/$/, "")}/coin/${conceptId}/opengraph-image`;
+  }
+
+  /** Round id → its concept id (lifecycle events carry the round id). */
+  private conceptIdFor(roundId: string): string | undefined {
+    return this.store.rounds.get(roundId)?.conceptId;
+  }
+
+  /** Coin name from a concept id, for the post headline. */
+  private coinName(conceptId?: string): string | undefined {
+    return conceptId ? this.store.concepts.get(conceptId)?.name : undefined;
+  }
+
+  /**
+   * Like {@link toChannel}, but leads with the rendered coin card as the photo,
+   * caption underneath. If Telegram can't fetch/render the image, it falls back
+   * to a plain text post so an announcement is never dropped.
+   */
+  private toChannelPhoto(
+    conceptId: string | undefined,
+    caption: string,
+    keyboard?: InlineKeyboard,
+    topic?: TopicKey,
+  ): void {
+    if (!this.channelId) return;
+    const threadId =
+      !this.config.announcementChatId && topic ? this.config.topics?.[topic] : undefined;
+    if (!conceptId) {
+      void this.api.sendMessage({ chatId: this.channelId, text: caption, keyboard, messageThreadId: threadId });
+      return;
+    }
+    const photo = this.cardImage(conceptId);
+    const chatId = this.channelId;
+    void (async () => {
+      const sent = await this.api.sendPhoto({ chatId, photo, caption, keyboard, messageThreadId: threadId });
+      if (!sent)
+        void this.api.sendMessage({ chatId, text: caption, keyboard, messageThreadId: threadId });
+    })();
+  }
+
   // ---- the activity tap ----------------------------------------------------
 
   handleActivity(e: ActivityEvent): void {
@@ -160,6 +202,7 @@ export class Notifier {
     this.toChannel(
       feed.roundResults({
         symbol,
+        name: round?.token.name,
         mode,
         emoji,
         outcome,
@@ -192,24 +235,55 @@ export class Notifier {
     const copy = rerun
       ? feed.voteShillRerun(symbol, name, by, mode)
       : feed.voteShill(symbol, name, by, mode);
-    this.toChannel(copy, this.kb.voteShill(conceptId, symbol, name), topic);
+    // For "submitted", the event's roundId IS the concept id.
+    this.toChannelPhoto(conceptId, copy, this.kb.voteShill(conceptId, symbol, name), topic);
   }
   votesHit(symbol: string, roundId: string, votes: number, mode?: string): void {
     // It's booked for the Cook Out now — the button enters the match, not the
     // vote page. Lands in Trading, where the live crowd is.
-    this.toChannel(feed.votesHit(symbol, votes, mode), this.kb.enterRound(roundId, symbol), "trading");
+    const conceptId = this.conceptIdFor(roundId);
+    this.toChannelPhoto(
+      conceptId,
+      feed.votesHit(symbol, this.coinName(conceptId), votes, mode),
+      this.kb.enterRound(roundId, symbol),
+      "trading",
+    );
   }
   scheduled(symbol: string, roundId: string, mode?: string): void {
-    this.toChannel(feed.scheduled(symbol, mode), this.kb.round(roundId, symbol), "announcements");
+    const conceptId = this.conceptIdFor(roundId);
+    this.toChannelPhoto(
+      conceptId,
+      feed.scheduled(symbol, this.coinName(conceptId), mode),
+      this.kb.round(roundId, symbol),
+      "announcements",
+    );
   }
   fairOpen(symbol: string, roundId: string, mode?: string): void {
-    this.toChannel(feed.fairOpen(symbol, mode), this.kb.round(roundId, symbol), "trading");
+    const conceptId = this.conceptIdFor(roundId);
+    this.toChannelPhoto(
+      conceptId,
+      feed.fairOpen(symbol, this.coinName(conceptId), mode),
+      this.kb.round(roundId, symbol),
+      "trading",
+    );
   }
   live(symbol: string, roundId: string, mode?: string): void {
-    this.toChannel(feed.live(symbol, mode), this.kb.round(roundId, symbol), "trading");
+    const conceptId = this.conceptIdFor(roundId);
+    this.toChannelPhoto(
+      conceptId,
+      feed.live(symbol, this.coinName(conceptId), mode),
+      this.kb.round(roundId, symbol),
+      "trading",
+    );
   }
   burnt(symbol: string, roundId?: string, mode?: string): void {
-    this.toChannel(feed.burnt(symbol, mode), roundId ? this.kb.round(roundId, symbol) : this.kb.openCookout(), "leaderboards");
+    const conceptId = roundId ? this.conceptIdFor(roundId) : undefined;
+    this.toChannelPhoto(
+      conceptId,
+      feed.burnt(symbol, this.coinName(conceptId), mode),
+      roundId ? this.kb.round(roundId, symbol) : this.kb.openCookout(),
+      "leaderboards",
+    );
   }
   runItBack(symbol: string, roundId: string, mode?: string): void {
     this.toChannel(feed.runItBack(symbol, mode), this.kb.runItBack(roundId), "launch");

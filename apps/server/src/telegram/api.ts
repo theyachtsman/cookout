@@ -132,6 +132,20 @@ export class TelegramApi {
     });
   }
 
+  /** Post a photo (by URL — Telegram fetches it) with an HTML caption. Used for
+   *  coin billboards: the rendered coin card as the image. */
+  sendPhoto(o: Omit<SendOpts, "text"> & { photo: string; caption: string }): Promise<TgMessage | null> {
+    return this.call<TgMessage>("sendPhoto", {
+      chat_id: o.chatId,
+      photo: o.photo,
+      caption: o.caption,
+      parse_mode: o.parseMode ?? "HTML",
+      disable_notification: o.silent ?? false,
+      ...(o.messageThreadId ? { message_thread_id: o.messageThreadId } : {}),
+      ...(o.keyboard ? { reply_markup: { inline_keyboard: o.keyboard } } : {}),
+    });
+  }
+
   answerCallbackQuery(id: string, text?: string): Promise<unknown> {
     return this.call("answerCallbackQuery", { callback_query_id: id, ...(text ? { text } : {}) });
   }

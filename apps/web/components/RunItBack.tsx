@@ -3,7 +3,13 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import { DEFAULT_GAME_MODE, GAME_MODES, type GameMode, type RiskTier } from "@cookout/shared";
+import {
+  DEFAULT_GAME_MODE,
+  GAME_MODES,
+  MODIFIERS,
+  type GameMode,
+  type RiskTier,
+} from "@cookout/shared";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { CoinCard } from "./CoinCard";
@@ -24,6 +30,7 @@ interface RunnableRound {
   creatorAddress: string;
   tier?: RiskTier;
   mode?: GameMode;
+  modifiers?: { overtime?: boolean };
   matchMinutes?: number;
   token: { name: string; symbol: string; theme: string; artworkUrl?: string; bannerUrl?: string };
 }
@@ -33,6 +40,7 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
   const router = useRouter();
   const [modal, setModal] = useState<"confirm" | "explain" | "error" | null>(null);
   const [mode, setMode] = useState<GameMode>(round.mode ?? DEFAULT_GAME_MODE);
+  const [overtime, setOvertime] = useState(!!round.modifiers?.overtime);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   // Portal target only exists client-side.
@@ -48,6 +56,7 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
     e.stopPropagation();
     setError("");
     setMode(round.mode ?? DEFAULT_GAME_MODE);
+    setOvertime(!!round.modifiers?.overtime);
     setModal(isDev ? "confirm" : "explain");
   };
 
@@ -56,7 +65,7 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
     setError("");
     try {
       const back = await api<{ conceptId: string }>(`/api/rounds/${round.id}/runback`, {
-        body: { mode },
+        body: { mode, modifiers: { overtime } },
       });
       router.push(`/vote#coin-${back.conceptId}`);
     } catch (err) {
@@ -168,6 +177,38 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
                         );
                       })}
                     </div>
+                  </div>
+
+                  <div className="mt-3">
+                    <div className="mb-1.5 text-xs text-zinc-500">Modifiers</div>
+                    {MODIFIERS.map((mod) => {
+                      const on = mod.key === "overtime" ? overtime : false;
+                      return (
+                        <button
+                          key={mod.key}
+                          onClick={() => mod.key === "overtime" && setOvertime((v) => !v)}
+                          title={mod.blurb}
+                          className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition ${
+                            on ? "border-sky-400/70 bg-sky-400/10" : "border-zinc-700 hover:border-zinc-500"
+                          }`}
+                        >
+                          <span className="text-lg leading-none">{mod.icon}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="text-sm font-black">{mod.name}</span>
+                            <span className="block text-[11px] leading-snug text-zinc-500">
+                              {mod.tagline}
+                            </span>
+                          </span>
+                          <span
+                            className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              on ? "bg-sky-400/20 text-sky-300" : "bg-zinc-800 text-zinc-400"
+                            }`}
+                          >
+                            {on ? "ON" : "OFF"}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
 
                   {error && <p className="mt-3 text-center text-sm text-red-300">{error}</p>}

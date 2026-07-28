@@ -36,7 +36,8 @@ export async function generateMetadata({
   if (!c) return { title: "Coin not found · The Cookout" };
   const title = `$${c.symbol} · ${c.name} · Vote it onto the grill`;
   const description = `${c.theme}. Up for a vote at The Cookout. Send $${c.symbol} to the Cook Out and get ready.`;
-  const image = `${API_URL}/api/concepts/${c.id}/image`;
+  // The rendered coin card (same image the Telegram broadcasts lead with).
+  const image = `${SITE_URL}/coin/${c.id}/opengraph-image`;
   const url = `${SITE_URL}/coin/${c.id}`;
   return {
     title,

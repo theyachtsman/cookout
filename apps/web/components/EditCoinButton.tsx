@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
-import type { CoinSocials } from "@cookout/shared";
+import { MODIFIERS, type CoinModifiers, type CoinSocials } from "@cookout/shared";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { ImagePicker } from "./ImagePicker";
@@ -34,6 +34,7 @@ export interface EditableCoin {
   artworkUrl?: string;
   bannerUrl?: string;
   socials?: CoinSocials;
+  modifiers?: CoinModifiers;
 }
 
 const emptySocials = (): Required<Record<keyof CoinSocials, string>> => ({
@@ -67,6 +68,7 @@ export function EditCoinButton({
     artworkUrl: coin.artworkUrl ?? "",
     bannerUrl: coin.bannerUrl ?? "",
     socials: { ...emptySocials(), ...(coin.socials ?? {}) },
+    overtime: !!coin.modifiers?.overtime,
   });
   useEffect(() => setMounted(true), []);
 
@@ -92,6 +94,7 @@ export function EditCoinButton({
           artworkUrl: c.artworkUrl ?? "",
           bannerUrl: c.bannerUrl ?? "",
           socials: { ...emptySocials(), ...(c.socials ?? {}) },
+          overtime: !!c.modifiers?.overtime,
         });
       })
       .catch(() => {
@@ -103,6 +106,7 @@ export function EditCoinButton({
           artworkUrl: coin.artworkUrl ?? "",
           bannerUrl: coin.bannerUrl ?? "",
           socials: { ...emptySocials(), ...(coin.socials ?? {}) },
+          overtime: !!coin.modifiers?.overtime,
         });
       })
       .finally(() => setLoading(false));
@@ -125,6 +129,7 @@ export function EditCoinButton({
         body.pitch = form.pitch || undefined;
         body.artworkUrl = form.artworkUrl || undefined;
         body.bannerUrl = form.bannerUrl || undefined;
+        body.modifiers = { overtime: form.overtime };
       }
       await api(`/api/concepts/${coin.conceptId}`, { method: "PATCH", body });
       setOpen(false);
@@ -209,6 +214,38 @@ export function EditCoinButton({
                       value={form.bannerUrl || undefined}
                       onChange={(dataUrl) => setForm({ ...form, bannerUrl: dataUrl })}
                     />
+                  </div>
+                  <div className="space-y-2">
+                    {MODIFIERS.map((mod) => {
+                      const on = mod.key === "overtime" ? form.overtime : false;
+                      return (
+                        <button
+                          key={mod.key}
+                          onClick={() =>
+                            mod.key === "overtime" && setForm({ ...form, overtime: !form.overtime })
+                          }
+                          title={mod.blurb}
+                          className={`flex w-full items-center gap-3 rounded-xl border p-2.5 text-left transition ${
+                            on ? "border-sky-400/70 bg-sky-400/10" : "border-zinc-700 hover:border-zinc-500"
+                          }`}
+                        >
+                          <span className="text-lg leading-none">{mod.icon}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="text-sm font-black">{mod.name}</span>
+                            <span className="block text-[11px] leading-snug text-zinc-500">
+                              {mod.tagline}
+                            </span>
+                          </span>
+                          <span
+                            className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              on ? "bg-sky-400/20 text-sky-300" : "bg-zinc-800 text-zinc-400"
+                            }`}
+                          >
+                            {on ? "ON" : "OFF"}
+                          </span>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}

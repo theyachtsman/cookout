@@ -162,6 +162,7 @@ export function CoinCard({
                 artworkUrl: coin.artworkUrl,
                 bannerUrl: coin.bannerUrl,
                 socials: coin.socials,
+                modifiers: coin.modifiers,
               }}
               onSaved={onEdited}
             />
