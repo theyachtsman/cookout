@@ -141,8 +141,9 @@ export const feed = {
     );
   },
 
-  runItBack: (symbol: string, mode?: string) =>
-    `🔁 $${esc(symbol)} is running it back. Fresh shot, second serving coming up.${modeTag(mode)}`,
+  runItBack: (symbol: string, name?: string, mode?: string) =>
+    `🔁 ${coinLabel(symbol, name)} is running it back.\n\n` +
+    `Fresh shot, second serving coming up.${modeTag(mode)}`,
 
   jackpot: (eth: number, usd?: number) =>
     `💰 The ${b("weekly jackpot")} is up to ${b(eth.toFixed(2) + " pETH")}` +
