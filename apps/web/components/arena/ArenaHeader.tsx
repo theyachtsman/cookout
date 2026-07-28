@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Round } from "@cookout/shared";
 import { CoinSocials } from "../CoinSocials";
+import { OverTimeChip } from "../CoinCard";
 import { CreatorBadge } from "../CreatorBadge";
 import { EditCoinButton } from "../EditCoinButton";
 
@@ -338,6 +339,12 @@ export function ArenaHeader({
               {ticker?.cooking && (
                 <span className="animate-pulse rounded bg-orange-500/20 px-1.5 py-0.5 text-[10px] font-bold text-orange-300">
                   🔥 cooking
+                </span>
+              )}
+              {revealed && round.modifiers?.overtime && <OverTimeChip />}
+              {(round.overtimeCount ?? 0) > 0 && (
+                <span className="rounded bg-sky-400/20 px-1.5 py-0.5 text-[10px] font-black uppercase text-sky-300">
+                  +{round.overtimeCount}:00 OT
                 </span>
               )}
             </div>

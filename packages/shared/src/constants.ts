@@ -1,4 +1,4 @@
-import type { GameMode, NotifyCategory, NotificationPrefs, RiskTier, RoundConfig } from "./types.js";
+import type { CoinModifiers, GameMode, NotifyCategory, NotificationPrefs, RiskTier, RoundConfig } from "./types.js";
 
 /** Total permanent Founding Member seats. Founder numbers never repeat. */
 export const FOUNDER_CAP = 500;
@@ -176,6 +176,44 @@ export const GAME_MODE_MAP: Record<GameMode, GameModeDef> = Object.fromEntries(
 
 /** The launchpad's default selection. */
 export const DEFAULT_GAME_MODE: GameMode = "classic";
+
+/**
+ * Mode modifiers — optional toggles a creator layers on top of a game mode at
+ * launch. Kept as a list so the launchpad can render them generically and more
+ * can be added later.
+ */
+export interface ModifierDef {
+  key: keyof CoinModifiers;
+  name: string;
+  icon: string;
+  tagline: string;
+  blurb: string;
+}
+
+export const MODIFIERS: ModifierDef[] = [
+  {
+    key: "overtime",
+    name: "Over Time",
+    icon: "⏱️",
+    tagline: "Bonus minute for a hot coin",
+    blurb:
+      "Near the end, if the coin is still cooking (trade volume, liquidity, and market cap), it earns a bonus minute so a banger gets to run. A quiet, dying coin gets nothing. It can save a coin and turn it into a winner at the last moment.",
+  },
+];
+
+// ---- Over Time tuning ----
+/** Checked when the clock drops to this many seconds left. */
+export const OVERTIME_TRIGGER_REMAINING_SEC = 30;
+/** Minutes credited each time the checkpoint is met. */
+export const OVERTIME_EXTENSION_SEC = 60;
+/** Cap on total bonus minutes, so a coin can't run forever. */
+export const OVERTIME_MAX_PERIODS = 3;
+/** "Still hot": recent 30s volume at least this fraction of pool depth… */
+export const OVERTIME_VOLUME_FRACTION = 0.15;
+/** …with an absolute floor so tiny pools still need real volume (pETH). */
+export const OVERTIME_MIN_VOLUME = 0.15;
+/** Or "close to bonding": market cap at least this fraction of graduation. */
+export const OVERTIME_MCAP_FRACTION = 0.5;
 
 export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
   rookie: {

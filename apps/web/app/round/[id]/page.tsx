@@ -112,6 +112,8 @@ export default function RoundPage() {
   const [resultsOpen, setResultsOpen] = useState(false);
   // Short announcement over the chart when the round changes gear.
   const [flash, setFlash] = useState<{ text: string; tone: "go" | "end" | "bad" } | null>(null);
+  // Over Time: a big buzzer-beater banner when the coin earns a bonus minute.
+  const [overtime, setOvertime] = useState<{ minute: number } | null>(null);
   // The arena doors opening: one hard flash across the chart on COOK!.
   const [launching, setLaunching] = useState(false);
   const lastPhase = useRef<string>("");
@@ -264,6 +266,12 @@ export default function RoundPage() {
           } else if (kind === "graduated") {
             playFanfare();
             fireFx("graduated");
+          } else if (kind === "overtime") {
+            playFanfare();
+            fireFx("milestone");
+            const minute = Number((e.event as KillFeedEvent).meta?.minute ?? 1);
+            setOvertime({ minute });
+            setTimeout(() => setOvertime((o) => (o?.minute === minute ? null : o)), 3000);
           }
         }
         break;
@@ -416,6 +424,26 @@ export default function RoundPage() {
           ethUsd={ticker?.ethUsd ?? pegUsd}
           onClose={() => setFillDismissed(true)}
         />
+      )}
+      {overtime && (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="animate-[bannerIn_.35s_cubic-bezier(.2,1.5,.4,1)] text-center"
+            style={{ animationFillMode: "both" }}
+          >
+            <div className="text-6xl font-black tracking-tight text-sky-300 drop-shadow-[0_0_30px_rgba(56,189,248,0.6)] md:text-8xl">
+              ⏱️ OVERTIME
+            </div>
+            <div className="mt-2 text-2xl font-black text-sky-200 md:text-3xl">
+              +1:00 on the clock · the coin&apos;s still cooking
+              {overtime.minute > 1 && (
+                <span className="ml-2 rounded-full bg-sky-400/20 px-2 py-0.5 text-base align-middle">
+                  x{overtime.minute}
+                </span>
+              )}
+            </div>
+          </div>
+        </div>
       )}
       {endResults && resultsOpen && (
         <RoundResultsOverlay

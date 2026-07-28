@@ -158,6 +158,7 @@ export default function Home() {
                       id: r.conceptId,
                       creatorAddress: r.creatorAddress,
                       graduated: r.graduated,
+                      modifiers: r.modifiers,
                     }}
                     borderClass={
                       r.graduated
@@ -229,6 +230,7 @@ function RoundCard({ round, highlight }: { round: Round; highlight?: boolean }) 
         id: round.conceptId,
         creatorAddress: round.creatorAddress,
         graduated: round.graduated,
+        modifiers: round.modifiers,
       }}
       teaser={teaser}
       borderClass={highlight ? "border-lime-400/60" : "border-zinc-800"}

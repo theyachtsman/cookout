@@ -51,6 +51,13 @@ export interface CoinSocials {
   website?: string;
 }
 
+/** Optional creator-chosen tweaks layered on top of a game mode. */
+export interface CoinModifiers {
+  /** Over Time: near the end, a coin that's still cooking (volume / liquidity /
+   *  market cap) earns a bonus minute so a banger gets to run. */
+  overtime?: boolean;
+}
+
 export interface TokenConcept {
   id: string;
   creatorAddress: Address;
@@ -58,6 +65,8 @@ export interface TokenConcept {
   symbol: string;
   theme: string;
   pitch?: string;
+  /** Mode modifiers (e.g. Over Time) chosen at launch. */
+  modifiers?: CoinModifiers;
   /** The coin's socials (X / Telegram / YouTube / Instagram / website). */
   socials?: CoinSocials;
   artworkUrl?: string;
@@ -119,6 +128,8 @@ export interface RoundConfig {
    *  detector, and the dev sell lock. Off for Blitz/Reflex, where price action
    *  is the whole game and nobody can be "rugged". Undefined = on (default). */
   rugRules?: boolean;
+  /** Over Time modifier active: near the end a still-hot coin earns +1 minute. */
+  overtime?: boolean;
 }
 
 /** Deployed contract set backing an on-chain (Phase 2) round. When present,
@@ -149,6 +160,10 @@ export interface Round {
   tier: RiskTier;
   /** The curated launch mode this round runs (Classic/Pressure/Blitz/Reflex). */
   mode?: GameMode;
+  /** Mode modifiers chosen at launch (e.g. Over Time), for display + rules. */
+  modifiers?: CoinModifiers;
+  /** How many Over Time minutes have been credited this round. */
+  overtimeCount?: number;
   state: RoundState;
   config: RoundConfig;
   /** Creator-chosen live-trading length in minutes. */
@@ -282,7 +297,8 @@ export type KillFeedKind =
   | "rug_detected"
   | "mcap_milestone"
   | "new_leader"
-  | "graduated";
+  | "graduated"
+  | "overtime";
 
 export interface KillFeedEvent {
   id: string;

@@ -9,6 +9,7 @@ import {
   DEFAULT_GAME_MODE,
   GAME_MODES,
   GAME_MODE_MAP,
+  MODIFIERS,
   TIER_CONFIGS,
   type GameMode,
   type TokenConcept,
@@ -42,6 +43,7 @@ export default function Submissions() {
     totalSupply: "",
     mode: DEFAULT_GAME_MODE as GameMode,
     socials: { x: "", telegram: "", youtube: "", instagram: "", website: "" },
+    modifiers: { overtime: false },
   });
   const [error, setError] = useState("");
   // The just-submitted concept — drives the "your coin is live" preview modal.
@@ -96,6 +98,7 @@ export default function Submissions() {
         totalSupply: "",
         mode: DEFAULT_GAME_MODE,
         socials: { x: "", telegram: "", youtube: "", instagram: "", website: "" },
+        modifiers: { overtime: false },
       });
       load();
     } catch (e) {
@@ -306,6 +309,54 @@ export default function Submissions() {
                 </div>
               )}
             </div>
+            {/* Modifiers — optional tweaks layered on the mode. */}
+            <div className="md:col-span-2">
+              <div className="mb-1.5 text-xs text-zinc-500">
+                Modifiers · optional tweaks on top of your mode
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {MODIFIERS.map((mod) => {
+                  const on = !!form.modifiers[mod.key];
+                  return (
+                    <button
+                      key={mod.key}
+                      onClick={() =>
+                        setForm({
+                          ...form,
+                          modifiers: { ...form.modifiers, [mod.key]: !on },
+                        })
+                      }
+                      title={mod.blurb}
+                      className={`flex items-start gap-3 rounded-xl border p-3 text-left transition ${
+                        on
+                          ? "border-sky-400/70 bg-sky-400/10"
+                          : "border-zinc-700 hover:border-zinc-500"
+                      }`}
+                    >
+                      <span className="text-lg leading-none">{mod.icon}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-black">{mod.name}</span>
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              on ? "bg-sky-400/20 text-sky-300" : "bg-zinc-800 text-zinc-400"
+                            }`}
+                          >
+                            {on ? "ON" : "OFF"}
+                          </span>
+                        </span>
+                        <span className="mt-0.5 block text-[10px] font-bold uppercase tracking-wide text-zinc-500">
+                          {mod.tagline}
+                        </span>
+                        <span className="mt-1 block text-[11px] leading-snug text-zinc-500">
+                          {mod.blurb}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
             <button
               onClick={openPreview}
               className="w-fit rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300"
@@ -391,6 +442,7 @@ export default function Submissions() {
                   mode: form.mode,
                   tier: GAME_MODE_MAP[form.mode].tier,
                   matchMinutes: GAME_MODE_MAP[form.mode].minutes ?? undefined,
+                  modifiers: form.modifiers,
                 }}
               />
               {error && <p className="mt-3 text-center text-sm text-red-400">{error}</p>}
