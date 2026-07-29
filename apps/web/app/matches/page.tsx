@@ -199,7 +199,7 @@ export default function Home() {
                 </div>
                 <div className="no-scrollbar flex gap-4 overflow-x-auto py-2">
                   {queue.map((r) => (
-                    <div key={r.id} className="w-72 shrink-0">
+                    <div key={r.id} className="w-80 shrink-0">
                       <RoundCard round={r} />
                     </div>
                   ))}
@@ -297,17 +297,12 @@ export default function Home() {
                   tagline={g.tagline}
                   count={g.rounds.length}
                   tally={<ResultTally rounds={g.rounds} />}
-                  preview={g.rounds.slice(0, 4).map((r) => (
-                    <div key={r.id} className="w-72 shrink-0 snap-start">
+                >
+                  {g.rounds.map((r) => (
+                    <div key={r.id} className="w-80 shrink-0">
                       <ResultCard round={r} />
                     </div>
                   ))}
-                >
-                  <div className="grid gap-3 md:grid-cols-3">
-                    {g.rounds.map((r) => (
-                      <ResultCard key={r.id} round={r} />
-                    ))}
-                  </div>
                 </CategoryShelf>
               ))}
             </div>
@@ -512,7 +507,7 @@ function ResultCard({ round: r }: { round: Round }) {
   return (
     <Link
       href={`/round/${r.id}`}
-      className={`group block h-full transition duration-300 hover:-translate-y-1 hover:scale-[1.02] ${glow}`}
+      className={`group block h-full transition duration-300 hover:-translate-y-1 ${glow}`}
     >
       <CoinCard
         coin={{

@@ -13,15 +13,14 @@ import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { useSocial } from "../../lib/social";
 import { CoinCard } from "../../components/CoinCard";
-import { TierChip } from "../../components/TierChip";
+import { CategoryShelf } from "../../components/CategoryShelf";
 
 /**
  * Community Vote — the launchpad's other half. Concepts up for a vote, plus
  * the full archive of everything ever submitted (including the ones the
- * community passed on), filterable and clickable through to their rounds.
+ * community passed on), grouped by outcome into streaming rails and clickable
+ * through to their rounds.
  */
-
-type Filter = "voting" | "all" | "launched" | "scheduled" | "rejected";
 
 const STATUS: Record<
   TokenConcept["status"],
@@ -45,8 +44,6 @@ export default function VotePage() {
   }, [setActiveRoom]);
   const [concepts, setConcepts] = useState<TokenConcept[]>([]);
   const [rounds, setRounds] = useState<Round[]>([]);
-  // Default to "all" so past submissions are visible without a click.
-  const [filter, setFilter] = useState<Filter>("all");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState("");
 
@@ -119,36 +116,35 @@ export default function VotePage() {
     const t = setTimeout(() => setHighlight(""), 2600);
     return () => clearTimeout(t);
   }, [concepts]);
-  const archive = useMemo(
-    () =>
-      [...concepts]
-        .filter((c) => (filter === "voting" ? false : true))
-        .filter((c) =>
-          filter === "all"
-            ? true
-            : filter === "launched"
-              ? c.status === "launched"
-              : filter === "scheduled"
-                ? c.status === "scheduled" || c.status === "shortlisted"
-                : filter === "rejected"
-                  ? c.status === "rejected"
-                  : true,
-        )
-        .sort((a, b) => b.createdAt - a.createdAt),
-    [concepts, filter],
-  );
-
-  const counts = useMemo(
-    () => ({
-      voting: concepts.filter((c) => c.status === "submitted").length,
-      all: concepts.length,
-      launched: concepts.filter((c) => c.status === "launched").length,
-      scheduled: concepts.filter((c) => c.status === "scheduled" || c.status === "shortlisted")
-        .length,
-      rejected: concepts.filter((c) => c.status === "rejected").length,
-    }),
-    [concepts],
-  );
+  // The archive, de-tabled into streaming rails grouped by outcome. Coins still
+  // up for a vote live in the section above, so they aren't repeated here.
+  const submissionGroups = useMemo(() => {
+    const pick = (fn: (c: TokenConcept) => boolean) =>
+      [...concepts].filter(fn).sort((a, b) => b.createdAt - a.createdAt);
+    return [
+      {
+        key: "launched",
+        title: "Launched",
+        icon: "🍽️",
+        tagline: "Made it to the Cook Out",
+        list: pick((c) => c.status === "launched"),
+      },
+      {
+        key: "shortlisted",
+        title: "Shortlisted",
+        icon: "✓",
+        tagline: "Cleared the vote, waiting for a slot",
+        list: pick((c) => c.status === "shortlisted" || c.status === "scheduled"),
+      },
+      {
+        key: "rejected",
+        title: "Didn't pass",
+        icon: "✗",
+        tagline: "The crowd passed on these",
+        list: pick((c) => c.status === "rejected"),
+      },
+    ].filter((g) => g.list.length > 0);
+  }, [concepts]);
 
   return (
     <div className="space-y-8">
@@ -258,110 +254,34 @@ export default function VotePage() {
       </section>
 
       <section>
-        <div className="mb-3 flex flex-wrap items-center gap-3">
+        <div className="mb-1 flex items-baseline gap-3">
           <h2 className="text-lg font-black">All Submissions</h2>
-          <div className="flex flex-wrap gap-1 text-xs font-bold">
-            {(
-              [
-                ["all", "All"],
-                ["launched", "🍽️ Launched"],
-                ["scheduled", "Shortlisted"],
-                ["rejected", "✗ Didn't pass"],
-              ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setFilter(key)}
-                className={`rounded-full px-3 py-1 transition ${
-                  filter === key
-                    ? "bg-lime-400 text-zinc-950"
-                    : "border border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
-                }`}
-              >
-                {label}
-                <span className={filter === key ? "ml-1.5 text-zinc-800" : "ml-1.5 text-zinc-600"}>
-                  {counts[key]}
-                </span>
-              </button>
-            ))}
-          </div>
-          <span className="ml-auto text-xs text-zinc-600">newest first</span>
+          <span className="text-xs text-zinc-500">every coin ever dropped, by outcome</span>
         </div>
 
-        {archive.length === 0 ? (
-          <div className="rounded-xl border border-zinc-800 p-6 text-sm text-zinc-500">
+        {submissionGroups.length === 0 ? (
+          <div className="rounded-2xl bg-zinc-900/40 p-6 text-sm text-zinc-500">
             Nothing here yet.
           </div>
         ) : (
-          <div className="overflow-hidden rounded-xl border border-zinc-800">
-            {archive.map((c) => {
-              const round = roundOf.get(c.id);
-              const meta = STATUS[c.status];
-              const row = (
-                <div className="flex items-center gap-3 px-3 py-2.5 transition hover:bg-zinc-900/60">
-                  {c.artworkUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={c.artworkUrl}
-                      alt=""
-                      className={`h-10 w-10 shrink-0 rounded-lg border border-zinc-800 object-cover ${
-                        c.status === "rejected" ? "opacity-50 grayscale" : ""
-                      }`}
-                    />
-                  ) : (
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-zinc-800 bg-zinc-900">
-                      🪙
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5 truncate text-sm font-bold">
-                      <span className="truncate">
-                        {c.name} <span className="text-zinc-500">${c.symbol}</span>
-                      </span>
-                      <TierChip tier={c.tier} />
-                    </div>
-                    <div className="truncate text-[11px] text-zinc-500">{c.theme}</div>
+          <div className="space-y-6">
+            {submissionGroups.map((g) => (
+              <CategoryShelf
+                key={g.key}
+                title={g.title}
+                icon={g.icon}
+                tagline={g.tagline}
+                count={g.list.length}
+              >
+                {g.list.map((c) => (
+                  <div key={c.id} className="w-80 shrink-0">
+                    <ConceptCard concept={c} round={roundOf.get(c.id)} />
                   </div>
-                  {round && (
-                    <span
-                      className={`hidden shrink-0 rounded px-2 py-0.5 text-[10px] font-bold sm:inline ${
-                        round.graduated
-                          ? "bg-lime-400/20 text-lime-300"
-                          : round.endReason === "rug_detected" ||
-                              round.endReason === "liquidity_removed"
-                            ? "bg-red-500/20 text-red-300"
-                            : "bg-zinc-800 text-zinc-400"
-                      }`}
-                    >
-                      {round.graduated
-                        ? "served up"
-                        : round.state === "live"
-                          ? "LIVE"
-                          : round.endReason === "rug_detected" ||
-                              round.endReason === "liquidity_removed"
-                            ? "burnt"
-                            : round.state === "results"
-                              ? "closed"
-                              : round.state}
-                    </span>
-                  )}
-                  <span className="shrink-0 font-mono text-xs text-zinc-500">{c.votes} ▲</span>
-                  <span className={`shrink-0 rounded px-2 py-0.5 text-[10px] font-bold ${meta.cls}`}>
-                    {meta.label}
-                  </span>
-                </div>
-              );
-              return (
-                <div key={c.id} className="border-b border-zinc-800/60 last:border-b-0">
-                  {round ? <Link href={`/round/${round.id}`}>{row}</Link> : row}
-                </div>
-              );
-            })}
+                ))}
+              </CategoryShelf>
+            ))}
           </div>
         )}
-        <p className="mt-2 text-[11px] text-zinc-600">
-          Rows with a round are clickable. Jump straight to the chart and results.
-        </p>
       </section>
     </div>
   );
@@ -373,4 +293,61 @@ function timeLeft(createdAt: number): string {
   const h = Math.floor(ms / 3_600_000);
   const m = Math.floor((ms % 3_600_000) / 60_000);
   return h > 0 ? `${h}h ${m}m left` : `${m}m left`;
+}
+
+/** One archived submission as a borderless card, matching the Cook Out result
+ *  cards. Links through to its round when it has one; rejected coins dim. */
+function ConceptCard({ concept: c, round }: { concept: TokenConcept; round?: Round }) {
+  const meta = STATUS[c.status];
+  const card = (
+    <CoinCard
+      coin={{
+        name: c.name,
+        symbol: c.symbol,
+        theme: c.theme,
+        artworkUrl: c.artworkUrl,
+        bannerUrl: c.bannerUrl,
+        tier: c.tier,
+        mode: c.mode,
+        matchMinutes: c.matchMinutes,
+        modifiers: c.modifiers,
+        id: c.id,
+        creatorAddress: c.creatorAddress,
+      }}
+      borderClass="border-transparent"
+      className={c.status === "rejected" ? "opacity-70" : ""}
+      corner={
+        <span className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-bold ${meta.cls}`}>
+          {meta.label}
+        </span>
+      }
+    >
+      <div className="flex items-center justify-between text-[11px] text-zinc-500">
+        <span className="font-mono">{c.votes} ▲</span>
+        {round && (
+          <span>
+            {round.graduated
+              ? "served up"
+              : round.endReason === "rug_detected" || round.endReason === "liquidity_removed"
+                ? "burnt"
+                : round.state === "live"
+                  ? "LIVE"
+                  : round.state === "results" || round.state === "ended"
+                    ? "closed"
+                    : round.state}
+          </span>
+        )}
+      </div>
+    </CoinCard>
+  );
+  return round ? (
+    <Link
+      href={`/round/${round.id}`}
+      className="block h-full transition duration-300 hover:-translate-y-1"
+    >
+      {card}
+    </Link>
+  ) : (
+    <div className="h-full">{card}</div>
+  );
 }
