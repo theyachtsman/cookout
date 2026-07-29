@@ -20,20 +20,24 @@ export function makeKeyboards(webBase: string) {
     enterRound: (roundId: string, symbol?: string): InlineKeyboard => [
       [{ text: `🔥 Enter ${symbol ? "$" + symbol : "the Cook Out"}`, url: url(`/round/${roundId}`) }],
     ],
-    /** A fresh submission up for a vote: jump to its card, or shill it on X with
-     *  a prefilled post that carries the vote-card link. */
+    /** A fresh submission up for a vote: jump to its card, or shill it on X.
+     *  The in-app "Vote" button deep-links the vote page; the X post must carry
+     *  the per-coin share page (/coin/:id), which is the only URL with the
+     *  per-coin OpenGraph tags that unfurl the coin card on X. Pointing the tweet
+     *  at /vote#coin-<id> makes X fall back to the generic site card. */
     voteShill: (conceptId: string, symbol: string, name?: string): InlineKeyboard => {
-      const card = url(`/vote#coin-${conceptId}`);
+      const votePage = url(`/vote#coin-${conceptId}`);
+      const coinCard = url(`/coin/${conceptId}`);
       const tweet =
         `https://twitter.com/intent/tweet?text=` +
         encodeURIComponent(
           `🍳 $${symbol}${name ? ` (${name})` : ""} is up for a vote at The Cookout, the live ` +
-            `trading pit. Send it to the grill 🔥👇`,
+            `trading battleground. Send it to the grill 🔥👇`,
         ) +
-        `&url=${encodeURIComponent(card)}`;
+        `&url=${encodeURIComponent(coinCard)}`;
       return [
         [
-          { text: `🗳️ Vote $${symbol}`, url: card },
+          { text: `🗳️ Vote $${symbol}`, url: votePage },
           { text: "𝕏 Shill on X", url: tweet },
         ],
       ];

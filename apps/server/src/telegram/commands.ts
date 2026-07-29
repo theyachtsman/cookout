@@ -186,7 +186,7 @@ export class Commands {
     if (!token) {
       this.reply(
         chatId,
-        `🔥 Welcome to The Cookout. I'm the ${esc("Pit Boss")}, the host of the pit.\n\n` +
+        `🔥 Welcome to The Cookout. I'm the ${esc("Pit Boss")}, the host of the battleground.\n\n` +
           `Join the group below to hang with the crew, and link your account from your profile on ` +
           `the website so I can ping you when something's cooking. ${signoff()}`,
         this.joinKb(),
@@ -303,7 +303,7 @@ export class Commands {
     const lines = top.map(
       (u, i) => `${medals[i]} <b>${esc(u.displayName ?? short(u.address))}</b> — Lvl ${u.level}, ${u.xp.toLocaleString()} XP`,
     );
-    this.reply(chatId, `🏆 <b>Top of the pit</b>\n\n${lines.join("\n")}`, this.kb.leaderboard(), thread);
+    this.reply(chatId, `🏆 <b>Top of the battleground</b>\n\n${lines.join("\n")}`, this.kb.leaderboard(), thread);
   }
 
   private jackpot(chatId: number, thread?: number): void {

@@ -409,12 +409,19 @@ test("a new submission posts to the Vote Shilling pit with a card + X-share butt
   assert.ok(/up for a vote/i.test(g[0]!.text), "shill copy");
   const btns = g[0]!.reply_markup!.inline_keyboard.flat();
   const card = btns.find((b) => /Vote \$FOO/.test(b.text))!;
-  assert.ok(card.url.endsWith("/vote#coin-c9"), "vote button deep-links the card");
+  assert.ok(card.url.endsWith("/vote#coin-c9"), "vote button deep-links the vote page");
   const x = btns.find((b) => /Shill on X/.test(b.text))!;
   assert.ok(x.url.startsWith("https://twitter.com/intent/tweet?text="), "X intent button");
+  // The tweet must point at the per-coin share page (/coin/:id), the only URL
+  // with per-coin OpenGraph tags that unfurl the coin card on X. Pointing it at
+  // /vote#coin-<id> would make X show the generic site card.
   assert.ok(
-    decodeURIComponent(x.url).includes("/vote#coin-c9"),
-    "prefilled tweet carries the card link",
+    decodeURIComponent(x.url).includes("/coin/c9"),
+    "prefilled tweet carries the per-coin share link",
+  );
+  assert.ok(
+    !decodeURIComponent(x.url).includes("/vote#coin-c9"),
+    "tweet does not use the generic vote-page link",
   );
 });
 
