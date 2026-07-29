@@ -112,7 +112,7 @@ export function CoinCard({
         <>
           <div
             aria-hidden
-            className={`absolute inset-0 scale-110 bg-cover bg-center transition-transform duration-700 group-hover:scale-125 ${
+            className={`absolute inset-0 scale-110 bg-cover bg-center ${
               teaser ? "opacity-30 blur-2xl saturate-0" : "opacity-60 blur-lg"
             }`}
             style={{ backgroundImage: `url(${coin.artworkUrl})` }}
@@ -130,7 +130,7 @@ export function CoinCard({
           <>
             <div
               aria-hidden
-              className={`absolute inset-0 bg-cover bg-center transition-transform duration-700 group-hover:scale-110 ${
+              className={`absolute inset-0 bg-cover bg-center ${
                 teaser ? "scale-110 opacity-40 blur-2xl saturate-0" : ""
               }`}
               style={{ backgroundImage: `url(${coin.bannerUrl})` }}
