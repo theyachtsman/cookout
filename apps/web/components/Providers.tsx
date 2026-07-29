@@ -20,7 +20,25 @@ export function Providers({ children }: { children: React.ReactNode }) {
     <PrivyProvider
       appId={APP_ID}
       config={{
-        appearance: { theme: "dark", accentColor: "#a3e635", logo: "/brand/mascot.png" },
+        appearance: {
+          theme: "dark",
+          accentColor: "#a3e635",
+          logo: "/brand/mascot.png",
+          // We're an EVM-only app, so only surface Ethereum wallets in the connect
+          // list. `detected_ethereum_wallets` (not the deprecated `detected_wallets`)
+          // is the important bit: it keeps Solana-only wallets like Solflare — and
+          // Phantom's Solana side — out of the list. Those have no EVM connector to
+          // talk to, so clicking them used to dead-end at the wallet's Chrome Web
+          // Store install page. Email / social login (and the embedded EVM wallet
+          // every account gets) is the primary way in.
+          walletList: [
+            "detected_ethereum_wallets",
+            "metamask",
+            "coinbase_wallet",
+            "wallet_connect",
+            "rainbow",
+          ],
+        },
         // v3 nests wallet creation per-chain; give every login an EVM embedded wallet.
         embeddedWallets: { ethereum: { createOnLogin: "all-users" } },
       }}
