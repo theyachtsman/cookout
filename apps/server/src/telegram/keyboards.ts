@@ -32,7 +32,7 @@ export function makeKeyboards(webBase: string) {
         `https://twitter.com/intent/tweet?text=` +
         encodeURIComponent(
           `🍳 $${symbol}${name ? ` (${name})` : ""} is up for a vote at The Cookout, the live ` +
-            `trading battleground. Send it to the grill 🔥👇`,
+            `trading battleground.\nVote it onto the grill 🔥🗳️`,
         ) +
         `&url=${encodeURIComponent(coinCard)}`;
       return [
