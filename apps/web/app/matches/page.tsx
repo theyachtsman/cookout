@@ -197,9 +197,9 @@ export default function Home() {
                   </h2>
                   <span className="text-xs text-zinc-600">{queue.length} in the queue</span>
                 </div>
-                <div className="-mx-1 flex snap-x gap-3 overflow-x-auto px-1 pb-2">
+                <div className="no-scrollbar flex gap-4 overflow-x-auto py-2">
                   {queue.map((r) => (
-                    <div key={r.id} className="w-72 shrink-0 snap-start">
+                    <div key={r.id} className="w-72 shrink-0">
                       <RoundCard round={r} />
                     </div>
                   ))}
@@ -208,7 +208,7 @@ export default function Home() {
             )}
           </>
         ) : (
-          <div className="rounded-xl border border-lime-400/30 bg-lime-400/[0.04] p-8 text-center">
+          <div className="rounded-2xl bg-lime-400/[0.06] p-8 text-center">
             <div className="text-3xl">🍳</div>
             <p className="mt-2 text-lg font-black text-zinc-100">
               The grill is empty. Someone needs to launch a coin.
@@ -248,7 +248,7 @@ export default function Home() {
                   className={`rounded-full px-3 py-1 transition ${
                     filter === key
                       ? "bg-lime-400 text-zinc-950"
-                      : "border border-zinc-800 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200"
+                      : "text-zinc-400 hover:bg-zinc-800/60 hover:text-zinc-200"
                   }`}
                 >
                   {label}
@@ -284,11 +284,11 @@ export default function Home() {
           </div>
 
           {nonEmpty.length === 0 ? (
-            <div className="rounded-lg border border-zinc-800 p-6 text-sm text-zinc-500">
+            <div className="rounded-2xl bg-zinc-900/40 p-6 text-sm text-zinc-500">
               No rounds in this filter yet.
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-6">
               {nonEmpty.map((g) => (
                 <CategoryShelf
                   key={g.key}
@@ -333,7 +333,7 @@ function Segmented<T extends string>({
   return (
     <span className="flex items-center gap-1.5">
       <span className="text-zinc-600">{label}</span>
-      <span className="flex overflow-hidden rounded-full border border-zinc-800 font-bold">
+      <span className="flex overflow-hidden rounded-full bg-zinc-900/70 font-bold">
         {options.map(([v, l]) => (
           <button
             key={v}
@@ -402,7 +402,7 @@ function FeaturedHero({ round }: { round: Round }) {
   return (
     <Link
       href={`/round/${round.id}`}
-      className="group relative block overflow-hidden rounded-3xl border border-lime-400/40 bg-zinc-950 shadow-xl shadow-lime-400/[0.06] transition hover:border-lime-400/70"
+      className="group relative block overflow-hidden rounded-3xl bg-zinc-950 shadow-2xl shadow-black/50 transition duration-300 hover:shadow-lime-400/10"
     >
       {backdrop ? (
         <div
@@ -504,8 +504,16 @@ function FeaturedHero({ round }: { round: Round }) {
 /** A single finished-round card that links through to its results. */
 function ResultCard({ round: r }: { round: Round }) {
   const rug = isRug(r);
+  const glow = r.graduated
+    ? "hover:shadow-[0_16px_44px_-16px_rgba(163,230,53,0.4)]"
+    : rug
+      ? "hover:shadow-[0_16px_44px_-16px_rgba(239,68,68,0.35)]"
+      : "hover:shadow-[0_16px_44px_-16px_rgba(0,0,0,0.7)]";
   return (
-    <Link href={`/round/${r.id}`} className="block h-full transition hover:-translate-y-0.5">
+    <Link
+      href={`/round/${r.id}`}
+      className={`group block h-full transition duration-300 hover:-translate-y-1 hover:scale-[1.02] ${glow}`}
+    >
       <CoinCard
         coin={{
           ...r.token,
@@ -517,13 +525,7 @@ function ResultCard({ round: r }: { round: Round }) {
           mode: r.mode,
           modifiers: r.modifiers,
         }}
-        borderClass={
-          r.graduated
-            ? "border-lime-400/40 hover:border-lime-400/80"
-            : rug
-              ? "border-red-900/60 hover:border-red-700"
-              : "border-zinc-800 hover:border-zinc-600"
-        }
+        borderClass="border-transparent"
         corner={
           <span
             className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-bold ${
@@ -550,7 +552,7 @@ function ResultCard({ round: r }: { round: Round }) {
   );
 }
 
-function RoundCard({ round, highlight }: { round: Round; highlight?: boolean }) {
+function RoundCard({ round }: { round: Round }) {
   const teaser = round.state === "scheduled";
   const stateLabel: Record<string, string> = {
     scheduled: "Starting soon",
@@ -572,7 +574,7 @@ function RoundCard({ round, highlight }: { round: Round; highlight?: boolean }) 
         modifiers: round.modifiers,
       }}
       teaser={teaser}
-      borderClass={highlight ? "border-lime-400/60" : "border-zinc-800"}
+      borderClass="border-transparent"
       corner={
         <span
           className={`shrink-0 rounded px-2 py-1 text-xs font-bold ${
