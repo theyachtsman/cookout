@@ -8,6 +8,15 @@ body {
   @apply bg-zinc-950 text-zinc-200;
 }
 
+/* Streaming-style rails scroll horizontally with no visible scrollbar. */
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes slide-in {
   from {
     transform: translateX(24px);
