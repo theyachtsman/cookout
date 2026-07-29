@@ -78,7 +78,7 @@ export default function VotePage() {
     const base = typeof window !== "undefined" ? window.location.origin : "";
     const url = `${base}/coin/${c.id}`;
     const text =
-      `🍳 $${c.symbol} (${c.name}) just dropped on The Cookout, the live trading pit.\n` +
+      `🍳 $${c.symbol} (${c.name}) just dropped on The Cookout, the live trading battleground.\n` +
       `Vote it onto the grill and get ready for the Cookout 🔥🗳️`;
     const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
       text,

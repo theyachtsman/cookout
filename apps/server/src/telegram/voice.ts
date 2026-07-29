@@ -77,7 +77,7 @@ export const feed = {
   /** The shill-pit post: a new submission, with a call to rally votes. */
   voteShill: (symbol: string, name?: string, by?: string, mode?: string) =>
     `🍳 ${b("Fresh coin up for a vote")}: ${coinLabel(symbol, name)}${by ? ` by ${esc(by)}` : ""}.\n\n` +
-    `This is the shill pit. Make your case, rally the crowd, and get it voted onto the grill.\n\n` +
+    `This is the shill floor. Make your case, rally the crowd, and get it voted onto the grill.\n\n` +
     `Hit ${b("Shill on X")} to drop it on your timeline. 🔥${modeTag(mode)}`,
 
   /** The shill-pit post for a Run It Back: the coin's back up for another vote. */
@@ -167,10 +167,10 @@ export const gate = {
   // `mention` is pre-built safe HTML (a tg://user link), so it isn't re-escaped.
   welcome: (mention: string) =>
     `🔥 Pull up, ${b(mention)}. Welcome to ${b("The Cookout")}.\n\n` +
-    `This is the live trading pit: real coins, real crowds, one fair price on every open. ` +
+    `This is the live trading battleground: real coins, real crowds, one fair price on every open. ` +
     `Grab a plate. Launch a coin, vote on what cooks next, or jump into a live round. ` +
     `What are you cooking first?`,
-  goodbye: (name: string) => `👋 ${esc(name)} stepped off the pit. Grill stays hot. ${signoff()}`,
+  goodbye: (name: string) => `👋 ${esc(name)} stepped off the battleground. Grill stays hot. ${signoff()}`,
 };
 
 // ---- pinned messages (posted + pinned by an admin action) ------------------
@@ -180,10 +180,10 @@ export function pins(webBase: string) {
   return {
     welcome:
       `🔥 <b>Welcome to The Cookout</b>\n\n` +
-      `The live multiplayer trading pit. Every match is a brand-new coin, opened through a fair ` +
+      `The live multiplayer trading battleground. Every match is a brand-new coin, opened through a fair ` +
       `batch auction (one price, no snipers), traded live in front of the crowd, then it graduates, ` +
       `times out, or gets burnt.\n\n` +
-      `<b>The pit, by topic:</b>\n` +
+      `<b>The battleground, by topic:</b>\n` +
       `📣 Announcements · 💬 General · 💡 Feedback &amp; Ideas · 🍳 Launch a Coin · 📈 Trading &amp; ` +
       `Strategy · 🏆 Leaderboards &amp; Wins · 🆘 Support\n\n` +
       `New here? Hit <b>Play Now</b> and pull up. 🍖`,
@@ -198,7 +198,7 @@ export function pins(webBase: string) {
       `💰 Jackpot: ${u("/jackpot")}`,
     founders:
       `🥇 <b>Founding Members</b>\n\n` +
-      `The first crew at the pit get a <b>permanent Founding Member number</b>. It's capped, never ` +
+      `The first crew at the battleground get a <b>permanent Founding Member number</b>. It's capped, never ` +
       `reused, and shown on your profile forever. Claim yours from your profile on the website, then ` +
       `link Telegram so the Pit Boss knows who you are. Early is earned.`,
   };
@@ -207,7 +207,7 @@ export function pins(webBase: string) {
 // ---- conversation seeding --------------------------------------------------
 
 export const seeds: string[] = [
-  "Question for the pit: what's the best ticker you've seen launch here? 🔥",
+  "Question for the crew: what's the best ticker you've seen launch here? 🔥",
   "Moon or rug? What's your read on the next coin up? 🌕🧨",
   "What's your go-to Pull Up size, and why? Talk strategy. 🍖",
   "Who's climbing the board this week? Drop your handle. 🏆",
