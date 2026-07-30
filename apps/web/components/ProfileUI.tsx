@@ -301,25 +301,45 @@ export function SectionTitle({ title, action }: { title: string; action?: ReactN
 
 export const RARITY: Record<
   string,
-  { label: string; ring: string; text: string; wash: string }
+  { label: string; ring: string; text: string; wash: string; medal: string; glow: string }
 > = {
-  common: { label: "Common", ring: "border-zinc-700", text: "text-zinc-300", wash: "bg-zinc-900/50" },
-  rare: { label: "Rare", ring: "border-sky-500/50", text: "text-sky-300", wash: "bg-sky-500/[0.08]" },
+  common: {
+    label: "Common",
+    ring: "border-zinc-700",
+    text: "text-zinc-300",
+    wash: "bg-zinc-900/50",
+    medal: "bg-zinc-800",
+    glow: "rgba(161,161,170,0.25)",
+  },
+  rare: {
+    label: "Rare",
+    ring: "border-sky-500/50",
+    text: "text-sky-300",
+    wash: "bg-sky-500/[0.08]",
+    medal: "bg-sky-500/25",
+    glow: "rgba(56,189,248,0.4)",
+  },
   epic: {
     label: "Epic",
     ring: "border-violet-500/50",
     text: "text-violet-300",
     wash: "bg-violet-500/[0.08]",
+    medal: "bg-violet-500/25",
+    glow: "rgba(167,139,250,0.4)",
   },
   legendary: {
     label: "Legendary",
     ring: "border-amber-400/60",
     text: "text-amber-300",
     wash: "bg-amber-400/[0.08]",
+    medal: "bg-amber-400/25",
+    glow: "rgba(251,191,36,0.45)",
   },
 };
 
-/** One achievement tile — borderless, rarity-washed; dims when locked. */
+/** One achievement as a badge tile — a rarity-colored medallion, the name, a
+ *  rarity chip, and the description. Unlocked medallions glow; locked ones dim
+ *  to a padlock. Borderless, on-brand. */
 export function AchievementCard({
   achievement: a,
   unlocked,
@@ -329,20 +349,32 @@ export function AchievementCard({
 }) {
   const r = RARITY[a.rarity] ?? RARITY.common;
   return (
-    <div className={`rounded-2xl p-3.5 transition ${unlocked ? r.wash : "bg-zinc-900/30 opacity-45"}`}>
-      <div className="flex items-center justify-between gap-2">
-        <span className="text-sm font-bold text-zinc-100">
-          {unlocked ? "🏅" : "🔒"} {a.name}
-        </span>
-        <span
-          className={`shrink-0 text-[9px] font-black uppercase tracking-wide ${
-            unlocked ? r.text : "text-zinc-600"
-          }`}
-        >
-          {r.label}
-        </span>
+    <div
+      className={`flex gap-3 rounded-2xl p-4 transition ${
+        unlocked ? r.wash : "bg-zinc-900/30"
+      }`}
+    >
+      <div
+        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-2xl ${
+          unlocked ? r.medal : "bg-zinc-800/60"
+        } ${unlocked ? "" : "opacity-60 grayscale"}`}
+        style={unlocked ? { boxShadow: `0 0 20px ${r.glow}` } : undefined}
+      >
+        {unlocked ? "🏅" : "🔒"}
       </div>
-      <div className="mt-1 text-xs text-zinc-400">{a.description}</div>
+      <div className={`min-w-0 flex-1 ${unlocked ? "" : "opacity-55"}`}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="truncate font-black text-zinc-100">{a.name}</span>
+          <span
+            className={`shrink-0 rounded-full bg-zinc-950/40 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${
+              unlocked ? r.text : "text-zinc-600"
+            }`}
+          >
+            {r.label}
+          </span>
+        </div>
+        <div className="mt-1 text-xs leading-snug text-zinc-400">{a.description}</div>
+      </div>
     </div>
   );
 }

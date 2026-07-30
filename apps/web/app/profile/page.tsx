@@ -24,13 +24,14 @@ import {
   TabBar,
 } from "../../components/ProfileUI";
 
-type Tab = "overview" | "earnings" | "progression" | "locker";
+type Tab = "overview" | "quests" | "progression" | "achievements" | "rewards";
 
 const TABS = [
   ["overview", "Overview"],
-  ["earnings", "Earnings"],
+  ["quests", "Quests"],
   ["progression", "Progression"],
-  ["locker", "Locker"],
+  ["achievements", "Achievements"],
+  ["rewards", "Rewards"],
 ] as const;
 
 export default function ProfilePage() {
@@ -258,28 +259,15 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {tab === "earnings" && (
+      {tab === "quests" && (
         <div className="space-y-6">
-          {(profile.feesEarned ?? 0) > 0 && (
-            <FeesEarned eth={profile.feesEarned ?? 0} unit={unit} self />
-          )}
-          {(profile.jackpotWinnings ?? 0) > 0 && <JackpotWinnings profile={profile} unit={unit} />}
-          {(profile.feesEarned ?? 0) <= 0 && (profile.jackpotWinnings ?? 0) <= 0 && (
-            <div className="rounded-2xl bg-zinc-900/40 p-8 text-center text-sm text-zinc-500">
-              No earnings yet. Land a weekly Jackpot spot or launch a coin that trades, and your
-              winnings and creator fees show up here.
-            </div>
-          )}
+          <SectionTitle title="Quests & Challenges" />
+          <Missions />
         </div>
       )}
 
       {tab === "progression" && (
         <div className="space-y-6">
-          <section>
-            <SectionTitle title="Quests & Challenges" />
-            <Missions />
-          </section>
-
           <section>
             <SectionTitle title="Progression" />
             <Progress />
@@ -296,36 +284,53 @@ export default function ProfilePage() {
               onCleared={() => void refresh()}
             />
           </section>
-
-          <section>
-            <SectionTitle
-              title="Achievements"
-              action={
-                <span className="font-mono text-xs text-zinc-500">
-                  {profile.achievements.length} / {ACHIEVEMENTS.length} unlocked
-                </span>
-              }
-            />
-            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-              {[...ACHIEVEMENTS]
-                .sort(
-                  (a, b) =>
-                    Number(profile.achievements.includes(b.id)) -
-                    Number(profile.achievements.includes(a.id)),
-                )
-                .map((a) => (
-                  <AchievementCard
-                    key={a.id}
-                    achievement={a}
-                    unlocked={profile.achievements.includes(a.id)}
-                  />
-                ))}
-            </div>
-          </section>
         </div>
       )}
 
-      {tab === "locker" && <CosmeticsLocker />}
+      {tab === "achievements" && (
+        <div className="space-y-6">
+          <SectionTitle
+            title="Achievements"
+            action={
+              <span className="font-mono text-xs text-zinc-500">
+                {profile.achievements.length} / {ACHIEVEMENTS.length} unlocked
+              </span>
+            }
+          />
+          <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+            {[...ACHIEVEMENTS]
+              .sort(
+                (a, b) =>
+                  Number(profile.achievements.includes(b.id)) -
+                  Number(profile.achievements.includes(a.id)),
+              )
+              .map((a) => (
+                <AchievementCard
+                  key={a.id}
+                  achievement={a}
+                  unlocked={profile.achievements.includes(a.id)}
+                />
+              ))}
+          </div>
+        </div>
+      )}
+
+      {tab === "rewards" && (
+        <div className="space-y-6">
+          <CosmeticsLocker />
+          {((profile.jackpotWinnings ?? 0) > 0 || (profile.feesEarned ?? 0) > 0) && (
+            <section className="space-y-6">
+              <SectionTitle title="Earnings" />
+              {(profile.jackpotWinnings ?? 0) > 0 && (
+                <JackpotWinnings profile={profile} unit={unit} />
+              )}
+              {(profile.feesEarned ?? 0) > 0 && (
+                <FeesEarned eth={profile.feesEarned ?? 0} unit={unit} self />
+              )}
+            </section>
+          )}
+        </div>
+      )}
     </div>
   );
 }
