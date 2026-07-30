@@ -459,6 +459,10 @@ export class RoundEngine {
         );
       const r = buy(pool, ethIn, round.config.tradeFeeBps);
       user.arenaBalance = (user.arenaBalance ?? 0) - ethIn;
+      // Live buys/sells land in the player's Cook Out ledger (durable across
+      // restarts), so the balance history is the one place trades show up.
+      if (!user.address.startsWith("0xb07"))
+        this.store.recordLedger(user.address, "buy", -ethIn, { symbol: round.token.symbol });
       round.pool = r.pool;
       pos.tokens += r.amountOut;
       pos.costBasisEth += ethIn;
@@ -498,6 +502,8 @@ export class RoundEngine {
       pos.costBasisEth -= costShare;
       pos.realizedPnl += pnl;
       user.arenaBalance = (user.arenaBalance ?? 0) + r.amountOut;
+      if (!user.address.startsWith("0xb07"))
+        this.store.recordLedger(user.address, "sell", r.amountOut, { symbol: round.token.symbol });
       m.bestSellPnl = Math.max(m.bestSellPnl, pnl);
       m.tokensSoldBeforeEnd += tokens;
       if (r.price >= s.peakPrice * 0.95) m.soldNearPeak = true;

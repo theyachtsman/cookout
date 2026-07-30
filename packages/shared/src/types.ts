@@ -628,7 +628,9 @@ export type LedgerKind =
   | "refund"
   | "redeem"
   | "creator_fee"
-  | "jackpot";
+  | "jackpot"
+  | "buy"
+  | "sell";
 export interface LedgerEntry {
   id: string;
   at: number;
