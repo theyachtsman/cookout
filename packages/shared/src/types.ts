@@ -112,6 +112,9 @@ export interface PitConfig {
 export interface PitEntry {
   /** Their Prediction Pool call, when entered. */
   prediction?: PitCall;
+  /** Custom prediction bet (pETH). Parimutuel: winners split the pool pro-rata
+   *  to their stake. Enforced at or above a $1 minimum. */
+  predictionStake?: number;
   /** Whether they bought into the Trading Pool. */
   trading?: boolean;
 }
@@ -852,6 +855,8 @@ export type ServerEvent =
   | { type: "pinned"; text: string }
   /** Someone @-mentioned you in chat — sent only to the pinged user. */
   | { type: "ping"; ping: PingEntry }
+  /** XP just landed — drives the +XP drop-in overlay. Sent only to that user. */
+  | { type: "xp"; amount: number; total: number; level: number; source?: string }
   | { type: "error"; message: string };
 
 /** An @-mention of a player in chat, shown in their Pings feed. */

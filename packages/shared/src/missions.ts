@@ -18,7 +18,12 @@ export type MissionMetric =
   | "diamond_holds"
   | "rug_survivals"
   | "first_buys"
-  | "graduations_held";
+  | "graduations_held"
+  // The Pit (PvE vs Swarm AI)
+  | "pit_played"
+  | "pit_predictions_correct"
+  | "pit_trading_wins"
+  | "pit_double_wins";
 
 export interface MissionDef {
   id: string;
@@ -54,6 +59,10 @@ export const MISSIONS: MissionDef[] = [
   { id: "d_first_1", name: "First Blood", description: "Be a round's first buyer today", period: "daily", metric: "first_buys", target: 1, xp: 25 },
   { id: "d_rugsurv_1", name: "Survivor", description: "Exit ahead of a rug today", period: "daily", metric: "rug_survivals", target: 1, xp: 40 },
   { id: "d_grad_1", name: "Moon Rider", description: "Hold a round through graduation today", period: "daily", metric: "graduations_held", target: 1, xp: 35 },
+  // ---- The Pit dailies (PvE vs Swarm AI) ----
+  { id: "d_pit_play_1", name: "Enter The Pit", description: "Play a Pit match today", period: "daily", metric: "pit_played", target: 1, xp: 25 },
+  { id: "d_pit_predict_1", name: "Read the Swarm", description: "Land a correct Pit prediction today", period: "daily", metric: "pit_predictions_correct", target: 1, xp: 35 },
+  { id: "d_pit_trade_1", name: "Beat the Swarm", description: "Qualify in a Pit trading pool today", period: "daily", metric: "pit_trading_wins", target: 1, xp: 40 },
   // ---- Weekly challenges (all live all week; clearing the set pays a bonus) ----
   { id: "w_play_20", name: "Regular", description: "Play 20 rounds this week", period: "weekly", metric: "rounds_played", target: 20, xp: 200 },
   { id: "w_win_10", name: "Consistent", description: "Finish 10 rounds in profit this week", period: "weekly", metric: "profitable_rounds", target: 10, xp: 250 },
@@ -61,6 +70,10 @@ export const MISSIONS: MissionDef[] = [
   { id: "w_podium_3", name: "On the Box", description: "Reach a round podium 3 times this week", period: "weekly", metric: "podium_finishes", target: 3, xp: 250 },
   { id: "w_predict_correct_8", name: "Forecaster", description: "Land 8 correct predictions this week", period: "weekly", metric: "correct_predictions", target: 8, xp: 120 },
   { id: "w_grad_5", name: "Alumni Club", description: "Hold 5 rounds through graduation this week", period: "weekly", metric: "graduations_held", target: 5, xp: 180 },
+  // ---- The Pit weeklies ----
+  { id: "w_pit_play_10", name: "Pit Regular", description: "Play 10 Pit matches this week", period: "weekly", metric: "pit_played", target: 10, xp: 200 },
+  { id: "w_pit_trade_5", name: "Swarm Slayer", description: "Qualify in 5 Pit trading pools this week", period: "weekly", metric: "pit_trading_wins", target: 5, xp: 220 },
+  { id: "w_pit_double_1", name: "Double Trouble", description: "Land a Pit Double Winner this week", period: "weekly", metric: "pit_double_wins", target: 1, xp: 180 },
 ];
 
 /** FNV-1a hash → deterministic per-day mission rotation. */
@@ -127,4 +140,10 @@ export function weekStart(now = Date.now()): number {
 /** Epoch ms of the next Monday 00:00:00 UTC — when the weekly jackpot pays out. */
 export function nextWeekStart(now = Date.now()): number {
   return weekStart(now) + 7 * 86_400_000;
+}
+
+/** Epoch ms of the next UTC midnight — when the daily quests reset. */
+export function nextDayStart(now = Date.now()): number {
+  const d = new Date(now);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + 1);
 }

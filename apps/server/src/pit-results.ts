@@ -41,9 +41,15 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
   // price, minus the starting stack.
   const traderPnl = new Map<string, number>();
   const predWinners: string[] = [];
+  // Parimutuel: prediction winners split the pool pro-rata to their stake.
+  const predStake = (entry: { predictionStake?: number }) => entry.predictionStake ?? pit.predictionFee;
+  const winnerStake = new Map<string, number>();
   for (const [addr, entry] of entries) {
     if (isBot(addr)) continue;
-    if (entry.prediction === outcome) predWinners.push(addr);
+    if (entry.prediction === outcome) {
+      predWinners.push(addr);
+      winnerStake.set(addr, predStake(entry));
+    }
     if (entry.trading) {
       const held = positions.get(addr)?.tokens ?? 0;
       const value = store.pitStackOf(round.id, addr) + held * ctx.finalPrice;
@@ -51,9 +57,11 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
     }
   }
   const qualifiers = [...traderPnl.entries()].filter(([, pnl]) => pnl > 0).map(([a]) => a);
+  const totalWinnerStake = [...winnerStake.values()].reduce((s, v) => s + v, 0);
 
   const predPot = pit.prediction.pot + pit.prediction.carryIn;
   const tradePot = pit.trading.pot + pit.trading.carryIn;
+  // rewardEach is the average payout (per-player is pro-rata, computed below).
   const predReward = predWinners.length ? predPot / predWinners.length : 0;
   const tradeReward = qualifiers.length ? tradePot / qualifiers.length : 0;
   const predCarried = predWinners.length === 0 && predPot > 1e-9 && carryEnabled;
@@ -71,7 +79,8 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
     const u = store.getOrCreateUser(addr);
     const wonPred = predWon.has(addr);
     const isQual = entry.trading ? qualified.has(addr) : undefined;
-    const predictionReward = wonPred ? predReward : 0;
+    const predictionReward =
+      wonPred && totalWinnerStake > 0 ? predPot * (predStake(entry) / totalWinnerStake) : 0;
     const tradingReward = isQual ? tradeReward : 0;
     const totalReward = predictionReward + tradingReward;
     const feesPaid =
@@ -116,12 +125,25 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
     ps.totalEarnings += totalReward;
     if (totalReward > 0 && hadCarryIn) ps.carryoverWins += 1;
 
-    // Shared leveling: participation plus a bonus for each win.
+    // Shared leveling (counts toward the profile + weekly jackpot): a base for
+    // playing plus a bonus per win. Categorized "pit" for the XP breakdown.
     let xp = 10;
     if (wonPred) xp += 25;
     if (isQual) xp += 25;
     if (doubleWinner) xp += 25;
-    store.addXp(addr, xp, "ceiling");
+    store.addXp(addr, xp, "ceiling", "pit");
+
+    // Quests + challenges (pit_* missions) and one-time badges.
+    store.trackActivity(addr, "pit_played", 1, ctx.now);
+    if (wonPred) store.trackActivity(addr, "pit_predictions_correct", 1, ctx.now);
+    if (isQual) store.trackActivity(addr, "pit_trading_wins", 1, ctx.now);
+    if (doubleWinner) store.trackActivity(addr, "pit_double_wins", 1, ctx.now);
+    store.grantAchievement(addr, "pit_initiate");
+    if (wonPred) store.grantAchievement(addr, "pit_oracle");
+    if (isQual) store.grantAchievement(addr, "swarm_slayer");
+    if (doubleWinner) store.grantAchievement(addr, "double_winner");
+    if (ps.matchesPlayed >= 25) store.grantAchievement(addr, "pit_veteran");
+    if (ps.tradingWins >= 25) store.grantAchievement(addr, "swarm_nemesis");
 
     players.push({
       address: addr,

@@ -129,6 +129,9 @@ export interface StoredUser extends UserProfile {
   weeklyXp: Record<string, number>;
   /** XP earned per UTC day (dayKey), for the daily leaderboard. */
   dailyXp: Record<string, number>;
+  /** Lifetime XP earned by source (trading, quests, achievements, pit, …), for
+   *  the profile's "where your XP comes from" breakdown. */
+  xpBySource?: Record<string, number>;
   /** Daily trade-XP accounting (Layer-1 grind cap): the day and XP so far. */
   tradeXpDayKey?: string;
   tradeXpToday?: number;
@@ -589,7 +592,12 @@ export class Store {
    * jackpot board; "ceiling" XP (skill, competition, streaks, milestones) is
    * uncapped. Returns the user.
    */
-  addXp(address: Address, amount: number, source: "floor" | "ceiling" = "ceiling"): StoredUser {
+  addXp(
+    address: Address,
+    amount: number,
+    source: "floor" | "ceiling" = "ceiling",
+    category = "other",
+  ): StoredUser {
     const u = this.getOrCreateUser(address);
     let give = amount;
     if (source === "floor" && give > 0) {
@@ -614,8 +622,19 @@ export class Store {
     u.weeklyXp[wk] = (u.weeklyXp[wk] ?? 0) + give;
     const dk = dayKey();
     u.dailyXp[dk] = (u.dailyXp[dk] ?? 0) + give;
+    // Where-your-XP-comes-from breakdown (profile Quests tab).
+    (u.xpBySource ??= {})[category] = (u.xpBySource[category] ?? 0) + give;
+    // Satisfying +XP drop-in: push to the earner's own sockets. Bots excluded.
+    if (!u.address.startsWith("0xb07"))
+      this.onXp(u.address, { amount: give, total: u.xp, level: u.level, source: category });
     return u;
   }
+
+  /** Set by the hub: streams +XP events to the earner's live sockets. */
+  onXp: (
+    address: Address,
+    e: { amount: number; total: number; level: number; source?: string },
+  ) => void = () => {};
 
   grantAchievement(address: Address, id: string): boolean {
     const u = this.getOrCreateUser(address);
@@ -625,7 +644,7 @@ export class Store {
     if (def) this.pushActivity(u.address, "achievement", `unlocked ${def.name} (${def.rarity})`);
     // One-time XP by rarity — turns the badge wall into a progression track.
     const xp = achievementXp(id);
-    if (xp > 0) this.addXp(address, xp);
+    if (xp > 0) this.addXp(address, xp, "ceiling", "achievements");
     return true;
   }
 
@@ -644,7 +663,7 @@ export class Store {
     const give = Math.min(amount, Math.max(0, TRADE_XP.dailyCap - (u.tradeXpToday ?? 0)));
     if (give > 0) {
       u.tradeXpToday = (u.tradeXpToday ?? 0) + give;
-      this.addXp(address, give, "floor");
+      this.addXp(address, give, "floor", "trading");
     }
     return give;
   }
@@ -704,7 +723,12 @@ export class Store {
       if ((u.activity[pk]?.[m.metric] ?? 0) >= m.target) {
         u.missionsDone[doneKey] = true;
         // Daily quests are floor (capped); weekly challenges are ceiling.
-        this.addXp(address, m.xp, m.period === "daily" ? "floor" : "ceiling");
+        this.addXp(
+          address,
+          m.xp,
+          m.period === "daily" ? "floor" : "ceiling",
+          m.period === "daily" ? "quests" : "challenges",
+        );
       }
     }
 
@@ -715,7 +739,7 @@ export class Store {
       activeDaily.every((m) => u.missionsDone[`${dk}:${m.id}`])
     ) {
       u.missionsDone[dailyBonusKey] = true;
-      this.addXp(address, DAILY_SET_BONUS_XP, "floor");
+      this.addXp(address, DAILY_SET_BONUS_XP, "floor", "quests");
     }
     const weeklyBonusKey = `${wk}:__weekly_set__`;
     if (
@@ -723,7 +747,7 @@ export class Store {
       WEEKLY_MISSIONS.every((m) => u.missionsDone[`${wk}:${m.id}`])
     ) {
       u.missionsDone[weeklyBonusKey] = true;
-      this.addXp(address, WEEKLY_SET_BONUS_XP);
+      this.addXp(address, WEEKLY_SET_BONUS_XP, "ceiling", "challenges");
       this.bumpWeeklyStreak(address, now);
     }
   }
@@ -751,7 +775,7 @@ export class Store {
       u.streakFreezes = (u.streakFreezes ?? 0) + 1;
     }
     const reward = dailyStreakReward(u.playStreak);
-    if (reward > 0) this.addXp(address, reward); // ceiling (retention)
+    if (reward > 0) this.addXp(address, reward, "ceiling", "streaks"); // retention
   }
 
   /** Advance the weekly-consistency streak (call when the weekly set is cleared). */
@@ -764,7 +788,7 @@ export class Store {
     u.lastWeekSetKey = thisWeek;
     u.bestWeekStreak = Math.max(u.bestWeekStreak ?? 0, u.weekStreak);
     const reward = weeklyStreakReward(u.weekStreak);
-    if (reward > 0) this.addXp(address, reward);
+    if (reward > 0) this.addXp(address, reward, "ceiling", "streaks");
   }
 
   /** Award any newly-crossed lifetime milestone tiers. */
@@ -776,7 +800,7 @@ export class Store {
         const key = `milestone:${ladder.id}:${tier.at}`;
         if (!u.missionsDone[key] && value >= tier.at) {
           u.missionsDone[key] = true;
-          this.addXp(address, tier.xp);
+          this.addXp(address, tier.xp, "ceiling", "milestones");
         }
       }
     }
@@ -794,7 +818,7 @@ export class Store {
         const doneKey = `pass:${key}:${tier.at}`;
         if (!u.missionsDone[doneKey] && seasonXp >= tier.at) {
           u.missionsDone[doneKey] = true;
-          this.addXp(address, tier.xp);
+          this.addXp(address, tier.xp, "ceiling", "season");
           awarded = true; // the kicker may cross the next tier
         }
       }
@@ -906,6 +930,7 @@ export class Store {
       u.referralEarnings ??= 0;
       u.weeklyXp ??= {};
       u.dailyXp ??= {};
+      u.xpBySource ??= {};
       u.arenaBalance ??= 0;
       u.jackpotWinnings ??= 0;
       u.jackpotWins ??= [];

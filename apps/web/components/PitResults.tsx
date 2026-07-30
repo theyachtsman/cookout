@@ -1,7 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
-import { PIT_DURATION_MAP, type Round, type RoundSummary } from "@cookout/shared";
+import { useRouter } from "next/navigation";
+import { createPortal } from "react-dom";
+import { PIT_DURATIONS, PIT_DURATION_MAP, type PitDurationKey, type Round, type RoundSummary } from "@cookout/shared";
+import { api } from "../lib/api";
 import { pdotEth } from "../lib/pit";
 
 const OUTCOME: Record<string, { text: string; cls: string; icon: string }> = {
@@ -166,12 +170,92 @@ export function PitResultsView({
       <div className="flex justify-center gap-3">
         <Link
           href="/pit"
-          className="rounded-xl bg-fuchsia-500 px-4 py-2 text-sm font-black text-zinc-950 hover:bg-fuchsia-400"
+          className="rounded-xl bg-zinc-800 px-4 py-2 text-sm font-black text-zinc-200 hover:bg-zinc-700"
         >
           Back to The Pit
         </Link>
+        {me && round.creatorAddress.toLowerCase() === me && <RunItBack round={round} />}
       </div>
     </div>
+  );
+}
+
+/** Creator-only: relaunch this coin into a fresh Pit lobby, optionally in a new
+ *  duration. Confirms in a modal, then jumps to the new match. */
+function RunItBack({ round }: { round: Round }) {
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const [duration, setDuration] = useState<PitDurationKey>(round.pit?.duration ?? "standard");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  const go = async () => {
+    setError("");
+    setBusy(true);
+    try {
+      const { round: fresh } = await api<{ round: { id: string } }>(`/api/pit/${round.id}/runback`, {
+        body: { duration },
+      });
+      router.push(`/pit/${fresh.id}`);
+    } catch (e) {
+      setError((e as Error).message);
+      setBusy(false);
+    }
+  };
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="rounded-xl bg-fuchsia-500 px-4 py-2 text-sm font-black text-zinc-950 hover:bg-fuchsia-400"
+      >
+        Run it back
+      </button>
+      {open &&
+        createPortal(
+          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+            <div onClick={() => !busy && setOpen(false)} className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
+            <div className="relative w-full max-w-sm rounded-3xl bg-zinc-950 p-5 ring-1 ring-white/10">
+              <h3 className="text-lg font-black text-zinc-50">{`Run $${round.token.symbol} back`}</h3>
+              <p className="mt-1 text-xs text-zinc-500">Relaunch the same coin into a fresh Pit lobby.</p>
+              <div className="mt-3 mb-1.5 text-xs text-zinc-500">Duration</div>
+              <div className="grid grid-cols-3 gap-2">
+                {PIT_DURATIONS.map((d) => (
+                  <button
+                    key={d.key}
+                    onClick={() => setDuration(d.key)}
+                    className={`rounded-xl p-2.5 text-center ring-1 transition ${
+                      duration === d.key ? "bg-fuchsia-500/15 ring-fuchsia-400/60" : "bg-zinc-900/60 ring-white/10 hover:ring-white/25"
+                    }`}
+                  >
+                    <div className="text-lg">{d.icon}</div>
+                    <div className="text-xs font-black text-zinc-100">{d.name}</div>
+                    <div className="text-[10px] text-zinc-500">{d.minutes}m</div>
+                  </button>
+                ))}
+              </div>
+              {error && <div className="mt-2 text-xs text-red-400">{error}</div>}
+              <div className="mt-4 flex gap-2">
+                <button
+                  onClick={() => setOpen(false)}
+                  disabled={busy}
+                  className="flex-1 rounded-xl bg-zinc-800 py-2.5 text-sm font-bold text-zinc-300 hover:bg-zinc-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={go}
+                  disabled={busy}
+                  className="flex-1 rounded-xl bg-fuchsia-500 py-2.5 text-sm font-black text-zinc-950 hover:bg-fuchsia-400 disabled:opacity-40"
+                >
+                  {busy ? "Launching…" : "Run it back →"}
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
   );
 }
 

@@ -180,6 +180,7 @@ export default function PitMatchPage() {
           round={round}
           entry={entry}
           stack={stack}
+          ethUsd={data.ethUsd}
           signedIn={!!profile}
           onSignIn={signIn}
           onEntered={() => {
@@ -251,6 +252,7 @@ function LobbyView({
   round,
   entry,
   stack,
+  ethUsd,
   signedIn,
   onSignIn,
   onEntered,
@@ -258,28 +260,44 @@ function LobbyView({
   round: Round;
   entry: PitEntry | null;
   stack: number;
+  ethUsd: number;
   signedIn: boolean;
   onSignIn: () => void;
   onEntered: () => void;
 }) {
   const pit = round.pit!;
+  const peg = ethUsd > 0 ? ethUsd : 1;
   const [call, setCall] = useState<PitCall | null>(null);
   const [trading, setTrading] = useState(false);
+  // Prediction bet in USD (min $1). Sensible default; the player can change it.
+  const [betUsd, setBetUsd] = useState<string>("5");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  const cost = (call ? pit.predictionFee : 0) + (trading ? pit.tradingFee : 0);
+  const armed = !!round.queueOpensAt;
+  const predCount = pit.prediction.participants;
+  const bet = Math.max(0, Number(betUsd) || 0);
+  const stakeEth = bet / peg;
+  const cost = (call ? stakeEth : 0) + (trading ? pit.tradingFee : 0);
 
   const submit = async () => {
     setError("");
     if (!call && !trading) {
-      setError("Pick a prediction, the trading pool, or both.");
+      setError("Pick a prediction, join trading, or both.");
+      return;
+    }
+    if (call && bet < 1) {
+      setError("Minimum prediction bet is $1.");
       return;
     }
     setBusy(true);
     try {
       await api(`/api/pit/${round.id}/enter`, {
-        body: { prediction: call ?? undefined, trading },
+        body: {
+          prediction: call ?? undefined,
+          predictionStake: call ? stakeEth : undefined,
+          trading,
+        },
       });
       onEntered();
     } catch (e) {
@@ -291,12 +309,26 @@ function LobbyView({
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between rounded-2xl bg-amber-500/[0.06] p-3 text-sm ring-1 ring-amber-500/20">
-        <span className="font-bold text-amber-200">Lobby open. Enter before it goes live.</span>
-        {round.queueOpensAt && (
-          <span className="font-mono font-black text-amber-200">
-            <Countdown to={round.queueOpensAt} />
-          </span>
+      {/* Status: waiting for quorum, or armed countdown. */}
+      <div
+        className={`flex items-center justify-between rounded-2xl p-3 text-sm ring-1 ${
+          armed ? "bg-fuchsia-500/[0.06] ring-fuchsia-500/25" : "bg-amber-500/[0.06] ring-amber-500/20"
+        }`}
+      >
+        {armed && round.queueOpensAt ? (
+          <>
+            <span className="font-bold text-fuchsia-200">Quorum reached. Goes live soon.</span>
+            <span className="font-mono font-black text-fuchsia-200">
+              <Countdown to={round.queueOpensAt} />
+            </span>
+          </>
+        ) : (
+          <>
+            <span className="font-bold text-amber-200">
+              Waiting on {Math.max(0, 2 - predCount)} more prediction{2 - predCount === 1 ? "" : "s"} to start.
+            </span>
+            <span className="font-mono font-black text-amber-200">{predCount}/2</span>
+          </>
         )}
       </div>
 
@@ -305,28 +337,30 @@ function LobbyView({
       {entry ? (
         <div className="rounded-2xl bg-lime-500/[0.06] p-4 ring-1 ring-lime-500/20">
           <div className="text-sm font-black text-lime-300">You&apos;re in.</div>
-          <div className="mt-1 text-sm text-zinc-300">
+          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-300">
             {entry.prediction && (
-              <span className="mr-3">
-                Prediction: <b className="capitalize">{entry.prediction}</b>
+              <span>
+                Called <b className="capitalize">{entry.prediction}</b>
+                {entry.predictionStake ? (
+                  <b className="ml-1 font-mono text-zinc-400">· {pdotEth(entry.predictionStake)}</b>
+                ) : null}
               </span>
             )}
             {entry.trading && (
               <span>
-                Trading stack: <b className="font-mono">{pdotEth(stack)}</b>
+                Trading stack <b className="font-mono">{pdotEth(stack)}</b>
               </span>
             )}
           </div>
           <p className="mt-2 text-xs text-zinc-500">
-            Trading goes live when the lobby closes. The Swarm is warming up.
+            {armed ? "The Swarm is warming up. Trading opens at the bell." : "Two bets arm the countdown."}
           </p>
         </div>
       ) : (
-        <div className="space-y-4 rounded-2xl bg-zinc-900/50 p-4 ring-1 ring-white/10">
+        <div className="space-y-4 rounded-2xl bg-zinc-900/40 p-4 ring-1 ring-white/10">
+          {/* Prediction — button driven, with a custom bet. */}
           <div>
-            <div className="mb-2 text-xs font-bold uppercase tracking-wide text-zinc-400">
-              Prediction pool · {pdotEth(pit.predictionFee)}
-            </div>
+            <div className="mb-2 text-xs font-bold uppercase tracking-wide text-zinc-400">Prediction pool</div>
             <div className="grid grid-cols-3 gap-2">
               {CALLS.map((c) => (
                 <button
@@ -334,7 +368,7 @@ function LobbyView({
                   onClick={() => setCall(call === c.key ? null : c.key)}
                   className={`rounded-xl p-3 text-center ring-1 transition ${
                     call === c.key
-                      ? "bg-fuchsia-500/15 ring-fuchsia-400/50"
+                      ? "bg-fuchsia-500/15 ring-fuchsia-400/60"
                       : "bg-zinc-900/60 ring-white/10 hover:ring-white/25"
                   }`}
                 >
@@ -344,22 +378,60 @@ function LobbyView({
                 </button>
               ))}
             </div>
+            {call && (
+              <div className="mt-2 rounded-xl bg-zinc-900/60 p-3 ring-1 ring-white/10">
+                <div className="mb-1.5 flex items-center justify-between text-xs text-zinc-500">
+                  <span>Your bet (min $1)</span>
+                  <span className="font-mono text-zinc-400">≈ {pdotEth(stakeEth, 3)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-1 items-center rounded-lg bg-zinc-950/60 px-3 ring-1 ring-white/10 focus-within:ring-fuchsia-400/50">
+                    <span className="text-zinc-500">$</span>
+                    <input
+                      value={betUsd}
+                      onChange={(e) => setBetUsd(e.target.value.replace(/[^0-9.]/g, ""))}
+                      inputMode="decimal"
+                      className="w-full bg-transparent px-1 py-2 text-center font-mono text-lg outline-none"
+                    />
+                  </div>
+                  {[1, 5, 25].map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setBetUsd(String(v))}
+                      className="rounded-lg bg-zinc-800 px-2.5 py-2 text-xs font-bold hover:bg-zinc-700"
+                    >
+                      ${v}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[11px] text-zinc-600">
+                  Parimutuel: correct callers split the pool pro-rata to their bet.
+                </p>
+              </div>
+            )}
           </div>
 
-          <label className="flex cursor-pointer items-center gap-3 rounded-xl bg-zinc-900/60 p-3 ring-1 ring-white/10">
-            <input
-              type="checkbox"
-              checked={trading}
-              onChange={(e) => setTrading(e.target.checked)}
-              className="h-4 w-4 accent-fuchsia-500"
-            />
+          {/* Trading — button toggle (no checkbox). */}
+          <button
+            onClick={() => setTrading((t) => !t)}
+            className={`flex w-full items-center gap-3 rounded-xl p-3 text-left ring-1 transition ${
+              trading ? "bg-lime-500/15 ring-lime-400/50" : "bg-zinc-900/60 ring-white/10 hover:ring-white/25"
+            }`}
+          >
+            <span
+              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${
+                trading ? "bg-lime-400 text-zinc-950" : "bg-zinc-700 text-zinc-300"
+              }`}
+            >
+              {trading ? "✓" : "+"}
+            </span>
             <span className="flex-1">
-              <span className="text-sm font-black text-zinc-100">Trading pool · {pdotEth(pit.tradingFee)}</span>
+              <span className="text-sm font-black text-zinc-100">Join trading pool · {pdotEth(pit.tradingFee)}</span>
               <span className="block text-[11px] text-zinc-500">
                 Get a {pdotEth(pit.startingStack)} paper stack and trade the Swarm. Finish in profit to qualify.
               </span>
             </span>
-          </label>
+          </button>
 
           {error && <div className="text-xs text-red-400">{error}</div>}
 
@@ -369,7 +441,7 @@ function LobbyView({
               disabled={busy || cost === 0}
               className="w-full rounded-xl bg-fuchsia-500 py-3 text-sm font-black text-zinc-950 transition hover:bg-fuchsia-400 disabled:opacity-40"
             >
-              {busy ? "Entering…" : cost > 0 ? `Enter · ${pdotEth(cost)}` : "Pick at least one pool"}
+              {busy ? "Entering…" : cost > 0 ? `Enter · ${pdotEth(cost, 3)}` : "Pick a pool"}
             </button>
           ) : (
             <button

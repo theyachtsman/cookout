@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { DAILY_SET_BONUS_XP, WEEKLY_SET_BONUS_XP } from "@cookout/shared";
+import { DAILY_SET_BONUS_XP, WEEKLY_SET_BONUS_XP, nextDayStart, nextWeekStart } from "@cookout/shared";
 import { api } from "../lib/api";
 import { useSession } from "../lib/session";
+import { Countdown } from "./Countdown";
 
 interface MissionStatus {
   id: string;
@@ -46,7 +47,16 @@ export function Missions() {
             <div className="flex items-center gap-3">
               <div>
                 <h3 className="text-sm font-black uppercase tracking-wide text-zinc-200">{label}</h3>
-                <div className="text-[10px] uppercase tracking-wide text-zinc-600">{tagline}</div>
+                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide text-zinc-600">
+                  <span>{tagline}</span>
+                  <span className="text-zinc-700">·</span>
+                  <span className="text-zinc-500">
+                    resets in{" "}
+                    <span className="font-mono text-zinc-400">
+                      <Countdown to={period === "daily" ? nextDayStart() : nextWeekStart()} />
+                    </span>
+                  </span>
+                </div>
               </div>
               <div className="ml-auto text-right">
                 <div className="font-mono text-sm font-black text-zinc-100">
