@@ -1435,11 +1435,17 @@ export function createApp(
         .map((u) => {
           let value: number;
           if (scope === "today" || scope === "week") {
-            const slice = u.history.filter((h) => h.at >= windowStart);
-            value =
-              metric === "wins"
-                ? slice.filter((h) => h.pnl > 0).length
-                : slice.reduce((s, h) => s + h.pnl, 0);
+            if (metric === "xp") {
+              // Weekly XP is tracked per ISO week (resets Monday, same as the
+              // jackpot). Only the week scope exposes it; today has no XP window.
+              value = scope === "week" ? (u.weeklyXp[weekKey()] ?? 0) : 0;
+            } else {
+              const slice = u.history.filter((h) => h.at >= windowStart);
+              value =
+                metric === "wins"
+                  ? slice.filter((h) => h.pnl > 0).length
+                  : slice.reduce((s, h) => s + h.pnl, 0);
+            }
           } else if (scope === "season") {
             const s = u.seasons[season];
             value = (s as unknown as Record<string, number> | undefined)?.[metric] ?? 0;

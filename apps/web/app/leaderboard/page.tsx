@@ -15,7 +15,6 @@ interface Row {
 const SCOPES = [
   ["today", "Today"],
   ["week", "This Week"],
-  ["season", "Season"],
   ["alltime", "All-time"],
 ] as const;
 
@@ -24,8 +23,14 @@ export default function Leaderboard() {
   const [metric, setMetric] = useState<"pnl" | "xp" | "wins">("pnl");
   const [rows, setRows] = useState<Row[]>([]);
 
-  // today/week are computed from round history, which has pnl + wins only.
-  const metrics = scope === "today" || scope === "week" ? (["pnl", "wins"] as const) : (["pnl", "xp", "wins"] as const);
+  // Today is from round history (pnl + wins). This Week adds weekly XP (tracked
+  // per ISO week). All-time keeps the full set.
+  const metrics =
+    scope === "today"
+      ? (["pnl", "wins"] as const)
+      : scope === "week"
+        ? (["pnl", "xp", "wins"] as const)
+        : (["pnl", "xp", "wins"] as const);
 
   useEffect(() => {
     const m = (metrics as readonly string[]).includes(metric) ? metric : "pnl";
