@@ -21,6 +21,7 @@ import { useSocial } from "../../../lib/social";
 import { useRoundSocket } from "../../../lib/useRoundSocket";
 import { Chart } from "../../../components/Chart";
 import { OrderBook } from "../../../components/OrderBook";
+import { TradePanel } from "../../../components/TradePanel";
 import { GraduationProgress } from "../../../components/GraduationProgress";
 import { Countdown } from "../../../components/Countdown";
 import { pdotEth } from "../../../lib/pit";
@@ -492,7 +493,7 @@ function LiveView({
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
       <div className="space-y-4">
-        <div className="rounded-2xl bg-zinc-900/50 p-2 ring-1 ring-white/10">
+        <div className="rounded-2xl bg-zinc-900/40 p-2 ring-1 ring-white/10">
           <Chart
             candles={candles}
             trades={trades}
@@ -504,17 +505,29 @@ function LiveView({
             highlightAddress={me}
           />
         </div>
-        <GraduationProgress config={round.config} ticker={{ mcap, volume, holders, ethUsd }} />
-        <OrderBook trades={trades} symbol={round.token.symbol} ethUsd={ethUsd} me={me} />
-      </div>
 
-      <div className="space-y-4">
-        <Pools round={round} />
-
+        {/* The trade board — same widget, sounds, and treatment as the Cook Out. */}
         {entry?.trading ? (
-          <StackTrade round={round} stack={stack} tokens={myTokens} pnl={pnl} onTraded={onTraded} />
+          <div className="space-y-1.5">
+            <div className="flex items-center justify-between px-1 text-[11px]">
+              <span className="font-bold uppercase tracking-wide text-zinc-500">Trade the Swarm</span>
+              <span className={pnl >= 0 ? "font-bold text-lime-300" : "font-bold text-red-400"}>
+                PnL {pnl >= 0 ? "+" : ""}
+                {pnl.toFixed(3)} pETH · {pnl > 0 ? "qualifying" : "not yet"}
+              </span>
+            </div>
+            <TradePanel
+              round={round}
+              position={{ tokens: myTokens, costBasisEth: 0, realizedPnl: 0 }}
+              ethUsd={ethUsd}
+              price={price}
+              variant="bar"
+              balanceOverride={stack}
+              onTraded={onTraded}
+            />
+          </div>
         ) : (
-          <div className="rounded-2xl bg-zinc-900/50 p-4 text-sm text-zinc-400 ring-1 ring-white/10">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-4 text-sm text-zinc-400">
             {entry?.prediction ? (
               <>
                 You called <b className="capitalize text-zinc-100">{entry.prediction}</b>. Watch the Swarm
@@ -526,11 +539,16 @@ function LiveView({
           </div>
         )}
 
+        <GraduationProgress config={round.config} ticker={{ mcap, volume, holders, ethUsd }} />
+        <OrderBook trades={trades} symbol={round.token.symbol} ethUsd={ethUsd} me={me} />
+      </div>
+
+      <div className="space-y-4">
+        <Pools round={round} />
+
         {/* Swarm feed */}
-        <div className="rounded-2xl bg-zinc-900/50 p-3 ring-1 ring-white/10">
-          <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-fuchsia-300">
-            Swarm AI
-          </div>
+        <div className="rounded-2xl bg-zinc-900/40 p-3 ring-1 ring-white/10">
+          <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-fuchsia-300">Swarm AI</div>
           <div className="space-y-1.5">
             {feed.length === 0 ? (
               <div className="text-xs text-zinc-600">The Swarm is reading the tape…</div>
@@ -544,124 +562,6 @@ function LiveView({
           </div>
         </div>
       </div>
-    </div>
-  );
-}
-
-function StackTrade({
-  round,
-  stack,
-  tokens,
-  pnl,
-  onTraded,
-}: {
-  round: Round;
-  stack: number;
-  tokens: number;
-  pnl: number;
-  onTraded: () => void;
-}) {
-  const [tab, setTab] = useState<"buy" | "sell">("buy");
-  const [amount, setAmount] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-
-  const act = async (body: Record<string, unknown>) => {
-    setError("");
-    setBusy(true);
-    try {
-      await api(`/api/rounds/${round.id}/trade`, { body });
-      setAmount("");
-      onTraded();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
-  };
-
-  return (
-    <div className="rounded-2xl bg-zinc-900/50 p-3 ring-1 ring-white/10">
-      <div className="mb-2 flex items-center justify-between text-xs">
-        <span className="text-zinc-500">
-          Stack <b className="font-mono text-zinc-100">{pdotEth(stack)}</b>
-        </span>
-        <span className={pnl >= 0 ? "text-lime-300" : "text-red-400"}>
-          PnL {pnl >= 0 ? "+" : ""}
-          {pnl.toFixed(3)}
-        </span>
-      </div>
-      <div className="mb-2 grid grid-cols-2 gap-1 rounded-lg bg-zinc-950/60 p-1">
-        {(["buy", "sell"] as const).map((t) => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`rounded-md py-1.5 text-sm font-black uppercase ${
-              tab === t
-                ? t === "buy"
-                  ? "bg-lime-500 text-zinc-950"
-                  : "bg-red-500 text-white"
-                : "text-zinc-400"
-            }`}
-          >
-            {t}
-          </button>
-        ))}
-      </div>
-
-      {tab === "buy" ? (
-        <>
-          <div className="flex flex-wrap gap-1">
-            {[0.1, 0.25, 0.5].map((a) => (
-              <button
-                key={a}
-                onClick={() => setAmount(String(a))}
-                className="rounded bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700"
-              >
-                {a}
-              </button>
-            ))}
-            <button
-              onClick={() => setAmount(stack.toFixed(3))}
-              className="rounded bg-zinc-800 px-2 py-1 text-xs hover:bg-zinc-700"
-            >
-              Max
-            </button>
-          </div>
-          <input
-            value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
-            placeholder="pETH from your stack"
-            className="mt-2 w-full rounded-lg bg-zinc-950/60 px-3 py-2 text-center font-mono text-lg outline-none ring-1 ring-white/10 focus:ring-lime-400/50"
-          />
-          <button
-            onClick={() => act({ side: "buy", eth: Number(amount) })}
-            disabled={busy || !(Number(amount) > 0)}
-            className="mt-2 w-full rounded-lg bg-lime-500 py-2.5 text-sm font-black text-zinc-950 hover:bg-lime-400 disabled:opacity-40"
-          >
-            Buy
-          </button>
-        </>
-      ) : (
-        <>
-          <div className="mb-1 text-center text-xs text-zinc-500">
-            Holding <b className="font-mono text-zinc-200">{tokens.toFixed(0)}</b> {round.token.symbol}
-          </div>
-          <div className="grid grid-cols-4 gap-1">
-            {[25, 50, 75, 100].map((p) => (
-              <button
-                key={p}
-                onClick={() => act({ side: "sell", pct: p })}
-                disabled={busy || tokens <= 0}
-                className="rounded-lg bg-red-500/90 py-2 text-sm font-black text-white hover:bg-red-500 disabled:opacity-40"
-              >
-                {p}%
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-      {error && <div className="mt-2 text-xs text-red-400">{error}</div>}
     </div>
   );
 }
