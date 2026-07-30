@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import type { AchievementDef, RoundHistoryEntry } from "@cookout/shared";
 import { repStanding } from "./Reputation";
 
@@ -347,53 +347,95 @@ export function AchievementCard({
   );
 }
 
+/* -------------------------------------------------------- expandable list */
+
+/**
+ * Shows the first `cap` rows, then a "View all N" toggle that expands the rest
+ * inline inside a fixed-height, scrollable box (a real scrollbar) so long lists
+ * never run the page off the screen. `render` supplies each row (keyed).
+ */
+export function ExpandableRows<T>({
+  items,
+  render,
+  cap = 5,
+  gap = "space-y-1.5",
+  maxHeight = "max-h-[28rem]",
+}: {
+  items: T[];
+  render: (item: T) => ReactNode;
+  cap?: number;
+  gap?: string;
+  maxHeight?: string;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const overflow = items.length > cap;
+  const shown = expanded || !overflow ? items : items.slice(0, cap);
+  return (
+    <>
+      <div className={expanded ? `${gap} ${maxHeight} overflow-y-auto pr-1` : gap}>
+        {shown.map(render)}
+      </div>
+      {overflow && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="mt-3 text-xs font-black text-lime-400 transition hover:text-lime-300"
+        >
+          {expanded ? "Show less" : `View all ${items.length} →`}
+        </button>
+      )}
+    </>
+  );
+}
+
 /* ------------------------------------------------------------ match list */
 
-/** Trading history as borderless rows (no table), newest first, click-through. */
-export function MatchHistory({ entries }: { entries: RoundHistoryEntry[] }) {
+function MatchRow(h: RoundHistoryEntry) {
+  return (
+    <Link
+      key={h.roundId}
+      href={`/round/${h.roundId}`}
+      className="flex items-center gap-4 rounded-2xl bg-zinc-900/40 px-4 py-3 transition hover:bg-zinc-900/80"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-sm font-bold text-zinc-100">
+          {h.name} <span className="font-mono text-zinc-500">${h.symbol}</span>
+        </div>
+        <div className="mt-0.5 text-[11px] text-zinc-500">
+          <span className="uppercase">{h.tier}</span> ·{" "}
+          {h.graduated ? (
+            <span className="text-lime-300">served up</span>
+          ) : (
+            <span>{h.endReason.replace(/_/g, " ")}</span>
+          )}
+        </div>
+      </div>
+      <div className="hidden text-right text-[10px] uppercase tracking-wide text-zinc-600 sm:block">
+        invested
+        <div className="font-mono text-sm normal-case tracking-normal text-zinc-300">
+          {h.invested.toFixed(2)}
+        </div>
+      </div>
+      <div
+        className={`w-24 shrink-0 text-right font-mono text-base font-black ${
+          h.pnl >= 0 ? "text-emerald-400" : "text-red-400"
+        }`}
+      >
+        {h.pnl >= 0 ? "+" : ""}
+        {h.pnl.toFixed(3)}
+      </div>
+    </Link>
+  );
+}
+
+/** Trading history as borderless rows (no table). Shows `cap` newest, then
+ *  "View all" expands into a scrollable box. */
+export function MatchHistory({ entries, cap = 5 }: { entries: RoundHistoryEntry[]; cap?: number }) {
   if (entries.length === 0)
     return (
       <div className="rounded-2xl bg-zinc-900/40 p-6 text-center text-sm text-zinc-500">
         No rounds played yet.
       </div>
     );
-  return (
-    <div className="space-y-1.5">
-      {entries.map((h) => (
-        <Link
-          key={h.roundId}
-          href={`/round/${h.roundId}`}
-          className="flex items-center gap-4 rounded-2xl bg-zinc-900/40 px-4 py-3 transition hover:bg-zinc-900/80"
-        >
-          <div className="min-w-0 flex-1">
-            <div className="truncate text-sm font-bold text-zinc-100">
-              {h.name} <span className="font-mono text-zinc-500">${h.symbol}</span>
-            </div>
-            <div className="mt-0.5 text-[11px] text-zinc-500">
-              <span className="uppercase">{h.tier}</span> ·{" "}
-              {h.graduated ? (
-                <span className="text-lime-300">served up</span>
-              ) : (
-                <span>{h.endReason.replace(/_/g, " ")}</span>
-              )}
-            </div>
-          </div>
-          <div className="hidden text-right text-[10px] uppercase tracking-wide text-zinc-600 sm:block">
-            invested
-            <div className="font-mono text-sm normal-case tracking-normal text-zinc-300">
-              {h.invested.toFixed(2)}
-            </div>
-          </div>
-          <div
-            className={`w-24 shrink-0 text-right font-mono text-base font-black ${
-              h.pnl >= 0 ? "text-emerald-400" : "text-red-400"
-            }`}
-          >
-            {h.pnl >= 0 ? "+" : ""}
-            {h.pnl.toFixed(3)}
-          </div>
-        </Link>
-      ))}
-    </div>
-  );
+  return <ExpandableRows items={entries} render={MatchRow} cap={cap} />;
 }
