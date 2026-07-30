@@ -16,6 +16,7 @@ export function CategoryShelf({
   count,
   tally,
   children,
+  hideHeader = false,
 }: {
   title: string;
   icon?: React.ReactNode;
@@ -25,6 +26,8 @@ export function CategoryShelf({
   tally?: React.ReactNode;
   /** The full row of cards (each a fixed-width, shrink-0 item). */
   children: React.ReactNode;
+  /** Omit the category header entirely (ungrouped "None" view). */
+  hideHeader?: boolean;
 }) {
   const rail = useRef<HTMLDivElement>(null);
   const hold = useRef<number | null>(null);
@@ -123,17 +126,19 @@ export function CategoryShelf({
 
   return (
     <section>
-      <div className="flex items-center gap-3 py-2">
-        {icon != null && <span className="text-xl leading-none">{icon}</span>}
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-            <span className="text-lg font-black text-zinc-100">{title}</span>
-            <span className="font-mono text-xs text-zinc-500">{count}</span>
+      {!hideHeader && (
+        <div className="flex items-center gap-3 py-2">
+          {icon != null && <span className="text-xl leading-none">{icon}</span>}
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+              <span className="text-lg font-black text-zinc-100">{title}</span>
+              <span className="font-mono text-xs text-zinc-500">{count}</span>
+            </div>
+            {tagline && <div className="text-[11px] text-zinc-500">{tagline}</div>}
           </div>
-          {tagline && <div className="text-[11px] text-zinc-500">{tagline}</div>}
+          {tally && <div className="ml-auto hidden text-[11px] text-zinc-500 md:block">{tally}</div>}
         </div>
-        {tally && <div className="ml-auto hidden text-[11px] text-zinc-500 md:block">{tally}</div>}
-      </div>
+      )}
 
       <div className="group/rail relative">
         {!atStart && (
