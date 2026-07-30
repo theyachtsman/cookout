@@ -101,9 +101,9 @@ export function OrderBook({
   if (trades.length === 0) return null;
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40">
+    <div className="rounded-2xl bg-zinc-900/40">
       {/* header: title + filters */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-zinc-800 px-3 py-2">
+      <div className="flex flex-wrap items-center gap-2 px-3 py-2">
         <span className="flex items-center gap-1.5 text-sm font-black text-zinc-200">
           <span className="relative flex h-2 w-2">
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-lime-400 opacity-70" />
@@ -171,7 +171,7 @@ export function OrderBook({
               return (
                 <tr
                   key={t.id}
-                  className={`border-b border-zinc-800/40 ${t.id === flashId ? "ob-flash" : ""} ${
+                  className={`${t.id === flashId ? "ob-flash" : ""} ${
                     mine ? "bg-lime-400/[0.05]" : ""
                   } ${buy ? "hover:bg-emerald-500/[0.06]" : "hover:bg-red-500/[0.06]"}`}
                 >

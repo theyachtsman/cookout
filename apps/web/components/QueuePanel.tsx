@@ -187,7 +187,7 @@ export function QueuePanel({
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      <div className="flex flex-col rounded-xl border border-zinc-800 p-5 md:col-span-2">
+      <div className="flex flex-col rounded-2xl bg-zinc-900/40 p-5 md:col-span-2">
         <h3 className="mb-1 font-black">
           {queueOpen ? "Position Queue · open" : round.state === "settling" ? "Settling…" : "Lobby"}
           {onChain && (
@@ -216,13 +216,13 @@ export function QueuePanel({
             {onChain ? "Connect Wallet to Pull Up" : "Play to Pull Up"}
           </button>
         ) : queueOpen ? (
-          <div className="rounded-lg border border-zinc-800 bg-zinc-950/40 p-4">
+          <div className="rounded-lg bg-zinc-950/40 p-4">
             <div className="flex items-center justify-between gap-2">
               <span className="text-[11px] font-bold uppercase tracking-wide text-zinc-500">
                 Your entry
               </span>
               {peg > 0 && (
-                <span className="flex overflow-hidden rounded-full border border-zinc-800 text-[10px] font-bold">
+                <span className="flex overflow-hidden rounded-full bg-zinc-900/70 text-[10px] font-bold">
                   {(
                     [
                       ["native", unit],
@@ -252,7 +252,7 @@ export function QueuePanel({
             </div>
 
             <div className="mt-2.5 flex items-stretch gap-2">
-              <div className="flex flex-1 items-center rounded-lg border border-zinc-700 bg-zinc-900 px-3 focus-within:border-lime-400/50">
+              <div className="flex flex-1 items-center rounded-lg bg-zinc-900 px-3 focus-within:ring-2 focus-within:ring-lime-400/40">
                 {usdMode && <span className="mr-1 font-mono text-lg font-bold text-zinc-500">$</span>}
                 <input
                   value={amount}
@@ -325,7 +325,7 @@ export function QueuePanel({
           </div>
         )}
 
-        <div className="mt-4 flex flex-1 flex-col border-t border-zinc-800 pt-3">
+        <div className="mt-4 flex flex-1 flex-col pt-3">
           <div className="mb-2 flex items-center justify-between text-xs">
             <span className="font-bold text-zinc-300">Live pre-positions</span>
             <span className="font-mono text-zinc-500">
@@ -364,7 +364,7 @@ export function QueuePanel({
       </div>
 
       <div className="space-y-4">
-        <div className="rounded-xl border border-zinc-800 p-5">
+        <div className="rounded-2xl bg-zinc-900/40 p-5">
           <div className="mb-2 flex items-baseline gap-2">
             <h4 className="text-sm font-bold text-zinc-300">In the room</h4>
             <span className="font-mono text-xs text-lime-300">{inRoom.length}</span>
@@ -399,7 +399,7 @@ export function QueuePanel({
               );
             })}
           </div>
-          <dl className="space-y-1 border-t border-zinc-800 pt-2 text-sm">
+          <dl className="space-y-1 pt-2 text-sm">
             <Row k="Players ready" v={String(lobby?.players ?? 0)} />
             <Row k="Spectators" v={String(lobby?.spectators ?? 0)} />
             <Row k="Committed" v={`${(lobby?.committedEth ?? 0).toFixed(2)} ${unit}`} />
@@ -411,7 +411,7 @@ export function QueuePanel({
             />
           </dl>
         </div>
-        <div className="rounded-xl border border-zinc-800 p-5">
+        <div className="rounded-2xl bg-zinc-900/40 p-5">
           <h4 className="mb-2 text-sm font-bold text-zinc-300">Moon or Rug?</h4>
           <p className="mb-2 text-xs text-zinc-500">Call it before the open. Correct calls earn XP.</p>
           <div className="flex gap-2">
@@ -450,7 +450,7 @@ export function QueuePanel({
             </p>
           )}
         </div>
-        <div className="rounded-xl border border-zinc-800 p-5">
+        <div className="rounded-2xl bg-zinc-900/40 p-5">
           <h4 className="mb-2 text-sm font-bold text-zinc-300">Tokenomics</h4>
           <dl className="space-y-1 text-sm">
             <Row k="Total supply" v={round.config.totalSupply.toLocaleString()} />
@@ -566,7 +566,7 @@ function LobbyWelcome({ onChain }: { onChain: boolean }) {
   ];
 
   return (
-    <div className="mb-4 rounded-xl border border-lime-400/25 bg-gradient-to-b from-lime-400/[0.06] to-transparent p-4">
+    <div className="mb-4 rounded-2xl bg-gradient-to-b from-lime-400/[0.1] to-transparent p-4">
       <h4 className="text-sm font-black text-zinc-100">
         Welcome to the Cook Out. This is the gather.
       </h4>

@@ -135,7 +135,7 @@ export function TradePanel({
 
   if (!profile)
     return (
-      <div className="rounded-xl border border-zinc-800 p-4">
+      <div className="rounded-2xl bg-zinc-900/40 p-4">
         <button
           onClick={() => (onChain ? void signIn() : promptPlayNow())}
           className="w-full rounded-lg bg-lime-400 px-5 py-2.5 font-black text-zinc-950 hover:bg-lime-300"
@@ -194,7 +194,7 @@ export function TradePanel({
               onKeyDown={(e) => e.key === "Enter" && ready && buyNow()}
               placeholder="0"
               inputMode="decimal"
-              className="w-20 rounded border border-zinc-700 bg-zinc-900 px-2 py-1.5 text-center font-mono text-sm outline-none focus:border-emerald-400/60"
+              className="w-20 rounded bg-zinc-950/60 px-2 py-1.5 text-center font-mono text-sm outline-none focus:ring-2 focus:ring-emerald-400/50"
             />
             {peg > 0 && (
               <button
@@ -208,7 +208,7 @@ export function TradePanel({
                   setDenom(next);
                 }}
                 title="switch between dollars and coins"
-                className="rounded border border-zinc-800 px-1.5 py-1 font-mono text-[10px] font-bold text-zinc-400 hover:text-zinc-200"
+                className="rounded bg-zinc-800/60 px-1.5 py-1 font-mono text-[10px] font-bold text-zinc-400 hover:text-zinc-200"
               >
                 {usdMode ? "USD" : unit}
               </button>
@@ -267,7 +267,7 @@ export function TradePanel({
 
         {/* Account line — two clear, roomy stats instead of one cramped string. */}
         <div className="mt-2.5 grid grid-cols-2 gap-2">
-          <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2">
+          <div className="rounded-lg bg-zinc-950/60 px-3 py-2">
             <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">Balance</div>
             <div className="mt-0.5 flex items-baseline gap-1.5 overflow-hidden whitespace-nowrap">
               <span className="truncate font-mono text-base font-black tabular-nums text-zinc-100">
@@ -281,7 +281,7 @@ export function TradePanel({
               )}
             </div>
           </div>
-          <div className="rounded-lg border border-zinc-800 bg-zinc-950/60 px-3 py-2">
+          <div className="rounded-lg bg-zinc-950/60 px-3 py-2">
             <div className="text-[10px] font-bold uppercase tracking-wide text-zinc-500">
               Holding {round.token.symbol}
             </div>
@@ -331,7 +331,7 @@ export function TradePanel({
             setMuted(!muted);
           }}
           title={muted ? "unmute sounds" : "mute sounds"}
-          className="rounded-lg border border-zinc-800 px-2 py-1.5 text-sm text-zinc-500 hover:text-zinc-200"
+          className="rounded-lg bg-zinc-800/60 px-2 py-1.5 text-sm text-zinc-500 hover:bg-zinc-700"
         >
           {muted ? "🔇" : "🔊"}
         </button>
@@ -354,7 +354,7 @@ export function TradePanel({
       {/* denomination toggle + live conversion */}
       {buying && peg > 0 && (
         <div className="mt-1 flex items-center justify-center gap-2">
-          <div className="flex overflow-hidden rounded-full border border-zinc-800 text-[10px] font-bold">
+          <div className="flex overflow-hidden rounded-full bg-zinc-900/70 text-[10px] font-bold">
             {(
               [
                 ["native", unit],
@@ -435,7 +435,7 @@ export function TradePanel({
               <button
                 key={v}
                 onClick={() => setAmount(chipFill(v))}
-                className="rounded-full border border-emerald-500/30 bg-emerald-500/10 py-1.5 text-[11px] font-bold text-emerald-300 hover:bg-emerald-500/25"
+                className="rounded-full bg-emerald-500/15 py-1.5 text-[11px] font-bold text-emerald-300 hover:bg-emerald-500/25"
               >
                 {chipLabel(v)}
               </button>
@@ -444,7 +444,7 @@ export function TradePanel({
               <button
                 key={p}
                 onClick={() => setPct(String(p))}
-                className="rounded-full border border-red-500/30 bg-red-500/10 py-1.5 text-xs font-bold text-red-300 hover:bg-red-500/25"
+                className="rounded-full bg-red-500/15 py-1.5 text-xs font-bold text-red-300 hover:bg-red-500/25"
               >
                 {p}%
               </button>

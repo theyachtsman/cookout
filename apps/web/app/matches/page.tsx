@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { CoinCard, ModeChip, OverTimeChip } from "../../components/CoinCard";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { GAME_MODES, marketCap, type GameMode, type Round } from "@cookout/shared";
 import { api } from "../../lib/api";
+import { audio } from "../../lib/audio";
 import { Countdown } from "../../components/Countdown";
 import { RunItBackButton } from "../../components/RunItBack";
 import { TierChip } from "../../components/TierChip";
@@ -394,11 +395,32 @@ function FeaturedHero({ round }: { round: Round }) {
   };
   const mcapUsd = mcapOf(round) * ethUsd;
 
+  // Flash + sound the moment the featured coin advances a phase (scheduled →
+  // lobby → queue → settling → live). We only react to the SAME round changing
+  // state, not the hero swapping to a different coin.
+  const prevPhase = useRef<{ id: string; state: string } | null>(null);
+  const [flash, setFlash] = useState(false);
+  useEffect(() => {
+    const p = prevPhase.current;
+    prevPhase.current = { id: round.id, state: round.state };
+    if (!p || p.id !== round.id || p.state === round.state) return;
+    setFlash(true);
+    audio.play(round.state === "live" ? "round.launch" : "ui.tab");
+    const t = setTimeout(() => setFlash(false), 900);
+    return () => clearTimeout(t);
+  }, [round.id, round.state]);
+
   return (
     <Link
       href={`/round/${round.id}`}
       className="group relative block overflow-hidden rounded-3xl bg-zinc-950 shadow-2xl shadow-black/50 transition duration-300 hover:shadow-lime-400/10"
     >
+      {flash && (
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 z-20 animate-[phaseflash_0.9s_ease-out] bg-lime-400/40"
+        />
+      )}
       {backdrop ? (
         <div
           aria-hidden
@@ -467,9 +489,19 @@ function FeaturedHero({ round }: { round: Round }) {
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm text-zinc-300">
             {live ? (
-              <span>
-                <span className="text-zinc-500">Market cap </span>
-                <span className="font-mono font-black text-lime-300">{compactUsd(mcapUsd)}</span>
+              <span className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                <span>
+                  <span className="text-zinc-500">Market cap </span>
+                  <span className="font-mono font-black text-lime-300">{compactUsd(mcapUsd)}</span>
+                </span>
+                {round.endsAt && (
+                  <span>
+                    <span className="text-zinc-500">Time left </span>
+                    <span className="font-mono font-black text-emerald-300">
+                      <Countdown to={round.endsAt} />
+                    </span>
+                  </span>
+                )}
               </span>
             ) : round.state === "scheduled" ? (
               <span>
@@ -488,7 +520,7 @@ function FeaturedHero({ round }: { round: Round }) {
             )}
           </div>
           <span className="rounded-xl bg-lime-400 px-6 py-2.5 font-black text-zinc-950 shadow-lg shadow-lime-400/25 transition group-hover:bg-lime-300 group-hover:shadow-lime-300/40">
-            {live ? "Watch live →" : "Pull Up →"}
+            {live ? "Trade Live →" : "Pull Up →"}
           </span>
         </div>
       </div>

@@ -39,7 +39,7 @@ export function WalletButton() {
       <div ref={ref} className="relative">
         <button
           onClick={() => setOpen((v) => !v)}
-          className="flex items-center gap-2 rounded-lg border border-zinc-700 px-3 py-1.5 text-sm hover:border-lime-400/60"
+          className="flex items-center gap-2 rounded-lg bg-zinc-800/70 px-3 py-1.5 text-sm transition hover:bg-zinc-800"
           title={profile.address}
         >
           {(profile as unknown as { avatarUrl?: string }).avatarUrl ? (
@@ -71,8 +71,8 @@ export function WalletButton() {
           <span className="text-xs text-zinc-500">▾</span>
         </button>
         {open && (
-          <div className="absolute right-0 top-full z-30 mt-1 w-48 overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900 shadow-2xl">
-            <div className="border-b border-zinc-800 px-3 py-2 text-xs text-zinc-500">
+          <div className="absolute right-0 top-full z-30 mt-1 w-48 overflow-hidden rounded-xl bg-zinc-900 shadow-2xl ring-1 ring-white/5">
+            <div className="bg-zinc-950/50 px-3 py-2 text-xs text-zinc-500">
               Lv{profile.level} {profile.title} · {profile.xp} XP
             </div>
             <Link
@@ -87,14 +87,7 @@ export function WalletButton() {
               onClick={() => setOpen(false)}
               className="block px-3 py-2 text-sm hover:bg-zinc-800"
             >
-              ⚡ Cook Out Balance
-            </Link>
-            <Link
-              href={`/profile/${profile.address}`}
-              onClick={() => setOpen(false)}
-              className="block px-3 py-2 text-sm hover:bg-zinc-800"
-            >
-              🌐 Public view
+              ⚡ Balance
             </Link>
             <Link
               href="/settings"

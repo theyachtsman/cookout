@@ -599,6 +599,25 @@ export interface RoundSummary {
    *  few. Powers the round-results scoreboard (e.g. the Telegram post). Carries
    *  PnL too, for anywhere that wants it. */
   leaderboard?: Array<{ address: Address; xp: number; pnl: number }>;
+  /** Per-holder pro-rata exit when a round does NOT graduate: everyone still
+   *  holding is redeemed at one uniform price. Real players only (bots omitted),
+   *  highest payout first. Absent on graduated rounds (holders keep their bags). */
+  redemption?: RedemptionEntry[];
+  /** The uniform exit price (ETH per token) used for that redemption. */
+  redemptionPrice?: number;
+}
+
+/** One player's slice of a non-graduated round's uniform pro-rata exit. */
+export interface RedemptionEntry {
+  address: Address;
+  displayName?: string;
+  avatarUrl?: string;
+  /** Tokens the holder redeemed at resolution. */
+  tokens: number;
+  /** Pro-rata ETH paid out for those tokens. */
+  eth: number;
+  /** Realized PnL on the exit (payout − cost basis). */
+  pnl: number;
 }
 
 /** A Cook Out balance movement, for the wallet's history ledger. */

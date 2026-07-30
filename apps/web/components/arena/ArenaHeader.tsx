@@ -289,19 +289,19 @@ export function ArenaHeader({
       {/* identity + live stats. Stacked below lg, side by side above — never a
           flex-wrap, so a per-tick width change (the cooking chip, a growing
           number) can't re-wrap a row and change the header's height. */}
-      <div className="flex flex-col gap-3 border-t border-zinc-800/80 px-4 py-3 lg:flex-row lg:items-center lg:gap-x-6">
+      <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center lg:gap-x-6">
         <div className="flex items-center gap-3">
           {round.token.artworkUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               src={round.token.artworkUrl}
               alt=""
-              className={`h-11 w-11 rounded-xl border border-zinc-700 object-cover ${
+              className={`h-11 w-11 rounded-xl object-cover ${
                 round.state === "scheduled" ? "blur-md" : ""
               }`}
             />
           ) : (
-            <div className="flex h-11 w-11 items-center justify-center rounded-xl border border-zinc-700 bg-zinc-900 text-xl">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-zinc-800 text-xl">
               🪙
             </div>
           )}

@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ACHIEVEMENTS, COSMETICS, xpForLevel, type RoundHistoryEntry } from "@cookout/shared";
+import { ACHIEVEMENTS, COSMETICS, xpForLevel, type Round, type RoundHistoryEntry } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { DEFAULT_CHAIN_ID, arenaBalance, hasArenaWallet } from "../../lib/arenaWallet";
 import { useChainOnly, useUnit } from "../../lib/chainOnly";
 import { useSession } from "../../lib/session";
+import { CoinCard } from "../../components/CoinCard";
 import { CosmeticsLocker } from "../../components/CosmeticsLocker";
 import { FeesEarned } from "../../components/FeesEarned";
 import { ImagePicker } from "../../components/ImagePicker";
 import { Missions } from "../../components/Missions";
 import { Progress } from "../../components/Progress";
 import { ReputationPanel } from "../../components/Reputation";
+import { RunItBackButton } from "../../components/RunItBack";
 import {
   AchievementCard,
   Avatar,
@@ -24,15 +26,19 @@ import {
   TabBar,
 } from "../../components/ProfileUI";
 
-type Tab = "overview" | "quests" | "progression" | "achievements" | "rewards";
+type Tab = "overview" | "runitback" | "quests" | "progression" | "achievements" | "rewards";
 
 const TABS = [
   ["overview", "Overview"],
+  ["runitback", "Run It Back"],
   ["quests", "Quests"],
   ["progression", "Progression"],
   ["achievements", "Achievements"],
   ["rewards", "Rewards"],
 ] as const;
+
+const isRugRound = (r: Round) =>
+  r.endReason === "rug_detected" || r.endReason === "liquidity_removed";
 
 export default function ProfilePage() {
   const { profile, signIn, refresh } = useSession();
@@ -41,6 +47,7 @@ export default function ProfilePage() {
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);
   const [history, setHistory] = useState<RoundHistoryEntry[]>([]);
+  const [myRounds, setMyRounds] = useState<Round[]>([]);
   const chainOnly = useChainOnly();
   const unit = useUnit();
 
@@ -49,6 +56,10 @@ export default function ProfilePage() {
     api<RoundHistoryEntry[]>(`/api/profile/${profile.address}/history`)
       .then(setHistory)
       .catch(() => {});
+    // Own launches, for the Run It Back tab.
+    api<{ rounds: Array<{ round: Round }> }>(`/api/creator/${profile.address}`)
+      .then((d) => setMyRounds(d.rounds.map((r) => r.round)))
+      .catch(() => setMyRounds([]));
   }, [profile?.address]);
 
   // Chain-only site: the headline balance is the arena wallet, not paper.
@@ -256,6 +267,66 @@ export default function ProfilePage() {
             <SectionTitle title="Recent Matches" />
             <MatchHistory entries={history} cap={5} />
           </section>
+        </div>
+      )}
+
+      {tab === "runitback" && (
+        <div className="space-y-6">
+          <SectionTitle
+            title="Run It Back"
+            action={
+              <span className="font-mono text-xs text-zinc-500">
+                {myRounds.filter((r) => r.state === "results" && !r.graduated).length} eligible
+              </span>
+            }
+          />
+          {(() => {
+            const runnable = myRounds.filter((r) => r.state === "results" && !r.graduated);
+            if (runnable.length === 0)
+              return (
+                <div className="rounded-2xl bg-zinc-900/40 p-8 text-center text-sm text-zinc-500">
+                  Nothing to run back right now. Any of your coins that finish without graduating
+                  land here, so you can send them straight back to the vote in a fresh mode.
+                </div>
+              );
+            return (
+              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {runnable.map((r) => {
+                  const rug = isRugRound(r);
+                  return (
+                    <CoinCard
+                      key={r.id}
+                      coin={{
+                        ...r.token,
+                        tier: r.tier,
+                        id: r.conceptId,
+                        creatorAddress: r.creatorAddress,
+                        mode: r.mode,
+                        modifiers: r.modifiers,
+                      }}
+                      borderClass="border-transparent"
+                      corner={
+                        <span
+                          className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-bold ${
+                            rug ? "bg-red-500/20 text-red-300" : "bg-zinc-800/90 text-zinc-400"
+                          }`}
+                        >
+                          {rug ? "🔥 burnt" : "closed"}
+                        </span>
+                      }
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[11px] text-zinc-500">
+                          {rug ? "rugged" : `ended: ${r.endReason?.replace(/_/g, " ")}`}
+                        </span>
+                        <RunItBackButton round={r} />
+                      </div>
+                    </CoinCard>
+                  );
+                })}
+              </div>
+            );
+          })()}
         </div>
       )}
 

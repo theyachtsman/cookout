@@ -32,7 +32,7 @@ export function FeedbackWidget() {
   return (
     <div className="fixed bottom-4 right-4 z-30">
       {open ? (
-        <div className="w-80 rounded-xl border border-zinc-700 bg-zinc-900 p-3 shadow-2xl">
+        <div className="w-80 rounded-2xl bg-zinc-900 p-3 shadow-2xl ring-1 ring-white/5">
           <div className="mb-2 flex items-center justify-between">
             <span className="text-sm font-bold">Beta feedback</span>
             <button onClick={() => setOpen(false)} className="text-zinc-500 hover:text-zinc-200">
@@ -50,7 +50,7 @@ export function FeedbackWidget() {
                 onChange={(e) => setText(e.target.value)}
                 rows={3}
                 placeholder="Bug? Confusing? Too easy to rug you? Tell us."
-                className="w-full rounded border border-zinc-700 bg-zinc-950 px-2 py-1.5 text-sm"
+                className="w-full rounded-lg bg-zinc-950/70 px-2 py-1.5 text-sm outline-none focus:ring-2 focus:ring-lime-400/40"
               />
               <button
                 onClick={() => void send()}
@@ -68,7 +68,7 @@ export function FeedbackWidget() {
       ) : (
         <button
           onClick={() => setOpen(true)}
-          className="rounded-full border border-lime-400/50 bg-zinc-900 px-4 py-2 text-sm font-bold text-lime-300 shadow-lg hover:bg-zinc-800"
+          className="rounded-full bg-lime-400/15 px-4 py-2 text-sm font-bold text-lime-300 shadow-lg transition hover:bg-lime-400/25"
         >
           💬 Feedback
         </button>

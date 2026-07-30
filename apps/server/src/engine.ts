@@ -26,6 +26,7 @@ import {
   type Candle,
   type KillFeedKind,
   type PoolState,
+  type RedemptionEntry,
   type RiskTier,
   type Round,
   type RoundEndReason,
@@ -858,6 +859,10 @@ export class RoundEngine {
           s.totalVolume >= cfg.graduationMinVolume));
     round.graduated = graduated;
 
+    // Collected during a non-graduated redemption, attached to the summary below.
+    const redemptionEntries: RedemptionEntry[] = [];
+    let redemptionPrice: number | undefined;
+
     if (graduated) {
       // Served Up: liquidity locks in a permanent pool, holders keep their
       // tokens, and the market keeps trading "in the wild" (alumniTick).
@@ -873,6 +878,7 @@ export class RoundEngine {
       const outstanding = holdersAtEnd.reduce((sum, p) => sum + p.tokens, 0);
       if (outstanding > 0) {
         const ethOut = (pool.ethReserve * outstanding) / (pool.tokenReserve + outstanding);
+        redemptionPrice = ethOut / outstanding;
         for (const p of holdersAtEnd) {
           const share = ethOut * (p.tokens / outstanding);
           if (!round.chain) {
@@ -883,6 +889,19 @@ export class RoundEngine {
               this.store.recordLedger(p.userAddress, "redeem", share, {
                 symbol: round.token.symbol,
               });
+          }
+          // Record the per-player exit for the results breakdown — real
+          // players only (the swarm bots are 0xb07…).
+          if (!p.userAddress.startsWith("0xb07")) {
+            const u = this.store.getOrCreateUser(p.userAddress);
+            redemptionEntries.push({
+              address: p.userAddress,
+              displayName: u.displayName,
+              avatarUrl: u.avatarUrl,
+              tokens: p.tokens,
+              eth: share,
+              pnl: share - p.costBasisEth,
+            });
           }
           p.realizedPnl += share - p.costBasisEth;
           p.tokens = 0;
@@ -904,6 +923,10 @@ export class RoundEngine {
       holderCount: holdersAtEnd.length,
       now,
     });
+    if (redemptionEntries.length) {
+      summary.redemption = redemptionEntries.sort((a, b) => b.eth - a.eth);
+      summary.redemptionPrice = redemptionPrice;
+    }
     this.store.summaries.set(round.id, summary);
     // One community post per round end: the scoreboard (outcome + top 5). Fires
     // for every ending — graduation, timer, low volume, rug — so the leaderboard

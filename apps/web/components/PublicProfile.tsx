@@ -394,8 +394,11 @@ export function PublicProfile({
                 Nothing submitted yet.
               </div>
             ) : (
-              <div className="grid gap-2.5 sm:grid-cols-2">
-                {creator.concepts.map((c) => (
+              <ExpandableRows
+                items={creator.concepts}
+                cap={10}
+                gap="grid gap-2.5 sm:grid-cols-2"
+                render={(c) => (
                   <div key={c.id} className="rounded-2xl bg-zinc-900/40 p-3.5">
                     <div className="flex items-center justify-between gap-2">
                       <span className="truncate font-bold">
@@ -412,8 +415,8 @@ export function PublicProfile({
                     <div className="mt-1 line-clamp-2 text-xs text-zinc-400">{c.theme}</div>
                     <div className="mt-1.5 font-mono text-[11px] text-zinc-600">{c.votes} votes</div>
                   </div>
-                ))}
-              </div>
+                )}
+              />
             )}
           </section>
         </div>

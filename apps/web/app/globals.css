@@ -8,6 +8,16 @@ body {
   @apply bg-zinc-950 text-zinc-200;
 }
 
+/* One-shot phase-change flash on the featured Cook Out coin card. */
+@keyframes phaseflash {
+  0% {
+    opacity: 0.55;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* Streaming-style rails scroll horizontally with no visible scrollbar. */
 .no-scrollbar {
   -ms-overflow-style: none;
