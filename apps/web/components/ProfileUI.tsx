@@ -129,7 +129,7 @@ export function ProfileHero({
     <div className="overflow-hidden rounded-3xl bg-zinc-900/40">
       {/* banner: an uploaded image if the player set one, otherwise a wash. A
           gradient scrim over any image keeps the avatar + name legible. */}
-      <div className="relative h-36 w-full overflow-hidden sm:h-48">
+      <div className="relative h-28 w-full overflow-hidden sm:h-44">
         {bannerUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={bannerUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -145,10 +145,13 @@ export function ProfileHero({
         />
       </div>
 
-      <div className="px-6 pb-6">
-        <div className="flex flex-wrap items-end gap-x-4 gap-y-3 sm:gap-x-5">
+      <div className="px-4 pb-6 sm:px-6">
+        {/* On mobile everything stacks (avatar, then the full-width name, then
+            the stat) so the name is never squeezed beside the avatar. From sm up
+            it's the familiar avatar | name | stat row. */}
+        <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-end sm:gap-x-5">
           {/* avatar + level medal */}
-          <div className="relative -mt-16 shrink-0">
+          <div className="relative -mt-14 shrink-0 sm:-mt-16">
             {avatar}
             <div className="absolute -bottom-2 -right-2">
               <LevelMedal level={level} />
@@ -156,10 +159,10 @@ export function ProfileHero({
           </div>
 
           {/* identity */}
-          <div className="min-w-0 flex-1 pb-1">
-            <h1 className="flex items-center gap-2 text-2xl font-black text-zinc-50 sm:text-3xl md:text-4xl">
+          <div className="mt-3 min-w-0 flex-1 sm:mt-0 sm:pb-1">
+            <h1 className="flex flex-wrap items-center gap-x-2 text-2xl font-black text-zinc-50 sm:text-3xl md:text-4xl">
               {badge && <span className="shrink-0">{badge}</span>}
-              <span className="truncate">{name}</span>
+              <span className="min-w-0 break-words">{name}</span>
             </h1>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
               <span className={`font-bold ${s.text}`}>{title}</span>
@@ -167,9 +170,8 @@ export function ProfileHero({
             </div>
           </div>
 
-          {/* right slot: drops to its own full-width line on mobile so the name
-              above always keeps the full row width. */}
-          {right && <div className="w-full pb-1 text-right sm:w-auto">{right}</div>}
+          {/* headline stat (balance / PnL) */}
+          {right && <div className="mt-3 sm:mt-0 sm:pb-1 sm:text-right">{right}</div>}
         </div>
 
         {/* headline row: XP progress + the reputation score, side by side */}
