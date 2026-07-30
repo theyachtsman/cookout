@@ -143,7 +143,7 @@ export function ChatLog({
               key={m.id}
               title={time(m.at)}
               style={{ opacity: systemOpacity(m), transition: "opacity 1s linear" }}
-              className="my-1.5 rounded-lg border border-amber-400/50 bg-gradient-to-r from-amber-400/[0.14] to-transparent px-3 py-2 text-[12px] font-bold leading-snug text-amber-200"
+              className="my-1.5 rounded-lg bg-gradient-to-r from-amber-400/[0.2] to-amber-400/[0.03] px-3 py-2 text-[12px] font-bold leading-snug text-amber-200"
             >
               <span className="mr-1.5">📢</span>
               {m.text}

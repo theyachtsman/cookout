@@ -41,8 +41,8 @@ export function Chat({
   };
 
   return (
-    <div className="flex h-full flex-col rounded-xl border border-zinc-800">
-      <div className="flex items-center gap-2 border-b border-zinc-800 px-3 py-2">
+    <div className="flex h-full flex-col rounded-2xl bg-zinc-900/30">
+      <div className="flex items-center gap-2 px-3 py-2">
         <h4 className="text-sm font-bold text-zinc-300">{title}</h4>
         {frozen && (
           <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-bold text-zinc-400">
@@ -84,7 +84,7 @@ export function Chat({
 
       {!profile && !frozen ? (
         // Logged-out visitors can read the trenches; joining creates an account.
-        <div className="border-t border-zinc-800 p-2">
+        <div className="p-2">
           <button
             onClick={promptPlayNow}
             className="w-full rounded-lg bg-lime-400/90 px-3 py-2 text-sm font-black text-zinc-950 hover:bg-lime-300"
@@ -93,7 +93,7 @@ export function Chat({
           </button>
         </div>
       ) : (
-        <div className="flex gap-2 border-t border-zinc-800 p-2">
+        <div className="flex gap-2 p-2">
           <input
             value={text}
             onChange={(e) => setText(e.target.value)}
@@ -103,7 +103,7 @@ export function Chat({
             }
             disabled={!profile || frozen}
             maxLength={280}
-            className="min-w-0 flex-1 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-1.5 text-sm outline-none focus:border-lime-400/50 disabled:opacity-50"
+            className="min-w-0 flex-1 rounded-lg bg-zinc-800 px-3 py-1.5 text-sm outline-none focus:ring-2 focus:ring-lime-400/40 disabled:opacity-50"
           />
           <button
             onClick={send}

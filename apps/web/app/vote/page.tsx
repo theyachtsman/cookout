@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   VOTE_ROOM,
   VOTE_THRESHOLD,
@@ -104,13 +104,19 @@ export default function VotePage() {
   // is loaded, scroll its card into view and flash a ring so it's obvious which
   // coin they came to shill for.
   const [highlight, setHighlight] = useState("");
+  // Deep-link scroll must fire ONCE. It used to re-run on every `concepts`
+  // update (i.e. every 5s poll and every vote), yanking the page back up to the
+  // hashed coin while you were reading past results further down.
+  const didHighlight = useRef(false);
   useEffect(() => {
+    if (didHighlight.current) return;
     const hash = window.location.hash;
     if (!hash.startsWith("#coin-")) return;
     const id = hash.slice("#coin-".length);
     if (!concepts.some((c) => c.id === id)) return;
     const el = document.getElementById(`coin-${id}`);
     if (!el) return;
+    didHighlight.current = true;
     el.scrollIntoView({ behavior: "smooth", block: "center" });
     setHighlight(id);
     const t = setTimeout(() => setHighlight(""), 2600);

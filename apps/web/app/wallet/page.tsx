@@ -130,7 +130,7 @@ function PaperWalletPage() {
         <DenomToggle usd={usd} onChange={setUsd} />
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border border-lime-400/40 bg-lime-400/5 p-5">
+        <div className="rounded-2xl bg-lime-400/[0.08] p-5">
           <div className="text-xs uppercase tracking-wide text-zinc-500">At the Cook Out</div>
           <div className="mt-1 font-mono text-3xl font-black text-lime-300">
             {usd ? fmtAmount(arena, true, peg) : arena.toFixed(3)}
@@ -139,7 +139,7 @@ function PaperWalletPage() {
             {usd ? `≈ ${arena.toFixed(3)} pETH · playable now` : "pETH · playable now"}
           </div>
         </div>
-        <div className="rounded-xl border border-zinc-800 p-5">
+        <div className="rounded-2xl bg-zinc-900/40 p-5">
           <div className="text-xs uppercase tracking-wide text-zinc-500">In the bank</div>
           <div className="mt-1 font-mono text-3xl font-black text-zinc-200">
             {usd ? fmtAmount(bank, true, peg) : bank.toFixed(3)}
@@ -150,14 +150,14 @@ function PaperWalletPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-zinc-800 p-5">
+      <div className="rounded-2xl bg-zinc-900/40 p-5">
         <h2 className="mb-3 text-sm font-black text-zinc-200">Move money</h2>
         <div className="flex flex-wrap items-center gap-2">
           <input
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
             inputMode="decimal"
-            className="w-24 rounded border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono"
+            className="w-24 rounded bg-zinc-950/60 px-3 py-2 font-mono"
           />
           <span className="text-sm text-zinc-500">pETH</span>
           <button
@@ -170,7 +170,7 @@ function PaperWalletPage() {
           <button
             disabled={busy !== ""}
             onClick={() => void move("withdraw")}
-            className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-bold text-zinc-300 hover:border-zinc-500 disabled:opacity-50"
+            className="rounded-lg bg-zinc-800 px-4 py-2 text-sm font-bold text-zinc-300 hover:bg-zinc-700 disabled:opacity-50"
           >
             {busy === "withdraw" ? "…" : "Cook Out → Bank"}
           </button>
@@ -183,7 +183,7 @@ function PaperWalletPage() {
         {error && <div className="mt-3 text-sm text-red-400">{error}</div>}
       </div>
 
-      <div className="rounded-xl border border-zinc-800 p-5">
+      <div className="rounded-2xl bg-zinc-900/40 p-5">
         <h2 className="mb-3 text-sm font-black text-zinc-200">Cook Out Balance History</h2>
         {ledger.length === 0 ? (
           <p className="text-sm text-zinc-600">
@@ -284,7 +284,7 @@ function TradeHistoryTable({ usd, peg }: { usd: boolean; peg: number }) {
   );
 
   return (
-    <div className="rounded-xl border border-zinc-800 p-5">
+    <div className="rounded-2xl bg-zinc-900/40 p-5">
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-sm font-black text-zinc-200">Trade History</h2>
         <div className="flex items-center gap-1 text-xs">
@@ -296,7 +296,7 @@ function TradeHistoryTable({ usd, peg }: { usd: boolean; peg: number }) {
               className={`rounded px-2 py-1 font-bold transition ${
                 limit === n
                   ? "bg-lime-400 text-zinc-950"
-                  : "border border-zinc-700 text-zinc-400 hover:border-zinc-500"
+                  : "bg-zinc-800/60 text-zinc-400 hover:bg-zinc-700"
               }`}
             >
               {n === "all" ? "All" : n}
@@ -314,7 +314,7 @@ function TradeHistoryTable({ usd, peg }: { usd: boolean; peg: number }) {
           <div className="-mx-1 overflow-x-auto px-1">
             <table className="w-full min-w-[36rem] text-sm">
               <thead>
-                <tr className="border-b border-zinc-800 text-xs uppercase tracking-wide">
+                <tr className="text-xs uppercase tracking-wide text-zinc-600">
                   <Th k="at" label="Time" />
                   <Th k="symbol" label="Coin" />
                   <Th k="side" label="Side" />
@@ -326,7 +326,7 @@ function TradeHistoryTable({ usd, peg }: { usd: boolean; peg: number }) {
               </thead>
               <tbody>
                 {shown.map((t) => (
-                  <tr key={t.id} className="border-b border-zinc-800/60">
+                  <tr key={t.id} className="transition hover:bg-zinc-800/30">
                     <td className="whitespace-nowrap px-3 py-2 text-zinc-500">{when(t.at)}</td>
                     <td className="px-3 py-2">
                       <a href={`/round/${t.roundId}`} className="font-bold hover:underline">
@@ -400,7 +400,7 @@ function PrivyWalletCard({ address }: { address: string }) {
   }, [address]);
 
   return (
-    <div className="rounded-xl border border-zinc-800 p-5">
+    <div className="rounded-2xl bg-zinc-900/40 p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-black text-zinc-200">Your wallet</h2>
@@ -427,7 +427,7 @@ function PrivyWalletCard({ address }: { address: string }) {
       >
         {address} {copied ? "✓ copied" : "⧉"}
       </button>
-      <p className="mt-3 border-t border-zinc-800 pt-3 text-[11px] text-zinc-600">
+      <p className="mt-3 pt-3 text-[11px] text-zinc-600">
         Depositing real ETH here and funding your Cook Out balance from it open at mainnet. The beta is paper
         money, so this stays near 0 for now.
       </p>
@@ -517,7 +517,7 @@ function ChainWalletPage() {
         <>
           <PrivyWalletCard address={profile.address} />
 
-          <section className="rounded-xl border border-zinc-800 p-5">
+          <section className="rounded-2xl bg-zinc-900/40 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-500">
@@ -542,7 +542,7 @@ function ChainWalletPage() {
                 <input
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-24 rounded border border-zinc-700 bg-zinc-900 px-2 py-2 font-mono text-sm"
+                  className="w-24 rounded bg-zinc-950/60 px-2 py-2 font-mono text-sm"
                 />
                 <button
                   disabled={busy !== ""}
@@ -564,7 +564,7 @@ function ChainWalletPage() {
                         arenaWithdraw(CHAIN_ID, profile.address as `0x${string}`),
                       )
                     }
-                    className="rounded-lg border border-zinc-700 px-4 py-2 text-sm font-bold text-zinc-300 hover:border-zinc-500 disabled:opacity-50"
+                    className="rounded-lg bg-zinc-800 px-4 py-2 text-sm font-bold text-zinc-300 hover:bg-zinc-700 disabled:opacity-50"
                   >
                     {busy === "withdraw" ? "Sweeping…" : "Withdraw all"}
                   </button>
@@ -585,7 +585,7 @@ function ChainWalletPage() {
               </button>
             )}
             {error && <div className="mt-2 text-sm text-red-400">{error}</div>}
-            <p className="mt-3 border-t border-zinc-800 pt-3 text-[11px] text-zinc-600">
+            <p className="mt-3 pt-3 text-[11px] text-zinc-600">
               Treat it like chips on the table: fund what you&apos;re actively playing with. XP,
               positions, and quests earned by this wallet credit your profile automatically.
             </p>
@@ -593,7 +593,7 @@ function ChainWalletPage() {
 
           <section>
             <h2 className="mb-2 text-sm font-bold text-zinc-300">Transaction history</h2>
-            <div className="overflow-hidden rounded-xl border border-zinc-800">
+            <div className="overflow-hidden rounded-2xl bg-zinc-900/40">
               {history.length === 0 ? (
                 <div className="p-4 text-sm text-zinc-600">
                   No transactions yet. Deposit and pull up to an on-chain round.
@@ -604,7 +604,7 @@ function ChainWalletPage() {
                     {history.map((h) => {
                       const m = KIND_META[h.kind];
                       return (
-                        <tr key={h.hash + h.at} className="border-t border-zinc-800/60 first:border-t-0">
+                        <tr key={h.hash + h.at} className="transition hover:bg-zinc-800/30">
                           <td className="px-3 py-2">
                             <span className="mr-1.5">{m.icon}</span>
                             <span className={`font-bold ${m.cls}`}>{m.label}</span>
