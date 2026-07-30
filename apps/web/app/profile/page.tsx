@@ -24,10 +24,11 @@ import {
   TabBar,
 } from "../../components/ProfileUI";
 
-type Tab = "overview" | "progression" | "locker";
+type Tab = "overview" | "earnings" | "progression" | "locker";
 
 const TABS = [
   ["overview", "Overview"],
+  ["earnings", "Earnings"],
   ["progression", "Progression"],
   ["locker", "Locker"],
 ] as const;
@@ -266,10 +267,21 @@ export default function ProfilePage() {
             />
             <MatchHistory entries={history.slice(0, 5)} />
           </section>
+        </div>
+      )}
 
+      {tab === "earnings" && (
+        <div className="space-y-6">
+          {(profile.feesEarned ?? 0) > 0 && (
+            <FeesEarned eth={profile.feesEarned ?? 0} unit={unit} self />
+          )}
           {(profile.jackpotWinnings ?? 0) > 0 && <JackpotWinnings profile={profile} unit={unit} />}
-
-          {(profile.feesEarned ?? 0) > 0 && <FeesEarned eth={profile.feesEarned ?? 0} unit={unit} self />}
+          {(profile.feesEarned ?? 0) <= 0 && (profile.jackpotWinnings ?? 0) <= 0 && (
+            <div className="rounded-2xl bg-zinc-900/40 p-8 text-center text-sm text-zinc-500">
+              No earnings yet. Land a weekly Jackpot spot or launch a coin that trades, and your
+              winnings and creator fees show up here.
+            </div>
+          )}
         </div>
       )}
 
