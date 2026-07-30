@@ -148,7 +148,7 @@ export default function VotePage() {
 
   return (
     <div className="space-y-8">
-      <header className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-gradient-to-br from-lime-400/[0.07] via-zinc-950 to-zinc-950 p-6">
+      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-lime-400/[0.1] via-zinc-900/40 to-zinc-900/40 p-6">
         <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">
           Community Vote
         </div>
@@ -177,7 +177,7 @@ export default function VotePage() {
           <span className="text-xs text-zinc-500">{voting.length} up for a vote</span>
         </div>
         {voting.length === 0 ? (
-          <div className="rounded-xl border border-dashed border-zinc-800 p-8 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl bg-zinc-900/40 p-8 text-center text-sm text-zinc-500">
             Nothing up for a vote right now.{" "}
             <Link href="/submissions" className="text-lime-400 hover:underline">
               Make a coin
@@ -193,7 +193,8 @@ export default function VotePage() {
                 <CoinCard
                   coin={c}
                   onEdited={load}
-                  className={`transition hover:border-lime-400/50 ${
+                  borderClass="border-transparent"
+                  className={`transition ${
                     highlight === c.id ? "ring-2 ring-lime-400 ring-offset-2 ring-offset-zinc-950" : ""
                   }`}
                   corner={
@@ -226,7 +227,7 @@ export default function VotePage() {
                     ) : (
                       <button
                         onClick={() => void signIn()}
-                        className="rounded-lg border border-zinc-700 px-4 py-1.5 text-sm font-bold text-zinc-300 hover:border-lime-400/60"
+                        className="rounded-lg bg-zinc-800 px-4 py-1.5 text-sm font-bold text-zinc-300 transition hover:bg-zinc-700"
                       >
                         Connect to vote
                       </button>
@@ -234,7 +235,7 @@ export default function VotePage() {
                     <button
                       onClick={() => shillOnX(c)}
                       title="Post it to your X. A ready-made promo with the coin card and a link to vote."
-                      className="rounded-lg border border-sky-500/50 px-4 py-1.5 text-sm font-black text-sky-300 transition hover:border-sky-400 hover:bg-sky-500/10 active:scale-95"
+                      className="rounded-lg bg-sky-500/15 px-4 py-1.5 text-sm font-black text-sky-300 transition hover:bg-sky-500/25 active:scale-95"
                     >
                       𝕏 Shill
                     </button>
