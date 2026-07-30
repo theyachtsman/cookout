@@ -228,7 +228,7 @@ export function evaluateRoundEnd(ctx: {
     creator.arenaBalance = (creator.arenaBalance ?? 0) + creatorCut;
     creator.feesEarned += creatorCut;
     if (creatorCut > 0)
-      store.recordLedger(creator.address, "creator_fee", creatorCut, { symbol: round.token.symbol, conceptId: round.conceptId });
+      store.recordLedger(creator.address, "creator_fee", creatorCut, { symbol: round.token.symbol, roundId: round.id });
     creator.creatorReputation += round.graduated ? 2 : 1;
     if (round.graduated) {
       store.addXp(round.creatorAddress, XP_AWARDS.launched_graduate);

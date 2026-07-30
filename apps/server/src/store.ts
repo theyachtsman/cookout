@@ -304,7 +304,7 @@ export class Store {
     address: Address,
     kind: LedgerKind,
     amount: number,
-    opts: { symbol?: string; conceptId?: string } = {},
+    opts: { symbol?: string; roundId?: string } = {},
   ): void {
     if (amount === 0) return;
     const u = this.getOrCreateUser(address);
@@ -316,7 +316,7 @@ export class Store {
       amount,
       balanceAfter: u.arenaBalance ?? 0,
       ...(opts.symbol ? { symbol: opts.symbol } : {}),
-      ...(opts.conceptId ? { conceptId: opts.conceptId } : {}),
+      ...(opts.roundId ? { roundId: opts.roundId } : {}),
     });
     if (list.length > 250) list.splice(0, list.length - 250);
   }

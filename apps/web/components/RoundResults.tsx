@@ -99,11 +99,11 @@ export function RoundResultsOverlay({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-3 backdrop-blur-sm sm:p-4"
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md animate-[fadein_.3s_ease] rounded-2xl bg-zinc-950 p-6 shadow-2xl ring-1 ring-white/10"
+        className="max-h-[90dvh] w-full max-w-md animate-[fadein_.3s_ease] overflow-y-auto rounded-2xl bg-zinc-950 p-5 shadow-2xl ring-1 ring-white/10 sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-center">

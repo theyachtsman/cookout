@@ -237,9 +237,9 @@ function PaperWalletPage() {
                     <div className={`font-bold ${credit ? "text-lime-300" : "text-red-400"}`}>
                       {meta.label}
                       {e.symbol &&
-                        (e.conceptId ? (
+                        (e.roundId ? (
                           <Link
-                            href={`/coin/${e.conceptId}`}
+                            href={`/round/${e.roundId}`}
                             className="ml-1 text-zinc-400 hover:text-zinc-200 hover:underline"
                           >
                             ${e.symbol}
