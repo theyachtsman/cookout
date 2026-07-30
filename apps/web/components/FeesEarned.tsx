@@ -21,14 +21,14 @@ export function FeesEarned({
   const [usd, setUsd] = useDenomPref();
   const peg = useEthUsd();
   return (
-    <section className="rounded-2xl border border-lime-400/30 bg-gradient-to-br from-lime-400/[0.07] to-transparent p-5">
+    <section className="rounded-2xl bg-gradient-to-br from-lime-400/[0.1] to-lime-400/[0.02] p-5">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-black uppercase tracking-wide text-lime-300">
           💰 Creator Fees Earned
         </h2>
         <button
           onClick={() => setUsd(!usd)}
-          className="rounded-full border border-zinc-700 px-2.5 py-0.5 text-[11px] font-bold text-zinc-400 transition hover:border-lime-400/60 hover:text-zinc-200"
+          className="rounded-full bg-zinc-800 px-2.5 py-0.5 text-[11px] font-bold text-zinc-300 transition hover:bg-zinc-700"
           title="Toggle between native and USD"
         >
           {usd ? "USD" : unit} ⇄

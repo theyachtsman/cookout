@@ -7,7 +7,7 @@ import type { Round, RoundSummary, RugBan, TokenConcept } from "@cookout/shared"
 import { api } from "../../../lib/api";
 import { useUnit } from "../../../lib/chainOnly";
 import { FeesEarned } from "../../../components/FeesEarned";
-import { ReputationPanel, repStanding } from "../../../components/Reputation";
+import { ReputationPanel } from "../../../components/Reputation";
 import { RunItBackButton } from "../../../components/RunItBack";
 import { Avatar, ProfileHero, SectionTitle, StatCard, StatGrid } from "../../../components/ProfileUI";
 
@@ -65,7 +65,6 @@ export default function CreatorPage() {
 
   const a = view.aggregates;
   const name = view.displayName ?? `${view.address.slice(0, 8)}…${view.address.slice(-6)}`;
-  const standing = repStanding(view.creatorReputation);
   const gradRate = a.roundsLaunched > 0 ? Math.round((a.graduations / a.roundsLaunched) * 100) : 0;
 
   return (
@@ -76,18 +75,14 @@ export default function CreatorPage() {
         name={name}
         level={view.level}
         title={`${view.title} · Creator`}
+        rep={view.creatorReputation}
         accent={!!view.banned}
         chips={
-          <>
-            <span className={`rounded-full bg-zinc-800 px-2 py-0.5 text-[11px] font-bold ${standing.accent}`}>
-              {standing.emoji} {standing.label} creator
+          view.banned ? (
+            <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide text-red-300">
+              🚫 launch ban
             </span>
-            {view.banned && (
-              <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide text-red-300">
-                🚫 launch ban
-              </span>
-            )}
-          </>
+          ) : undefined
         }
         right={
           <div>
@@ -138,7 +133,7 @@ export default function CreatorPage() {
       <section>
         <SectionTitle title="Rounds Launched" />
         {view.rounds.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-zinc-800 p-8 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl bg-zinc-900/40 p-8 text-center text-sm text-zinc-500">
             No rounds launched yet.
           </div>
         ) : (
@@ -149,12 +144,12 @@ export default function CreatorPage() {
               return (
                 <div
                   key={round.id}
-                  className={`flex flex-wrap items-center gap-3 rounded-xl border p-3.5 text-sm transition ${
+                  className={`flex flex-wrap items-center gap-3 rounded-2xl p-3.5 text-sm transition ${
                     round.graduated
-                      ? "border-lime-400/30 bg-lime-400/[0.03]"
+                      ? "bg-lime-400/[0.07]"
                       : rug
-                        ? "border-red-900/50 bg-red-500/[0.03]"
-                        : "border-zinc-800 bg-zinc-900/40"
+                        ? "bg-red-500/[0.07]"
+                        : "bg-zinc-900/40"
                   }`}
                 >
                   <Link href={`/round/${round.id}`} className="flex items-center gap-2 hover:underline">
@@ -163,10 +158,10 @@ export default function CreatorPage() {
                       <img
                         src={round.token.artworkUrl}
                         alt=""
-                        className="h-9 w-9 rounded-lg border border-zinc-700 object-cover"
+                        className="h-9 w-9 rounded-lg object-cover"
                       />
                     ) : (
-                      <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-zinc-700 bg-zinc-900">
+                      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-800">
                         🪙
                       </div>
                     )}
@@ -216,13 +211,13 @@ export default function CreatorPage() {
       <section>
         <SectionTitle title="Submission History" />
         {view.concepts.length === 0 ? (
-          <div className="rounded-2xl border border-dashed border-zinc-800 p-8 text-center text-sm text-zinc-500">
+          <div className="rounded-2xl bg-zinc-900/40 p-8 text-center text-sm text-zinc-500">
             Nothing submitted yet.
           </div>
         ) : (
           <div className="grid gap-2.5 sm:grid-cols-2">
             {view.concepts.map((c) => (
-              <div key={c.id} className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3.5">
+              <div key={c.id} className="rounded-2xl bg-zinc-900/40 p-3.5">
                 <div className="flex items-center justify-between gap-2">
                   <span className="truncate font-bold">
                     {c.name} <span className="font-mono text-zinc-500">${c.symbol}</span>

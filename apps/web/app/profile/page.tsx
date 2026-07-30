@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ACHIEVEMENTS, COSMETICS, xpForLevel } from "@cookout/shared";
+import { ACHIEVEMENTS, COSMETICS, xpForLevel, type RoundHistoryEntry } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { DEFAULT_CHAIN_ID, arenaBalance, hasArenaWallet } from "../../lib/arenaWallet";
 import { useChainOnly, useUnit } from "../../lib/chainOnly";
@@ -14,21 +14,40 @@ import { Missions } from "../../components/Missions";
 import { Progress } from "../../components/Progress";
 import { ReputationPanel } from "../../components/Reputation";
 import {
+  AchievementCard,
   Avatar,
+  MatchHistory,
   ProfileHero,
-  RARITY,
   SectionTitle,
   StatCard,
   StatGrid,
+  TabBar,
 } from "../../components/ProfileUI";
+
+type Tab = "overview" | "progression" | "locker";
+
+const TABS = [
+  ["overview", "Overview"],
+  ["progression", "Progression"],
+  ["locker", "Locker"],
+] as const;
 
 export default function ProfilePage() {
   const { profile, signIn, refresh } = useSession();
+  const [tab, setTab] = useState<Tab>("overview");
   const [name, setName] = useState("");
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [history, setHistory] = useState<RoundHistoryEntry[]>([]);
   const chainOnly = useChainOnly();
   const unit = useUnit();
+
+  useEffect(() => {
+    if (!profile) return;
+    api<RoundHistoryEntry[]>(`/api/profile/${profile.address}/history`)
+      .then(setHistory)
+      .catch(() => {});
+  }, [profile?.address]);
 
   // Chain-only site: the headline balance is the arena wallet, not paper.
   const [arenaBal, setArenaBal] = useState<number | null>(null);
@@ -58,8 +77,6 @@ export default function ProfilePage() {
   const displayName = profile.displayName ?? `${profile.address.slice(0, 8)}…`;
   const avatarUrl = (profile as unknown as { avatarUrl?: string }).avatarUrl;
   const bannerUrl = (profile as unknown as { bannerUrl?: string }).bannerUrl;
-  // Equipped cosmetics: an equipped title overrides the level title; the badge
-  // shows before the name. Founder cosmetics land here once claimed.
   const equippedTitle = COSMETICS.find((c) => c.id === profile.equipped?.title)?.value;
   const equippedBadge = COSMETICS.find((c) => c.id === profile.equipped?.badge)?.value;
   const referralCount = (profile as unknown as { referralCount?: number }).referralCount ?? 0;
@@ -94,12 +111,14 @@ export default function ProfilePage() {
         xp={profile.xp}
         currLevelXp={xpForLevel(profile.level)}
         nextLevelXp={xpForLevel(profile.level + 1)}
+        rep={profile.creatorReputation}
+        accent={!!profile.banned}
         chips={
           <>
             <span className="font-mono text-xs text-zinc-500">{profile.xp.toLocaleString()} XP</span>
             <button
               onClick={() => setEditing((v) => !v)}
-              className="rounded-full border border-zinc-700 px-2.5 py-0.5 text-[11px] font-bold text-zinc-400 hover:border-zinc-500 hover:text-zinc-200"
+              className="rounded-full bg-zinc-800 px-2.5 py-0.5 text-[11px] font-bold text-zinc-300 hover:bg-zinc-700"
             >
               ✎ Edit
             </button>
@@ -125,7 +144,6 @@ export default function ProfilePage() {
           )
         }
       >
-        {/* quick links + editor + referral, all inside the hero card */}
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs">
           <Link href={`/creator/${profile.address}`} className="font-bold text-lime-400 hover:underline">
             My coins &amp; launches →
@@ -133,10 +151,13 @@ export default function ProfilePage() {
           <Link href={`/profile/${profile.address}`} className="text-zinc-400 hover:text-zinc-200">
             View public profile →
           </Link>
+          <Link href="/settings" className="text-zinc-400 hover:text-zinc-200">
+            Settings →
+          </Link>
         </div>
 
         {editing && (
-          <div className="flex flex-col gap-3 rounded-xl border border-zinc-800 bg-zinc-950/50 p-3">
+          <div className="flex flex-col gap-3 rounded-xl bg-zinc-950/50 p-3">
             <div className="flex flex-wrap items-center gap-4">
               <ImagePicker
                 label="Profile picture"
@@ -151,7 +172,7 @@ export default function ProfilePage() {
                   placeholder={profile.displayName ?? "set a display name"}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-1.5 text-sm outline-none focus:border-lime-400/50"
+                  className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm outline-none ring-1 ring-zinc-700 focus:ring-lime-400/50"
                 />
                 <button
                   onClick={() => void saveName()}
@@ -161,7 +182,7 @@ export default function ProfilePage() {
                 </button>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-4 border-t border-zinc-800 pt-3">
+            <div className="flex flex-wrap items-center gap-4">
               <ImagePicker
                 label="Header banner (wide)"
                 wide
@@ -201,155 +222,137 @@ export default function ProfilePage() {
         </div>
       </ProfileHero>
 
-      {/* Pit Boss (Telegram) and Sound settings now live on the Settings page,
-          reached from the wallet drop-down in the top nav. */}
-      <Link
-        href="/settings"
-        className="flex items-center justify-between rounded-2xl border border-zinc-800 px-4 py-3 text-sm transition hover:border-lime-400/50 hover:bg-zinc-900/50"
-      >
-        <span className="font-bold text-zinc-300">
-          ⚙️ Settings ·{" "}
-          <span className="font-normal text-zinc-500">
-            Pit Boss notifications, sound &amp; account
-          </span>
-        </span>
-        <span className="text-zinc-500">→</span>
-      </Link>
+      <TabBar tabs={TABS} value={tab} onChange={setTab} />
 
-      {/* Career stats */}
-      <section>
-        <SectionTitle title="Career Stats" />
-        <StatGrid>
-          <StatCard icon="🎮" label="Rounds" value={s.roundsPlayed} />
-          <StatCard icon="⚡" label="Trades" value={s.trades} />
-          <StatCard icon="🏆" label="Wins" value={s.wins} tone="text-emerald-300" />
-          <StatCard icon="💀" label="Losses" value={s.losses} tone="text-red-300" />
-          <StatCard
-            icon="📈"
-            label="Total PnL"
-            value={`${(s.totalPnl as number) >= 0 ? "+" : ""}${(s.totalPnl as number).toFixed(2)}`}
-            tone={(s.totalPnl as number) >= 0 ? "text-emerald-300" : "text-red-300"}
-          />
-          <StatCard
-            icon="🚀"
-            label="Best Trade"
-            value={`+${(s.bestTradePnl as number).toFixed(2)}`}
-            tone="text-emerald-300"
-          />
-          <StatCard icon="🧊" label="Rugs Survived" value={s.rugsSurvived} />
-          <StatCard icon="🔥" label="Win Streak" value={s.currentWinStreak} tone="text-orange-300" />
-        </StatGrid>
-      </section>
+      {tab === "overview" && (
+        <div className="space-y-6">
+          <section>
+            <SectionTitle title="Career Stats" />
+            <StatGrid>
+              <StatCard icon="🎮" label="Rounds" value={s.roundsPlayed} />
+              <StatCard icon="⚡" label="Trades" value={s.trades} />
+              <StatCard icon="🏆" label="Wins" value={s.wins} tone="text-emerald-300" />
+              <StatCard icon="💀" label="Losses" value={s.losses} tone="text-red-300" />
+              <StatCard
+                icon="📈"
+                label="Total PnL"
+                value={`${(s.totalPnl as number) >= 0 ? "+" : ""}${(s.totalPnl as number).toFixed(2)}`}
+                tone={(s.totalPnl as number) >= 0 ? "text-emerald-300" : "text-red-300"}
+              />
+              <StatCard
+                icon="🚀"
+                label="Best Trade"
+                value={`+${(s.bestTradePnl as number).toFixed(2)}`}
+                tone="text-emerald-300"
+              />
+              <StatCard icon="🧊" label="Rugs Survived" value={s.rugsSurvived} />
+              <StatCard icon="🔥" label="Win Streak" value={s.currentWinStreak} tone="text-orange-300" />
+            </StatGrid>
+          </section>
 
-      {/* Jackpot winnings */}
-      {(profile.jackpotWinnings ?? 0) > 0 && (
-        <section className="rounded-2xl border border-amber-400/40 bg-gradient-to-br from-amber-500/10 to-transparent p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-sm font-black uppercase tracking-wide text-amber-300">
-              🎰 Jackpot Winnings
-            </h2>
-            <Link href="/jackpot" className="text-xs text-amber-400/80 hover:underline">
-              this week&apos;s pot →
-            </Link>
-          </div>
-          <div className="mt-1 font-mono text-4xl font-black text-amber-300">
-            {(profile.jackpotWinnings ?? 0).toFixed(4)} {unit}
-          </div>
-          <div className="mt-3 flex flex-wrap gap-1.5">
-            {[...(profile.jackpotWins ?? [])]
-              .reverse()
-              .slice(0, 10)
-              .map((w, i) => (
-                <span
-                  key={i}
-                  title={`${w.week}: +${w.amountEth.toFixed(4)} ${unit} ($${w.amountUsd.toFixed(2)})`}
-                  className="rounded-lg border border-amber-400/30 bg-amber-400/[0.06] px-2 py-1 font-mono text-xs text-amber-200"
-                >
-                  {["🥇", "🥈", "🥉"][w.rank - 1] ?? `#${w.rank}`} {w.week}
-                </span>
-              ))}
-          </div>
-        </section>
-      )}
+          <section>
+            <SectionTitle title="Recent Matches" />
+            <MatchHistory entries={history} />
+          </section>
 
-      {/* Reputation */}
-      <section>
-        <SectionTitle title="Creator Reputation" />
-        <ReputationPanel
-          reputation={profile.creatorReputation}
-          bans={profile.rugBans ?? []}
-          banned={!!profile.banned}
-          self
-          selfServe={!!profile.selfServeUnban}
-          onCleared={() => void refresh()}
-        />
-      </section>
+          {(profile.jackpotWinnings ?? 0) > 0 && <JackpotWinnings profile={profile} unit={unit} />}
 
-      {/* Creator fees — shown once you've earned any */}
-      {(profile.feesEarned ?? 0) > 0 && (
-        <FeesEarned eth={profile.feesEarned ?? 0} unit={unit} self />
-      )}
-
-      {/* Quests */}
-      <section>
-        <SectionTitle title="Quests & Challenges" />
-        <Missions />
-      </section>
-
-      {/* Progression */}
-      <section>
-        <SectionTitle title="Progression" />
-        <Progress />
-      </section>
-
-      {/* Achievements */}
-      <section>
-        <SectionTitle
-          title="Achievements"
-          action={
-            <span className="font-mono text-xs text-zinc-500">
-              {profile.achievements.length} / {ACHIEVEMENTS.length} unlocked
-            </span>
-          }
-        />
-        <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-          {[...ACHIEVEMENTS]
-            .sort(
-              (a, b) =>
-                Number(profile.achievements.includes(b.id)) -
-                Number(profile.achievements.includes(a.id)),
-            )
-            .map((a) => {
-              const unlocked = profile.achievements.includes(a.id);
-              const r = RARITY[a.rarity] ?? RARITY.common;
-              return (
-                <div
-                  key={a.id}
-                  className={`rounded-xl border p-3.5 transition ${
-                    unlocked ? `${r.ring} ${r.wash}` : "border-zinc-800/70 opacity-45"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-bold text-zinc-100">
-                      {unlocked ? "🏅" : "🔒"} {a.name}
-                    </span>
-                    <span
-                      className={`shrink-0 text-[9px] font-black uppercase tracking-wide ${
-                        unlocked ? r.text : "text-zinc-600"
-                      }`}
-                    >
-                      {r.label}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs text-zinc-400">{a.description}</div>
-                </div>
-              );
-            })}
+          {(profile.feesEarned ?? 0) > 0 && <FeesEarned eth={profile.feesEarned ?? 0} unit={unit} self />}
         </div>
-      </section>
+      )}
 
-      {/* Cosmetics carries its own header */}
-      <CosmeticsLocker />
+      {tab === "progression" && (
+        <div className="space-y-6">
+          <section>
+            <SectionTitle title="Quests & Challenges" />
+            <Missions />
+          </section>
+
+          <section>
+            <SectionTitle title="Progression" />
+            <Progress />
+          </section>
+
+          <section>
+            <SectionTitle title="Creator Reputation" />
+            <ReputationPanel
+              reputation={profile.creatorReputation}
+              bans={profile.rugBans ?? []}
+              banned={!!profile.banned}
+              self
+              selfServe={!!profile.selfServeUnban}
+              onCleared={() => void refresh()}
+            />
+          </section>
+
+          <section>
+            <SectionTitle
+              title="Achievements"
+              action={
+                <span className="font-mono text-xs text-zinc-500">
+                  {profile.achievements.length} / {ACHIEVEMENTS.length} unlocked
+                </span>
+              }
+            />
+            <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+              {[...ACHIEVEMENTS]
+                .sort(
+                  (a, b) =>
+                    Number(profile.achievements.includes(b.id)) -
+                    Number(profile.achievements.includes(a.id)),
+                )
+                .map((a) => (
+                  <AchievementCard
+                    key={a.id}
+                    achievement={a}
+                    unlocked={profile.achievements.includes(a.id)}
+                  />
+                ))}
+            </div>
+          </section>
+        </div>
+      )}
+
+      {tab === "locker" && <CosmeticsLocker />}
     </div>
+  );
+}
+
+/** Jackpot highlight card (Overview) — kept borderless with an amber wash. */
+function JackpotWinnings({
+  profile,
+  unit,
+}: {
+  profile: import("../../lib/session").Profile;
+  unit: string;
+}) {
+  return (
+    <section className="rounded-2xl bg-gradient-to-br from-amber-500/10 to-transparent p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h2 className="text-sm font-black uppercase tracking-wide text-amber-300">
+          🎰 Jackpot Winnings
+        </h2>
+        <Link href="/jackpot" className="text-xs text-amber-400/80 hover:underline">
+          this week&apos;s pot →
+        </Link>
+      </div>
+      <div className="mt-1 font-mono text-4xl font-black text-amber-300">
+        {(profile.jackpotWinnings ?? 0).toFixed(4)} {unit}
+      </div>
+      <div className="mt-3 flex flex-wrap gap-1.5">
+        {[...(profile.jackpotWins ?? [])]
+          .reverse()
+          .slice(0, 10)
+          .map((w, i) => (
+            <span
+              key={i}
+              title={`${w.week}: +${w.amountEth.toFixed(4)} ${unit} ($${w.amountUsd.toFixed(2)})`}
+              className="rounded-lg bg-amber-400/[0.08] px-2 py-1 font-mono text-xs text-amber-200"
+            >
+              {["🥇", "🥈", "🥉"][w.rank - 1] ?? `#${w.rank}`} {w.week}
+            </span>
+          ))}
+      </div>
+    </section>
   );
 }

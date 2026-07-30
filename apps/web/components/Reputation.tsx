@@ -165,7 +165,7 @@ export function ReputationPanel({
   };
 
   return (
-    <div className={`rounded-xl border p-5 ${banned ? "border-red-500/40" : "border-zinc-800"}`}>
+    <div className={`rounded-2xl p-5 ${banned ? "bg-red-500/[0.07]" : "bg-zinc-900/40"}`}>
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Reputation</h2>
         {banned && (
@@ -224,7 +224,7 @@ export function ReputationPanel({
       </p>
 
       {active && (
-        <div className="mt-3 rounded-lg border border-red-500/40 bg-red-500/[0.06] p-3">
+        <div className="mt-3 rounded-lg bg-red-500/[0.1] p-3">
           <div className="text-sm font-bold text-red-300">
             Rug ban · offense #{active.offense}
             {active.symbol && <span className="text-red-400/80"> · ${active.symbol}</span>}

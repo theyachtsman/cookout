@@ -1,12 +1,17 @@
 "use client";
 
+import Link from "next/link";
 import type { ReactNode } from "react";
+import type { AchievementDef, RoundHistoryEntry } from "@cookout/shared";
+import { repStanding } from "./Reputation";
 
 /**
  * Shared building blocks for the player / creator profile pages, so the
  * internal profile, the public profile, and the creator page all read as one
- * professional, gaming-grade profile system (think Steam / a studio launcher):
- * a hero identity banner, consistent stat cards, and titled sections.
+ * competitive, esports-grade profile system: a borderless identity banner
+ * (with the reputation score built in), consistent stat tiles, underline tabs,
+ * and boxless match history. Nothing here draws a card border or a table —
+ * separation comes from elevation, spacing, and color.
  */
 
 /* ------------------------------------------------------------------ level */
@@ -21,7 +26,7 @@ export function levelStyle(level: number): { ring: string; text: string; glow: s
 }
 
 /** The circular level medallion that overlaps the avatar. */
-export function LevelMedal({ level, size = 44 }: { level: number; size?: number }) {
+export function LevelMedal({ level, size = 48 }: { level: number; size?: number }) {
   const s = levelStyle(level);
   return (
     <div
@@ -42,7 +47,7 @@ export function Avatar({
   url,
   name,
   level,
-  size = 96,
+  size = 112,
 }: {
   url?: string;
   name: string;
@@ -72,10 +77,10 @@ export function Avatar({
 /* ------------------------------------------------------------------- hero */
 
 /**
- * The identity banner every profile opens with: avatar (with a level medal
- * corner), name, title, an XP-to-next-level bar, a chip row, and a right-hand
- * slot for balances or actions. `children` renders extra rows beneath it
- * (name editing, referral, etc.) inside the same card.
+ * The identity banner every profile opens with: a wide media header, the
+ * avatar with a level medal, name + title + chips, an XP-to-next-level bar, the
+ * reputation score built right in, and a right-hand slot for a headline number
+ * (balance / PnL). `children` renders extra rows beneath (referral, links).
  */
 export function ProfileHero({
   avatar,
@@ -88,6 +93,7 @@ export function ProfileHero({
   nextLevelXp,
   chips,
   right,
+  rep,
   accent = false,
   bannerUrl,
   children,
@@ -104,6 +110,8 @@ export function ProfileHero({
   nextLevelXp?: number;
   chips?: ReactNode;
   right?: ReactNode;
+  /** Creator reputation score — shown as a headline tile on the banner. Omit to hide. */
+  rep?: number;
   /** Tint the banner red (banned) instead of the default lime wash. */
   accent?: boolean;
   /** Player-uploaded header image shown behind the avatar + level. */
@@ -115,12 +123,13 @@ export function ProfileHero({
   const pct = Math.max(0, Math.min(100, (((xp ?? 0) - (currLevelXp ?? 0)) / span) * 100));
   const toNext = Math.max(0, (nextLevelXp ?? 0) - (xp ?? 0));
   const s = levelStyle(level);
+  const st = rep !== undefined ? repStanding(rep) : null;
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-zinc-800 bg-zinc-900/40">
+    <div className="overflow-hidden rounded-3xl bg-zinc-900/40">
       {/* banner: an uploaded image if the player set one, otherwise a wash. A
           gradient scrim over any image keeps the avatar + name legible. */}
-      <div className="relative h-24 w-full overflow-hidden sm:h-28">
+      <div className="relative h-36 w-full overflow-hidden sm:h-48">
         {bannerUrl && (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={bannerUrl} alt="" className="absolute inset-0 h-full w-full object-cover" />
@@ -128,17 +137,18 @@ export function ProfileHero({
         <div
           className={`absolute inset-0 ${
             bannerUrl
-              ? "bg-gradient-to-t from-zinc-900/90 via-zinc-900/30 to-transparent"
+              ? "bg-gradient-to-t from-zinc-900 via-zinc-900/40 to-transparent"
               : accent
-                ? "bg-gradient-to-r from-red-500/20 via-red-500/5 to-transparent"
-                : "bg-gradient-to-r from-lime-400/15 via-emerald-400/5 to-transparent"
+                ? "bg-gradient-to-br from-red-500/20 via-red-500/5 to-transparent"
+                : "bg-gradient-to-br from-lime-400/15 via-emerald-400/5 to-transparent"
           }`}
         />
       </div>
-      <div className="px-5 pb-5">
-        <div className="flex flex-wrap items-end gap-4">
+
+      <div className="px-6 pb-6">
+        <div className="flex flex-wrap items-end gap-5">
           {/* avatar + level medal */}
-          <div className="relative -mt-12 shrink-0">
+          <div className="relative -mt-16 shrink-0">
             {avatar}
             <div className="absolute -bottom-2 -right-2">
               <LevelMedal level={level} />
@@ -147,11 +157,11 @@ export function ProfileHero({
 
           {/* identity */}
           <div className="min-w-0 flex-1 pb-1">
-            <h1 className="flex items-center gap-2 truncate text-2xl font-black text-zinc-50 md:text-3xl">
+            <h1 className="flex items-center gap-2 truncate text-3xl font-black text-zinc-50 md:text-4xl">
               {badge && <span className="shrink-0">{badge}</span>}
               <span className="truncate">{name}</span>
             </h1>
-            <div className="mt-0.5 flex flex-wrap items-center gap-2 text-sm">
+            <div className="mt-1 flex flex-wrap items-center gap-2 text-sm">
               <span className={`font-bold ${s.text}`}>{title}</span>
               {chips}
             </div>
@@ -161,29 +171,86 @@ export function ProfileHero({
           {right && <div className="pb-1 text-right">{right}</div>}
         </div>
 
-        {/* XP bar */}
-        {showXp && (
-          <div className="mt-4">
-            <div className="mb-1 flex items-baseline justify-between text-[11px]">
-              <span className="font-bold uppercase tracking-wide text-zinc-500">
-                Level {level} → {level + 1}
-              </span>
-              <span className="font-mono text-zinc-500">
-                {((xp ?? 0) - (currLevelXp ?? 0)).toLocaleString()} / {span.toLocaleString()} XP
-                <span className="ml-1 text-zinc-600">· {toNext.toLocaleString()} to go</span>
-              </span>
-            </div>
-            <div className="h-2.5 overflow-hidden rounded-full bg-zinc-800">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-lime-400 to-emerald-400 transition-[width] duration-500"
-                style={{ width: `${pct}%` }}
-              />
-            </div>
+        {/* headline row: XP progress + the reputation score, side by side */}
+        {(showXp || st) && (
+          <div className="mt-5 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-center">
+            {showXp ? (
+              <div>
+                <div className="mb-1 flex items-baseline justify-between text-[11px]">
+                  <span className="font-bold uppercase tracking-wide text-zinc-500">
+                    Level {level} → {level + 1}
+                  </span>
+                  <span className="font-mono text-zinc-500">
+                    {((xp ?? 0) - (currLevelXp ?? 0)).toLocaleString()} / {span.toLocaleString()} XP
+                    <span className="ml-1 text-zinc-600">· {toNext.toLocaleString()} to go</span>
+                  </span>
+                </div>
+                <div className="h-2.5 overflow-hidden rounded-full bg-zinc-800">
+                  <div
+                    className="h-full rounded-full bg-gradient-to-r from-lime-400 to-emerald-400 transition-[width] duration-500"
+                    style={{ width: `${pct}%` }}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div />
+            )}
+
+            {st && (
+              <div className="flex items-center gap-3 rounded-2xl bg-zinc-950/50 px-4 py-2.5">
+                <div className={`font-mono text-4xl font-black leading-none tabular-nums ${st.accent}`}>
+                  {rep}
+                </div>
+                <div className="leading-tight">
+                  <div className={`text-sm font-black ${st.accent}`}>
+                    {st.emoji} {st.label}
+                  </div>
+                  <div className="text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+                    Reputation
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
         {children && <div className="mt-4 space-y-3">{children}</div>}
       </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------- tabs */
+
+/** Underline tab bar — the profile's top-level order (Overview / Progression / Locker). */
+export function TabBar<T extends string>({
+  tabs,
+  value,
+  onChange,
+}: {
+  tabs: readonly (readonly [T, string])[];
+  value: T;
+  onChange: (t: T) => void;
+}) {
+  return (
+    <div className="flex gap-1 overflow-x-auto">
+      {tabs.map(([key, label]) => {
+        const active = value === key;
+        return (
+          <button
+            key={key}
+            onClick={() => onChange(key)}
+            className={`relative shrink-0 px-4 py-2.5 text-sm font-black transition ${
+              active ? "text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            {label}
+            {active && (
+              <span className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-lime-400" />
+            )}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -204,12 +271,12 @@ export function StatCard({
   hint?: string;
 }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3.5 transition hover:border-zinc-700">
+    <div className="rounded-2xl bg-zinc-900/50 p-4 transition hover:bg-zinc-900/80">
       <div className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
         {icon && <span className="text-xs">{icon}</span>}
         {label}
       </div>
-      <div className={`mt-1 font-mono text-xl font-black tabular-nums ${tone}`}>{value}</div>
+      <div className={`mt-1 font-mono text-2xl font-black tabular-nums ${tone}`}>{value}</div>
       {hint && <div className="mt-0.5 text-[10px] text-zinc-600">{hint}</div>}
     </div>
   );
@@ -236,18 +303,97 @@ export const RARITY: Record<
   string,
   { label: string; ring: string; text: string; wash: string }
 > = {
-  common: { label: "Common", ring: "border-zinc-700", text: "text-zinc-300", wash: "bg-zinc-900/40" },
-  rare: { label: "Rare", ring: "border-sky-500/50", text: "text-sky-300", wash: "bg-sky-500/[0.06]" },
+  common: { label: "Common", ring: "border-zinc-700", text: "text-zinc-300", wash: "bg-zinc-900/50" },
+  rare: { label: "Rare", ring: "border-sky-500/50", text: "text-sky-300", wash: "bg-sky-500/[0.08]" },
   epic: {
     label: "Epic",
     ring: "border-violet-500/50",
     text: "text-violet-300",
-    wash: "bg-violet-500/[0.06]",
+    wash: "bg-violet-500/[0.08]",
   },
   legendary: {
     label: "Legendary",
     ring: "border-amber-400/60",
     text: "text-amber-300",
-    wash: "bg-amber-400/[0.06]",
+    wash: "bg-amber-400/[0.08]",
   },
 };
+
+/** One achievement tile — borderless, rarity-washed; dims when locked. */
+export function AchievementCard({
+  achievement: a,
+  unlocked,
+}: {
+  achievement: AchievementDef;
+  unlocked: boolean;
+}) {
+  const r = RARITY[a.rarity] ?? RARITY.common;
+  return (
+    <div className={`rounded-2xl p-3.5 transition ${unlocked ? r.wash : "bg-zinc-900/30 opacity-45"}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-bold text-zinc-100">
+          {unlocked ? "🏅" : "🔒"} {a.name}
+        </span>
+        <span
+          className={`shrink-0 text-[9px] font-black uppercase tracking-wide ${
+            unlocked ? r.text : "text-zinc-600"
+          }`}
+        >
+          {r.label}
+        </span>
+      </div>
+      <div className="mt-1 text-xs text-zinc-400">{a.description}</div>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------ match list */
+
+/** Trading history as borderless rows (no table), newest first, click-through. */
+export function MatchHistory({ entries }: { entries: RoundHistoryEntry[] }) {
+  if (entries.length === 0)
+    return (
+      <div className="rounded-2xl bg-zinc-900/40 p-6 text-center text-sm text-zinc-500">
+        No rounds played yet.
+      </div>
+    );
+  return (
+    <div className="space-y-1.5">
+      {entries.map((h) => (
+        <Link
+          key={h.roundId}
+          href={`/round/${h.roundId}`}
+          className="flex items-center gap-4 rounded-2xl bg-zinc-900/40 px-4 py-3 transition hover:bg-zinc-900/80"
+        >
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-bold text-zinc-100">
+              {h.name} <span className="font-mono text-zinc-500">${h.symbol}</span>
+            </div>
+            <div className="mt-0.5 text-[11px] text-zinc-500">
+              <span className="uppercase">{h.tier}</span> ·{" "}
+              {h.graduated ? (
+                <span className="text-lime-300">served up</span>
+              ) : (
+                <span>{h.endReason.replace(/_/g, " ")}</span>
+              )}
+            </div>
+          </div>
+          <div className="hidden text-right text-[10px] uppercase tracking-wide text-zinc-600 sm:block">
+            invested
+            <div className="font-mono text-sm normal-case tracking-normal text-zinc-300">
+              {h.invested.toFixed(2)}
+            </div>
+          </div>
+          <div
+            className={`w-24 shrink-0 text-right font-mono text-base font-black ${
+              h.pnl >= 0 ? "text-emerald-400" : "text-red-400"
+            }`}
+          >
+            {h.pnl >= 0 ? "+" : ""}
+            {h.pnl.toFixed(3)}
+          </div>
+        </Link>
+      ))}
+    </div>
+  );
+}

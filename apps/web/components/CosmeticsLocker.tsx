@@ -67,7 +67,7 @@ export function CosmeticsLocker() {
       </p>
       <div className="grid gap-4 md:grid-cols-2">
         {(["badge", "title", "chat_color", "frame"] as const).map((type) => (
-          <div key={type} className="rounded-xl border border-zinc-800 p-4">
+          <div key={type} className="rounded-2xl bg-zinc-900/40 p-4">
             <h3 className="mb-2 text-sm font-bold text-zinc-300">{TYPE_LABEL[type]}</h3>
             <div className="flex flex-wrap gap-2">
               {all
@@ -81,12 +81,12 @@ export function CosmeticsLocker() {
                       disabled={!isUnlocked}
                       onClick={() => void toggle(c)}
                       title={isUnlocked ? (isEquipped ? "click to unequip" : "click to equip") : `unlocks at ${unlockText(c)}`}
-                      className={`rounded-lg border px-3 py-1.5 text-sm ${
+                      className={`rounded-lg px-3 py-1.5 text-sm transition ${
                         isEquipped
-                          ? "border-lime-400 bg-lime-400/15 font-bold"
+                          ? "bg-lime-400/20 font-bold text-lime-200"
                           : isUnlocked
-                            ? "border-zinc-700 hover:border-zinc-500"
-                            : "border-zinc-800 opacity-40"
+                            ? "bg-zinc-800/70 hover:bg-zinc-700"
+                            : "bg-zinc-900/40 opacity-40"
                       }`}
                     >
                       {type === "chat_color" ? (

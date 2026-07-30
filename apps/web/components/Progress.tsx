@@ -36,7 +36,7 @@ export function Progress() {
     <div className="space-y-4">
       {/* Streaks */}
       <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-xl border border-orange-500/40 bg-gradient-to-br from-orange-500/10 to-transparent p-4">
+        <div className="rounded-2xl bg-gradient-to-br from-orange-500/15 to-orange-500/[0.03] p-4">
           <div className="flex items-center justify-between">
             <span className="text-sm font-bold text-orange-300">🔥 Play Streak</span>
             <span className="font-mono text-xs text-zinc-500">
@@ -53,7 +53,7 @@ export function Progress() {
           </div>
         </div>
 
-        <div className="rounded-xl border border-zinc-800 p-4">
+        <div className="rounded-2xl bg-zinc-900/40 p-4">
           <span className="text-sm font-bold text-zinc-300">📅 Weekly Consistency</span>
           <div className="mt-1 font-mono text-3xl font-black">
             {p.weekStreak.current}
@@ -66,7 +66,7 @@ export function Progress() {
       </div>
 
       {/* Season pass */}
-      <div className="rounded-xl border border-amber-400/40 bg-gradient-to-br from-amber-500/10 to-transparent p-4">
+      <div className="rounded-2xl bg-gradient-to-br from-amber-500/15 to-amber-500/[0.03] p-4">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <span className="text-sm font-bold text-amber-300">🎟️ Season Pass</span>
           <span className="font-mono text-xs text-zinc-400">
@@ -84,10 +84,8 @@ export function Progress() {
             <div
               key={t.at}
               title={t.reward ?? `+${t.xp} XP`}
-              className={`rounded-lg border px-2.5 py-1 text-xs ${
-                t.done
-                  ? "border-amber-400/50 bg-amber-400/10 text-amber-300"
-                  : "border-zinc-800 text-zinc-500"
+              className={`rounded-lg px-2.5 py-1 text-xs ${
+                t.done ? "bg-amber-400/10 text-amber-300" : "bg-zinc-800/60 text-zinc-500"
               }`}
             >
               <span className="font-mono">{t.at}</span>
@@ -101,7 +99,7 @@ export function Progress() {
       </div>
 
       {/* Lifetime milestones */}
-      <div className="rounded-xl border border-zinc-800 p-4">
+      <div className="rounded-2xl bg-zinc-900/40 p-4">
         <span className="text-sm font-bold text-zinc-300">🏅 Lifetime Milestones</span>
         <div className="mt-3 space-y-3">
           {p.milestones.map((l) => {
