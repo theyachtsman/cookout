@@ -103,7 +103,7 @@ export function RoundResultsOverlay({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md animate-[fadein_.3s_ease] rounded-2xl border border-zinc-700 bg-zinc-950 p-6 shadow-2xl"
+        className="w-full max-w-md animate-[fadein_.3s_ease] rounded-2xl bg-zinc-950 p-6 shadow-2xl ring-1 ring-white/10"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="text-center">
@@ -120,7 +120,7 @@ export function RoundResultsOverlay({
         </div>
 
         {played && breakdown && (
-          <div className="mt-5 rounded-xl border border-zinc-800 bg-zinc-900/60 p-4">
+          <div className="mt-5 rounded-2xl bg-zinc-900/60 p-4">
             <div className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
               Your round
             </div>
@@ -169,7 +169,7 @@ export function RoundResultsOverlay({
 
         {/* How the refund works — the trust story, told at the exact moment
             players are staring at the loss. */}
-        <div className="mt-4 rounded-xl border border-amber-400/20 bg-amber-500/[0.04] p-3.5">
+        <div className="mt-4 rounded-2xl bg-amber-500/[0.08] p-3.5">
           <div className="text-[11px] font-bold uppercase tracking-wider text-amber-300/90">
             🏦 How holders get refunded
           </div>
