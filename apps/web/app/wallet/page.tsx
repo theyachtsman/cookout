@@ -48,6 +48,10 @@ const LEDGER_META: Record<LedgerKind, { icon: string; label: string; credit: boo
   jackpot: { icon: "🎰", label: "Jackpot payout", credit: true },
   buy: { icon: "🟢", label: "Bought", credit: false },
   sell: { icon: "🔴", label: "Sold", credit: true },
+  pit_prediction: { icon: "🎯", label: "Pit prediction entry", credit: false },
+  pit_trading: { icon: "🕹️", label: "Pit trading entry", credit: false },
+  pit_reward: { icon: "🏆", label: "Pit reward", credit: true },
+  pit_creator: { icon: "💠", label: "Pit creator reward", credit: true },
 };
 
 export default function WalletPage() {

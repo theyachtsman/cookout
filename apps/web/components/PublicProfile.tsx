@@ -8,6 +8,7 @@ import {
   xpForLevel,
   type EquippedCosmetics,
   type JackpotWin,
+  type PitStats,
   type Round,
   type RoundHistoryEntry,
   type RoundSummary,
@@ -17,6 +18,7 @@ import {
 import { api } from "../lib/api";
 import { useUnit } from "../lib/chainOnly";
 import { FeesEarned } from "./FeesEarned";
+import { PitProfile } from "./PitProfile";
 import { ReputationPanel } from "./Reputation";
 import { RunItBackButton } from "./RunItBack";
 import {
@@ -47,6 +49,7 @@ interface PlayerProfile {
   stats: Record<string, number>;
   jackpotWinnings?: number;
   jackpotWins?: JackpotWin[];
+  pitStats?: PitStats;
 }
 
 interface CreatorView {
@@ -75,7 +78,7 @@ const STATUS_STYLE: Record<string, string> = {
   rejected: "bg-red-500/15 text-red-300/80",
 };
 
-type Tab = "overview" | "creator";
+type Tab = "overview" | "pit" | "creator";
 
 /**
  * The public profile — player identity and creator record on one page, split
@@ -137,9 +140,16 @@ export function PublicProfile({
       creator.aggregates.roundsLaunched > 0 ||
       creator.creatorReputation !== 0 ||
       (creator.rugBans?.length ?? 0) > 0);
-  // If we were deep-linked to the creator tab but this address isn't a creator
-  // (or the record hasn't loaded yet), fall back to Overview.
-  const activeTab: Tab = tab === "creator" && isCreator ? "creator" : "overview";
+  const hasPit = (profile.pitStats?.matchesPlayed ?? 0) > 0;
+  const tabs: [Tab, string][] = [
+    ["overview", "Overview"],
+    ...((hasPit ? [["pit", "The Pit"]] : []) as [Tab, string][]),
+    ...((isCreator ? [["creator", "Creator"]] : []) as [Tab, string][]),
+  ];
+  // Deep-linked or clicked tab must still be valid for this profile; otherwise
+  // fall back to Overview.
+  const activeTab: Tab =
+    tab === "creator" && isCreator ? "creator" : tab === "pit" && hasPit ? "pit" : "overview";
   const a = creator?.aggregates;
   const gradRate =
     a && a.roundsLaunched > 0 ? Math.round((a.graduations / a.roundsLaunched) * 100) : 0;
@@ -181,18 +191,9 @@ export function PublicProfile({
         }
       />
 
-      {isCreator && (
-        <TabBar
-          tabs={
-            [
-              ["overview", "Overview"],
-              ["creator", "Creator"],
-            ] as const
-          }
-          value={activeTab}
-          onChange={setTab}
-        />
-      )}
+      {tabs.length > 1 && <TabBar tabs={tabs} value={activeTab} onChange={setTab} />}
+
+      {activeTab === "pit" && <PitProfile address={address} pitStats={profile.pitStats} />}
 
       {activeTab === "overview" && (
         <div className="space-y-6">

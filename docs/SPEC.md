@@ -191,3 +191,40 @@ NFTs. No pay-to-win, ever.
 
 No Phase 2 work until §12 legal review is complete and §13 requirements are
 independently verifiable.
+
+## 18. The Pit (bonus game mode — PvE vs Swarm AI)
+
+The Pit is a complementary game mode that lives alongside the main Cookout PvP
+experience. It is a new **Cookout match type**, not a separate app: it reuses the
+same auth, wallet, Cook Out balance, Grill chat, profiles, notifications,
+leaderboards, ledger, charts, and design system. Players compete against **The
+Swarm** (Swarm AI) instead of each other.
+
+- **Match type.** Every match carries `matchType` (`cookout` | `pit`). Pit rounds
+  set `round.pit` (durations, fees, fee split, starting stack, both pool states).
+  Legacy/Cookout matches leave it unset and behave exactly as before.
+- **Direct launch, no vote.** Launch a Coin gains a Game Type selector. Picking
+  The Pit shows a duration (⚡ Blitz 1m / 🔥 Standard 5m / 🧠 Marathon 10m) and
+  launches straight into the Pit queue — no community vote.
+- **Lifecycle.** Launch → Lobby (paid entry) → Live (equal paper stacks vs the
+  Swarm) → Results → Archive. No Fair Open auction. Max 5 concurrent live matches
+  (configurable); extras queue and promote as slots free.
+- **Two independent pools.** Prediction (call Graduate / Rug / Timer) and Trading
+  (trade a fixed paper stack; positive PnL qualifies). Each splits evenly among
+  its winners; an unclaimed pool carries into the next match. Winning both is a
+  Double Winner. Entry fees debit the Cook Out balance; the Pit fee is skimmed and
+  routed (platform / weekly jackpot / creator / treasury).
+- **Swarm AI Director.** Enhances the existing bot swarm to drive believable market
+  stories (accumulation, momentum, fake recovery, panic, distribution, blow-off,
+  late rug, recovery) scaled by duration and the admin Aggression / Difficulty
+  knobs. It never predetermines winners. It is **always on for Pit rounds** — the
+  admin Cookout bot toggle governs the Cookout swarm only.
+- **Everywhere it shows up.** Cook Out balance ledger (`pit_*` entries), a Grill
+  chat room per match with Swarm system messages, a profile **The Pit** tab
+  (lifetime record + recent matches), and Pit leaderboards (Highest Profit,
+  Prediction Accuracy, Prediction/Trading Wins, Double Wins, Largest Win, Profit
+  Streak, Total Earnings, Best Blitz/Standard/Marathon). All gameplay values are
+  admin-configurable (see §14).
+- **Money.** Paper-only (no chain). The paper deployment denominates in pETH; the
+  dev/testnet deployment labels entry fees in testnet ETH via the existing
+  denomination handling. Trading never touches real liquidity.

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import type {
   AuctionResult,
   Candle,
@@ -64,6 +64,11 @@ const isRugRound = (r: Round) =>
 
 export default function RoundPage() {
   const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  // The Pit is a distinct match type with its own screen (pools, paper stacks,
+  // Swarm AI). A Pit round rendered here would try to run the Cookout auction
+  // path, so hand it straight to /pit/:id (ledger + results links land here).
+  const pitRedirected = useRef(false);
   const { profile, refresh } = useSession();
   const { setActiveRoom } = useSocial();
   const [round, setRound] = useState<Round | null>(null);
@@ -141,6 +146,11 @@ export default function RoundPage() {
       summary: RoundSummary | null;
       ethUsd?: number;
     }>(`/api/rounds/${id}`);
+    if (data.round.matchType === "pit" && !pitRedirected.current) {
+      pitRedirected.current = true;
+      router.replace(`/pit/${id}`);
+      return;
+    }
     setRound(data.round);
     setKillfeed(data.killfeed);
     setTrades(data.trades);
@@ -149,7 +159,7 @@ export default function RoundPage() {
     setAuction(data.auction);
     setSummary(data.summary);
     if (data.ethUsd) setPegUsd(data.ethUsd);
-  }, [id]);
+  }, [id, router]);
 
   useEffect(() => {
     void load();

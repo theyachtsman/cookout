@@ -12,6 +12,9 @@ import {
   unlockedCosmetics,
   dayKey,
   weekKey,
+  marketCap,
+  PIT_DURATION_MAP,
+  PIT_DURATIONS,
   type AccountTrade,
   type CoinModifiers,
   type CoinSocials,
@@ -19,9 +22,13 @@ import {
   type GameMode,
   type MyFill,
   type NotifyCategory,
+  type PitCall,
+  type PitDurationKey,
+  type PitEntry,
   type RiskTier,
   type TokenConcept,
 } from "@cookout/shared";
+import { enterPit, pitEntryCost } from "./pit-pools.js";
 import { linkDeepLink } from "./telegram/index.js";
 import {
   createSessionForAddress,
@@ -538,6 +545,184 @@ export function createApp(
     }),
   );
 
+  // ---- The Pit (PvE vs Swarm AI) ----
+  /** Public queue view: live / lobby / queued / recent results + carryover. */
+  const pitPools = (r: import("@cookout/shared").Round) => ({
+    prediction: {
+      pot: r.pit!.prediction.pot + r.pit!.prediction.carryIn,
+      participants: r.pit!.prediction.participants,
+      carryIn: r.pit!.prediction.carryIn,
+    },
+    trading: {
+      pot: r.pit!.trading.pot + r.pit!.trading.carryIn,
+      participants: r.pit!.trading.participants,
+      carryIn: r.pit!.trading.carryIn,
+    },
+  });
+  const pitView = (r: import("@cookout/shared").Round) => ({
+    round: r,
+    ...pitPools(r),
+    summary: store.summaries.get(r.id) ?? null,
+    mcap: r.pool ? marketCap(r.pool) : 0,
+  });
+
+  app.get(
+    "/api/pit",
+    wrap((_req, res) => {
+      const now = Date.now();
+      const all = [...store.rounds.values()].filter((r) => r.matchType === "pit");
+      const live = all
+        .filter((r) => r.state === "live")
+        .sort((a, b) => (a.liveAt ?? 0) - (b.liveAt ?? 0))
+        .map(pitView);
+      const lobby = all
+        .filter((r) => r.state === "lobby" && now < (r.queueOpensAt ?? 0))
+        .sort((a, b) => (a.queueOpensAt ?? 0) - (b.queueOpensAt ?? 0))
+        .map(pitView);
+      const queue = all
+        .filter((r) => r.state === "lobby" && now >= (r.queueOpensAt ?? 0))
+        .sort((a, b) => (a.queueOpensAt ?? 0) - (b.queueOpensAt ?? 0))
+        .map(pitView);
+      const results = all
+        .filter((r) => r.state === "results")
+        .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0))
+        .slice(0, 12)
+        .map(pitView);
+      const s = store.settings.pit;
+      res.json({
+        live,
+        lobby,
+        queue,
+        results,
+        carry: store.pitCarry,
+        config: {
+          predictionFee: s.predictionFee,
+          tradingFee: s.tradingFee,
+          startingStack: s.startingStack,
+          maxConcurrent: s.maxConcurrent,
+          durations: PIT_DURATIONS.filter((d) => s.durations.includes(d.key)),
+        },
+      });
+    }),
+  );
+
+  /** The caller's own state in a Pit match: their entry + remaining stack. */
+  app.get(
+    "/api/pit/:id/me",
+    auth,
+    wrap((req, res) => {
+      const round = store.rounds.get(req.params.id!);
+      if (!round || round.matchType !== "pit") throw new Err(404, "pit match not found");
+      const addr = req.userAddress!;
+      res.json({
+        entry: store.pitEntryOf(round.id, addr) ?? null,
+        stack: store.pitStackOf(round.id, addr),
+      });
+    }),
+  );
+
+  /** Launch a Pit match directly (no vote). Creator picks the coin + duration. */
+  app.post(
+    "/api/pit/launch",
+    auth,
+    wrap((req, res) => {
+      const body = req.body as {
+        name?: string;
+        symbol?: string;
+        theme?: string;
+        pitch?: string;
+        artworkUrl?: string;
+        bannerUrl?: string;
+        duration?: string;
+      };
+      const { name, symbol, theme } = body;
+      if (!name || !symbol || !theme) throw new Err(400, "name, symbol, theme required");
+      const duration = (body.duration ?? "standard") as PitDurationKey;
+      if (!PIT_DURATION_MAP[duration] || !store.settings.pit.durations.includes(duration))
+        throw new Err(400, "unknown or disabled Pit duration");
+      const creator = store.getOrCreateUser(req.userAddress!);
+      const ban = activeRugBan(creator);
+      if (ban)
+        throw new Err(
+          403,
+          "this wallet is banned from launching coins after a rug. Check the Reputation section on your Profile page",
+        );
+      const recent = [...store.concepts.values()].filter(
+        (c) => c.creatorAddress === creator.address && Date.now() - c.createdAt < 60 * 60 * 1000,
+      );
+      if (recent.length >= 3) throw new Err(429, "creator cooldown: max 3 launches per hour");
+      const concept: TokenConcept = {
+        id: store.id(),
+        creatorAddress: creator.address,
+        name: String(name).slice(0, 48),
+        symbol: String(symbol).toUpperCase().slice(0, 8),
+        theme: String(theme).slice(0, 140),
+        pitch: body.pitch ? String(body.pitch).slice(0, 1000) : undefined,
+        socials: sanitizeSocials((req.body as { socials?: unknown }).socials),
+        artworkUrl: body.artworkUrl ? sanitizeImageUrl(body.artworkUrl) : undefined,
+        bannerUrl: body.bannerUrl ? sanitizeImageUrl(body.bannerUrl) : undefined,
+        tier: "degen",
+        matchType: "pit",
+        pitDuration: duration,
+        status: "submitted",
+        votes: 0,
+        createdAt: Date.now(),
+      };
+      store.concepts.set(concept.id, concept);
+      const round = engine.schedulePitRound(concept, Date.now());
+      store.logAdmin("pit", `pit match ${round.id} (${concept.symbol}, ${duration}) launched by ${creator.address}`);
+      res.json({ round });
+    }),
+  );
+
+  /** Enter a Pit match: prediction call and/or trading, at least one. */
+  app.post(
+    "/api/pit/:id/enter",
+    auth,
+    wrap((req, res) => {
+      const round = store.rounds.get(req.params.id!);
+      if (!round || round.matchType !== "pit") throw new Err(404, "pit match not found");
+      if (round.state !== "lobby") throw new Err(409, "the lobby for this match is closed");
+      const addr = req.userAddress!;
+      if (store.pitEntryOf(round.id, addr)) throw new Err(409, "you're already entered in this match");
+      const body = req.body as { prediction?: string; trading?: boolean };
+      const entry: PitEntry = {};
+      if (body.prediction !== undefined && body.prediction !== null) {
+        if (!["graduate", "rug", "timer"].includes(String(body.prediction)))
+          throw new Err(400, "prediction must be graduate, rug, or timer");
+        entry.prediction = body.prediction as PitCall;
+      }
+      if (body.trading) entry.trading = true;
+      if (!entry.prediction && !entry.trading) throw new Err(400, "enter at least one pool");
+      const cost = pitEntryCost(round, entry);
+      const user = store.getOrCreateUser(addr);
+      if ((user.arenaBalance ?? 0) < cost - 1e-9)
+        throw new Err(400, "not enough in your Cook Out balance: deposit pETH to enter The Pit");
+      enterPit(store, round, addr, entry);
+      engine.emitLobbyPublic(round);
+      res.json({ ok: true, entry, stack: store.pitStackOf(round.id, addr), ...pitPools(round) });
+    }),
+  );
+
+  /** A player's recent Pit matches (for the profile's The Pit tab). */
+  app.get(
+    "/api/pit/history/:address",
+    wrap((req, res) => {
+      const addr = req.params.address!.toLowerCase();
+      const rows = [...store.summaries.values()]
+        .filter((s) => s.pit && s.pit.players.some((p) => p.address === addr))
+        .map((s) => ({
+          round: store.rounds.get(s.roundId) ?? null,
+          summary: s,
+          me: s.pit!.players.find((p) => p.address === addr) ?? null,
+        }))
+        .filter((r) => r.round)
+        .sort((a, b) => (b.round!.endedAt ?? 0) - (a.round!.endedAt ?? 0))
+        .slice(0, 20);
+      res.json(rows);
+    }),
+  );
+
   // ---- tester feedback (beta instrumentation) ----
   app.post(
     "/api/feedback",
@@ -581,6 +766,7 @@ export function createApp(
         pinnedAnnouncement,
         selfServeUnban,
         rugBanHours,
+        pit,
       } = req.body as {
         autoSchedule?: boolean;
         tier?: RiskTier;
@@ -591,6 +777,7 @@ export function createApp(
         pinnedAnnouncement?: string;
         selfServeUnban?: boolean;
         rugBanHours?: number[];
+        pit?: Partial<import("./store.js").PitSettings>;
       };
       if (autoSchedule !== undefined) store.settings.autoSchedule = !!autoSchedule;
       if (bots !== undefined) store.settings.bots = !!bots;
@@ -613,6 +800,25 @@ export function createApp(
         store.settings.pinnedAnnouncement = String(pinnedAnnouncement).trim().slice(0, 280);
         // Connected clients swap the pin live; "" clears it everywhere.
         broadcast(GLOBAL_ROOM, { type: "pinned", text: store.settings.pinnedAnnouncement });
+      }
+      if (pit && typeof pit === "object") {
+        const p = store.settings.pit;
+        const num = (v: unknown, lo: number, hi: number, dflt: number) =>
+          Math.max(lo, Math.min(hi, Number.isFinite(Number(v)) ? Number(v) : dflt));
+        if (pit.predictionFee !== undefined) p.predictionFee = num(pit.predictionFee, 0, 100, p.predictionFee);
+        if (pit.tradingFee !== undefined) p.tradingFee = num(pit.tradingFee, 0, 100, p.tradingFee);
+        if (pit.pitFeeBps !== undefined) p.pitFeeBps = Math.round(num(pit.pitFeeBps, 0, 5000, p.pitFeeBps));
+        if (pit.startingStack !== undefined) p.startingStack = num(pit.startingStack, 0.01, 1000, p.startingStack);
+        if (pit.lobbySeconds !== undefined) p.lobbySeconds = Math.round(num(pit.lobbySeconds, 5, 3600, p.lobbySeconds));
+        if (pit.maxConcurrent !== undefined) p.maxConcurrent = Math.round(num(pit.maxConcurrent, 1, 50, p.maxConcurrent));
+        if (pit.carryover !== undefined) p.carryover = !!pit.carryover;
+        if (pit.aggression !== undefined) p.aggression = num(pit.aggression, 0, 1, p.aggression);
+        if (pit.difficulty !== undefined) p.difficulty = num(pit.difficulty, 0, 1, p.difficulty);
+        if (pit.feeSplit && typeof pit.feeSplit === "object") p.feeSplit = { ...p.feeSplit, ...pit.feeSplit };
+        if (Array.isArray(pit.durations))
+          p.durations = pit.durations.filter((d): d is PitDurationKey =>
+            ["blitz", "standard", "marathon"].includes(d as string),
+          );
       }
       store.logAdmin("settings", JSON.stringify(store.settings));
       res.json(store.settings);
@@ -1422,6 +1628,57 @@ export function createApp(
           .sort((a, b) => b.value - a.value)
           .slice(0, 100);
         res.json({ scope, metric: "pnl", rows });
+        return;
+      }
+
+      // The Pit's own boards, computed from lifetime pitStats.
+      if (scope === "pit") {
+        const rows = [...store.users.values()]
+          .filter((u) => u.pitStats && u.pitStats.matchesPlayed > 0 && !u.address.startsWith("0xb07"))
+          .map((u) => {
+            const ps = u.pitStats!;
+            let value: number;
+            switch (metric) {
+              case "accuracy":
+                value = ps.predictionsMade
+                  ? Math.round((ps.predictionsCorrect / ps.predictionsMade) * 100)
+                  : 0;
+                break;
+              case "predWins":
+                value = ps.predictionWins;
+                break;
+              case "tradeWins":
+                value = ps.tradingWins;
+                break;
+              case "double":
+                value = ps.doubleWins;
+                break;
+              case "largest":
+                value = ps.largestWin;
+                break;
+              case "streak":
+                value = ps.longestProfitStreak;
+                break;
+              case "blitz":
+                value = ps.byDuration.blitz.wins;
+                break;
+              case "standard":
+                value = ps.byDuration.standard.wins;
+                break;
+              case "marathon":
+                value = ps.byDuration.marathon.wins;
+                break;
+              case "earnings":
+                value = ps.totalEarnings;
+                break;
+              default:
+                value = ps.highestPnl; // "profit": best single-match PnL
+            }
+            return row(u, value);
+          })
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 100);
+        res.json({ scope, metric, rows });
         return;
       }
 

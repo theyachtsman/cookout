@@ -23,6 +23,10 @@ const SYSTEM_STYLE: Record<SystemChatKind, string> = {
   graduated: "border-lime-400/60 text-lime-300",
   ended: "border-zinc-600 text-zinc-400",
   announce: "border-amber-400/60 text-amber-200",
+  pit_open: "border-fuchsia-400/50 text-fuchsia-300",
+  pit_live: "border-fuchsia-400/60 text-fuchsia-200",
+  pit_event: "border-fuchsia-400/40 text-fuchsia-300",
+  pit_result: "border-fuchsia-400/60 text-fuchsia-200",
 };
 
 const SYSTEM_ICON: Record<SystemChatKind, string> = {
@@ -37,6 +41,10 @@ const SYSTEM_ICON: Record<SystemChatKind, string> = {
   graduated: "🍽️",
   ended: "🏁",
   announce: "📢",
+  pit_open: "🕳️",
+  pit_live: "🤖",
+  pit_event: "🤖",
+  pit_result: "🏁",
 };
 
 const time = (at: number) =>

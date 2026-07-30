@@ -47,3 +47,27 @@ and there are no deposits in Phase 1.
 
 No whole-chain launch indexers are needed (spec §15): the platform controls deployment,
 so launch detection is an internal trigger.
+
+## The Pit (spec §18)
+
+The Pit is a PvE match type layered onto the same `Round` and `RoundEngine`, not a
+parallel system. A `matchType` discriminator (`cookout` | `pit`) flows through the
+whole stack; only code that behaves differently branches on it.
+
+| Concern | Where it lives |
+| --- | --- |
+| Types (`PitConfig`, `PitEntry`, `PitResult`, `PitStats`, `PIT_DURATIONS`, ledger kinds) | `packages/shared/src/{types,constants}.ts` |
+| Lifecycle: `schedulePitRound`, lobby→live (no auction), per-match paper stack in `trade()`, `endRound`→`resolvePitRound` | `apps/server/src/engine.ts` |
+| Entry-fee intake + Pit-fee routing | `apps/server/src/pit-pools.ts` |
+| End resolution: pool splits, carryover, stats, XP | `apps/server/src/pit-results.ts` |
+| Swarm AI Director (narrative market phases) | `apps/server/src/swarm-director.ts`, ticked from `index.ts`, always on for Pit rounds |
+| Durable state: `pitStats` on the user, `pitCarry`, `settings.pit` | `apps/server/src/store.ts` (`snapshot()/hydrate()`) |
+| Ephemeral per-match state: `pitEntries`, `pitStacks` | `Store` maps (not persisted, like live rounds) |
+| Routes: `/api/pit`, `/api/pit/launch`, `/api/pit/:id/enter|me`, `/api/pit/history/:addr`, leaderboard `scope=pit` | `apps/server/src/routes.ts` |
+| Web: `/pit`, `/pit/[id]` (lobby + live + results), profile The Pit tab, admin Pit panel | `apps/web/app/pit/*`, `components/Pit*.tsx` |
+
+Reuse over duplication: trading is the same `engine.trade()` path (Pit buys/sells
+draw down a per-match paper stack instead of the Cook Out balance and skip the
+buy/sell ledger); the chart, order book, graduation progress, chat rooms, ledger,
+and presence are the existing components. The `/round/:id` page redirects Pit
+rounds to `/pit/:id` so ledger and results links keep working.

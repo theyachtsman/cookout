@@ -25,6 +25,7 @@ interface Overview {
     announceTips?: string[];
     announceEveryMin?: number;
     pinnedAnnouncement?: string;
+    pit?: PitSettings;
   };
   log: { id: string; at: number; action: string; detail: string }[];
 }
@@ -36,6 +37,126 @@ interface Feedback {
   text: string;
   page?: string;
   at: number;
+}
+
+interface PitSettings {
+  predictionFee: number;
+  tradingFee: number;
+  pitFeeBps: number;
+  feeSplit: { platform: number; jackpot: number; creator: number; treasury: number };
+  startingStack: number;
+  lobbySeconds: number;
+  maxConcurrent: number;
+  carryover: boolean;
+  aggression: number;
+  difficulty: number;
+  durations: string[];
+}
+
+/**
+ * The Pit economy + Swarm AI knobs. Every value is live-editable; the Swarm that
+ * runs Pit rounds is always on (it is the mode), so there is no on/off here — the
+ * Bot swarm toggle above governs the Cookout swarm only.
+ */
+function PitOpsPanel({
+  settings,
+  act,
+}: {
+  settings?: PitSettings;
+  act: (path: string, body?: unknown, method?: string) => Promise<void>;
+}) {
+  const [draft, setDraft] = useState<PitSettings | null>(null);
+  const p = draft ?? settings;
+  if (!p) return <div className="rounded-lg border border-zinc-800 p-3 text-xs text-zinc-500">Loading…</div>;
+
+  const set = (patch: Partial<PitSettings>) => setDraft({ ...p, ...patch });
+  const num = (label: string, key: keyof PitSettings, step = "0.01") => (
+    <label className="flex flex-col gap-1 text-xs text-zinc-500">
+      {label}
+      <input
+        type="number"
+        step={step}
+        value={String(p[key] as number)}
+        onChange={(e) => set({ [key]: Number(e.target.value) } as Partial<PitSettings>)}
+        className="w-28 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-sm text-zinc-100"
+      />
+    </label>
+  );
+
+  const durations = ["blitz", "standard", "marathon"];
+
+  return (
+    <div className="space-y-3 rounded-lg border border-fuchsia-500/30 bg-fuchsia-500/[0.04] p-3">
+      <div className="flex flex-wrap items-end gap-3">
+        {num("Prediction fee (pETH)", "predictionFee")}
+        {num("Trading fee (pETH)", "tradingFee")}
+        {num("Starting stack (pETH)", "startingStack")}
+        {num("Pit fee (bps)", "pitFeeBps", "50")}
+        {num("Lobby seconds", "lobbySeconds", "5")}
+        {num("Max concurrent", "maxConcurrent", "1")}
+      </div>
+      <div className="flex flex-wrap items-end gap-3">
+        {num("Aggression (0-1)", "aggression")}
+        {num("Difficulty (0-1)", "difficulty")}
+        <label className="flex items-center gap-2 text-xs text-zinc-400">
+          <input
+            type="checkbox"
+            checked={p.carryover}
+            onChange={(e) => set({ carryover: e.target.checked })}
+          />
+          Carryover unclaimed pools
+        </label>
+      </div>
+      <div className="flex flex-wrap items-end gap-3">
+        {(["platform", "jackpot", "creator", "treasury"] as const).map((k) => (
+          <label key={k} className="flex flex-col gap-1 text-xs text-zinc-500">
+            Fee split · {k}
+            <input
+              type="number"
+              step="0.05"
+              value={String(p.feeSplit[k])}
+              onChange={(e) => set({ feeSplit: { ...p.feeSplit, [k]: Number(e.target.value) } })}
+              className="w-24 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-sm text-zinc-100"
+            />
+          </label>
+        ))}
+        <span className="text-[11px] text-zinc-600">
+          split sum: {(p.feeSplit.platform + p.feeSplit.jackpot + p.feeSplit.creator + p.feeSplit.treasury).toFixed(2)}
+        </span>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-xs text-zinc-500">Durations offered:</span>
+        {durations.map((d) => {
+          const on = p.durations.includes(d);
+          return (
+            <button
+              key={d}
+              onClick={() =>
+                set({ durations: on ? p.durations.filter((x) => x !== d) : [...p.durations, d] })
+              }
+              className={`rounded px-2 py-1 text-xs font-bold ${
+                on ? "bg-fuchsia-500/20 text-fuchsia-300" : "bg-zinc-800 text-zinc-500"
+              }`}
+            >
+              {d}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-3">
+        <button
+          disabled={!draft}
+          onClick={() => void act("/api/admin/settings", { pit: p }).then(() => setDraft(null))}
+          className="rounded bg-fuchsia-500 px-3 py-1.5 text-xs font-black text-zinc-950 hover:bg-fuchsia-400 disabled:opacity-40"
+        >
+          Save Pit settings
+        </button>
+        <span className="text-[11px] text-zinc-600">
+          The Swarm AI that runs Pit rounds is always on. The Bot swarm toggle governs Cookout only.
+        </span>
+      </div>
+    </div>
+  );
 }
 
 /**
@@ -931,9 +1052,9 @@ export default function AdminPage() {
                   ? "bg-emerald-900/60 text-emerald-300"
                   : "bg-zinc-800 text-zinc-400"
               }`}
-              title="Paper bot swarm: lobby chat, queue pull-ups, live profit-seeking trading. Paper rounds only; excluded from jackpot payouts."
+              title="Cookout bot swarm: lobby chat, queue pull-ups, live profit-seeking trading in Standard Cookout rounds. Does NOT affect The Pit — its Swarm AI is always on. Paper rounds only; excluded from jackpot payouts."
             >
-              🤖 Bot swarm: {overview.settings.bots ? "ON" : "OFF"}
+              🤖 Cookout swarm: {overview.settings.bots ? "ON" : "OFF"}
             </button>
             <label className="flex items-center gap-2">
               <span className="text-xs text-zinc-500">tier</span>
@@ -960,6 +1081,13 @@ export default function AdminPage() {
             </span>
           </div>
           <AnnouncementsEditor settings={overview.settings} act={act} />
+        </section>
+      )}
+
+      {overview && (
+        <section>
+          <h2 className="mb-2 font-bold">🕳️ The Pit (Swarm AI)</h2>
+          <PitOpsPanel settings={overview.settings.pit} act={act} />
         </section>
       )}
 

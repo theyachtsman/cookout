@@ -15,6 +15,7 @@ import { Missions } from "../../components/Missions";
 import { Progress } from "../../components/Progress";
 import { ReputationPanel } from "../../components/Reputation";
 import { RunItBackButton } from "../../components/RunItBack";
+import { PitProfile } from "../../components/PitProfile";
 import {
   AchievementCard,
   Avatar,
@@ -26,11 +27,12 @@ import {
   TabBar,
 } from "../../components/ProfileUI";
 
-type Tab = "overview" | "runitback" | "quests" | "progression" | "achievements" | "rewards";
+type Tab = "overview" | "runitback" | "pit" | "quests" | "progression" | "achievements" | "rewards";
 
 const TABS = [
   ["overview", "Overview"],
   ["runitback", "Run It Back"],
+  ["pit", "The Pit"],
   ["quests", "Quests"],
   ["progression", "Progression"],
   ["achievements", "Achievements"],
@@ -329,6 +331,8 @@ export default function ProfilePage() {
           })()}
         </div>
       )}
+
+      {tab === "pit" && <PitProfile address={profile.address} />}
 
       {tab === "quests" && (
         <div className="space-y-6">

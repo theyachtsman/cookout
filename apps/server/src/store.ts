@@ -46,6 +46,11 @@ import {
   type TokenConcept,
   type Trade,
   type UserProfile,
+  type PitEntry,
+  type PitStats,
+  type PitDurationKey,
+  type PitFeeSplit,
+  PIT_DEFAULTS,
 } from "@cookout/shared";
 
 /** Sessions outlive deploys but not this window (see snapshot comment). */
@@ -176,6 +181,13 @@ export class Store {
   killfeed = new Map<string, KillFeedEvent[]>();
   predictions = new Map<string, Map<Address, Prediction>>();
   summaries = new Map<string, RoundSummary>();
+  // ---- The Pit (PvE vs Swarm AI) — ephemeral per-match state ----
+  /** roundId → address → their lobby entry (prediction call and/or trading). */
+  pitEntries = new Map<string, Map<Address, PitEntry>>();
+  /** roundId → address → remaining paper stack (pETH) for Trading Pool players. */
+  pitStacks = new Map<string, Map<Address, number>>();
+  /** Unclaimed prize pools carried into the next Pit match (durable). */
+  pitCarry: { prediction: number; trading: number } = { prediction: 0, trading: 0 };
   adminLog: AdminLogEntry[] = [];
   /** Platform fee revenue collected per round (paper ETH). */
   feesByRound = new Map<string, number>();
@@ -208,6 +220,13 @@ export class Store {
     selfServeUnban: true,
     // Wait-out schedule in hours by offense count (1st, 2nd, 3rd+ rug).
     rugBanHours: [24, 72, 168],
+    // The Pit economy + Swarm knobs, all live-editable. Deep-copied from the
+    // shared defaults so admin edits never mutate the shared constant.
+    pit: {
+      ...PIT_DEFAULTS,
+      feeSplit: { ...PIT_DEFAULTS.feeSplit },
+      durations: [...PIT_DEFAULTS.durations],
+    },
   };
   /** Live ETH/USD, refreshed by the price feed; used to peg the $40k bond. */
   ethUsd = DEFAULT_ETH_USD;
@@ -321,6 +340,43 @@ export class Store {
       ...(opts.roundId ? { roundId: opts.roundId } : {}),
     });
     if (list.length > 250) list.splice(0, list.length - 250);
+  }
+
+  // ---- The Pit helpers ----
+  /** A Trading Pool player's remaining paper stack for a match (pETH). */
+  pitStackOf(roundId: string, address: Address): number {
+    return this.pitStacks.get(roundId)?.get(address.toLowerCase()) ?? 0;
+  }
+  setPitStack(roundId: string, address: Address, value: number): void {
+    let m = this.pitStacks.get(roundId);
+    if (!m) {
+      m = new Map();
+      this.pitStacks.set(roundId, m);
+    }
+    m.set(address.toLowerCase(), Math.max(0, value));
+  }
+  addPitStack(roundId: string, address: Address, delta: number): void {
+    this.setPitStack(roundId, address, this.pitStackOf(roundId, address) + delta);
+  }
+  pitEntriesFor(roundId: string): Map<Address, PitEntry> {
+    let m = this.pitEntries.get(roundId);
+    if (!m) {
+      m = new Map();
+      this.pitEntries.set(roundId, m);
+    }
+    return m;
+  }
+  pitEntryOf(roundId: string, address: Address): PitEntry | undefined {
+    return this.pitEntries.get(roundId)?.get(address.toLowerCase());
+  }
+  setPitEntry(roundId: string, address: Address, entry: PitEntry): void {
+    this.pitEntriesFor(roundId).set(address.toLowerCase(), entry);
+  }
+  /** Get (or lazily create) a player's lifetime Pit record. */
+  pitStatsOf(address: Address): PitStats {
+    const u = this.getOrCreateUser(address);
+    if (!u.pitStats) u.pitStats = emptyPitStats();
+    return u.pitStats;
   }
 
   /** Move paper money into the arena balance (what matches spend). */
@@ -835,6 +891,7 @@ export class Store {
       jackpotLifetimeEth: this.jackpotLifetimeEth,
       weeklyVolume: this.weeklyVolume,
       weeklyFees: this.weeklyFees,
+      pitCarry: this.pitCarry,
     };
   }
 
@@ -881,6 +938,13 @@ export class Store {
     this.jackpotLifetimeEth = snap.jackpotLifetimeEth ?? 0;
     this.weeklyVolume = snap.weeklyVolume ?? {};
     this.weeklyFees = snap.weeklyFees ?? {};
+    this.pitCarry = snap.pitCarry ?? { prediction: 0, trading: 0 };
+    // Ensure the Pit settings block exists on snapshots that predate The Pit.
+    this.settings.pit ??= {
+      ...PIT_DEFAULTS,
+      feeSplit: { ...PIT_DEFAULTS.feeSplit },
+      durations: [...PIT_DEFAULTS.durations],
+    };
     this.reindexArena();
     this.reindexTelegram();
   }
@@ -916,6 +980,53 @@ export interface OpsSettings {
   rugBanHours: number[];
   /** True once the Telegram Welcome/Links/Founders messages have been pinned. */
   telegramPinsDone?: boolean;
+  /** The Pit economy + Swarm AI knobs. */
+  pit: PitSettings;
+}
+
+/** Admin-tunable Pit economy and Swarm behavior (see PIT_DEFAULTS). */
+export interface PitSettings {
+  predictionFee: number;
+  tradingFee: number;
+  pitFeeBps: number;
+  feeSplit: PitFeeSplit;
+  startingStack: number;
+  lobbySeconds: number;
+  maxConcurrent: number;
+  carryover: boolean;
+  /** Swarm trade size/cadence, 0..1. */
+  aggression: number;
+  /** Swarm market difficulty for traders, 0..1. */
+  difficulty: number;
+  /** Duration presets creators may launch. */
+  durations: PitDurationKey[];
+}
+
+/** A fresh lifetime Pit record. */
+export function emptyPitStats(): PitStats {
+  return {
+    matchesPlayed: 0,
+    predictionsMade: 0,
+    predictionsCorrect: 0,
+    predictionWins: 0,
+    tradingEntries: 0,
+    tradingWins: 0,
+    doubleWins: 0,
+    highestPnl: 0,
+    totalPnl: 0,
+    longestProfitStreak: 0,
+    currentProfitStreak: 0,
+    largestWin: 0,
+    totalEarnings: 0,
+    predictionStaked: 0,
+    tradingStaked: 0,
+    carryoverWins: 0,
+    byDuration: {
+      blitz: { played: 0, wins: 0 },
+      standard: { played: 0, wins: 0 },
+      marathon: { played: 0, wins: 0 },
+    },
+  };
 }
 
 /**
@@ -955,4 +1066,6 @@ export interface Snapshot {
   jackpotLifetimeEth?: number;
   weeklyVolume?: Record<string, number>;
   weeklyFees?: Record<string, number>;
+  /** Unclaimed Pit prize pools carried into the next match. */
+  pitCarry?: { prediction: number; trading: number };
 }
