@@ -146,7 +146,7 @@ export function ProfileHero({
       </div>
 
       <div className="px-6 pb-6">
-        <div className="flex flex-wrap items-end gap-5">
+        <div className="flex flex-wrap items-end gap-x-4 gap-y-3 sm:gap-x-5">
           {/* avatar + level medal */}
           <div className="relative -mt-16 shrink-0">
             {avatar}
@@ -157,7 +157,7 @@ export function ProfileHero({
 
           {/* identity */}
           <div className="min-w-0 flex-1 pb-1">
-            <h1 className="flex items-center gap-2 truncate text-3xl font-black text-zinc-50 md:text-4xl">
+            <h1 className="flex items-center gap-2 text-2xl font-black text-zinc-50 sm:text-3xl md:text-4xl">
               {badge && <span className="shrink-0">{badge}</span>}
               <span className="truncate">{name}</span>
             </h1>
@@ -167,8 +167,9 @@ export function ProfileHero({
             </div>
           </div>
 
-          {/* right slot */}
-          {right && <div className="pb-1 text-right">{right}</div>}
+          {/* right slot: drops to its own full-width line on mobile so the name
+              above always keeps the full row width. */}
+          {right && <div className="w-full pb-1 text-right sm:w-auto">{right}</div>}
         </div>
 
         {/* headline row: XP progress + the reputation score, side by side */}

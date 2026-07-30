@@ -49,20 +49,38 @@ export function SocialDock() {
   const [feedScope, setFeedScope] = useState<"all" | "following">("all");
   const [feedView, setFeedView] = useState<"activity" | "pings">("activity");
   const [dismissed, setDismissed] = useState(false);
+  // Whether we've loaded the persisted minimize preference yet — gates the
+  // auto-open below so it can't flash open before we know the user's choice.
+  const [ready, setReady] = useState(false);
+
+  // The minimize choice persists across navigation AND reloads, so once you
+  // close the dock it stays closed as you move around the site.
+  useEffect(() => {
+    setDismissed(localStorage.getItem("cookout:dockMinimized") === "1");
+    setReady(true);
+  }, []);
+  const setMinimized = (v: boolean) => {
+    setDismissed(v);
+    try {
+      localStorage.setItem("cookout:dockMinimized", v ? "1" : "0");
+    } catch {
+      /* ignore */
+    }
+  };
 
   // Looking at the Pings view clears its unread badge.
   useEffect(() => {
     if (open && tab === "feed" && feedView === "pings") readPings();
   }, [open, tab, feedView, pings.length, readPings]);
 
-  // Walking into a match pops the console open on that match's channel —
-  // the trenches were always visible before; they still are.
+  // Walking into a match pops the console open on that match's channel — unless
+  // the player has minimized it, in which case navigating leaves it minimized.
   useEffect(() => {
-    if (activeRoom && !dismissed) {
+    if (ready && activeRoom && !dismissed) {
       setOpen(true);
       setTab("chat");
     }
-  }, [activeRoom, dismissed]);
+  }, [ready, activeRoom, dismissed]);
   const [text, setText] = useState("");
 
   // Unread only accumulates while the room isn't actually on screen.
@@ -114,9 +132,9 @@ export function SocialDock() {
         <button
           onClick={() => {
             setOpen(true);
-            setDismissed(false);
+            setMinimized(false);
           }}
-          className="fixed bottom-4 left-4 z-40 flex items-center gap-2 rounded-full border border-zinc-700 bg-zinc-900/95 px-4 py-2.5 text-sm font-black shadow-2xl shadow-black/60 backdrop-blur transition hover:border-lime-400/60"
+          className="fixed bottom-4 left-4 z-40 flex items-center gap-2 rounded-full bg-zinc-900/95 px-4 py-2.5 text-sm font-black shadow-2xl shadow-black/60 ring-1 ring-white/10 backdrop-blur transition hover:ring-lime-400/50"
         >
           <span className="relative flex h-2 w-2">
             <span
@@ -217,7 +235,7 @@ export function SocialDock() {
             <button
               onClick={() => {
                 setOpen(false);
-                setDismissed(true);
+                setMinimized(true);
               }}
               className="ml-1 shrink-0 px-1 text-zinc-500 hover:text-zinc-200"
               title="minimize"

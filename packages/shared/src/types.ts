@@ -641,8 +641,8 @@ export interface LedgerEntry {
   balanceAfter: number;
   /** Coin symbol for round-scoped entries (pull_up, refund, redeem, creator_fee). */
   symbol?: string;
-  /** Concept id of that coin, so the ledger ticker can link to its coin page. */
-  conceptId?: string;
+  /** Round id for the entry, so the ledger ticker links to that match's results. */
+  roundId?: string;
 }
 
 /** WebSocket messages: server → client. */
