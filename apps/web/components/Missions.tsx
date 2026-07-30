@@ -40,16 +40,14 @@ export function Missions() {
         const items = missions.filter((m) => m.period === period);
         const allDone = items.length > 0 && items.every((m) => m.completed);
         return (
-        <div key={period} className="rounded-xl border border-zinc-800 p-4">
+        <div key={period} className="rounded-2xl bg-zinc-900/40 p-4">
           <div className="mb-1 flex items-baseline justify-between">
             <h3 className="text-sm font-bold text-zinc-300">{label}</h3>
             <span className="text-[10px] uppercase tracking-wide text-zinc-600">{tagline}</span>
           </div>
           <div
-            className={`mb-3 rounded-lg border px-3 py-1.5 text-xs ${
-              allDone
-                ? "border-amber-400/50 bg-amber-400/10 text-amber-300"
-                : "border-zinc-800 bg-zinc-900/60 text-zinc-500"
+            className={`mb-3 rounded-lg px-3 py-1.5 text-xs ${
+              allDone ? "bg-amber-400/10 text-amber-300" : "bg-zinc-900/70 text-zinc-500"
             }`}
           >
             {allDone ? "✓ " : "🎯 "}

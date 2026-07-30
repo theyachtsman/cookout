@@ -14,11 +14,12 @@ import {
 } from "@cookout/shared";
 import { api } from "../../../lib/api";
 import { useUnit } from "../../../lib/chainOnly";
-import { ReputationPanel, repStanding } from "../../../components/Reputation";
+import { ReputationPanel } from "../../../components/Reputation";
 import {
+  AchievementCard,
   Avatar,
+  MatchHistory,
   ProfileHero,
-  RARITY,
   SectionTitle,
   StatCard,
   StatGrid,
@@ -77,7 +78,6 @@ export default function PublicProfilePage() {
       (a, b) => ["common", "rare", "epic", "legendary"].indexOf(b.rarity) - ["common", "rare", "epic", "legendary"].indexOf(a.rarity),
     );
   const isCreator = profile.creatorReputation !== 0 || (profile.rugBans?.length ?? 0) > 0;
-  const standing = repStanding(profile.creatorReputation);
   const pnl = Number(s.totalPnl);
 
   return (
@@ -92,15 +92,11 @@ export default function PublicProfilePage() {
         xp={profile.xp}
         currLevelXp={xpForLevel(profile.level)}
         nextLevelXp={xpForLevel(profile.level + 1)}
+        rep={isCreator ? profile.creatorReputation : undefined}
         accent={!!profile.banned}
         chips={
           <>
             <span className="font-mono text-xs text-zinc-500">{profile.xp.toLocaleString()} XP</span>
-            {isCreator && (
-              <span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${standing.accent} bg-zinc-800`}>
-                {standing.emoji} {standing.label} creator
-              </span>
-            )}
             {profile.banned && (
               <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide text-red-300">
                 🚫 banned
@@ -173,7 +169,7 @@ export default function PublicProfilePage() {
 
       {/* Jackpot winnings */}
       {(profile.jackpotWinnings ?? 0) > 0 && (
-        <section className="rounded-2xl border border-amber-400/40 bg-gradient-to-br from-amber-500/10 to-transparent p-5">
+        <section className="rounded-2xl bg-gradient-to-br from-amber-500/10 to-transparent p-5">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <h2 className="text-sm font-black uppercase tracking-wide text-amber-300">
               🎰 Jackpot Winnings
@@ -190,7 +186,7 @@ export default function PublicProfilePage() {
                 <span
                   key={i}
                   title={`${w.week}: +${w.amountEth.toFixed(4)} ${unit} ($${w.amountUsd.toFixed(2)})`}
-                  className="rounded-lg border border-amber-400/30 bg-amber-400/[0.06] px-2 py-1 font-mono text-xs text-amber-200"
+                  className="rounded-lg bg-amber-400/[0.08] px-2 py-1 font-mono text-xs text-amber-200"
                 >
                   {["🥇", "🥈", "🥉"][w.rank - 1] ?? `#${w.rank}`} {w.week}
                 </span>
@@ -207,20 +203,9 @@ export default function PublicProfilePage() {
             action={<span className="font-mono text-xs text-zinc-500">{unlocked.length} earned</span>}
           />
           <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
-            {unlocked.map((a) => {
-              const r = RARITY[a.rarity] ?? RARITY.common;
-              return (
-                <div key={a.id} className={`rounded-xl border p-3.5 ${r.ring} ${r.wash}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-bold text-zinc-100">🏅 {a.name}</span>
-                    <span className={`shrink-0 text-[9px] font-black uppercase tracking-wide ${r.text}`}>
-                      {r.label}
-                    </span>
-                  </div>
-                  <div className="mt-1 text-xs text-zinc-400">{a.description}</div>
-                </div>
-              );
-            })}
+            {unlocked.map((a) => (
+              <AchievementCard key={a.id} achievement={a} unlocked />
+            ))}
           </div>
         </section>
       )}
@@ -228,58 +213,7 @@ export default function PublicProfilePage() {
       {/* Trading history */}
       <section>
         <SectionTitle title="Trading History" />
-        <div className="overflow-hidden rounded-2xl border border-zinc-800">
-          <div className="-mx-1 overflow-x-auto px-1">
-            <table className="w-full min-w-[30rem] text-sm">
-              <thead className="bg-zinc-900/60 text-left text-[10px] uppercase tracking-wide text-zinc-500">
-                <tr>
-                  <th className="px-4 py-2.5">Round</th>
-                  <th className="px-4 py-2.5">Tier</th>
-                  <th className="px-4 py-2.5">Outcome</th>
-                  <th className="px-4 py-2.5 text-right">Invested</th>
-                  <th className="px-4 py-2.5 text-right">PnL</th>
-                </tr>
-              </thead>
-              <tbody>
-                {history.map((h) => (
-                  <tr key={h.roundId} className="border-t border-zinc-800/60 hover:bg-zinc-900/40">
-                    <td className="px-4 py-2.5">
-                      <Link href={`/round/${h.roundId}`} className="font-bold hover:underline">
-                        {h.name} <span className="font-mono text-zinc-500">${h.symbol}</span>
-                      </Link>
-                    </td>
-                    <td className="px-4 py-2.5 text-xs uppercase text-zinc-400">{h.tier}</td>
-                    <td className="px-4 py-2.5 text-xs">
-                      {h.graduated ? (
-                        <span className="text-lime-300">🍽️ served up</span>
-                      ) : (
-                        <span className="text-zinc-400">{h.endReason.replace(/_/g, " ")}</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2.5 text-right font-mono text-zinc-300">
-                      {h.invested.toFixed(2)}
-                    </td>
-                    <td
-                      className={`px-4 py-2.5 text-right font-mono font-bold ${
-                        h.pnl >= 0 ? "text-emerald-400" : "text-red-400"
-                      }`}
-                    >
-                      {h.pnl >= 0 ? "+" : ""}
-                      {h.pnl.toFixed(3)}
-                    </td>
-                  </tr>
-                ))}
-                {history.length === 0 && (
-                  <tr>
-                    <td colSpan={5} className="px-4 py-8 text-center text-zinc-500">
-                      No rounds played yet.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <MatchHistory entries={history} />
       </section>
     </div>
   );
