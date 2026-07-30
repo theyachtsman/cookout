@@ -11,12 +11,13 @@ import {
   registerArenaAddress,
   type ArenaTxEntry,
 } from "../../lib/arenaWallet";
-import type { AccountTrade, LedgerEntry, LedgerKind } from "@cookout/shared";
+import type { LedgerEntry, LedgerKind } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useChainOnly } from "../../lib/chainOnly";
 import { fundArenaWallet } from "../../lib/chainTx";
 import { fmtAmount, useDenomPref, useEthUsd } from "../../lib/ethUsd";
 import { DenomToggle } from "../../components/DenomToggle";
+import { ExpandableRows } from "../../components/ProfileUI";
 import { useSession } from "../../lib/session";
 import { playDeposit } from "../../lib/sfx";
 
@@ -44,6 +45,8 @@ const LEDGER_META: Record<LedgerKind, { icon: string; label: string; credit: boo
   redeem: { icon: "🏦", label: "Round redemption", credit: true },
   creator_fee: { icon: "💰", label: "Creator fees", credit: true },
   jackpot: { icon: "🎰", label: "Jackpot payout", credit: true },
+  buy: { icon: "🟢", label: "Bought", credit: false },
+  sell: { icon: "🔴", label: "Sold", credit: true },
 };
 
 export default function WalletPage() {
@@ -64,6 +67,13 @@ function PaperWalletPage() {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [ledger, setLedger] = useState<LedgerEntry[]>([]);
+  const [ledgerSort, setLedgerSort] = useState<"recent" | "type">("recent");
+  const sortedLedger = useMemo(() => {
+    const arr = [...ledger];
+    return ledgerSort === "type"
+      ? arr.sort((a, b) => a.kind.localeCompare(b.kind) || b.at - a.at)
+      : arr.sort((a, b) => b.at - a.at);
+  }, [ledger, ledgerSort]);
   const loadLedger = useCallback(() => {
     api<{ ledger: LedgerEntry[] }>("/api/me/ledger")
       .then((d) => setLedger(d.ledger))
@@ -184,30 +194,57 @@ function PaperWalletPage() {
       </div>
 
       <div className="rounded-2xl bg-zinc-900/40 p-5">
-        <h2 className="mb-3 text-sm font-black text-zinc-200">Cook Out Balance History</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-sm font-black text-zinc-200">Cook Out Balance History</h2>
+          <div className="flex items-center gap-1 text-xs">
+            <span className="mr-1 text-zinc-600">Sort</span>
+            {(["recent", "type"] as const).map((k) => (
+              <button
+                key={k}
+                onClick={() => setLedgerSort(k)}
+                className={`rounded px-2 py-1 font-bold transition ${
+                  ledgerSort === k
+                    ? "bg-lime-400 text-zinc-950"
+                    : "bg-zinc-800/60 text-zinc-400 hover:bg-zinc-700"
+                }`}
+              >
+                {k === "recent" ? "Recent" : "Type"}
+              </button>
+            ))}
+          </div>
+        </div>
         {ledger.length === 0 ? (
           <p className="text-sm text-zinc-600">
-            No moves yet. Stakes, pull-ups, round redemptions, and creator fees show up here.
+            No moves yet. Stakes, pull-ups, buys, sells, round redemptions, and creator fees all
+            show up here.
           </p>
         ) : (
-          <div className="divide-y divide-zinc-800/70">
-            {ledger.map((e) => {
+          <ExpandableRows
+            items={sortedLedger}
+            cap={25}
+            maxHeight="max-h-[36rem]"
+            render={(e) => {
               const meta = LEDGER_META[e.kind];
               const credit = e.amount >= 0;
               return (
-                <div key={e.id} className="flex items-center gap-3 py-2.5 text-sm">
+                <div
+                  key={e.id}
+                  className="flex items-center gap-3 rounded-xl bg-zinc-950/40 px-3 py-2.5 text-sm"
+                >
                   <span className="text-lg">{meta.icon}</span>
                   <div className="min-w-0 flex-1">
-                    <div className={`font-bold ${credit ? "text-lime-300" : "text-zinc-300"}`}>
+                    <div className={`font-bold ${credit ? "text-lime-300" : "text-red-400"}`}>
                       {meta.label}
                       {e.symbol && <span className="ml-1 text-zinc-500">${e.symbol}</span>}
                     </div>
                     <div className="text-[11px] text-zinc-600">{when(e.at)}</div>
                   </div>
                   <div className="text-right">
-                    <div className={`font-mono font-bold ${credit ? "text-lime-300" : "text-zinc-300"}`}>
+                    <div className={`font-mono font-bold ${credit ? "text-lime-300" : "text-red-400"}`}>
                       {credit ? "+" : "−"}
-                      {usd ? fmtAmount(Math.abs(e.amount), true, peg) : `${Math.abs(e.amount).toFixed(3)} pETH`}
+                      {usd
+                        ? fmtAmount(Math.abs(e.amount), true, peg)
+                        : `${Math.abs(e.amount).toFixed(3)} pETH`}
                     </div>
                     <div className="font-mono text-[11px] text-zinc-600">
                       cook out{" "}
@@ -216,155 +253,10 @@ function PaperWalletPage() {
                   </div>
                 </div>
               );
-            })}
-          </div>
+            }}
+          />
         )}
       </div>
-
-      <TradeHistoryTable usd={usd} peg={peg} />
-    </div>
-  );
-}
-
-/** Columns the trade log can be sorted by. */
-type TradeSortKey = "at" | "symbol" | "side" | "ethAmount" | "tokenAmount" | "price" | "fee";
-const PAGE_SIZES: Array<number | "all"> = [50, 100, 200, 500, "all"];
-
-/**
- * Every buy and sell this account has ever made, across all rounds. Sortable by
- * any column (click a header to flip direction), capped to the last 50 by
- * default with a page-size toggle up to All.
- */
-function TradeHistoryTable({ usd, peg }: { usd: boolean; peg: number }) {
-  const [trades, setTrades] = useState<AccountTrade[]>([]);
-  const [limit, setLimit] = useState<number | "all">(50);
-  const [sort, setSort] = useState<{ key: TradeSortKey; dir: "asc" | "desc" }>({
-    key: "at",
-    dir: "desc",
-  });
-
-  useEffect(() => {
-    api<{ trades: AccountTrade[] }>("/api/me/trades")
-      .then((d) => setTrades(d.trades))
-      .catch(() => {});
-  }, []);
-
-  const sorted = useMemo(() => {
-    const { key, dir } = sort;
-    const arr = [...trades].sort((a, b) => {
-      const av = a[key];
-      const bv = b[key];
-      const cmp =
-        typeof av === "string"
-          ? av.localeCompare(bv as string)
-          : (av as number) - (bv as number);
-      return dir === "asc" ? cmp : -cmp;
-    });
-    return arr;
-  }, [trades, sort]);
-
-  const shown = limit === "all" ? sorted : sorted.slice(0, limit);
-  const toggleSort = (key: TradeSortKey) =>
-    setSort((s) =>
-      s.key === key ? { key, dir: s.dir === "asc" ? "desc" : "asc" } : { key, dir: "desc" },
-    );
-  const arrow = (key: TradeSortKey) => (sort.key === key ? (sort.dir === "asc" ? " ▲" : " ▼") : "");
-
-  const Th = ({ k, label, right }: { k: TradeSortKey; label: string; right?: boolean }) => (
-    <th
-      onClick={() => toggleSort(k)}
-      className={`cursor-pointer select-none whitespace-nowrap px-3 py-2 font-bold text-zinc-400 hover:text-zinc-200 ${
-        right ? "text-right" : "text-left"
-      }`}
-      title="Sort"
-    >
-      {label}
-      <span className="text-lime-400">{arrow(k)}</span>
-    </th>
-  );
-
-  return (
-    <div className="rounded-2xl bg-zinc-900/40 p-5">
-      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-sm font-black text-zinc-200">Trade History</h2>
-        <div className="flex items-center gap-1 text-xs">
-          <span className="mr-1 text-zinc-600">Show</span>
-          {PAGE_SIZES.map((n) => (
-            <button
-              key={String(n)}
-              onClick={() => setLimit(n)}
-              className={`rounded px-2 py-1 font-bold transition ${
-                limit === n
-                  ? "bg-lime-400 text-zinc-950"
-                  : "bg-zinc-800/60 text-zinc-400 hover:bg-zinc-700"
-              }`}
-            >
-              {n === "all" ? "All" : n}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {trades.length === 0 ? (
-        <p className="text-sm text-zinc-600">
-          No trades yet. Pull up to a round and your buys and sells land here.
-        </p>
-      ) : (
-        <>
-          <div className="-mx-1 overflow-x-auto px-1">
-            <table className="w-full min-w-[36rem] text-sm">
-              <thead>
-                <tr className="text-xs uppercase tracking-wide text-zinc-600">
-                  <Th k="at" label="Time" />
-                  <Th k="symbol" label="Coin" />
-                  <Th k="side" label="Side" />
-                  <Th k="ethAmount" label="pETH" right />
-                  <Th k="tokenAmount" label="Tokens" right />
-                  <Th k="price" label="Price" right />
-                  <Th k="fee" label="Fee" right />
-                </tr>
-              </thead>
-              <tbody>
-                {shown.map((t) => (
-                  <tr key={t.id} className="transition hover:bg-zinc-800/30">
-                    <td className="whitespace-nowrap px-3 py-2 text-zinc-500">{when(t.at)}</td>
-                    <td className="px-3 py-2">
-                      <a href={`/round/${t.roundId}`} className="font-bold hover:underline">
-                        ${t.symbol}
-                      </a>
-                    </td>
-                    <td className="px-3 py-2">
-                      <span
-                        className={`font-bold ${
-                          t.side === "buy" ? "text-emerald-400" : "text-red-400"
-                        }`}
-                      >
-                        {t.side === "buy" ? "🟢 Buy" : "🔴 Sell"}
-                      </span>
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono">
-                      {usd ? fmtAmount(t.ethAmount, true, peg) : t.ethAmount.toFixed(4)}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono text-zinc-400">
-                      {t.tokenAmount.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono text-zinc-400">
-                      {t.price.toPrecision(4)}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono text-zinc-600">
-                      {t.fee.toFixed(4)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-2 text-[11px] text-zinc-600">
-            Showing {shown.length} of {trades.length} trade{trades.length === 1 ? "" : "s"}. Tap a
-            column to sort; tap a coin to open its round.
-          </p>
-        </>
-      )}
     </div>
   );
 }

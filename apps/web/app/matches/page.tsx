@@ -375,14 +375,49 @@ function ago(at: number): string {
   return `${Math.floor(hrs / 24)}d ago`;
 }
 
+/** Open X's composer to shill a coin that's live or queued at the Cook Out. The
+ *  post links its per-coin share page (/coin/:id), which unfurls the coin card. */
+function shillCoin(round: Round) {
+  const base = typeof window !== "undefined" ? window.location.origin : "";
+  const url = `${base}/coin/${round.conceptId}`;
+  const text =
+    `🍳 $${round.token.symbol} (${round.token.name}) is on the grill at The Cookout, the live ` +
+    `trading battleground.\nPull up and trade it live 🔥`;
+  const intent = `https://twitter.com/intent/tweet?text=${encodeURIComponent(
+    text,
+  )}&url=${encodeURIComponent(url)}`;
+  window.open(intent, "_blank", "noopener,noreferrer");
+}
+
+/** X-shill button for Cook Out coin cards. Stops the click from triggering an
+ *  enclosing card link. */
+function ShillButton({ round, className = "" }: { round: Round; className?: string }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        shillCoin(round);
+      }}
+      title="Post this coin to X"
+      className={`rounded-lg bg-sky-500/15 px-3 py-2 text-sm font-black text-sky-300 transition hover:bg-sky-500/25 active:scale-95 ${className}`}
+    >
+      𝕏 Shill
+    </button>
+  );
+}
+
 /**
- * The showpiece: one big featured round at the top of the page. Live rounds
- * reveal fully; scheduled ones stay teased (blurred art, hidden identity) to
- * preserve the pre-reveal, and show a lobby countdown instead of a market cap.
+ * The showpiece: one big featured round at the top of the page. Its identity is
+ * always shown (the coin has cleared the vote); live rounds show market cap and
+ * time left, pre-live rounds show a countdown.
  */
 function FeaturedHero({ round }: { round: Round }) {
   const ethUsd = useEthUsd();
-  const teaser = round.state === "scheduled";
+  // Coins that have cleared the vote onto the Cook Out show their identity, live
+  // or queued — no more pre-reveal teaser here.
+  const teaser = false;
   const live = round.state === "live";
   const { token } = round;
   const backdrop = token.bannerUrl || token.artworkUrl;
@@ -519,9 +554,12 @@ function FeaturedHero({ round }: { round: Round }) {
               <span className="text-emerald-400">Settling…</span>
             )}
           </div>
-          <span className="rounded-xl bg-lime-400 px-6 py-2.5 font-black text-zinc-950 shadow-lg shadow-lime-400/25 transition group-hover:bg-lime-300 group-hover:shadow-lime-300/40">
-            {live ? "Trade Live →" : "Pull Up →"}
-          </span>
+          <div className="flex items-center gap-2">
+            <ShillButton round={round} />
+            <span className="rounded-xl bg-lime-400 px-6 py-2.5 font-black text-zinc-950 shadow-lg shadow-lime-400/25 transition group-hover:bg-lime-300 group-hover:shadow-lime-300/40">
+              {live ? "Trade Live →" : "Pull Up →"}
+            </span>
+          </div>
         </div>
       </div>
     </Link>
@@ -580,7 +618,8 @@ function ResultCard({ round: r }: { round: Round }) {
 }
 
 function RoundCard({ round }: { round: Round }) {
-  const teaser = round.state === "scheduled";
+  // Queued coins have cleared the vote, so their identity is shown too.
+  const teaser = false;
   const stateLabel: Record<string, string> = {
     scheduled: "Starting soon",
     lobby: "Lobby open",
@@ -633,12 +672,15 @@ function RoundCard({ round }: { round: Round }) {
           )}
           {round.state === "live" && <span className="text-emerald-400">Trading now</span>}
         </div>
-        <Link
-          href={`/round/${round.id}`}
-          className="rounded-lg bg-lime-400 px-4 py-2 font-black text-zinc-950 shadow-lg shadow-lime-400/20 transition hover:bg-lime-300 hover:shadow-lime-300/40"
-        >
-          Pull Up
-        </Link>
+        <div className="flex items-center gap-2">
+          <ShillButton round={round} className="px-3 py-2" />
+          <Link
+            href={`/round/${round.id}`}
+            className="rounded-lg bg-lime-400 px-4 py-2 font-black text-zinc-950 shadow-lg shadow-lime-400/20 transition hover:bg-lime-300 hover:shadow-lime-300/40"
+          >
+            Pull Up
+          </Link>
+        </div>
       </div>
     </CoinCard>
   );
