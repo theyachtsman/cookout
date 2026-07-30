@@ -10,6 +10,7 @@ import {
   TIER_UNLOCK_LEVEL,
   resolveNotifyPrefs,
   unlockedCosmetics,
+  dayKey,
   weekKey,
   type AccountTrade,
   type CoinModifiers,
@@ -1436,9 +1437,13 @@ export function createApp(
           let value: number;
           if (scope === "today" || scope === "week") {
             if (metric === "xp") {
-              // Weekly XP is tracked per ISO week (resets Monday, same as the
-              // jackpot). Only the week scope exposes it; today has no XP window.
-              value = scope === "week" ? (u.weeklyXp[weekKey()] ?? 0) : 0;
+              // XP is bucketed per UTC day and per ISO week (the week reset
+              // matches the jackpot). Today reads the day bucket, This Week the
+              // week bucket.
+              value =
+                scope === "week"
+                  ? (u.weeklyXp[weekKey()] ?? 0)
+                  : (u.dailyXp[dayKey()] ?? 0);
             } else {
               const slice = u.history.filter((h) => h.at >= windowStart);
               value =
