@@ -356,11 +356,13 @@ export class RoundEngine {
       if (human && fill.ethFilled > 0)
         this.store.recordLedger(fill.userAddress, "pull_up", -committed, {
           symbol: round.token.symbol,
+          conceptId: round.conceptId,
         });
       user.arenaBalance = (user.arenaBalance ?? 0) + fill.refund; // unfilled escrow back
       if (human && fill.ethFilled > 0 && fill.refund > 1e-9)
         this.store.recordLedger(fill.userAddress, "refund", fill.refund, {
           symbol: round.token.symbol,
+          conceptId: round.conceptId,
         });
       if (fill.tokensOut > 0) {
         const pos = this.store.position(round.id, fill.userAddress);
@@ -462,7 +464,7 @@ export class RoundEngine {
       // Live buys/sells land in the player's Cook Out ledger (durable across
       // restarts), so the balance history is the one place trades show up.
       if (!user.address.startsWith("0xb07"))
-        this.store.recordLedger(user.address, "buy", -ethIn, { symbol: round.token.symbol });
+        this.store.recordLedger(user.address, "buy", -ethIn, { symbol: round.token.symbol, conceptId: round.conceptId });
       round.pool = r.pool;
       pos.tokens += r.amountOut;
       pos.costBasisEth += ethIn;
@@ -503,7 +505,7 @@ export class RoundEngine {
       pos.realizedPnl += pnl;
       user.arenaBalance = (user.arenaBalance ?? 0) + r.amountOut;
       if (!user.address.startsWith("0xb07"))
-        this.store.recordLedger(user.address, "sell", r.amountOut, { symbol: round.token.symbol });
+        this.store.recordLedger(user.address, "sell", r.amountOut, { symbol: round.token.symbol, conceptId: round.conceptId });
       m.bestSellPnl = Math.max(m.bestSellPnl, pnl);
       m.tokensSoldBeforeEnd += tokens;
       if (r.price >= s.peakPrice * 0.95) m.soldNearPeak = true;
@@ -894,7 +896,8 @@ export class RoundEngine {
             if (share > 0 && !p.userAddress.startsWith("0xb07"))
               this.store.recordLedger(p.userAddress, "redeem", share, {
                 symbol: round.token.symbol,
-              });
+                conceptId: round.conceptId,
+        });
           }
           // Record the per-player exit for the results breakdown — real
           // players only (the swarm bots are 0xb07…).

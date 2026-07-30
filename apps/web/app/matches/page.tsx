@@ -25,7 +25,7 @@ const STATE_ORDER: Record<string, number> = {
 };
 
 type ResultFilter = "all" | "graduated" | "failed" | "burnt";
-type GroupBy = "mode" | "modifier";
+type GroupBy = "none" | "mode" | "modifier";
 type SortBy = "newest" | "graduated" | "mcap";
 
 const isRug = (r: Round) => r.endReason === "rug_detected" || r.endReason === "liquidity_removed";
@@ -136,6 +136,18 @@ export default function Home() {
   // The category list depends on the chosen grouping. Each is {key,title,icon,
   // tagline,rounds}; empty groups are dropped at render.
   const groups = useMemo(() => {
+    if (groupBy === "none") {
+      // One ungrouped rail of every result, just sorted. No category header.
+      return [
+        {
+          key: "all",
+          title: "",
+          icon: "",
+          tagline: "",
+          rounds: sortRounds(visible),
+        },
+      ];
+    }
     if (groupBy === "modifier") {
       const over = visible.filter((r) => r.modifiers?.overtime);
       const none = visible.filter((r) => !r.modifiers?.overtime);
@@ -267,6 +279,7 @@ export default function Home() {
                 value={groupBy}
                 onChange={setGroupBy}
                 options={[
+                  ["none", "None"],
                   ["mode", "Mode"],
                   ["modifier", "Modifier"],
                 ]}
@@ -298,6 +311,7 @@ export default function Home() {
                   tagline={g.tagline}
                   count={g.rounds.length}
                   tally={<ResultTally rounds={g.rounds} />}
+                  hideHeader={groupBy === "none"}
                 >
                   {g.rounds.map((r) => (
                     <div key={r.id} className="w-80 shrink-0">

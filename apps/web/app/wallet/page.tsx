@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   arenaAddress,
@@ -235,7 +236,17 @@ function PaperWalletPage() {
                   <div className="min-w-0 flex-1">
                     <div className={`font-bold ${credit ? "text-lime-300" : "text-red-400"}`}>
                       {meta.label}
-                      {e.symbol && <span className="ml-1 text-zinc-500">${e.symbol}</span>}
+                      {e.symbol &&
+                        (e.conceptId ? (
+                          <Link
+                            href={`/coin/${e.conceptId}`}
+                            className="ml-1 text-zinc-400 hover:text-zinc-200 hover:underline"
+                          >
+                            ${e.symbol}
+                          </Link>
+                        ) : (
+                          <span className="ml-1 text-zinc-500">${e.symbol}</span>
+                        ))}
                     </div>
                     <div className="text-[11px] text-zinc-600">{when(e.at)}</div>
                   </div>
