@@ -18,30 +18,20 @@ const SCOPES = [
   ["alltime", "All-time"],
 ] as const;
 
+// Every scope offers PnL / XP / Wins: XP is bucketed per UTC day (Today) and
+// per ISO week (This Week); All-time uses lifetime XP.
+const METRICS = ["pnl", "xp", "wins"] as const;
+
 export default function Leaderboard() {
   const [scope, setScope] = useState<(typeof SCOPES)[number][0]>("alltime");
-  const [metric, setMetric] = useState<"pnl" | "xp" | "wins">("pnl");
+  const [metric, setMetric] = useState<(typeof METRICS)[number]>("pnl");
   const [rows, setRows] = useState<Row[]>([]);
 
-  // Today is from round history (pnl + wins). This Week adds weekly XP (tracked
-  // per ISO week). All-time keeps the full set.
-  const metrics =
-    scope === "today"
-      ? (["pnl", "wins"] as const)
-      : scope === "week"
-        ? (["pnl", "xp", "wins"] as const)
-        : (["pnl", "xp", "wins"] as const);
-
   useEffect(() => {
-    const m = (metrics as readonly string[]).includes(metric) ? metric : "pnl";
-    if (m !== metric) {
-      setMetric(m as typeof metric);
-      return;
-    }
     api<{ rows: Row[] }>(`/api/leaderboard?scope=${scope}&metric=${metric}`)
       .then((d) => setRows(d.rows))
       .catch(() => {});
-  }, [scope, metric, metrics]);
+  }, [scope, metric]);
 
   return (
     <div>
@@ -57,7 +47,7 @@ export default function Leaderboard() {
           </button>
         ))}
         <div className="w-4" />
-        {metrics.map((m) => (
+        {METRICS.map((m) => (
           <button
             key={m}
             onClick={() => setMetric(m)}

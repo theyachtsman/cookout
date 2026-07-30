@@ -122,6 +122,8 @@ export interface StoredUser extends UserProfile {
   seasons: Record<string, SeasonStats>;
   /** XP earned per ISO week (key "2026-W29") — drives the weekly jackpot. */
   weeklyXp: Record<string, number>;
+  /** XP earned per UTC day (dayKey), for the daily leaderboard. */
+  dailyXp: Record<string, number>;
   /** Daily trade-XP accounting (Layer-1 grind cap): the day and XP so far. */
   tradeXpDayKey?: string;
   tradeXpToday?: number;
@@ -491,6 +493,7 @@ export class Store {
         creatorReputation: 0,
         seasons: {},
         weeklyXp: {},
+        dailyXp: {},
         jackpotWinnings: 0,
         jackpotWins: [],
         feesEarned: 0,
@@ -553,6 +556,8 @@ export class Store {
     season.xp += give;
     const wk = weekKey();
     u.weeklyXp[wk] = (u.weeklyXp[wk] ?? 0) + give;
+    const dk = dayKey();
+    u.dailyXp[dk] = (u.dailyXp[dk] ?? 0) + give;
     return u;
   }
 
@@ -843,6 +848,7 @@ export class Store {
       u.referralCount ??= 0;
       u.referralEarnings ??= 0;
       u.weeklyXp ??= {};
+      u.dailyXp ??= {};
       u.arenaBalance ??= 0;
       u.jackpotWinnings ??= 0;
       u.jackpotWins ??= [];
