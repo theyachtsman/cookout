@@ -3,6 +3,7 @@ import { GLOBAL_ROOM } from "@cookout/shared";
 import { BotSwarm } from "./bots.js";
 import { ChainService } from "./chain.js";
 import { RoundEngine } from "./engine.js";
+import { SwarmDirector } from "./swarm-director.js";
 import { settleWeeklyJackpot } from "./jackpot.js";
 import { FilePersistence, PgPersistence, type Persistence } from "./persistence.js";
 import { createApp } from "./routes.js";
@@ -44,6 +45,9 @@ const app = createApp(store, engine, ADMIN_KEY, hub.broadcast, chain, hub.presen
 const botsAllowed = process.env.BOTS !== "0" && process.env.CHAIN_ONLY !== "1";
 const bots = new BotSwarm(store, engine, hub.broadcast);
 if (botsAllowed) console.log("paper bot swarm armed — admin Live Ops toggles it");
+// Swarm AI Director: drives believable market stories in The Pit. Always on for
+// Pit rounds (the mode's whole point) — it ignores the Cookout bots toggle.
+const swarm = new SwarmDirector(store, engine, hub.system);
 const server = createServer(app);
 hub.attach(server);
 
@@ -95,6 +99,8 @@ setInterval(() => {
   try {
     engine.tick(Date.now());
     if (botsAllowed && store.settings.bots) bots.tick(Date.now());
+    // The Pit's Swarm is always live; it self-limits to live Pit rounds.
+    swarm.tick(Date.now());
     evaluateVoting(store, engine);
     // Chain-only deployments never auto-spawn paper rounds, regardless of
     // the Live Ops toggle — real rounds cost the operator real gas/liquidity,

@@ -7,11 +7,14 @@ import { createPortal } from "react-dom";
 import {
   CREATOR_FEE_SHARE,
   DEFAULT_GAME_MODE,
+  DEFAULT_PIT_DURATION,
   GAME_MODES,
   GAME_MODE_MAP,
   MODIFIERS,
+  PIT_DURATIONS,
   TIER_CONFIGS,
   type GameMode,
+  type PitDurationKey,
   type TokenConcept,
 } from "@cookout/shared";
 import { api } from "../../lib/api";
@@ -41,7 +44,9 @@ export default function Submissions() {
     artworkUrl: "",
     bannerUrl: "",
     totalSupply: "",
+    gameType: "cookout" as "cookout" | "pit",
     mode: DEFAULT_GAME_MODE as GameMode,
+    pitDuration: DEFAULT_PIT_DURATION as PitDurationKey,
     socials: { x: "", telegram: "", youtube: "", instagram: "", website: "" },
     modifiers: { overtime: false },
   });
@@ -62,6 +67,43 @@ export default function Submissions() {
       .catch(() => {});
   }, []);
   useEffect(load, [load]);
+
+  // Deep link from The Pit ("Launch a Pit match") preselects the game type.
+  // Read from the URL directly (no useSearchParams) so the page needs no
+  // Suspense boundary at build time.
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("type") === "pit")
+      setForm((f) => (f.gameType === "pit" ? f : { ...f, gameType: "pit" }));
+  }, []);
+
+  // The Pit launches directly (no vote): create + go straight to the lobby.
+  const launchPit = async () => {
+    setError("");
+    if (!form.name.trim() || !form.symbol.trim() || !form.theme.trim()) {
+      setError("name, symbol, and theme are required");
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const { round } = await api<{ round: { id: string } }>("/api/pit/launch", {
+        body: {
+          name: form.name,
+          symbol: form.symbol,
+          theme: form.theme,
+          pitch: form.pitch || undefined,
+          artworkUrl: form.artworkUrl || undefined,
+          bannerUrl: form.bannerUrl || undefined,
+          socials: form.socials,
+          duration: form.pitDuration,
+        },
+      });
+      router.push(`/pit/${round.id}`);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   // Step 1: nothing is created yet — validate and show the card preview.
   const openPreview = () => {
@@ -96,7 +138,9 @@ export default function Submissions() {
         artworkUrl: "",
         bannerUrl: "",
         totalSupply: "",
+        gameType: "cookout",
         mode: DEFAULT_GAME_MODE,
+        pitDuration: DEFAULT_PIT_DURATION,
         socials: { x: "", telegram: "", youtube: "", instagram: "", website: "" },
         modifiers: { overtime: false },
       });
@@ -231,6 +275,80 @@ export default function Submissions() {
                 />
               </label>
             </div>
+            {/* Game Type — Standard Cookout (PvP) or The Pit (PvE vs Swarm AI). */}
+            <div className="md:col-span-2">
+              <div className="mb-1.5 text-xs text-zinc-500">Game type</div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {[
+                  { key: "cookout" as const, name: "Standard Cookout", blurb: "PvP. The crowd votes it up, then everyone trades against each other.", accent: "lime" },
+                  { key: "pit" as const, name: "The Pit", blurb: "PvE vs Swarm AI. Launches straight to the lobby. Predict or trade the Swarm.", accent: "fuchsia" },
+                ].map((gt) => {
+                  const active = form.gameType === gt.key;
+                  return (
+                    <button
+                      key={gt.key}
+                      onClick={() => setForm({ ...form, gameType: gt.key })}
+                      className={`rounded-xl p-3 text-left transition ring-1 ${
+                        active
+                          ? gt.accent === "fuchsia"
+                            ? "bg-fuchsia-500/15 ring-fuchsia-400/50"
+                            : "bg-lime-400/15 ring-lime-400/50"
+                          : "bg-zinc-800/60 ring-white/10 hover:bg-zinc-700"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-black">{gt.name}</span>
+                        {active && (
+                          <span
+                            className={`rounded px-1.5 py-0.5 text-[10px] font-bold ${
+                              gt.accent === "fuchsia" ? "bg-fuchsia-500/20 text-fuchsia-300" : "bg-lime-400/20 text-lime-300"
+                            }`}
+                          >
+                            selected
+                          </span>
+                        )}
+                      </div>
+                      <div className="mt-1 text-[11px] leading-snug text-zinc-500">{gt.blurb}</div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {form.gameType === "pit" ? (
+              <div className="md:col-span-2">
+                <div className="mb-1.5 text-xs text-zinc-500">
+                  Match duration · sets the live trading length
+                </div>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  {PIT_DURATIONS.map((dur) => {
+                    const active = form.pitDuration === dur.key;
+                    return (
+                      <button
+                        key={dur.key}
+                        onClick={() => setForm({ ...form, pitDuration: dur.key })}
+                        className={`rounded-xl p-3 text-left transition ring-1 ${
+                          active ? "bg-fuchsia-500/15 ring-fuchsia-400/50" : "bg-zinc-800/60 ring-white/10 hover:bg-zinc-700"
+                        }`}
+                      >
+                        <div className="text-sm font-black">
+                          {dur.icon} {dur.name}
+                        </div>
+                        <div className="mt-0.5 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
+                          {dur.tagline}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-2 rounded-lg bg-fuchsia-500/[0.08] p-3 text-xs text-zinc-300">
+                  <b className="text-fuchsia-300">Powered by Swarm AI.</b> The Pit skips the vote and
+                  opens a lobby immediately. Players pay to predict the outcome, trade a paper stack
+                  against the Swarm, or both. There is no dev bag and nobody launches banned.
+                </div>
+              </div>
+            ) : (
+              <>
             {/* Game mode — the single curated choice: bundles length + rules. */}
             <div className="md:col-span-2">
               <div className="mb-1.5 text-xs text-zinc-500">
@@ -355,12 +473,24 @@ export default function Submissions() {
                 })}
               </div>
             </div>
-            <button
-              onClick={openPreview}
-              className="w-fit rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300"
-            >
-              Preview &amp; Submit
-            </button>
+              </>
+            )}
+            {form.gameType === "pit" ? (
+              <button
+                onClick={launchPit}
+                disabled={submitting}
+                className="w-fit rounded-lg bg-fuchsia-500 px-5 py-2 font-black text-zinc-950 hover:bg-fuchsia-400 disabled:opacity-40"
+              >
+                {submitting ? "Launching…" : "Enter The Pit →"}
+              </button>
+            ) : (
+              <button
+                onClick={openPreview}
+                className="w-fit rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300"
+              >
+                Preview &amp; Submit
+              </button>
+            )}
           </div>
         )}
         {error && <div className="mt-2 text-sm text-red-400">{error}</div>}

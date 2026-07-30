@@ -10,6 +10,7 @@ import {
   OVERTIME_MIN_VOLUME,
   OVERTIME_TRIGGER_REMAINING_SEC,
   OVERTIME_VOLUME_FRACTION,
+  PIT_DURATION_MAP,
   RUG_DRAIN_FRACTION,
   RUG_WINDOW_SECONDS,
   TIER_CONFIGS,
@@ -25,17 +26,21 @@ import {
   type AuctionResult,
   type Candle,
   type KillFeedKind,
+  type PitConfig,
   type PoolState,
   type RedemptionEntry,
   type RiskTier,
   type Round,
+  type RoundConfig,
   type RoundEndReason,
+  type RoundSummary,
   type ServerEvent,
   type SystemChatKind,
   type TokenConcept,
   type Trade,
 } from "@cookout/shared";
 import { evaluateRoundEnd } from "./gamification.js";
+import { resolvePitRound } from "./pit-results.js";
 import type { Store } from "./store.js";
 
 /** Per-player per-round telemetry used for achievements and the summary. */
@@ -144,6 +149,117 @@ export class RoundEngine {
     return round;
   }
 
+  /**
+   * Launch a Pit match directly (no vote, no Fair Open auction). The creator
+   * picks the coin and a duration; it opens a paid-entry lobby immediately, then
+   * goes live against Swarm AI. Every trader plays an equal paper stack — there
+   * is no batch auction and no live position cap.
+   */
+  schedulePitRound(concept: TokenConcept, now: number): Round {
+    const pit = this.store.settings.pit;
+    const duration = concept.pitDuration ?? "standard";
+    const minutes = PIT_DURATION_MAP[duration]?.minutes ?? 5;
+    // Thinner pools for shorter matches: Blitz is violent, Marathon has depth.
+    const initialEth = duration === "blitz" ? 0.4 : duration === "marathon" ? 1.5 : 1.0;
+    const config: RoundConfig = {
+      ...TIER_CONFIGS.degen,
+      tier: "degen",
+      lobbySeconds: pit.lobbySeconds,
+      queueSeconds: 0,
+      maxDurationSeconds: minutes * 60,
+      initialEthLiquidity: initialEth,
+      initialTokenLiquidity: 1_000_000,
+      totalSupply: 2_000_000,
+      graduationMcap: BOND_TARGET_USD / this.store.ethUsd,
+      graduationMinHolders: 3,
+      graduationMinVolume: minutes * 0.6,
+      // The Pit never rugs a creator's bag and has no live position cap — the
+      // Swarm decides the outcome, and everyone trades an equal paper stack.
+      rugRules: false,
+      devSellLockSeconds: 0,
+      liveMaxPositionEth: 0,
+      maxPositionEth: 0,
+      overtime: false,
+      mcapTarget: 0,
+    };
+    // Claim any carried-over pools into this match (first lobby to open wins it).
+    const carry = pit.carryover ? { ...this.store.pitCarry } : { prediction: 0, trading: 0 };
+    if (pit.carryover) this.store.pitCarry = { prediction: 0, trading: 0 };
+    const pitConfig: PitConfig = {
+      duration,
+      predictionFee: pit.predictionFee,
+      tradingFee: pit.tradingFee,
+      pitFeeBps: pit.pitFeeBps,
+      feeSplit: { ...pit.feeSplit },
+      startingStack: pit.startingStack,
+      prediction: { pot: 0, participants: 0, carryIn: carry.prediction },
+      trading: { pot: 0, participants: 0, carryIn: carry.trading },
+    };
+    const round: Round = {
+      id: this.store.id(),
+      conceptId: concept.id,
+      token: {
+        name: concept.name,
+        symbol: concept.symbol,
+        theme: concept.theme,
+        artworkUrl: concept.artworkUrl,
+        bannerUrl: concept.bannerUrl,
+        socials: concept.socials,
+      },
+      creatorAddress: concept.creatorAddress,
+      tier: "degen",
+      matchType: "pit",
+      pit: pitConfig,
+      state: "lobby",
+      config,
+      scheduledAt: now,
+      queueOpensAt: now + pit.lobbySeconds * 1000,
+    };
+    concept.status = "launched";
+    this.store.rounds.set(round.id, round);
+    this.store.intents.set(round.id, []);
+    const d = PIT_DURATION_MAP[duration];
+    this.sys(
+      round.id,
+      "pit_open",
+      `The Pit is open. ${d.icon} ${d.name} match on $${concept.symbol}. Predict the outcome or trade the Swarm.`,
+    );
+    this.sys(
+      GLOBAL_ROOM,
+      "pit_open",
+      `New Pit match: $${concept.symbol} (${d.name}). Powered by Swarm AI. Enter The Pit.`,
+    );
+    this.emitState(round);
+    return round;
+  }
+
+  /** Pit lobby closed: seed the pool and start live trading (no auction). */
+  private startPitLive(round: Round, now: number): void {
+    const cfg = round.config;
+    round.pool = {
+      ethReserve: cfg.initialEthLiquidity,
+      tokenReserve: cfg.initialTokenLiquidity,
+      totalSupply: cfg.totalSupply,
+    };
+    round.state = "live";
+    round.liveAt = now;
+    round.endsAt = now + cfg.maxDurationSeconds * 1000;
+    const s = this.liveState(round.id);
+    const price = spotPrice(round.pool);
+    s.peakPrice = price;
+    s.peakMcap = marketCap(round.pool);
+    s.bottomPrice = price;
+    s.bottomAt = now;
+    this.sys(round.id, "pit_live", "Swarm AI initializing. Trading is LIVE. Beat The Swarm.");
+    this.sys(
+      GLOBAL_ROOM,
+      "pit_live",
+      `$${round.token.symbol} is LIVE in The Pit. The Swarm is in the market.`,
+    );
+    this.broadcast(round.id, { type: "round_state", round });
+    this.emitState(round);
+  }
+
   private liveState(roundId: string): LiveRoundState {
     let s = this.live.get(roundId);
     if (!s) {
@@ -205,6 +321,17 @@ export class RoundEngine {
         return false;
       case "lobby":
         if (now >= round.queueOpensAt!) {
+          // The Pit skips the Fair Open auction: lobby goes straight to live,
+          // subject to the concurrent-match cap. At the cap it waits in the
+          // lobby (the Pit queue) and keeps accepting entries until a slot frees.
+          if (round.matchType === "pit") {
+            const liveCount = [...this.store.rounds.values()].filter(
+              (r) => r.matchType === "pit" && r.state === "live",
+            ).length;
+            if (liveCount >= this.store.settings.pit.maxConcurrent) return false;
+            this.startPitLive(round, now);
+            return true;
+          }
           round.state = "queue_open";
           round.queueClosesAt = round.queueOpensAt! + round.config.queueSeconds * 1000;
           this.sys(
@@ -438,6 +565,11 @@ export class RoundEngine {
     if (round.state !== "live" && !alumni) throw new Err(409, "round is not live");
     if (s.paused) throw new Err(423, "round is paused");
     const user = this.store.getOrCreateUser(address);
+    // The Pit is PvE against Swarm AI: humans spend a per-match paper stack (not
+    // their Cook Out balance), and the Swarm bots (0xb07…) are an unconstrained
+    // market force. Cookout rounds keep spending the arena balance.
+    const isPit = round.matchType === "pit";
+    const isBot = user.address.startsWith("0xb07");
     const pos = this.store.position(roundId, user.address);
     const m = this.meta(roundId, user.address);
     const pool = round.pool!;
@@ -447,8 +579,12 @@ export class RoundEngine {
     if (side === "buy") {
       const ethIn = amount.eth ?? 0;
       if (!(ethIn > 0)) throw new Err(400, "eth amount required");
-      if ((user.arenaBalance ?? 0) < ethIn)
+      if (isPit) {
+        if (!isBot && this.store.pitStackOf(roundId, user.address) < ethIn - 1e-9)
+          throw new Err(400, "not enough left in your Pit stack");
+      } else if ((user.arenaBalance ?? 0) < ethIn) {
         throw new Err(400, "not enough in your Cook Out balance: deposit pETH to trade");
+      }
       // Beginner tiers keep a live position ceiling (liveMaxPositionEth): the
       // total ETH you have deployed at once can't exceed it, so a rookie can't
       // dump their whole bag in a single match. Selling frees the room back up.
@@ -460,11 +596,16 @@ export class RoundEngine {
           `this tier caps your live position at ${liveCap} pETH — sell some before buying more`,
         );
       const r = buy(pool, ethIn, round.config.tradeFeeBps);
-      user.arenaBalance = (user.arenaBalance ?? 0) - ethIn;
-      // Live buys/sells land in the player's Cook Out ledger (durable across
-      // restarts), so the balance history is the one place trades show up.
-      if (!user.address.startsWith("0xb07"))
-        this.store.recordLedger(user.address, "buy", -ethIn, { symbol: round.token.symbol, roundId: round.id });
+      if (isPit) {
+        // Pit buys draw down the paper stack; no Cook Out balance movement.
+        if (!isBot) this.store.addPitStack(roundId, user.address, -ethIn);
+      } else {
+        user.arenaBalance = (user.arenaBalance ?? 0) - ethIn;
+        // Live buys/sells land in the player's Cook Out ledger (durable across
+        // restarts), so the balance history is the one place trades show up.
+        if (!isBot)
+          this.store.recordLedger(user.address, "buy", -ethIn, { symbol: round.token.symbol, roundId: round.id });
+      }
       round.pool = r.pool;
       pos.tokens += r.amountOut;
       pos.costBasisEth += ethIn;
@@ -503,9 +644,13 @@ export class RoundEngine {
       pos.tokens -= tokens;
       pos.costBasisEth -= costShare;
       pos.realizedPnl += pnl;
-      user.arenaBalance = (user.arenaBalance ?? 0) + r.amountOut;
-      if (!user.address.startsWith("0xb07"))
-        this.store.recordLedger(user.address, "sell", r.amountOut, { symbol: round.token.symbol, roundId: round.id });
+      if (isPit) {
+        if (!isBot) this.store.addPitStack(roundId, user.address, r.amountOut);
+      } else {
+        user.arenaBalance = (user.arenaBalance ?? 0) + r.amountOut;
+        if (!isBot)
+          this.store.recordLedger(user.address, "sell", r.amountOut, { symbol: round.token.symbol, roundId: round.id });
+      }
       m.bestSellPnl = Math.max(m.bestSellPnl, pnl);
       m.tokensSoldBeforeEnd += tokens;
       if (r.price >= s.peakPrice * 0.95) m.soldNearPeak = true;
@@ -760,13 +905,17 @@ export class RoundEngine {
       this.endRound(round, "timer", now);
       return;
     }
-    // Low-volume ending: quiet for the configured window.
-    const windowSec = round.config.lowVolumeWindowSeconds;
-    if (now - round.liveAt! > windowSec * 1000) {
-      let recent = 0;
-      for (let t = sec - windowSec; t <= sec; t++) recent += s.volumeBySecond.get(t) ?? 0;
-      if (recent < round.config.lowVolumeThreshold) {
-        this.endRound(round, "low_volume", now);
+    // Low-volume ending: quiet for the configured window. Skipped in The Pit,
+    // where the Swarm keeps the market alive and only the Swarm, the bond, or
+    // the clock ends a match.
+    if (round.matchType !== "pit") {
+      const windowSec = round.config.lowVolumeWindowSeconds;
+      if (now - round.liveAt! > windowSec * 1000) {
+        let recent = 0;
+        for (let t = sec - windowSec; t <= sec; t++) recent += s.volumeBySecond.get(t) ?? 0;
+        if (recent < round.config.lowVolumeThreshold) {
+          this.endRound(round, "low_volume", now);
+        }
       }
     }
   }
@@ -867,6 +1016,26 @@ export class RoundEngine {
           s.totalVolume >= cfg.graduationMinVolume));
     round.graduated = graduated;
 
+    // The Pit resolves its own way: two prize pools, not a uniform redemption,
+    // and it never keeps trading "in the wild". Everything below is Cookout.
+    let summary: RoundSummary;
+    if (round.matchType === "pit") {
+      if (graduated) this.kill(round, "graduated", `${round.token.symbol} SERVED UP · beat the Swarm`, now);
+      else if (reason === "rug_detected")
+        this.kill(round, "rug_detected", `The Swarm rugged $${round.token.symbol}`, now);
+      summary = resolvePitRound(this.store, round, {
+        totalVolume: s.totalVolume,
+        peakMcap: s.peakMcap,
+        finalMcap,
+        finalPrice,
+        holderCount: holdersAtEnd.length,
+        now,
+      });
+      this.store.summaries.set(round.id, summary);
+      this.finishPitEnd(round, summary, now);
+      return;
+    }
+
     // Collected during a non-graduated redemption, attached to the summary below.
     const redemptionEntries: RedemptionEntry[] = [];
     let redemptionPrice: number | undefined;
@@ -921,7 +1090,7 @@ export class RoundEngine {
       }
     }
 
-    const summary = evaluateRoundEnd({
+    summary = evaluateRoundEnd({
       store: this.store,
       round,
       meta: s.meta,
@@ -987,6 +1156,56 @@ export class RoundEngine {
     this.broadcast(round.id, { type: "round_end", roundId: round.id, summary });
     round.state = "results";
     this.emitState(round);
+  }
+
+  /**
+   * Close out a Pit match: Swarm-flavored system messages, double-winner /
+   * biggest-winner callouts, the community results post, and the round_end
+   * broadcast. Runs instead of the Cookout redemption/feed path.
+   */
+  private finishPitEnd(round: Round, summary: RoundSummary, now: number): void {
+    const pit = summary.pit!;
+    const outcomeLabel = pit.outcome === "graduate" ? "GRADUATED" : pit.outcome === "rug" ? "RUGGED" : "TIMER";
+    const feedOk = (a: string) => !a.startsWith("0xb07");
+    this.store.emitRoundEvent({ kind: "results", roundId: round.id, symbol: round.token.symbol, mode: round.mode });
+
+    // In-room last word.
+    this.sys(
+      round.id,
+      "pit_result",
+      `Match complete. Outcome: ${outcomeLabel}. ${pit.prediction.winners} prediction winner${pit.prediction.winners === 1 ? "" : "s"}, ` +
+        `${pit.trading.qualified} qualified trader${pit.trading.qualified === 1 ? "" : "s"}. Chat is frozen; see you in The Grill.`,
+    );
+    // Grill headline.
+    this.sys(
+      GLOBAL_ROOM,
+      "pit_result",
+      `THE PIT · $${round.token.symbol} finished ${outcomeLabel}. Swarm AI ran the market. Results are up.`,
+    );
+
+    const doubles = pit.players.filter((p) => p.doubleWinner);
+    for (const d of doubles.slice(0, 3))
+      if (feedOk(d.address)) {
+        this.sys(round.id, "pit_result", `Double Winner: ${this.name(d.address, d.displayName)} took both pools.`);
+        this.store.pushActivity(d.address, "won", `went Double Winner in The Pit on $${round.token.symbol}`, {
+          roundId: round.id,
+          roundSymbol: round.token.symbol,
+        });
+      }
+    const top = pit.players[0];
+    if (top && top.totalReward > 0 && !doubles.includes(top) && feedOk(top.address))
+      this.store.pushActivity(top.address, "won", `won ${top.totalReward.toFixed(3)} in The Pit on $${round.token.symbol}`, {
+        roundId: round.id,
+        roundSymbol: round.token.symbol,
+      });
+
+    this.broadcast(round.id, { type: "round_end", roundId: round.id, summary });
+    round.state = "results";
+    this.emitState(round);
+  }
+
+  private name(address: Address, displayName?: string): string {
+    return displayName ?? `${address.slice(0, 6)}…${address.slice(-4)}`;
   }
 
   // ---- chain-round mirror entry points (called only by ChainService) ----

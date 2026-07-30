@@ -58,6 +58,133 @@ export interface CoinModifiers {
   overtime?: boolean;
 }
 
+/**
+ * Which game mode a match belongs to. Standard Cookout is the PvP experience;
+ * The Pit is the PvE mode where players compete against Swarm AI. Absent means
+ * "cookout" for every legacy match, so shared systems that don't branch on it
+ * keep working unchanged.
+ */
+export type MatchType = "cookout" | "pit";
+
+/** The Pit's live-trading length presets. See PIT_DURATIONS for the table. */
+export type PitDurationKey = "blitz" | "standard" | "marathon";
+
+/** A Pit prediction call: the coin graduates, the Swarm rugs the market, or it
+ *  runs the clock out (Timer). */
+export type PitCall = "graduate" | "rug" | "timer";
+
+/** One of the Pit's two independent prize pools, live state. */
+export interface PitPoolState {
+  /** Pot funded by this match's entries, after the Pit fee skim (pETH). */
+  pot: number;
+  /** Players entered in this pool. */
+  participants: number;
+  /** Pot carried in from prior matches where nobody qualified (pETH). */
+  carryIn: number;
+}
+
+/** How the Pit fee is routed (fractions that sum to 1). */
+export interface PitFeeSplit {
+  platform: number;
+  jackpot: number;
+  creator: number;
+  treasury: number;
+}
+
+/** Pit-specific config carried on a Pit round (round.pit). Every value is
+ *  resolved from admin settings at launch so nothing is hardcoded downstream. */
+export interface PitConfig {
+  duration: PitDurationKey;
+  /** Entry fee for the Prediction Pool (pETH). */
+  predictionFee: number;
+  /** Entry fee for the Trading Pool (pETH). */
+  tradingFee: number;
+  /** Pit fee in basis points, skimmed off every entry before it funds a pool. */
+  pitFeeBps: number;
+  feeSplit: PitFeeSplit;
+  /** Simulated paper stack (pETH) every trader is handed for the match. */
+  startingStack: number;
+  prediction: PitPoolState;
+  trading: PitPoolState;
+}
+
+/** A player's Pit lobby entry. At least one of the two must be set. */
+export interface PitEntry {
+  /** Their Prediction Pool call, when entered. */
+  prediction?: PitCall;
+  /** Whether they bought into the Trading Pool. */
+  trading?: boolean;
+}
+
+/** One participant's Pit outcome, for the results modal and profile. */
+export interface PitPlayerResult {
+  address: Address;
+  displayName?: string;
+  avatarUrl?: string;
+  prediction?: PitCall;
+  predictionCorrect?: boolean;
+  /** Trading PnL on their paper stack, when they entered the Trading Pool. */
+  tradingPnl?: number;
+  qualified?: boolean;
+  predictionReward: number;
+  tradingReward: number;
+  totalReward: number;
+  /** Total reward minus entry fees paid this match. */
+  net: number;
+  /** Won both pools. */
+  doubleWinner: boolean;
+}
+
+/** The Pit's per-match result, attached to a round summary. */
+export interface PitResult {
+  duration: PitDurationKey;
+  outcome: PitCall;
+  prediction: {
+    pot: number;
+    winners: number;
+    rewardEach: number;
+    /** No correct calls: the pot carried into the next Pit match. */
+    carried: boolean;
+  };
+  trading: {
+    pot: number;
+    qualified: number;
+    rewardEach: number;
+    carried: boolean;
+  };
+  /** Per-player breakdown (humans only), highest total reward first. */
+  players: PitPlayerResult[];
+}
+
+/** Lifetime Pit record, shown on the profile's The Pit tab. */
+export interface PitStats {
+  matchesPlayed: number;
+  predictionsMade: number;
+  predictionsCorrect: number;
+  /** Prediction pools won (paid out). */
+  predictionWins: number;
+  tradingEntries: number;
+  /** Trading pools qualified for. */
+  tradingWins: number;
+  doubleWins: number;
+  highestPnl: number;
+  /** Sum of trading PnL, for the average. */
+  totalPnl: number;
+  longestProfitStreak: number;
+  currentProfitStreak: number;
+  /** Biggest single-match total reward. */
+  largestWin: number;
+  /** Lifetime Pit rewards received (pETH). */
+  totalEarnings: number;
+  /** Lifetime prediction entry fees paid (for ROI). */
+  predictionStaked: number;
+  /** Lifetime trading entry fees paid (for ROI). */
+  tradingStaked: number;
+  /** Pools won that included a carried-over jackpot. */
+  carryoverWins: number;
+  byDuration: Record<PitDurationKey, { played: number; wins: number }>;
+}
+
 export interface TokenConcept {
   id: string;
   creatorAddress: Address;
@@ -78,6 +205,11 @@ export interface TokenConcept {
    *  When `mode` is set it derives the tier — this stays populated for display
    *  and the economics engine. */
   tier?: RiskTier;
+  /** Game type: Standard Cookout (PvP) or The Pit (PvE vs Swarm AI). Absent =
+   *  cookout. Pit concepts skip the vote and launch straight into the queue. */
+  matchType?: MatchType;
+  /** The Pit's chosen live-trading length preset (Blitz/Standard/Marathon). */
+  pitDuration?: PitDurationKey;
   /** Curated launch mode (Classic/Pressure/Blitz/Reflex). Drives tier, match
    *  length, and rug rules. Absent on legacy concepts. */
   mode?: GameMode;
@@ -158,6 +290,11 @@ export interface Round {
   };
   creatorAddress: Address;
   tier: RiskTier;
+  /** Game type: Standard Cookout (PvP) or The Pit (PvE). Absent = cookout, so
+   *  every legacy round and system that ignores it behaves exactly as before. */
+  matchType?: MatchType;
+  /** Present only on Pit rounds: durations, fees, pool state, paper stack. */
+  pit?: PitConfig;
   /** The curated launch mode this round runs (Classic/Pressure/Blitz/Reflex). */
   mode?: GameMode;
   /** Mode modifiers chosen at launch (e.g. Over Time), for display + rules. */
@@ -342,7 +479,15 @@ export type SystemChatKind =
   | "graduated"
   | "ended"
   /** Admin/house announcement or rotating tip — high-attention styling. */
-  | "announce";
+  | "announce"
+  /** The Pit — Swarm AI system messages, styled with the Swarm accent:
+   *  pit_open (created / lobby / pools open), pit_live (trading started),
+   *  pit_event (whale / accumulate / panic / final ten), pit_result
+   *  (complete / outcome / double winner / carryover). */
+  | "pit_open"
+  | "pit_live"
+  | "pit_event"
+  | "pit_result";
 
 /** The always-on community room every connected player sits in. */
 export const GLOBAL_ROOM = "global";
@@ -474,6 +619,8 @@ export interface UserProfile {
   jackpotWinnings?: number;
   /** Individual weekly jackpot wins, newest last (shown on profiles). */
   jackpotWins?: JackpotWin[];
+  /** Lifetime record in The Pit (PvE vs Swarm AI). Absent until first entry. */
+  pitStats?: PitStats;
 }
 
 /**
@@ -605,6 +752,8 @@ export interface RoundSummary {
   redemption?: RedemptionEntry[];
   /** The uniform exit price (ETH per token) used for that redemption. */
   redemptionPrice?: number;
+  /** Present only on Pit rounds: prediction/trading pool outcomes + payouts. */
+  pit?: PitResult;
 }
 
 /** One player's slice of a non-graduated round's uniform pro-rata exit. */
@@ -630,7 +779,15 @@ export type LedgerKind =
   | "creator_fee"
   | "jackpot"
   | "buy"
-  | "sell";
+  | "sell"
+  /** The Pit: prediction-pool entry fee (debit). */
+  | "pit_prediction"
+  /** The Pit: trading-pool entry fee (debit). */
+  | "pit_trading"
+  /** The Pit: prize-pool payout (credit). */
+  | "pit_reward"
+  /** The Pit: creator's share of Pit fees for their match (credit). */
+  | "pit_creator";
 export interface LedgerEntry {
   id: string;
   at: number;

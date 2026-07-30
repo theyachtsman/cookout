@@ -1,4 +1,4 @@
-import type { CoinModifiers, GameMode, NotifyCategory, NotificationPrefs, RiskTier, RoundConfig } from "./types.js";
+import type { CoinModifiers, GameMode, NotifyCategory, NotificationPrefs, PitDurationKey, PitFeeSplit, RiskTier, RoundConfig } from "./types.js";
 
 /** Total permanent Founding Member seats. Founder numbers never repeat. */
 export const FOUNDER_CAP = 500;
@@ -214,6 +214,57 @@ export const OVERTIME_VOLUME_FRACTION = 0.15;
 export const OVERTIME_MIN_VOLUME = 0.15;
 /** Or "close to bonding": market cap at least this fraction of graduation. */
 export const OVERTIME_MCAP_FRACTION = 0.5;
+
+// ---- The Pit (PvE vs Swarm AI) ----
+/**
+ * The Pit's live-trading length presets. Kept as a list so future presets are
+ * configuration, not code; the launchpad renders them generically.
+ */
+export interface PitDurationDef {
+  key: PitDurationKey;
+  name: string;
+  icon: string;
+  minutes: number;
+  tagline: string;
+}
+
+export const PIT_DURATIONS: PitDurationDef[] = [
+  { key: "blitz", name: "Blitz", icon: "⚡", minutes: 1, tagline: "1 min · fast and violent" },
+  { key: "standard", name: "Standard", icon: "🔥", minutes: 5, tagline: "5 min · balanced pacing" },
+  { key: "marathon", name: "Marathon", icon: "🧠", minutes: 10, tagline: "10 min · long-form cycles" },
+];
+
+export const PIT_DURATION_MAP: Record<PitDurationKey, PitDurationDef> = Object.fromEntries(
+  PIT_DURATIONS.map((d) => [d.key, d]),
+) as Record<PitDurationKey, PitDurationDef>;
+
+export const DEFAULT_PIT_DURATION: PitDurationKey = "standard";
+
+/**
+ * Default Pit economy and Swarm knobs. Every value here is overridable from the
+ * admin dashboard (OpsSettings.pit) so no gameplay number is hardcoded in the
+ * engine. Fees are pETH; the Pit fee is basis points of each entry.
+ */
+export const PIT_DEFAULTS = {
+  predictionFee: 0.1,
+  tradingFee: 0.25,
+  pitFeeBps: 1000, // 10%
+  feeSplit: { platform: 0.4, jackpot: 0.25, creator: 0.2, treasury: 0.15 } as PitFeeSplit,
+  /** Simulated paper stack every trader is handed for the match (pETH). */
+  startingStack: 1.0,
+  /** Paid-entry lobby window before live trading (seconds). */
+  lobbySeconds: 45,
+  /** Most Pit matches live at once; extras queue. */
+  maxConcurrent: 5,
+  /** Carry an unclaimed pool into the next match. */
+  carryover: true,
+  /** Swarm AI knobs, 0..1. Aggression scales trade size/cadence; difficulty
+   *  biases the narrative toward tougher markets for traders. */
+  aggression: 0.5,
+  difficulty: 0.5,
+  /** Which duration presets creators may launch. */
+  durations: ["blitz", "standard", "marathon"] as PitDurationKey[],
+};
 
 export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
   rookie: {

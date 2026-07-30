@@ -16,22 +16,53 @@ const SCOPES = [
   ["today", "Today"],
   ["week", "This Week"],
   ["alltime", "All-time"],
+  ["pit", "The Pit"],
 ] as const;
 
-// Every scope offers PnL / XP / Wins: XP is bucketed per UTC day (Today) and
-// per ISO week (This Week); All-time uses lifetime XP.
+// Every non-Pit scope offers PnL / XP / Wins: XP is bucketed per UTC day (Today)
+// and per ISO week (This Week); All-time uses lifetime XP.
 const METRICS = ["pnl", "xp", "wins"] as const;
+
+// The Pit's own boards, keyed to its lifetime stats.
+const PIT_METRICS: [string, string][] = [
+  ["profit", "Highest Profit"],
+  ["accuracy", "Prediction Accuracy"],
+  ["predWins", "Prediction Wins"],
+  ["tradeWins", "Trading Wins"],
+  ["double", "Double Wins"],
+  ["largest", "Largest Win"],
+  ["streak", "Profit Streak"],
+  ["earnings", "Total Earnings"],
+  ["blitz", "Best Blitz"],
+  ["standard", "Best Standard"],
+  ["marathon", "Best Marathon"],
+];
+
+const PETH_METRICS = new Set(["profit", "largest", "earnings"]);
+
+function formatValue(scope: string, metric: string, v: number): string {
+  if (scope === "pit") {
+    if (metric === "accuracy") return `${v}%`;
+    if (PETH_METRICS.has(metric)) return `${v >= 0 ? "" : ""}${v.toFixed(3)}`;
+    return String(v);
+  }
+  return metric === "pnl" ? `${v >= 0 ? "+" : ""}${v.toFixed(3)}` : String(v);
+}
 
 export default function Leaderboard() {
   const [scope, setScope] = useState<(typeof SCOPES)[number][0]>("alltime");
-  const [metric, setMetric] = useState<(typeof METRICS)[number]>("pnl");
+  const [metric, setMetric] = useState<string>("pnl");
   const [rows, setRows] = useState<Row[]>([]);
 
+  const metricList: [string, string][] =
+    scope === "pit" ? PIT_METRICS : METRICS.map((m) => [m, m.toUpperCase()]);
+  const activeMetric = metricList.some(([m]) => m === metric) ? metric : metricList[0]![0];
+
   useEffect(() => {
-    api<{ rows: Row[] }>(`/api/leaderboard?scope=${scope}&metric=${metric}`)
+    api<{ rows: Row[] }>(`/api/leaderboard?scope=${scope}&metric=${activeMetric}`)
       .then((d) => setRows(d.rows))
       .catch(() => {});
-  }, [scope, metric]);
+  }, [scope, activeMetric]);
 
   return (
     <div>
@@ -47,13 +78,13 @@ export default function Leaderboard() {
           </button>
         ))}
         <div className="w-4" />
-        {METRICS.map((m) => (
+        {metricList.map(([m, label]) => (
           <button
             key={m}
             onClick={() => setMetric(m)}
-            className={`rounded px-3 py-1 text-sm uppercase ${metric === m ? "bg-zinc-200 font-bold text-zinc-950" : "bg-zinc-800"}`}
+            className={`rounded px-3 py-1 text-sm ${activeMetric === m ? "bg-zinc-200 font-bold text-zinc-950" : "bg-zinc-800"}`}
           >
-            {m}
+            {label}
           </button>
         ))}
       </div>
@@ -87,7 +118,7 @@ export default function Leaderboard() {
                     rank === 0 ? "text-amber-300" : rank === 1 ? "text-zinc-300" : "text-orange-400"
                   }`}
                 >
-                  {metric === "pnl" ? `${r.value >= 0 ? "+" : ""}${r.value.toFixed(3)}` : r.value}
+                  {formatValue(scope, activeMetric, r.value)}
                 </div>
               </a>
             );
@@ -100,7 +131,9 @@ export default function Leaderboard() {
         <div className="flex items-center gap-4 px-4 text-[10px] font-bold uppercase tracking-wide text-zinc-600">
           <span className="w-8 shrink-0">#</span>
           <span className="min-w-0 flex-1">Player</span>
-          <span className="shrink-0">{metric.toUpperCase()}</span>
+          <span className="shrink-0">
+            {(metricList.find(([m]) => m === activeMetric)?.[1] ?? activeMetric).toUpperCase()}
+          </span>
         </div>
         {rows.slice(3).map((r, i) => (
           <a
@@ -119,7 +152,7 @@ export default function Leaderboard() {
               </span>
             </span>
             <span className="shrink-0 font-mono font-black text-zinc-100">
-              {metric === "pnl" ? r.value.toFixed(3) : r.value}
+              {formatValue(scope, activeMetric, r.value)}
             </span>
           </a>
         ))}
