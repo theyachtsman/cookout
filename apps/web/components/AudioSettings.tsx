@@ -24,7 +24,7 @@ export function AudioMixer() {
   ];
 
   return (
-    <div className="rounded-xl border border-zinc-800 p-5">
+    <div className="rounded-2xl bg-zinc-900/40 p-5">
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-lg font-bold">
           {mix.muted ? "🔇" : "🔊"} Sound

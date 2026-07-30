@@ -252,20 +252,8 @@ export default function ProfilePage() {
           </section>
 
           <section>
-            <SectionTitle
-              title="Recent Matches"
-              action={
-                history.length > 5 ? (
-                  <Link
-                    href={`/profile/${profile.address}`}
-                    className="text-xs font-bold text-lime-400 hover:underline"
-                  >
-                    View all {history.length} →
-                  </Link>
-                ) : undefined
-              }
-            />
-            <MatchHistory entries={history.slice(0, 5)} />
+            <SectionTitle title="Recent Matches" />
+            <MatchHistory entries={history} cap={5} />
           </section>
         </div>
       )}

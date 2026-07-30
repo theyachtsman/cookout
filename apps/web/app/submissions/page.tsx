@@ -120,7 +120,7 @@ export default function Submissions() {
 
   return (
     <div className="space-y-8">
-      <header className="relative overflow-hidden rounded-2xl border border-zinc-800 bg-gradient-to-br from-lime-400/[0.07] via-zinc-950 to-zinc-950 p-6">
+      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-lime-400/[0.1] via-zinc-900/40 to-zinc-900/40 p-6">
         <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">
           Launch a Coin
         </div>
@@ -134,13 +134,13 @@ export default function Submissions() {
         </p>
         <Link
           href="/vote"
-          className="mt-4 inline-block rounded-lg border border-zinc-700 px-5 py-2 font-bold text-zinc-200 transition hover:border-lime-400/50 hover:text-lime-300"
+          className="mt-4 inline-block rounded-lg bg-zinc-800 px-5 py-2 font-bold text-zinc-200 transition hover:bg-zinc-700 hover:text-lime-300"
         >
           See what&apos;s up for a vote →
         </Link>
       </header>
 
-      <section className="rounded-xl border border-zinc-800 p-5">
+      <section className="rounded-2xl bg-zinc-900/40 p-5">
         <h2 className="mb-1 text-lg font-black">Your coin</h2>
         <p className="mb-4 text-xs text-zinc-500">
           You supply the metadata, never the code. Hit the vote bar and your coin goes straight to
@@ -159,25 +159,25 @@ export default function Submissions() {
               placeholder="Token name"
               value={form.name}
               onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
+              className="rounded bg-zinc-950/60 outline-none focus:ring-2 focus:ring-lime-400/30 px-3 py-2 text-sm"
             />
             <input
               placeholder="SYMBOL"
               value={form.symbol}
               onChange={(e) => setForm({ ...form, symbol: e.target.value.toUpperCase() })}
-              className="rounded border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-sm"
+              className="rounded bg-zinc-950/60 outline-none focus:ring-2 focus:ring-lime-400/30 px-3 py-2 font-mono text-sm"
             />
             <input
               placeholder="Theme (one line)"
               value={form.theme}
               onChange={(e) => setForm({ ...form, theme: e.target.value })}
-              className="rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm md:col-span-2"
+              className="rounded bg-zinc-950/60 outline-none focus:ring-2 focus:ring-lime-400/30 px-3 py-2 text-sm md:col-span-2"
             />
             <textarea
               placeholder="Pitch (optional)"
               value={form.pitch}
               onChange={(e) => setForm({ ...form, pitch: e.target.value })}
-              className="rounded border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm md:col-span-2"
+              className="rounded bg-zinc-950/60 outline-none focus:ring-2 focus:ring-lime-400/30 px-3 py-2 text-sm md:col-span-2"
               rows={2}
             />
             {/* Socials — shown as interactive badges on the coin's trading banner. */}
@@ -189,7 +189,7 @@ export default function Submissions() {
                 {SOCIAL_FIELDS.map((f) => (
                   <div
                     key={f.key}
-                    className="flex items-center gap-2 rounded border border-zinc-700 bg-zinc-900 px-2.5"
+                    className="flex items-center gap-2 rounded bg-zinc-950/60 outline-none focus:ring-2 focus:ring-lime-400/30 px-2.5"
                   >
                     <span className="w-5 shrink-0 text-center text-sm">{f.icon}</span>
                     <input
@@ -227,7 +227,7 @@ export default function Submissions() {
                   onChange={(e) =>
                     setForm({ ...form, totalSupply: e.target.value.replace(/[^0-9]/g, "") })
                   }
-                  className="w-44 rounded border border-zinc-700 bg-zinc-900 px-3 py-2 font-mono text-sm"
+                  className="w-44 rounded bg-zinc-950/60 outline-none focus:ring-2 focus:ring-lime-400/30 px-3 py-2 font-mono text-sm"
                 />
               </label>
             </div>
@@ -253,14 +253,14 @@ export default function Submissions() {
                             ? `Reach level ${m.unlockLevel} to launch ${m.name}`
                             : m.blurb
                       }
-                      className={`rounded-xl border p-3 text-left transition ${
+                      className={`rounded-xl p-3 text-left transition ${
                         active
                           ? noRug
-                            ? "border-red-400/70 bg-red-400/10"
-                            : "border-lime-400/70 bg-lime-400/10"
+                            ? "bg-red-400/20"
+                            : "bg-lime-400/20"
                           : locked
-                            ? "cursor-not-allowed border-zinc-800 opacity-45"
-                            : "border-zinc-700 hover:border-zinc-500"
+                            ? "cursor-not-allowed bg-zinc-900/40 opacity-45"
+                            : "bg-zinc-800/60 hover:bg-zinc-700"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
@@ -300,7 +300,7 @@ export default function Submissions() {
                 })}
               </div>
               {!GAME_MODE_MAP[form.mode].rugRules && (
-                <div className="mt-2 rounded-lg border border-red-500/40 bg-red-500/[0.06] p-3 text-xs text-zinc-300">
+                <div className="mt-2 rounded-lg bg-red-500/[0.1] p-3 text-xs text-zinc-300">
                   <b className="text-red-300">🔥 {GAME_MODE_MAP[form.mode].name}: rug rules off.</b>{" "}
                   No dev-dump auto-rug, no pool-drain rug, no dev sell lock. As the dev you can{" "}
                   <b>sell whenever and however much you want</b> with zero reputation hit and no
@@ -327,10 +327,8 @@ export default function Submissions() {
                         })
                       }
                       title={mod.blurb}
-                      className={`flex items-start gap-3 rounded-xl border p-3 text-left transition ${
-                        on
-                          ? "border-sky-400/70 bg-sky-400/10"
-                          : "border-zinc-700 hover:border-zinc-500"
+                      className={`flex items-start gap-3 rounded-xl p-3 text-left transition ${
+                        on ? "bg-sky-400/20" : "bg-zinc-800/60 hover:bg-zinc-700"
                       }`}
                     >
                       <span className="text-lg leading-none">{mod.icon}</span>
@@ -368,7 +366,7 @@ export default function Submissions() {
         {error && <div className="mt-2 text-sm text-red-400">{error}</div>}
       </section>
 
-      <section className="rounded-xl border border-zinc-800 p-5">
+      <section className="rounded-2xl bg-zinc-900/40 p-5">
         <h2 className="mb-1 text-lg font-bold">Tokenomics, declared up front</h2>
         <p className="mb-3 text-xs text-zinc-500">
           Every launch uses the platform template. Creators choose name, art, and total supply, and
@@ -382,13 +380,13 @@ export default function Submissions() {
             ["Auction fee", `${TIER_CONFIGS.standard.auctionFeeBps / 100}%`],
             ["Serves up at", `$40,000 mcap · ${TIER_CONFIGS.standard.graduationMinHolders} holders · ${TIER_CONFIGS.standard.graduationMinVolume} ${unit} vol`],
           ].map(([k, v]) => (
-            <div key={k as string} className="rounded-lg bg-zinc-900 p-3">
+            <div key={k as string} className="rounded-lg bg-zinc-950/50 p-3">
               <div className="text-[10px] uppercase tracking-wide text-zinc-500">{k}</div>
               <div className="mt-0.5 font-mono text-xs font-bold text-zinc-200">{v}</div>
             </div>
           ))}
         </div>
-        <div className="mt-3 rounded-lg border border-red-500/30 bg-red-500/[0.05] p-3 text-xs text-zinc-300">
+        <div className="mt-3 rounded-lg bg-red-500/[0.08] p-3 text-xs text-zinc-300">
           <b className="text-red-300">🔥 The rug rule:</b> in <b>Classic</b> and <b>Pressure</b> you
           can trade your own coin like anyone else, but <b>selling 75% of the most you ever held</b>{" "}
           (cumulative) pulls the launch and brands it Burnt, which tanks your reputation and bans you
@@ -398,7 +396,7 @@ export default function Submissions() {
         </div>
       </section>
 
-      <section className="rounded-xl border border-lime-400/30 bg-lime-400/[0.05] p-5 text-center">
+      <section className="rounded-2xl bg-lime-400/[0.08] p-5 text-center">
         <h2 className="text-lg font-black">Submitted? The crowd decides next.</h2>
         <p className="mx-auto mt-1 max-w-lg text-sm text-zinc-400">
           Voting lives on its own page now, alongside every submission ever made, including the
