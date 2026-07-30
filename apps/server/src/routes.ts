@@ -716,27 +716,35 @@ export function createApp(
       if (round.state !== "lobby") throw new Err(409, "the lobby for this match is closed");
       const addr = req.userAddress!;
       if (store.pitEntryOf(round.id, addr)) throw new Err(409, "you're already entered in this match");
-      const body = req.body as { prediction?: string; predictionStake?: number; trading?: boolean };
+      const body = req.body as {
+        prediction?: string;
+        predictionStake?: number;
+        trading?: boolean;
+        tradingStake?: number;
+      };
       const entry: PitEntry = {};
+      const user = store.getOrCreateUser(addr);
+      // Both pools take a custom parimutuel bet with a $1 minimum, converted at
+      // the live peg. A bet defaults to the base fee when the client omits it.
+      const minStake = 1 / (store.ethUsd || 1);
+      const resolveStake = (raw: unknown, base: number, label: string): number => {
+        const stake = raw === undefined || raw === null ? base : Number(raw);
+        if (!Number.isFinite(stake) || stake < minStake - 1e-12)
+          throw new Err(400, `${label} must be at least $1 (${minStake.toFixed(4)} pETH)`);
+        return stake;
+      };
       if (body.prediction !== undefined && body.prediction !== null) {
         if (!["graduate", "rug", "timer"].includes(String(body.prediction)))
           throw new Err(400, "prediction must be graduate, rug, or timer");
         entry.prediction = body.prediction as PitCall;
-        // Custom parimutuel bet with a $1 minimum (converted at the live peg).
-        const minStake = 1 / (store.ethUsd || 1);
-        const user = store.getOrCreateUser(addr);
-        const raw = body.predictionStake;
-        const stake = raw === undefined || raw === null ? round.pit!.predictionFee : Number(raw);
-        if (!Number.isFinite(stake) || stake < minStake - 1e-12)
-          throw new Err(400, `prediction bet must be at least $1 (${minStake.toFixed(4)} pETH)`);
-        if (stake > (user.arenaBalance ?? 0) + 1e-9)
-          throw new Err(400, "not enough in your Cook Out balance for that bet");
-        entry.predictionStake = stake;
+        entry.predictionStake = resolveStake(body.predictionStake, round.pit!.predictionFee, "prediction bet");
       }
-      if (body.trading) entry.trading = true;
+      if (body.trading) {
+        entry.trading = true;
+        entry.tradingStake = resolveStake(body.tradingStake, round.pit!.tradingFee, "trading buy-in");
+      }
       if (!entry.prediction && !entry.trading) throw new Err(400, "enter at least one pool");
       const cost = pitEntryCost(round, entry);
-      const user = store.getOrCreateUser(addr);
       if ((user.arenaBalance ?? 0) < cost - 1e-9)
         throw new Err(400, "not enough in your Cook Out balance: deposit pETH to enter The Pit");
       enterPit(store, round, addr, entry);

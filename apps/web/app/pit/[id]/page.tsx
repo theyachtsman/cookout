@@ -270,8 +270,9 @@ function LobbyView({
   const peg = ethUsd > 0 ? ethUsd : 1;
   const [call, setCall] = useState<PitCall | null>(null);
   const [trading, setTrading] = useState(false);
-  // Prediction bet in USD (min $1). Sensible default; the player can change it.
+  // Bets in USD (min $1). Sensible defaults; the player can change either.
   const [betUsd, setBetUsd] = useState<string>("5");
+  const [tradeBetUsd, setTradeBetUsd] = useState<string>("5");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -279,7 +280,9 @@ function LobbyView({
   const predCount = pit.prediction.participants;
   const bet = Math.max(0, Number(betUsd) || 0);
   const stakeEth = bet / peg;
-  const cost = (call ? stakeEth : 0) + (trading ? pit.tradingFee : 0);
+  const tradeBet = Math.max(0, Number(tradeBetUsd) || 0);
+  const tradeStakeEth = tradeBet / peg;
+  const cost = (call ? stakeEth : 0) + (trading ? tradeStakeEth : 0);
 
   const submit = async () => {
     setError("");
@@ -291,6 +294,10 @@ function LobbyView({
       setError("Minimum prediction bet is $1.");
       return;
     }
+    if (trading && tradeBet < 1) {
+      setError("Minimum trading buy-in is $1.");
+      return;
+    }
     setBusy(true);
     try {
       await api(`/api/pit/${round.id}/enter`, {
@@ -298,6 +305,7 @@ function LobbyView({
           prediction: call ?? undefined,
           predictionStake: call ? stakeEth : undefined,
           trading,
+          tradingStake: trading ? tradeStakeEth : undefined,
         },
       });
       onEntered();
@@ -350,6 +358,9 @@ function LobbyView({
             {entry.trading && (
               <span>
                 Trading stack <b className="font-mono">{pdotEth(stack)}</b>
+                {entry.tradingStake ? (
+                  <b className="ml-1 font-mono text-zinc-400">· bet {pdotEth(entry.tradingStake)}</b>
+                ) : null}
               </span>
             )}
           </div>
@@ -412,27 +423,61 @@ function LobbyView({
             )}
           </div>
 
-          {/* Trading — button toggle (no checkbox). */}
-          <button
-            onClick={() => setTrading((t) => !t)}
-            className={`flex w-full items-center gap-3 rounded-xl p-3 text-left ring-1 transition ${
-              trading ? "bg-lime-500/15 ring-lime-400/50" : "bg-zinc-900/60 ring-white/10 hover:ring-white/25"
-            }`}
-          >
-            <span
-              className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${
-                trading ? "bg-lime-400 text-zinc-950" : "bg-zinc-700 text-zinc-300"
+          {/* Trading — button toggle (no checkbox) + custom parimutuel buy-in. */}
+          <div>
+            <button
+              onClick={() => setTrading((t) => !t)}
+              className={`flex w-full items-center gap-3 rounded-xl p-3 text-left ring-1 transition ${
+                trading ? "bg-lime-500/15 ring-lime-400/50" : "bg-zinc-900/60 ring-white/10 hover:ring-white/25"
               }`}
             >
-              {trading ? "✓" : "+"}
-            </span>
-            <span className="flex-1">
-              <span className="text-sm font-black text-zinc-100">Join trading pool · {pdotEth(pit.tradingFee)}</span>
-              <span className="block text-[11px] text-zinc-500">
-                Get a {pdotEth(pit.startingStack)} paper stack and trade the Swarm. Finish in profit to qualify.
+              <span
+                className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${
+                  trading ? "bg-lime-400 text-zinc-950" : "bg-zinc-700 text-zinc-300"
+                }`}
+              >
+                {trading ? "✓" : "+"}
               </span>
-            </span>
-          </button>
+              <span className="flex-1">
+                <span className="text-sm font-black text-zinc-100">Join trading pool</span>
+                <span className="block text-[11px] text-zinc-500">
+                  Trade a {pdotEth(pit.startingStack)} paper stack against the Swarm. Finish in profit to qualify.
+                </span>
+              </span>
+            </button>
+            {trading && (
+              <div className="mt-2 rounded-xl bg-zinc-900/60 p-3 ring-1 ring-white/10">
+                <div className="mb-1.5 flex items-center justify-between text-xs text-zinc-500">
+                  <span>Your buy-in (min $1)</span>
+                  <span className="font-mono text-zinc-400">≈ {pdotEth(tradeStakeEth, 3)}</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="flex flex-1 items-center rounded-lg bg-zinc-950/60 px-3 ring-1 ring-white/10 focus-within:ring-lime-400/50">
+                    <span className="text-zinc-500">$</span>
+                    <input
+                      value={tradeBetUsd}
+                      onChange={(e) => setTradeBetUsd(e.target.value.replace(/[^0-9.]/g, ""))}
+                      inputMode="decimal"
+                      className="w-full bg-transparent px-1 py-2 text-center font-mono text-lg outline-none"
+                    />
+                  </div>
+                  {[1, 5, 25].map((v) => (
+                    <button
+                      key={v}
+                      onClick={() => setTradeBetUsd(String(v))}
+                      className="rounded-lg bg-zinc-800 px-2.5 py-2 text-xs font-bold hover:bg-zinc-700"
+                    >
+                      ${v}
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-[11px] text-zinc-600">
+                  Parimutuel: qualified traders split the pool pro-rata to their buy-in. Everyone trades the
+                  same paper stack.
+                </p>
+              </div>
+            )}
+          </div>
 
           {error && <div className="text-xs text-red-400">{error}</div>}
 

@@ -41,9 +41,11 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
   // price, minus the starting stack.
   const traderPnl = new Map<string, number>();
   const predWinners: string[] = [];
-  // Parimutuel: prediction winners split the pool pro-rata to their stake.
+  // Parimutuel: winners/qualifiers split each pool pro-rata to their stake.
   const predStake = (entry: { predictionStake?: number }) => entry.predictionStake ?? pit.predictionFee;
+  const tradeStake = (entry: { tradingStake?: number }) => entry.tradingStake ?? pit.tradingFee;
   const winnerStake = new Map<string, number>();
+  const traderStake = new Map<string, number>();
   for (const [addr, entry] of entries) {
     if (isBot(addr)) continue;
     if (entry.prediction === outcome) {
@@ -54,10 +56,12 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
       const held = positions.get(addr)?.tokens ?? 0;
       const value = store.pitStackOf(round.id, addr) + held * ctx.finalPrice;
       traderPnl.set(addr, value - pit.startingStack);
+      traderStake.set(addr, tradeStake(entry));
     }
   }
   const qualifiers = [...traderPnl.entries()].filter(([, pnl]) => pnl > 0).map(([a]) => a);
   const totalWinnerStake = [...winnerStake.values()].reduce((s, v) => s + v, 0);
+  const totalQualStake = qualifiers.reduce((s, a) => s + (traderStake.get(a) ?? 0), 0);
 
   const predPot = pit.prediction.pot + pit.prediction.carryIn;
   const tradePot = pit.trading.pot + pit.trading.carryIn;
@@ -81,7 +85,8 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
     const isQual = entry.trading ? qualified.has(addr) : undefined;
     const predictionReward =
       wonPred && totalWinnerStake > 0 ? predPot * (predStake(entry) / totalWinnerStake) : 0;
-    const tradingReward = isQual ? tradeReward : 0;
+    const tradingReward =
+      isQual && totalQualStake > 0 ? tradePot * (tradeStake(entry) / totalQualStake) : 0;
     const totalReward = predictionReward + tradingReward;
     const feesPaid =
       (entry.prediction ? pit.predictionFee : 0) + (entry.trading ? pit.tradingFee : 0);

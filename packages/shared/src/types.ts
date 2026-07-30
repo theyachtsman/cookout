@@ -117,6 +117,10 @@ export interface PitEntry {
   predictionStake?: number;
   /** Whether they bought into the Trading Pool. */
   trading?: boolean;
+  /** Custom trading buy-in (pETH). Parimutuel: qualified traders split the pool
+   *  pro-rata to this stake. Everyone still trades the same paper stack, so
+   *  qualification (positive PnL) stays fair. $1 minimum. */
+  tradingStake?: number;
 }
 
 /** One participant's Pit outcome, for the results modal and profile. */
