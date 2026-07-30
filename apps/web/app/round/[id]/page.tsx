@@ -658,7 +658,7 @@ export default function RoundPage() {
       )}
 
       {auction && round.state !== "results" && (
-        <div className="rounded-lg border border-zinc-800 px-4 py-2 text-xs text-zinc-500">
+        <div className="rounded-lg bg-zinc-900/40 px-4 py-2 text-xs text-zinc-500">
           Auction settled at {auction.clearingPrice.toExponential(4)} · raised{" "}
           {auction.totalRaised.toFixed(2)} {unit} from {auction.fills.length} intents (fill ratio{" "}
           {(auction.fillRatio * 100).toFixed(0)}%) · audit {auction.auditHash.slice(0, 16)}…
@@ -853,7 +853,7 @@ function YourBag({
 
 
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/70 p-4">
+    <div className="rounded-2xl bg-zinc-900/70 p-4">
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">
           Unrealized P&amp;L <span className="text-zinc-700">●</span>

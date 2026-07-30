@@ -75,7 +75,7 @@ export function GraduationProgress({
       }`}
     >
       {celebrating && (
-        <div className="pointer-events-none absolute -top-3 left-1/2 -translate-x-1/2 animate-[bannerIn_.35s_cubic-bezier(.2,1.5,.4,1)] rounded-full border border-lime-400/60 bg-zinc-950 px-3 py-1 text-[11px] font-black text-lime-300 shadow-lg shadow-black/50">
+        <div className="pointer-events-none absolute -top-3 left-1/2 -translate-x-1/2 animate-[bannerIn_.35s_cubic-bezier(.2,1.5,.4,1)] rounded-full bg-lime-400/20 px-3 py-1 text-[11px] font-black text-lime-300 shadow-lg shadow-black/50">
           🎯 Bonding passed {celebrating}%
         </div>
       )}
