@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { RoundSummary } from "@cookout/shared";
+import type { RedemptionEntry, RoundSummary } from "@cookout/shared";
 import { CreatorBadge } from "./CreatorBadge";
 import { PnlShareCard } from "./PnlShareCard";
 
@@ -208,6 +208,14 @@ export function RoundResultsOverlay({
           </p>
         </div>
 
+        {summary.redemption && summary.redemption.length > 0 && (
+          <RedemptionList
+            rows={summary.redemption}
+            price={summary.redemptionPrice}
+            unit={unit}
+          />
+        )}
+
         <div className="mt-4 grid grid-cols-3 gap-2 text-center">
           {[
             ["Duration", `${Math.floor(summary.durationSeconds / 60)}m ${summary.durationSeconds % 60}s`],
@@ -264,6 +272,92 @@ export function RoundResultsOverlay({
           />
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * The full pro-rata exit: what every remaining player was paid at the round's
+ * one uniform redemption price. Collapsed by default so it does not crowd the
+ * overlay; expands into a scrollable list.
+ */
+function RedemptionList({
+  rows,
+  price,
+  unit,
+}: {
+  rows: RedemptionEntry[];
+  price?: number;
+  unit: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const total = rows.reduce((sum, r) => sum + r.eth, 0);
+  const name = (r: RedemptionEntry) =>
+    r.displayName ?? `${r.address.slice(0, 6)}…${r.address.slice(-4)}`;
+  return (
+    <div className="mt-4 rounded-2xl bg-zinc-900/60 p-3.5">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className="flex w-full items-center gap-2 text-left"
+      >
+        <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-300">
+          Redemption breakdown
+        </span>
+        <span className="font-mono text-[11px] text-zinc-500">{rows.length} paid</span>
+        <svg
+          viewBox="0 0 24 24"
+          className={`ml-auto h-4 w-4 text-zinc-500 transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none"
+          stroke="currentColor"
+          strokeWidth={2.5}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          aria-hidden
+        >
+          <path d="M6 9l6 6 6-6" />
+        </svg>
+      </button>
+      {open && (
+        <div className="mt-3">
+          <div className="flex items-center gap-2 px-2.5 text-[9px] font-bold uppercase tracking-wide text-zinc-600">
+            <span className="min-w-0 flex-1">Player</span>
+            <span className="w-16 text-right">Tokens</span>
+            <span className="w-20 text-right">Paid</span>
+          </div>
+          <div className="mt-1 max-h-60 space-y-1 overflow-y-auto pr-1">
+            {rows.map((r) => (
+              <div
+                key={r.address}
+                className="flex items-center gap-2 rounded-lg bg-zinc-950/50 px-2.5 py-1.5 text-xs"
+              >
+                <span className="min-w-0 flex-1 truncate text-zinc-200">{name(r)}</span>
+                <span className="w-16 text-right font-mono text-zinc-500">
+                  {r.tokens >= 1000
+                    ? `${(r.tokens / 1000).toFixed(1)}k`
+                    : r.tokens.toFixed(0)}
+                </span>
+                <span className="w-20 text-right font-mono text-lime-300">{r.eth.toFixed(4)}</span>
+              </div>
+            ))}
+          </div>
+          <div className="mt-2 flex items-center justify-between px-2.5 text-[11px]">
+            <span className="text-zinc-500">
+              {price ? (
+                <>
+                  One price: <span className="font-mono">{price.toExponential(2)}</span> {unit}/token
+                </>
+              ) : (
+                "Total paid out"
+              )}
+            </span>
+            <span className="font-mono font-bold text-lime-300">
+              {total.toFixed(4)} {unit}
+            </span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
