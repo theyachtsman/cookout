@@ -69,15 +69,15 @@ export default function Leaderboard() {
             if (!r) return <div key={slot} />;
             const rank = slot === 1 ? 0 : slot === 0 ? 1 : 2;
             const style = [
-              "border-amber-400/70 bg-gradient-to-b from-amber-500/20 to-transparent pt-8",
-              "border-zinc-400/50 bg-gradient-to-b from-zinc-400/15 to-transparent pt-5",
-              "border-orange-700/60 bg-gradient-to-b from-orange-700/15 to-transparent pt-5",
+              "bg-gradient-to-b from-amber-500/25 to-amber-500/[0.03] pt-8",
+              "bg-gradient-to-b from-zinc-400/20 to-zinc-400/[0.03] pt-5",
+              "bg-gradient-to-b from-orange-700/25 to-orange-700/[0.03] pt-5",
             ][rank];
             return (
               <a
                 key={r.address}
                 href={`/profile/${r.address}`}
-                className={`rounded-2xl border p-4 text-center transition hover:scale-[1.02] ${style}`}
+                className={`rounded-2xl p-4 text-center transition hover:scale-[1.02] ${style}`}
               >
                 <div className="text-4xl">{["🥇", "🥈", "🥉"][rank]}</div>
                 <div className="mt-2 truncate font-black">
@@ -100,50 +100,44 @@ export default function Leaderboard() {
         </div>
       )}
 
-      <div className="overflow-hidden rounded-xl border border-zinc-800">
-        <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[30rem] text-sm">
-          <thead className="bg-zinc-900 text-left text-xs uppercase text-zinc-500">
-            <tr>
-              <th className="px-4 py-2">#</th>
-              <th className="px-4 py-2">Player</th>
-              <th className="px-4 py-2">Level</th>
-              <th className="px-4 py-2 text-right">{metric.toUpperCase()}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {rows.slice(3).map((r, i) => (
-              <tr key={r.address} className="border-t border-zinc-800/60">
-                <td className="px-4 py-2 font-mono text-zinc-500">{i + 4}</td>
-                <td className="px-4 py-2">
-                  <a href={`/profile/${r.address}`} className="hover:underline">
-                    {r.badge && <span className="mr-1.5">{r.badge}</span>}
-                    {r.displayName ?? `${r.address.slice(0, 6)}…${r.address.slice(-4)}`}
-                  </a>
-                </td>
-                <td className="px-4 py-2 text-zinc-400">
-                  Lv{r.level} {r.title}
-                </td>
-                <td className="px-4 py-2 text-right font-mono">
-                  {metric === "pnl" ? r.value.toFixed(3) : r.value}
-                </td>
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-6 text-center text-zinc-500">
-                  Nobody on the board yet.
-                </td>
-              </tr>
-            )}
-            {rows.length > 0 && rows.length <= 3 && (
-              <tr>
-                <td colSpan={4} className="px-4 py-4 text-center text-xs text-zinc-600">
-                  Top {rows.length} on the podium. Play rounds to join the table.
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table></div>
+      {/* the rest of the board — borderless rows, no table */}
+      <div className="space-y-1.5">
+        <div className="flex items-center gap-4 px-4 text-[10px] font-bold uppercase tracking-wide text-zinc-600">
+          <span className="w-8 shrink-0">#</span>
+          <span className="min-w-0 flex-1">Player</span>
+          <span className="shrink-0">{metric.toUpperCase()}</span>
+        </div>
+        {rows.slice(3).map((r, i) => (
+          <a
+            key={r.address}
+            href={`/profile/${r.address}`}
+            className="flex items-center gap-4 rounded-2xl bg-zinc-900/40 px-4 py-2.5 transition hover:bg-zinc-900/80"
+          >
+            <span className="w-8 shrink-0 font-mono text-zinc-500">{i + 4}</span>
+            <span className="min-w-0 flex-1 truncate">
+              {r.badge && <span className="mr-1.5">{r.badge}</span>}
+              <span className="font-bold text-zinc-100">
+                {r.displayName ?? `${r.address.slice(0, 6)}…${r.address.slice(-4)}`}
+              </span>
+              <span className="ml-2 text-xs text-zinc-500">
+                Lv{r.level} {r.title}
+              </span>
+            </span>
+            <span className="shrink-0 font-mono font-black text-zinc-100">
+              {metric === "pnl" ? r.value.toFixed(3) : r.value}
+            </span>
+          </a>
+        ))}
+        {rows.length === 0 && (
+          <div className="rounded-2xl bg-zinc-900/40 p-6 text-center text-sm text-zinc-500">
+            Nobody on the board yet.
+          </div>
+        )}
+        {rows.length > 0 && rows.length <= 3 && (
+          <div className="rounded-2xl bg-zinc-900/40 p-4 text-center text-xs text-zinc-600">
+            Top {rows.length} on the podium. Play rounds to join the board.
+          </div>
+        )}
       </div>
     </div>
   );

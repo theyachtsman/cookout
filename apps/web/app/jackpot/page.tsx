@@ -49,7 +49,7 @@ export default function JackpotPage() {
   return (
     <div className="space-y-8">
       {/* Hero */}
-      <div className="relative overflow-hidden rounded-3xl border border-amber-400/40 bg-gradient-to-br from-amber-500/15 via-zinc-950 to-zinc-950 p-8 text-center">
+      <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500/15 via-zinc-900/40 to-zinc-900/40 p-8 text-center">
         <div className="pointer-events-none absolute -right-10 -top-10 text-[10rem] opacity-10">🎰</div>
         <div className="text-xs font-bold uppercase tracking-[0.3em] text-amber-400/80">
           The Weekly Jackpot
@@ -60,7 +60,7 @@ export default function JackpotPage() {
         <div className="mt-1 font-mono text-sm text-zinc-400">
           {jp.poolEth.toFixed(4)} {cur} · 1 ETH ≈ {usd0(jp.ethUsd)}
         </div>
-        <div className="mt-5 inline-flex flex-wrap items-center justify-center gap-x-6 gap-y-2 rounded-2xl border border-zinc-800 bg-zinc-900/60 px-6 py-3">
+        <div className="mt-5 inline-flex flex-wrap items-center justify-center gap-x-6 gap-y-2 rounded-2xl bg-zinc-950/50 px-6 py-3">
           <div>
             <div className="text-[10px] uppercase tracking-wide text-zinc-500">Pays out in</div>
             <div className="font-mono text-lg font-bold text-lime-300">{countdown}</div>
@@ -97,7 +97,7 @@ export default function JackpotPage() {
 
       {/* Where the money comes from */}
       <section className="grid gap-6 md:grid-cols-2">
-        <div className="rounded-2xl border border-zinc-800 p-5">
+        <div className="rounded-2xl bg-zinc-900/40 p-5">
           <h3 className="text-base font-black">Where the pot comes from</h3>
           <p className="mt-1 text-sm text-zinc-400">
             Every round charges a small trading fee. Here&apos;s how each fee is split:
@@ -109,8 +109,8 @@ export default function JackpotPage() {
             pure fee revenue, so a busy trading week directly means a bigger jackpot.
           </p>
 
-          <div className="mt-4 grid grid-cols-2 gap-3 border-t border-zinc-800 pt-4">
-            <div className="rounded-xl bg-zinc-900/60 p-3">
+          <div className="mt-4 grid grid-cols-2 gap-3 pt-2">
+            <div className="rounded-xl bg-zinc-950/50 p-3">
               <div className="text-[10px] uppercase tracking-wide text-zinc-500">
                 This week&apos;s volume
               </div>
@@ -121,7 +121,7 @@ export default function JackpotPage() {
                 ≈ {usd0(jp.weekVolumeEth * jp.ethUsd)}
               </div>
             </div>
-            <div className="rounded-xl bg-zinc-900/60 p-3">
+            <div className="rounded-xl bg-zinc-950/50 p-3">
               <div className="text-[10px] uppercase tracking-wide text-zinc-500">
                 This week&apos;s fees
               </div>
@@ -138,7 +138,7 @@ export default function JackpotPage() {
           </p>
         </div>
 
-        <div className="rounded-2xl border border-zinc-800 p-5">
+        <div className="rounded-2xl bg-zinc-900/40 p-5">
           <h3 className="text-base font-black">How it&apos;s split across 10 winners</h3>
           <p className="mt-1 text-sm text-zinc-400">
             First, second and third always take the biggest shares; 4th–10th taper down from there.
@@ -148,7 +148,7 @@ export default function JackpotPage() {
       </section>
 
       {/* Explainer */}
-      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/30 p-6">
+      <section className="rounded-2xl bg-zinc-900/40 p-6">
         <h3 className="text-base font-black">How the Jackpot works</h3>
         <ol className="mt-3 space-y-3 text-sm text-zinc-300">
           {[
@@ -199,52 +199,43 @@ export default function JackpotPage() {
 function Standings({ rows, cur }: { rows: JackpotStanding[]; cur: string }) {
   if (rows.length === 0)
     return (
-      <div className="rounded-2xl border border-dashed border-zinc-800 py-10 text-center text-sm text-zinc-500">
+      <div className="rounded-2xl bg-zinc-900/40 py-10 text-center text-sm text-zinc-500">
         No XP earned yet this week. Play a round to claim the top spot.
       </div>
     );
   return (
-    <div className="overflow-hidden rounded-2xl border border-zinc-800">
-      <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[30rem] text-sm">
-        <thead className="bg-zinc-900 text-left text-xs uppercase text-zinc-500">
-          <tr>
-            <th className="px-4 py-2">#</th>
-            <th className="px-4 py-2">Player</th>
-            <th className="px-4 py-2 text-right">Weekly XP</th>
-            <th className="px-4 py-2 text-right">Projected cut</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((r) => (
-            <tr
-              key={r.address}
-              className={`border-t border-zinc-800/60 ${r.rank <= 3 ? "bg-amber-500/[0.04]" : ""}`}
-            >
-              <td className="px-4 py-2.5 font-mono font-bold text-zinc-400">
-                {r.rank <= 3 ? medal[r.rank - 1] : r.rank}
-              </td>
-              <td className="px-4 py-2.5">
-                <Link href={`/profile/${r.address}`} className="hover:underline">
-                  {r.badge && <span className="mr-1.5">{r.badge}</span>}
-                  {r.displayName ?? short(r.address)}
-                </Link>
-                <span className="ml-2 text-xs text-zinc-500">
-                  Lv{r.level} {r.title}
-                </span>
-              </td>
-              <td className="px-4 py-2.5 text-right font-mono text-zinc-300">
-                {r.weeklyXp.toLocaleString()}
-              </td>
-              <td className="px-4 py-2.5 text-right">
-                <span className="font-mono font-bold text-amber-300">{usd2(r.amountUsd)}</span>
-                <span className="ml-2 font-mono text-xs text-zinc-500">
-                  {r.amountEth.toFixed(4)} {cur}
-                </span>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table></div>
+    <div className="space-y-1.5">
+      {rows.map((r) => (
+        <div
+          key={r.address}
+          className={`flex items-center gap-4 rounded-2xl px-4 py-2.5 transition ${
+            r.rank <= 3 ? "bg-amber-500/[0.08] hover:bg-amber-500/[0.12]" : "bg-zinc-900/40 hover:bg-zinc-900/80"
+          }`}
+        >
+          <span className="w-8 shrink-0 font-mono font-bold text-zinc-400">
+            {r.rank <= 3 ? medal[r.rank - 1] : r.rank}
+          </span>
+          <span className="min-w-0 flex-1 truncate">
+            <Link href={`/profile/${r.address}`} className="font-bold text-zinc-100 hover:underline">
+              {r.badge && <span className="mr-1.5">{r.badge}</span>}
+              {r.displayName ?? short(r.address)}
+            </Link>
+            <span className="ml-2 text-xs text-zinc-500">
+              Lv{r.level} {r.title}
+            </span>
+          </span>
+          <span className="hidden shrink-0 text-right sm:block">
+            <div className="font-mono text-sm text-zinc-300">{r.weeklyXp.toLocaleString()}</div>
+            <div className="text-[10px] uppercase tracking-wide text-zinc-600">weekly xp</div>
+          </span>
+          <span className="w-28 shrink-0 text-right">
+            <div className="font-mono font-bold text-amber-300">{usd2(r.amountUsd)}</div>
+            <div className="font-mono text-[11px] text-zinc-500">
+              {r.amountEth.toFixed(4)} {cur}
+            </div>
+          </span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -294,46 +285,36 @@ function PayoutTable({
   cur: string;
 }) {
   return (
-    <div className="mt-4 overflow-hidden rounded-xl border border-zinc-800">
-      <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[30rem] text-sm">
-        <thead className="bg-zinc-900 text-left text-xs uppercase text-zinc-500">
-          <tr>
-            <th className="px-3 py-2">Rank</th>
-            <th className="px-3 py-2 text-right">Share</th>
-            <th className="px-3 py-2 text-right">At current pot</th>
-          </tr>
-        </thead>
-        <tbody>
-          {weights.map((w, i) => {
-            const eth = pool * w;
-            return (
-              <tr key={i} className="border-t border-zinc-800/60">
-                <td className="px-3 py-1.5 font-mono">
-                  {i < 3 ? medal[i] : ""} {i + 1}
-                  {["st", "nd", "rd"][i] ?? "th"}
-                </td>
-                <td className="px-3 py-1.5 text-right font-mono text-amber-300">
-                  {(w * 100).toFixed(0)}%
-                </td>
-                <td className="px-3 py-1.5 text-right font-mono text-zinc-400">
-                  {usd2(eth * ethUsd)}
-                  <span className="ml-1.5 text-xs text-zinc-600">
-                    {eth.toFixed(4)} {cur}
-                  </span>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table></div>
+    <div className="mt-4 space-y-1">
+      {weights.map((w, i) => {
+        const eth = pool * w;
+        return (
+          <div
+            key={i}
+            className="flex items-center gap-3 rounded-lg bg-zinc-900/40 px-3 py-1.5 text-sm transition hover:bg-zinc-900/70"
+          >
+            <span className="w-14 shrink-0 font-mono">
+              {i < 3 ? medal[i] : ""} {i + 1}
+              {["st", "nd", "rd"][i] ?? "th"}
+            </span>
+            <span className="w-14 shrink-0 font-mono text-amber-300">{(w * 100).toFixed(0)}%</span>
+            <span className="ml-auto text-right font-mono text-zinc-400">
+              {usd2(eth * ethUsd)}
+              <span className="ml-1.5 text-xs text-zinc-600">
+                {eth.toFixed(4)} {cur}
+              </span>
+            </span>
+          </div>
+        );
+      })}
     </div>
   );
 }
 
 function PastPayout({ p, cur }: { p: JackpotPayout; cur: string }) {
   return (
-    <div className="overflow-hidden rounded-2xl border border-zinc-800">
-      <div className="flex flex-wrap items-baseline justify-between gap-2 border-b border-zinc-800 bg-zinc-900/50 px-4 py-2.5">
+    <div className="overflow-hidden rounded-2xl bg-zinc-900/40">
+      <div className="flex flex-wrap items-baseline justify-between gap-2 bg-zinc-950/40 px-4 py-2.5">
         <span className="font-black">{p.week}</span>
         <span className="font-mono text-sm text-amber-300">
           {usd0(p.totalUsd)} · {p.totalEth.toFixed(4)} {cur} to {p.winners.length}

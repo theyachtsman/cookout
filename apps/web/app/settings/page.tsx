@@ -50,7 +50,7 @@ export default function SettingsPage() {
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
-      <header className="rounded-2xl border border-zinc-800 bg-gradient-to-br from-lime-400/[0.06] via-zinc-950 to-zinc-950 p-6">
+      <header className="rounded-2xl bg-gradient-to-br from-lime-400/[0.1] via-zinc-900/40 to-zinc-900/40 p-6">
         <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">Settings</div>
         <h1 className="mt-2 text-2xl font-black tracking-tight md:text-3xl">
           Tune your Cookout.
@@ -62,7 +62,7 @@ export default function SettingsPage() {
       </header>
 
       {/* Account */}
-      <section className="rounded-2xl border border-zinc-800 p-5">
+      <section className="rounded-2xl bg-zinc-900/40 p-5">
         <h2 className="text-sm font-black uppercase tracking-wide text-zinc-300">Account</h2>
         <p className="mt-1 text-xs text-zinc-500">
           Signed in as{" "}
@@ -78,7 +78,7 @@ export default function SettingsPage() {
             value={name}
             onChange={(e) => setName(e.target.value.slice(0, 24))}
             placeholder={displayName}
-            className="min-w-0 flex-1 rounded-lg border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm"
+            className="min-w-0 flex-1 rounded-lg bg-zinc-800 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-lime-400/40"
           />
           <button
             onClick={() => void saveName()}
@@ -90,28 +90,28 @@ export default function SettingsPage() {
         </div>
         <p className="mt-1 text-[11px] text-zinc-600">Shown across the Cookout, up to 24 characters.</p>
 
-        <div className="mt-4 flex flex-wrap gap-2 border-t border-zinc-800/70 pt-4">
+        <div className="mt-5 flex flex-wrap gap-2">
           <Link
             href="/profile"
-            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm font-bold text-zinc-300 hover:border-zinc-500"
+            className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm font-bold text-zinc-300 transition hover:bg-zinc-700"
           >
             👤 Profile &amp; stats
           </Link>
           <Link
             href="/wallet"
-            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm font-bold text-zinc-300 hover:border-zinc-500"
+            className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm font-bold text-zinc-300 transition hover:bg-zinc-700"
           >
             ⚡ Cook Out Balance
           </Link>
           <Link
             href={`/profile/${profile.address}`}
-            className="rounded-lg border border-zinc-700 px-3 py-1.5 text-sm font-bold text-zinc-300 hover:border-zinc-500"
+            className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm font-bold text-zinc-300 transition hover:bg-zinc-700"
           >
             🌐 Public view
           </Link>
           <button
             onClick={() => signOut()}
-            className="ml-auto rounded-lg border border-zinc-800 px-3 py-1.5 text-sm font-bold text-zinc-500 hover:border-red-500/50 hover:text-red-300"
+            className="ml-auto rounded-lg bg-zinc-800/60 px-3 py-1.5 text-sm font-bold text-zinc-500 transition hover:bg-red-500/15 hover:text-red-300"
           >
             ⏏ Sign out
           </button>

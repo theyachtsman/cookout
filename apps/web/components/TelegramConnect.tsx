@@ -107,7 +107,7 @@ export function TelegramConnect() {
   ];
 
   return (
-    <section className="rounded-2xl border border-sky-500/30 bg-gradient-to-br from-sky-500/[0.07] to-transparent p-5">
+    <section className="rounded-2xl bg-gradient-to-br from-sky-500/[0.1] to-sky-500/[0.02] p-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h2 className="text-sm font-black uppercase tracking-wide text-sky-300">
@@ -118,14 +118,14 @@ export function TelegramConnect() {
           </p>
         </div>
         {st.founderNumber ? (
-          <span className="rounded-full border border-amber-400/50 bg-amber-400/10 px-3 py-1 text-xs font-black text-amber-300">
+          <span className="rounded-full bg-amber-400/15 px-3 py-1 text-xs font-black text-amber-300">
             🥇 Founding Member #{st.founderNumber}
           </span>
         ) : (
           <button
             onClick={() => void claimFounder()}
             disabled={busy}
-            className="rounded-full border border-amber-400/40 px-3 py-1 text-xs font-bold text-amber-300 hover:bg-amber-400/10 disabled:opacity-50"
+            className="rounded-full bg-amber-400/10 px-3 py-1 text-xs font-bold text-amber-300 transition hover:bg-amber-400/20 disabled:opacity-50"
           >
             🥇 Claim Founding Member
           </button>
