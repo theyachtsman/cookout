@@ -201,6 +201,29 @@ test("Flame Trial: solo round arms on the creator's stake, ignoring the predicti
   assert.equal(round.queueOpensAt, now + round.pit!.trialLobbySeconds * 1000);
 });
 
+test("Pit queue: an under-subscribed match cancels and refunds after its window", () => {
+  const store = new Store();
+  const engine = new RoundEngine(store, () => {});
+  store.getOrCreateUser(alice).arenaBalance = 10;
+  const now = Date.now();
+  const round = engine.schedulePitRound(pitConcept(store), now);
+  // One prediction bet — below the 2-bet quorum, so it never arms.
+  enterPit(store, round, alice, { prediction: "graduate", predictionStake: 0.1 });
+  assert.equal(round.pit!.prediction.participants, 1);
+  assert.ok(!round.queueOpensAt);
+  const staked = store.getOrCreateUser(alice).arenaBalance;
+  assert.ok(Math.abs((staked ?? 0) - 9.9) < 1e-9);
+
+  // Before the window closes, nothing happens.
+  engine.tickTransitions(now + round.pit!.queueMaxSeconds * 1000 - 1000);
+  assert.equal(round.state, "lobby");
+
+  // Past the window with quorum unmet: cancelled + deposit refunded.
+  engine.tickTransitions(now + round.pit!.queueMaxSeconds * 1000 + 1);
+  assert.equal(round.state, "cancelled");
+  assert.ok(Math.abs((store.getOrCreateUser(alice).arenaBalance ?? 0) - 10) < 1e-9);
+});
+
 test("Pit: an unclaimed bucket funds the weekly jackpot", () => {
   const store = new Store();
   const engine = new RoundEngine(store, () => {});

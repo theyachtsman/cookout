@@ -206,9 +206,13 @@ Swarm** (Swarm AI) instead of each other.
 - **Direct launch, no vote.** Launch a Coin gains a Game Type selector. Picking
   The Pit shows a duration (⚡ Blitz 1m / 🔥 Standard 5m / 🧠 Marathon 10m) and
   launches straight into the Pit queue — no community vote.
-- **Lifecycle.** Launch → Lobby (paid entry) → Live (equal paper stacks vs the
-  Swarm) → Results → Archive. No Fair Open auction. Max 5 concurrent live matches
-  (configurable); extras queue and promote as slots free.
+- **Lifecycle.** Launch → Queue (deposits accepted) → Live (equal paper stacks vs
+  the Swarm) → Results → Archive. No Fair Open auction and no separate lobby: a new
+  match drops straight into the queue for deposits. It holds there up to a deposit
+  window (`queueMaxSeconds`, default 10 min); if quorum is never met it is
+  **cancelled** and every deposit refunded. Once each enabled pool has two bets, a
+  short arm countdown (`lobbySeconds`, default 60s) runs and it goes live. Max 5
+  concurrent live matches (configurable); extras hold in the queue until a slot frees.
 - **Two independent pools.** Prediction (call Graduate / Rug / Timer) and Trading
   (trade a fixed paper stack; positive PnL qualifies). Each splits evenly among
   its winners; an unclaimed pool carries into the next match. Winning both is a

@@ -224,6 +224,23 @@ export default function PitMatchPage() {
         />
       )}
 
+      {round.state === "cancelled" && (
+        <div className="mx-auto w-full max-w-xl rounded-2xl bg-zinc-900/50 p-8 text-center ring-1 ring-white/10">
+          <div className="text-3xl">🚫</div>
+          <div className="mt-2 text-lg font-black text-zinc-100">Match cancelled</div>
+          <p className="mt-1 text-sm text-zinc-400">
+            Not enough players pulled up before the queue timed out. Every deposit has been refunded to your Cook Out
+            balance.
+          </p>
+          <Link
+            href="/pit"
+            className="mt-4 inline-block rounded-xl bg-fuchsia-500 px-5 py-2.5 text-sm font-black text-zinc-950 hover:bg-fuchsia-400"
+          >
+            Back to The Pit
+          </Link>
+        </div>
+      )}
+
       {round.state === "results" && (
         <PitResultsView round={round} summary={data.summary} me={me} fmt={fmt} />
       )}
@@ -523,9 +540,14 @@ function LobbyView({
         ) : (
           <>
             <span className="text-sm font-black text-amber-100">
-              {isTrialRound ? <>🔥 Single-player Flame Trial</> : <>Filling the lobby</>}
+              {isTrialRound ? <>🔥 Single-player Flame Trial</> : <>In the queue</>}
               <span className="block text-[11px] font-bold text-amber-200/80">
-                Waiting on {needs.join(" and ")}.
+                Waiting on {needs.join(" and ")}.{" "}
+                {round.pit!.queueMaxSeconds ? (
+                  <>
+                    Cancels in <Countdown to={round.scheduledAt + round.pit!.queueMaxSeconds * 1000} />
+                  </>
+                ) : null}
               </span>
             </span>
             <span className="shrink-0 rounded-lg bg-black/30 px-2.5 py-1 font-mono text-xs font-black text-amber-200">

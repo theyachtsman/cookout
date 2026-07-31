@@ -46,6 +46,7 @@ import {
 } from "@cookout/shared";
 import { evaluateRoundEnd } from "./gamification.js";
 import { resolvePitRound } from "./pit-results.js";
+import { withdrawPit } from "./pit-pools.js";
 import type { Store } from "./store.js";
 
 /** Per-player per-round telemetry used for achievements and the summary. */
@@ -203,6 +204,7 @@ export class RoundEngine {
       trialMaxUsd: pit.trialMaxUsd,
       trialTiers: pit.trialTiers.map((t) => ({ ...t })),
       trialLobbySeconds: pit.trialLobbySeconds,
+      queueMaxSeconds: pit.queueMaxSeconds,
       minBet: pit.minBet,
       maxBet: pit.maxBet,
       quickChips: [...pit.quickChips],
@@ -328,6 +330,32 @@ export class RoundEngine {
     this.emitState(round);
   }
 
+  /**
+   * Pit queue expired without quorum: refund every deposit and mark the match
+   * cancelled. Idempotent-ish — only acts on a still-open lobby.
+   */
+  private cancelPitRound(round: Round, now: number): void {
+    if (round.matchType !== "pit" || round.state !== "lobby") return;
+    // Refund each entrant (withdrawPit reverses the ledger + clears the entry).
+    for (const addr of [...this.store.pitEntriesFor(round.id).keys()]) {
+      withdrawPit(this.store, round, addr);
+    }
+    round.state = "cancelled";
+    round.endedAt = now;
+    this.sys(
+      round.id,
+      "pit_open",
+      `Not enough players pulled up in time. This Pit match is cancelled and every deposit refunded.`,
+    );
+    this.sys(
+      PIT_ROOM,
+      "pit_open",
+      `$${round.token.symbol} didn't fill in time and was cancelled. Deposits refunded.`,
+    );
+    this.broadcast(round.id, { type: "round_state", round });
+    this.emitState(round);
+  }
+
   private liveState(roundId: string): LiveRoundState {
     let s = this.live.get(roundId);
     if (!s) {
@@ -388,6 +416,15 @@ export class RoundEngine {
         }
         return false;
       case "lobby":
+        // Pit queue: a match that never reaches quorum within its deposit window
+        // (queueMaxSeconds from launch) is cancelled and every deposit refunded.
+        if (round.matchType === "pit" && !round.queueOpensAt) {
+          const deadline = round.scheduledAt + round.pit!.queueMaxSeconds * 1000;
+          if (now >= deadline) {
+            this.cancelPitRound(round, now);
+            return true;
+          }
+        }
         if (now >= round.queueOpensAt!) {
           // The Pit skips the Fair Open auction: lobby goes straight to live,
           // subject to the concurrent-match cap. At the cap it waits in the

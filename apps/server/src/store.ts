@@ -973,6 +973,8 @@ export class Store {
     // Bets are now placed in USD ($5 min) rather than a high pETH floor; drop the
     // legacy 0.05 pETH minimum on snapshots that predate the change.
     if (this.settings.pit.minBet >= 0.05) this.settings.pit.minBet = PIT_DEFAULTS.minBet;
+    // The queue now runs a 60s arm countdown; raise the legacy 45s on old snapshots.
+    if (this.settings.pit.lobbySeconds === 45) this.settings.pit.lobbySeconds = PIT_DEFAULTS.lobbySeconds;
     // Backfill per-tier Flame Trial PnL bars on tiers persisted before they were
     // tier-scoped (match by name, else fall back to the base requirement).
     this.settings.pit.trialTiers = (this.settings.pit.trialTiers ?? []).map((t) => ({
@@ -1031,6 +1033,7 @@ export interface PitSettings {
   feeSplit: PitFeeSplit;
   startingStack: number;
   lobbySeconds: number;
+  queueMaxSeconds: number;
   maxConcurrent: number;
   carryover: boolean;
   /** Swarm trade size/cadence, 0..1. */
