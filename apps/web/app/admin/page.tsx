@@ -61,6 +61,7 @@ interface PitSettings {
   trialRequiredPnlBps: number;
   trialMinUsd: number;
   trialMaxUsd: number;
+  trialLobbySeconds: number;
   trialTiers: { name: string; minUsd: number; xp: number; rarity: string }[];
 }
 
@@ -201,6 +202,7 @@ function PitOpsPanel({
         </label>
         {num("Min stake ($)", "trialMinUsd", "1")}
         {num("Max stake ($)", "trialMaxUsd", "5")}
+        {num("Start countdown (s)", "trialLobbySeconds", "1")}
         <span className="text-[11px] text-zinc-600">
           Tiers: {(p.trialTiers ?? []).map((t) => `${t.name} $${t.minUsd}/${t.xp}xp`).join(" · ")}
         </span>

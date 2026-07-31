@@ -297,6 +297,8 @@ export const PIT_DEFAULTS = {
   /** Entry stake bounds (USD equivalent). */
   trialMinUsd: 5,
   trialMaxUsd: 500,
+  /** Quick countdown (seconds) from the creator's stake to live in a solo trial. */
+  trialLobbySeconds: 15,
   /** Reward tiers by entry stake (USD). Higher tier = more XP + rarer cosmetics. */
   trialTiers: [
     { name: "Recruit", minUsd: 5, xp: 60, rarity: "common" },
