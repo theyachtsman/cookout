@@ -292,20 +292,22 @@ export const PIT_DEFAULTS = {
     "dead_market",
   ] as HouseSpecialKind[],
   // ---- Flame Trial (solo PvE) ----
-  /** Objective: required final PnL in basis points (2000 = +20%). */
+  /** Base objective (bps) — the entry tier's bar and the fallback when a tier
+   *  omits its own requirement. Higher tiers raise it (see trialTiers). */
   trialRequiredPnlBps: 2000,
   /** Entry stake bounds (USD equivalent). */
   trialMinUsd: 5,
   trialMaxUsd: 500,
   /** Quick countdown (seconds) from the creator's stake to live in a solo trial. */
   trialLobbySeconds: 15,
-  /** Reward tiers by entry stake (USD). Higher tier = more XP + rarer cosmetics. */
+  /** Reward tiers by entry stake (USD). Higher stake = a higher PnL bar to pass,
+   *  and in return more XP and rarer cosmetics. */
   trialTiers: [
-    { name: "Recruit", minUsd: 5, xp: 60, rarity: "common" },
-    { name: "Henchman", minUsd: 10, xp: 120, rarity: "common" },
-    { name: "Elite", minUsd: 25, xp: 250, rarity: "rare" },
-    { name: "Legend", minUsd: 50, xp: 500, rarity: "epic" },
-    { name: "Mythic", minUsd: 100, xp: 1000, rarity: "legendary" },
+    { name: "Recruit", minUsd: 5, requiredPnlBps: 2000, xp: 60, rarity: "common" },
+    { name: "Henchman", minUsd: 10, requiredPnlBps: 3000, xp: 120, rarity: "common" },
+    { name: "Elite", minUsd: 25, requiredPnlBps: 4500, xp: 250, rarity: "rare" },
+    { name: "Legend", minUsd: 50, requiredPnlBps: 6000, xp: 500, rarity: "epic" },
+    { name: "Mythic", minUsd: 100, requiredPnlBps: 10000, xp: 1000, rarity: "legendary" },
   ] as TrialTier[],
 };
 

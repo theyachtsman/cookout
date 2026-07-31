@@ -91,6 +91,17 @@ function routeFee(store: Store, round: Round, fee: number): void {
   store.feesByRound.set(round.id, (store.feesByRound.get(round.id) ?? 0) + fee * (pit.feeSplit.platform + pit.feeSplit.treasury));
 }
 
+/** Route forfeited money as house revenue with NO creator cut — used for lost
+ *  Flame Trial stakes, since the creator is the sole player and must never earn
+ *  from their own solo run. The creator's normal share folds into the house. */
+function routeHouse(store: Store, round: Round, amount: number): void {
+  if (amount <= 1e-12) return;
+  const pit = round.pit!;
+  store.jackpotPool += amount * pit.feeSplit.jackpot;
+  const house = amount * (pit.feeSplit.platform + pit.feeSplit.treasury + pit.feeSplit.creator);
+  store.feesByRound.set(round.id, (store.feesByRound.get(round.id) ?? 0) + house);
+}
+
 export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx): RoundSummary {
   const pit = round.pit!;
   const outcome = pitOutcome(round);
@@ -103,11 +114,9 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
   const feeRate = pit.pitFeeBps / 10_000;
   const predFee = pit.prediction.pot * feeRate;
   const tradeFee = pit.trading.pot * feeRate;
-  // Flame Trial stakes are a challenge cost, not a pool: the whole stake is
-  // house revenue, routed like a fee (creator / jackpot / platform / treasury).
-  let trialGross = 0;
-  for (const [addr, entry] of entries) if (!isBot(addr) && entry.trial) trialGross += trialStakeOf(round, entry);
-  routeFee(store, round, predFee + tradeFee + trialGross);
+  // Flame Trial stakes are settled per player below: refunded on a win, forfeited
+  // to the house (never the creator) on a loss. So they are NOT routed here.
+  routeFee(store, round, predFee + tradeFee);
   const netPred = pit.prediction.pot - predFee;
   const netTrade = pit.trading.pot - tradeFee;
 
@@ -165,6 +174,8 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
   const players: PitPlayerResult[] = [];
   let doubleDownCount = 0;
   let trialPassedCount = 0;
+  // Solo trials have one player; surface that player's tier bar in the summary.
+  let trialSummaryRequiredBps = pit.trialRequiredPnlBps;
 
   for (const [addr, entry] of entries) {
     if (isBot(addr)) continue;
@@ -173,17 +184,22 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
     const wonHouse = houseWinStake.has(addr);
     const isQual = entry.trading ? qualified.has(addr) : undefined;
 
-    // Flame Trial: score the solo objective (final PnL vs the target).
+    // Flame Trial: score the solo objective. The stake picks a tier, and the tier
+    // sets the PnL bar — a bigger stake means a higher bar to clear (and, on a
+    // pass, more XP + rarer cosmetics).
     let trialPnlPct: number | undefined;
     let trialTierName: string | undefined;
     let trialPassed: boolean | undefined;
     let trialXpAwarded: number | undefined;
+    let trialRequiredBps: number | undefined;
     if (entry.trial) {
       const held = positions.get(addr)?.tokens ?? 0;
       const tpnl = store.pitStackOf(round.id, addr) + held * ctx.finalPrice - pit.startingStack;
       trialPnlPct = pit.startingStack > 0 ? tpnl / pit.startingStack : 0;
-      trialPassed = trialPnlPct * 10_000 >= pit.trialRequiredPnlBps - 1e-9;
-      trialTierName = trialTierFor((entry.trialStake ?? 0) * store.ethUsd, pit.trialTiers).name;
+      const tier = trialTierFor((entry.trialStake ?? 0) * store.ethUsd, pit.trialTiers);
+      trialRequiredBps = tier.requiredPnlBps ?? pit.trialRequiredPnlBps;
+      trialPassed = trialPnlPct * 10_000 >= trialRequiredBps - 1e-9;
+      trialTierName = tier.name;
     }
 
     const predictionReward = wonMain && totalMainStake > 0 ? mainBucket * (mainStakeOf(round, entry) / totalMainStake) : 0;
@@ -239,14 +255,26 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
         ps.currentProfitStreak = 0;
       }
     }
-    // Flame Trial stats + progression (solo objective; no money payout).
+    // Flame Trial settlement + progression. Stake the coin: pass and you get the
+    // stake back plus your tier's rewards (XP, titles, badges); miss the bar and
+    // the stake is forfeited to the house. Never a Cook Out Balance profit, and
+    // the creator earns no fee from their own solo run.
+    let trialRefund = 0;
     if (entry.trial) {
+      const stake = trialStakeOf(round, entry);
+      trialSummaryRequiredBps = trialRequiredBps ?? pit.trialRequiredPnlBps;
       ps.trialsPlayed += 1;
       if ((trialPnlPct ?? 0) > ps.highestTrialPnlPct) ps.highestTrialPnlPct = trialPnlPct ?? 0;
       const tier = trialTierFor((entry.trialStake ?? 0) * store.ethUsd, pit.trialTiers);
       store.grantAchievement(addr, "first_flame");
       store.trackActivity(addr, "trial_played", 1, ctx.now);
       if (trialPassed) {
+        // Return the staked coin in full — no house cut on a win.
+        trialRefund = stake;
+        if (stake > 0) {
+          u.arenaBalance = (u.arenaBalance ?? 0) + stake;
+          store.recordLedger(addr, "pit_trial", stake, { symbol: round.token.symbol, roundId: round.id });
+        }
         trialPassedCount += 1;
         trialXpAwarded = tier.xp;
         ps.trialsWon += 1;
@@ -270,6 +298,8 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
           { roundId: round.id, roundSymbol: round.token.symbol },
         );
       } else {
+        // Missed the bar: the stake is gone, routed to the house (no creator cut).
+        routeHouse(store, round, stake);
         ps.trialWinStreak = 0;
         store.addXp(addr, 10, "ceiling", "pit"); // participation
       }
@@ -318,10 +348,12 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
       trialStake: entry.trial ? entry.trialStake : undefined,
       trialPnlPct,
       trialTier: trialTierName,
+      trialRequiredBps: trialRequiredBps,
       trialPassed,
       trialXp: trialXpAwarded,
       totalReward,
-      net: totalReward - feesPaid,
+      // A passed trial returns the stake, so its net cash effect is zero.
+      net: totalReward + trialRefund - feesPaid,
       doubleWinner,
     });
   }
@@ -353,7 +385,7 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
     trial: {
       participants: pit.trialParticipants,
       passed: trialPassedCount,
-      requiredPnlBps: pit.trialRequiredPnlBps,
+      requiredPnlBps: trialSummaryRequiredBps,
     },
     players,
   };

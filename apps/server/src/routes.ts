@@ -974,6 +974,7 @@ export function createApp(
             .map((t) => ({
               name: String(t.name ?? "").slice(0, 24),
               minUsd: Number(t.minUsd),
+              requiredPnlBps: Math.round(num(t.requiredPnlBps, -10000, 100000, p.trialRequiredPnlBps)),
               xp: Math.max(0, Math.round(Number(t.xp) || 0)),
               rarity: (["common", "rare", "epic", "legendary"].includes(t.rarity as string)
                 ? t.rarity

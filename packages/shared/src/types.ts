@@ -99,6 +99,8 @@ export type PitBonusType = "flat";
 export interface TrialTier {
   name: string;
   minUsd: number;
+  /** Final-PnL objective to pass at this tier (bps). Higher stake = higher bar. */
+  requiredPnlBps: number;
   xp: number;
   rarity: "common" | "rare" | "epic" | "legendary";
 }
@@ -213,6 +215,8 @@ export interface PitPlayerResult {
   trialStake?: number;
   trialPnlPct?: number;
   trialTier?: string;
+  /** The tier's PnL bar the player had to clear (bps). */
+  trialRequiredBps?: number;
   trialPassed?: boolean;
   trialXp?: number;
   totalReward: number;

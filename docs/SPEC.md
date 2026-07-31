@@ -228,3 +228,46 @@ Swarm** (Swarm AI) instead of each other.
 - **Money.** Paper-only (no chain). The paper deployment denominates in pETH; the
   dev/testnet deployment labels entry fees in testnet ETH via the existing
   denomination handling. Trading never touches real liquidity.
+- **Selectable modes.** A Pit match runs any combination of three modes, chosen at
+  launch and preserved on Run It Back: **Prediction Market**, **Battle the Flame
+  Goon Squad** (the Trading pool), and **Flame Trial** (below). Each mode keeps its
+  own participants, results and stats over the shared Pit event.
+
+### 18.1 Flame Trial (single-player PvE)
+
+Flame Trial is a strictly **solo** mode: one player, the match creator, runs the
+coin alone against the Flame Goon Squad AI. It reuses the Battle trading engine,
+charts, order execution, portfolio, PnL, market sim and timers unchanged — the only
+difference is the win condition and the reward model.
+
+- **Single-player, creator-only.** Min 1, max 1. Only the wallet that launched the
+  Pit coin can play the Trial; the server rejects any other wallet's trial stake and
+  the lobby hides the entry for non-creators. If the Prediction Market is also
+  enabled on the round, everyone else can still bet that side-pool on the creator's
+  outcome — they just can't play the Trial.
+- **Pairs with Prediction only.** Flame Trial and Battle the Flame Goon Squad are
+  mutually exclusive (a solo run can't share the trading pool). The launch, Run It
+  Back and both mode selectors block the combination, and the server rejects it.
+- **Quick solo start.** The creator's single stake arms a short countdown
+  (`trialLobbySeconds`, default 15s, admin-configurable) straight to live. The
+  Trial drives its own clock — it never waits on the prediction side-pool.
+- **Objective win condition.** Pass by finishing at or above a required final PnL.
+  The bar is set by the tier the stake buys, not a flat number: a bigger stake means
+  a higher bar. The architecture leaves room for future objectives (survive a
+  duration, cap drawdown, trade count, volume, consistency); only Final PnL ships now.
+- **Stake the coin.** Entry is a stake, not a pool buy-in: min $5 USD-equivalent
+  from the Cook Out balance (admin min/max/tiers). **Pass and the stake comes back in
+  full, plus the tier's rewards; miss the bar and the stake is forfeited to the
+  house.** It is never a way to profit the Cook Out Balance — best case is
+  break-even on balance plus progression. The **creator earns no fee** from a solo
+  Trial (they are the player); a forfeited stake routes to jackpot + platform +
+  treasury with the creator share folded into the house.
+- **Stake tiers (configurable).** Each tier sets both its PnL bar and its reward
+  weight. Defaults: Recruit $5 / +20%, Henchman $10 / +30%, Elite $25 / +45%,
+  Legend $50 / +60%, Mythic $100 / +100%. Higher tier = higher bar, more XP, rarer
+  cosmetics.
+- **Rewards are progression only.** XP, Titles, Badges, Achievements
+  (`first_flame`, `heat_resistant`, `fireproof`, `untouchable`, `legend_hunter`),
+  daily/weekly quests, cosmetic unlocks (earned via achievements, never random
+  drops), and Trial leaderboards (Wins / XP / Streak / PnL). No prize pool, no payout
+  multiplier, no Cook Out Balance profit.

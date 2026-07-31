@@ -62,7 +62,7 @@ interface PitSettings {
   trialMinUsd: number;
   trialMaxUsd: number;
   trialLobbySeconds: number;
-  trialTiers: { name: string; minUsd: number; xp: number; rarity: string }[];
+  trialTiers: { name: string; minUsd: number; requiredPnlBps: number; xp: number; rarity: string }[];
 }
 
 const HOUSE_SPECIAL_KINDS = [
@@ -191,7 +191,7 @@ function PitOpsPanel({
       <div className="flex flex-wrap items-end gap-3 border-t border-zinc-800 pt-3">
         <span className="text-[11px] font-bold uppercase text-orange-300">🔥 Flame Trial</span>
         <label className="flex flex-col gap-1 text-xs text-zinc-500">
-          Required PnL (%)
+          Base PnL (%)
           <input
             type="number"
             step="1"
@@ -204,7 +204,7 @@ function PitOpsPanel({
         {num("Max stake ($)", "trialMaxUsd", "5")}
         {num("Start countdown (s)", "trialLobbySeconds", "1")}
         <span className="text-[11px] text-zinc-600">
-          Tiers: {(p.trialTiers ?? []).map((t) => `${t.name} $${t.minUsd}/${t.xp}xp`).join(" · ")}
+          Tiers: {(p.trialTiers ?? []).map((t) => `${t.name} $${t.minUsd} → +${Math.round((t.requiredPnlBps ?? 0) / 100)}%/${t.xp}xp`).join(" · ")}
         </span>
       </div>
       <div className="flex flex-wrap items-end gap-3">
