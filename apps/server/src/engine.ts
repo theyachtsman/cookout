@@ -10,6 +10,7 @@ import {
   OVERTIME_MIN_VOLUME,
   OVERTIME_TRIGGER_REMAINING_SEC,
   OVERTIME_VOLUME_FRACTION,
+  HOUSE_SPECIAL_MAP,
   PIT_AI_NAME,
   PIT_AI_SHORT,
   PIT_DURATION_MAP,
@@ -187,11 +188,21 @@ export class RoundEngine {
     };
     // Which pools this match runs (chosen at launch; default both for legacy).
     const modes = concept.pitModes ?? { prediction: true, trading: true };
+    // Roll the featured House Special from the admin rotation.
+    const rotation = pit.houseSpecials.filter((k) => HOUSE_SPECIAL_MAP[k]);
+    const houseKind = rotation.length ? rotation[Math.floor(Math.random() * rotation.length)]! : undefined;
     const pitConfig: PitConfig = {
       duration,
       predictionMode: !!modes.prediction,
       tradingMode: !!modes.trading,
-      predictionFee: pit.predictionFee,
+      minBet: pit.minBet,
+      maxBet: pit.maxBet,
+      quickChips: [...pit.quickChips],
+      mainAllocationBps: pit.mainAllocationBps,
+      houseAllocationBps: pit.houseAllocationBps,
+      doubleDownBonus: pit.doubleDownBonus,
+      doubleDownType: pit.doubleDownType,
+      houseSpecial: modes.prediction && houseKind ? HOUSE_SPECIAL_MAP[houseKind] : undefined,
       tradingFee: pit.tradingFee,
       pitFeeBps: pit.pitFeeBps,
       feeSplit: { ...pit.feeSplit },
@@ -199,6 +210,8 @@ export class RoundEngine {
       // Pools no longer carry between matches — unclaimed money funds the weekly
       // jackpot at resolution (see pit-results), so carryIn is always zero.
       prediction: { pot: 0, participants: 0, carryIn: 0 },
+      mainParticipants: 0,
+      houseParticipants: 0,
       trading: { pot: 0, participants: 0, carryIn: 0 },
     };
     const round: Round = {

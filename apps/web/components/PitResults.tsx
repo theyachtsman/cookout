@@ -56,38 +56,58 @@ export function PitResultsView({
         <div className="mt-1 text-xs text-zinc-500">
           {d?.icon} {d?.name} · ${round.token.symbol}
         </div>
+        {pit.houseSpecial && (
+          <div className="mt-2 inline-flex items-center gap-2 rounded-full bg-amber-500/10 px-3 py-1 text-xs ring-1 ring-amber-500/30">
+            <span className="font-bold text-amber-200">🏠 {pit.houseSpecial.def.name}</span>
+            <span className={pit.houseSpecial.hit ? "font-black text-lime-300" : "font-bold text-zinc-500"}>
+              {pit.houseSpecial.hit ? "HIT ✅" : "missed"}
+            </span>
+          </div>
+        )}
       </div>
 
       {/* Your result */}
-      {mine && (mine.prediction || mine.tradingPnl !== undefined) && (
+      {mine && (mine.prediction || mine.houseSpecial || mine.tradingPnl !== undefined) && (
         <div
           className={`rounded-2xl p-4 ring-1 ${
-            mine.doubleWinner
+            mine.doubleDownBonus > 0
               ? "bg-amber-500/10 ring-amber-400/40"
               : mine.totalReward > 0
                 ? "bg-lime-500/[0.08] ring-lime-500/30"
                 : "bg-zinc-900/50 ring-white/10"
           }`}
         >
-          {mine.doubleWinner && (
+          {mine.doubleDownBonus > 0 && (
             <div className="mb-2 text-center text-lg font-black text-amber-300">
-              🏆🏆 Double Winner 🏆🏆
+              🏆 Double Down · +{fmt(mine.doubleDownBonus)}
             </div>
           )}
-          <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+          <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-5">
             {mine.prediction && (
               <Stat
-                label={mine.houseSpecial ? "Prediction 🎲" : "Prediction"}
+                label="Prediction"
                 value={mine.prediction}
-                sub={mine.predictionCorrect ? "Correct" : "Missed"}
+                sub={
+                  mine.predictionCorrect
+                    ? `✅ +${fmt(mine.predictionReward)}`
+                    : "Missed"
+                }
                 good={mine.predictionCorrect}
+              />
+            )}
+            {mine.houseSpecial && (
+              <Stat
+                label="🏠 House Special"
+                value={mine.houseSpecialCorrect ? "Hit" : "Missed"}
+                sub={mine.houseSpecialCorrect ? `+${fmt(mine.houseSpecialReward)}` : "no payout"}
+                good={mine.houseSpecialCorrect}
               />
             )}
             {mine.tradingPnl !== undefined && (
               <Stat
                 label="Trading PnL"
                 value={`${mine.tradingPnl >= 0 ? "+" : ""}${fmt(mine.tradingPnl)}`}
-                sub={mine.qualified ? "Top PnL — won" : "Didn't win"}
+                sub={mine.qualified ? `Top PnL +${fmt(mine.tradingReward)}` : "Didn't win"}
                 good={mine.qualified}
               />
             )}
@@ -102,25 +122,40 @@ export function PitResultsView({
       )}
 
       {/* Pools */}
-      <div className="grid grid-cols-2 gap-3">
-        <PoolCard
-          title="Prediction Pool"
-          pot={pit.prediction.pot}
-          winners={pit.prediction.winners}
-          rewardEach={pit.prediction.rewardEach}
-          carried={pit.prediction.carried}
-          fmt={fmt}
-        />
-        <PoolCard
-          title="Trading Pool"
-          pot={pit.trading.pot}
-          winners={pit.trading.qualified}
-          rewardEach={pit.trading.rewardEach}
-          carried={pit.trading.carried}
-          winnersLabel="winner"
-          note="highest PnL wins"
-          fmt={fmt}
-        />
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+        {round.pit?.predictionMode && (
+          <PoolCard
+            title="🔮 Main Pool"
+            pot={pit.prediction.pot}
+            winners={pit.prediction.winners}
+            rewardEach={pit.prediction.rewardEach}
+            carried={pit.prediction.carried}
+            fmt={fmt}
+          />
+        )}
+        {pit.houseSpecial && (
+          <PoolCard
+            title="🏠 House Special"
+            pot={pit.house.pot}
+            winners={pit.house.winners}
+            rewardEach={pit.house.rewardEach}
+            carried={pit.house.carried}
+            note={pit.houseSpecial.hit ? "hit" : "missed"}
+            fmt={fmt}
+          />
+        )}
+        {round.pit?.tradingMode && (
+          <PoolCard
+            title="⚔️ Trading Pool"
+            pot={pit.trading.pot}
+            winners={pit.trading.qualified}
+            rewardEach={pit.trading.rewardEach}
+            carried={pit.trading.carried}
+            winnersLabel="winner"
+            note="highest PnL"
+            fmt={fmt}
+          />
+        )}
       </div>
 
       {/* Breakdown */}
@@ -149,10 +184,14 @@ export function PitResultsView({
                     {p.prediction ? (
                       <span className={p.predictionCorrect ? "text-lime-300" : "text-zinc-500"}>
                         {p.prediction}
-                        {p.houseSpecial && <span className="ml-1">🎲</span>}
                       </span>
                     ) : (
                       <span className="text-zinc-700">—</span>
+                    )}
+                    {p.houseSpecial && (
+                      <span className={`ml-1.5 ${p.houseSpecialCorrect ? "text-lime-300" : "text-zinc-600"}`}>
+                        🏠{p.houseSpecialCorrect ? "✓" : "✗"}
+                      </span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-right font-mono">
@@ -201,15 +240,23 @@ export function RunItBack({ round, compact = false }: { round: Round; compact?: 
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [duration, setDuration] = useState<PitDurationKey>(round.pit?.duration ?? "standard");
+  const [modes, setModes] = useState({
+    prediction: round.pit?.predictionMode ?? true,
+    trading: round.pit?.tradingMode ?? true,
+  });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const go = async () => {
     setError("");
+    if (!modes.prediction && !modes.trading) {
+      setError("Pick at least one game mode.");
+      return;
+    }
     setBusy(true);
     try {
       const { round: fresh } = await api<{ round: { id: string } }>(`/api/pit/${round.id}/runback`, {
-        body: { duration },
+        body: { duration, modes },
       });
       router.push(`/pit/${fresh.id}`);
     } catch (e) {
@@ -256,6 +303,33 @@ export function RunItBack({ round, compact = false }: { round: Round; compact?: 
                     <div className="text-[10px] text-zinc-500">{d.minutes}m</div>
                   </button>
                 ))}
+              </div>
+              <div className="mt-3 mb-1.5 text-xs text-zinc-500">Game modes</div>
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    ["prediction", "🔮 Prediction", "fuchsia"],
+                    ["trading", "⚔️ Goon Squad", "lime"],
+                  ] as const
+                ).map(([key, label, accent]) => {
+                  const on = modes[key];
+                  return (
+                    <button
+                      key={key}
+                      onClick={() => setModes((m) => ({ ...m, [key]: !m[key] }))}
+                      className={`rounded-xl p-2.5 text-sm font-black ring-1 transition ${
+                        on
+                          ? accent === "fuchsia"
+                            ? "bg-fuchsia-500/15 text-fuchsia-200 ring-fuchsia-400/50"
+                            : "bg-lime-500/15 text-lime-200 ring-lime-400/50"
+                          : "bg-zinc-900/60 text-zinc-400 ring-white/10"
+                      }`}
+                    >
+                      {on ? "✓ " : ""}
+                      {label}
+                    </button>
+                  );
+                })}
               </div>
               {error && <div className="mt-2 text-xs text-red-400">{error}</div>}
               <div className="mt-4 flex gap-2">
@@ -321,7 +395,7 @@ function PoolCard({
       </div>
       <div className="font-mono text-xl font-black text-zinc-50">{fmt(pot)}</div>
       {carried ? (
-        <div className="text-[11px] font-bold text-amber-300">No qualifiers · carried over 🏆</div>
+        <div className="text-[11px] font-bold text-amber-300">Unclaimed · to the jackpot 🎰</div>
       ) : (
         <div className="text-[11px] text-zinc-600">
           {winners} {winnersLabel} · {fmt(rewardEach)} each

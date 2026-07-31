@@ -351,15 +351,18 @@ export default function Docs() {
           </p>
           <ul className="ml-5 list-disc space-y-2 text-sm text-zinc-300">
             <li>
-              <b className="text-fuchsia-300">🔮 Prediction.</b> Bet on how it ends: Graduate, Rug,
-              Timer, or <b>House Special</b> (the house rolls a random call for you). Your bet is
-              custom ($1 minimum); everyone who called it right splits the pool pro-rata to their bet.
+              <b className="text-fuchsia-300">🔮 Prediction market.</b> A real betting market with
+              player-chosen wager sizes. Place a <b>Main prediction</b> — Graduate, Rug, or Timer — and
+              optionally the featured <b>House Special</b>, a rotating side bet (Early Rug, Photo Finish,
+              Dead Market, and more). The net pool is split between the two winner groups by an admin
+              allocation (e.g. 75% Main / 25% House); within each group, winners split pro-rata to their
+              wager. Call <b>both</b> correctly for the <b>Double Down Bonus</b>. You can edit or withdraw
+              your bets any time until the round goes live.
             </li>
             <li>
-              <b className="text-lime-300">⚔️ Battle the Flame Goon Squad AI.</b> Pay a custom buy-in
-              ($1 minimum) and trade an equal paper stack against the Goons. It&apos;s a race against
-              the <b>other traders</b> — the highest PnL when the bell rings takes the whole pool
-              (ties split).
+              <b className="text-lime-300">⚔️ Battle the Flame Goon Squad AI.</b> Pay a buy-in and trade
+              an equal paper stack against the Goons. It&apos;s a race against the <b>other traders</b> —
+              the highest PnL when the bell rings takes the whole pool (ties split).
             </li>
           </ul>
           <p>

@@ -40,7 +40,6 @@ interface Feedback {
 }
 
 interface PitSettings {
-  predictionFee: number;
   tradingFee: number;
   pitFeeBps: number;
   feeSplit: { platform: number; jackpot: number; creator: number; treasury: number };
@@ -51,7 +50,26 @@ interface PitSettings {
   aggression: number;
   difficulty: number;
   durations: string[];
+  minBet: number;
+  maxBet: number;
+  quickChips: number[];
+  mainAllocationBps: number;
+  houseAllocationBps: number;
+  doubleDownBonus: number;
+  doubleDownType: string;
+  houseSpecials: string[];
 }
+
+const HOUSE_SPECIAL_KINDS = [
+  "early_rug",
+  "late_rug",
+  "flash_rug",
+  "whale_rug",
+  "early_graduate",
+  "photo_finish",
+  "bull_timer",
+  "dead_market",
+];
 
 /**
  * The Pit economy + Swarm AI knobs. Every value is live-editable; the Swarm that
@@ -88,12 +106,69 @@ function PitOpsPanel({
   return (
     <div className="space-y-3 rounded-lg border border-fuchsia-500/30 bg-fuchsia-500/[0.04] p-3">
       <div className="flex flex-wrap items-end gap-3">
-        {num("Prediction fee (pETH)", "predictionFee")}
         {num("Trading fee (pETH)", "tradingFee")}
         {num("Starting stack (pETH)", "startingStack")}
         {num("Pit fee (bps)", "pitFeeBps", "50")}
         {num("Lobby seconds", "lobbySeconds", "5")}
         {num("Max concurrent", "maxConcurrent", "1")}
+      </div>
+      {/* Prediction market */}
+      <div className="flex flex-wrap items-end gap-3 border-t border-zinc-800 pt-3">
+        {num("Min bet (pETH)", "minBet")}
+        {num("Max bet (pETH)", "maxBet", "0.1")}
+        {num("Double Down bonus (pETH)", "doubleDownBonus")}
+        <label className="flex flex-col gap-1 text-xs text-zinc-500">
+          Main allocation (%)
+          <input
+            type="number"
+            step="1"
+            value={String(Math.round(p.mainAllocationBps / 100))}
+            onChange={(e) => {
+              const main = Math.max(0, Math.min(100, Number(e.target.value))) * 100;
+              set({ mainAllocationBps: main, houseAllocationBps: 10000 - main });
+            }}
+            className="w-24 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-sm text-zinc-100"
+          />
+        </label>
+        <span className="text-[11px] text-zinc-500">House {Math.round(p.houseAllocationBps / 100)}%</span>
+        <label className="flex flex-col gap-1 text-xs text-zinc-500">
+          Quick chips (pETH, comma)
+          <input
+            value={(p.quickChips ?? []).join(", ")}
+            onChange={(e) =>
+              set({
+                quickChips: e.target.value
+                  .split(/[,\s]+/)
+                  .map((c) => Number(c))
+                  .filter((c) => Number.isFinite(c) && c > 0),
+              })
+            }
+            className="w-44 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-xs text-zinc-100"
+          />
+        </label>
+      </div>
+      <div>
+        <div className="mb-1 text-xs text-zinc-500">House Special rotation</div>
+        <div className="flex flex-wrap gap-1.5">
+          {HOUSE_SPECIAL_KINDS.map((k) => {
+            const on = (p.houseSpecials ?? []).includes(k);
+            return (
+              <button
+                key={k}
+                onClick={() =>
+                  set({
+                    houseSpecials: on
+                      ? (p.houseSpecials ?? []).filter((x) => x !== k)
+                      : [...(p.houseSpecials ?? []), k],
+                  })
+                }
+                className={`rounded px-2 py-1 text-[11px] font-bold ${on ? "bg-amber-500/20 text-amber-300" : "bg-zinc-800 text-zinc-500"}`}
+              >
+                {k.replace(/_/g, " ")}
+              </button>
+            );
+          })}
+        </div>
       </div>
       <div className="flex flex-wrap items-end gap-3">
         {num("Aggression (0-1)", "aggression")}

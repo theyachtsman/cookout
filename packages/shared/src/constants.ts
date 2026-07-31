@@ -1,4 +1,4 @@
-import type { CoinModifiers, GameMode, NotifyCategory, NotificationPrefs, PitDurationKey, PitFeeSplit, RiskTier, RoundConfig } from "./types.js";
+import type { CoinModifiers, GameMode, HouseSpecialDef, HouseSpecialKind, NotifyCategory, NotificationPrefs, PitBonusType, PitDurationKey, PitFeeSplit, RiskTier, RoundConfig } from "./types.js";
 
 /** Total permanent Founding Member seats. Founder numbers never repeat. */
 export const FOUNDER_CAP = 500;
@@ -252,7 +252,6 @@ export const PIT_TRADING_MODE_NAME = "Battle the Flame Goon Squad AI";
  * engine. Fees are pETH; the Pit fee is basis points of each entry.
  */
 export const PIT_DEFAULTS = {
-  predictionFee: 0.1,
   tradingFee: 0.25,
   pitFeeBps: 1000, // 10%
   feeSplit: { platform: 0.4, jackpot: 0.25, creator: 0.2, treasury: 0.15 } as PitFeeSplit,
@@ -262,7 +261,7 @@ export const PIT_DEFAULTS = {
   lobbySeconds: 45,
   /** Most Pit matches live at once; extras queue. */
   maxConcurrent: 5,
-  /** Carry an unclaimed pool into the next match. */
+  /** Sweep unclaimed prize-pool money into the weekly jackpot. */
   carryover: true,
   /** Swarm AI knobs, 0..1. Aggression scales trade size/cadence; difficulty
    *  biases the narrative toward tougher markets for traders. */
@@ -270,7 +269,45 @@ export const PIT_DEFAULTS = {
   difficulty: 0.5,
   /** Which duration presets creators may launch. */
   durations: ["blitz", "standard", "marathon"] as PitDurationKey[],
+  // ---- Prediction market (variable betting) ----
+  /** Prediction wager bounds (pETH) and quick-bet chips. */
+  minBet: 0.05,
+  maxBet: 5,
+  quickChips: [0.05, 0.1, 0.25, 0.5, 1] as number[],
+  /** Net prediction pool split between the two winner groups (bps, sum 10000). */
+  mainAllocationBps: 7500,
+  houseAllocationBps: 2500,
+  /** Double Down Bonus: correct Main + correct House Special. */
+  doubleDownBonus: 0.2,
+  doubleDownType: "flat" as PitBonusType,
+  /** House Specials in rotation — one is featured per match at random. */
+  houseSpecials: [
+    "early_rug",
+    "late_rug",
+    "flash_rug",
+    "whale_rug",
+    "early_graduate",
+    "photo_finish",
+    "bull_timer",
+    "dead_market",
+  ] as HouseSpecialKind[],
 };
+
+/** The House Special catalog — a rotating featured side bet per Pit match. */
+export const HOUSE_SPECIALS: HouseSpecialDef[] = [
+  { kind: "early_rug", name: "Early Rug", blurb: "Rugs in the first third" },
+  { kind: "late_rug", name: "Late Rug", blurb: "Rugs in the final third" },
+  { kind: "flash_rug", name: "Flash Rug", blurb: "Rugs in the first 15 seconds" },
+  { kind: "whale_rug", name: "Whale Rug", blurb: "Pumps hard, then rugs" },
+  { kind: "early_graduate", name: "Early Graduate", blurb: "Graduates in the first half" },
+  { kind: "photo_finish", name: "Photo Finish", blurb: "Graduates at the buzzer, or just misses" },
+  { kind: "bull_timer", name: "Bull Timer", blurb: "Times out with the market up" },
+  { kind: "dead_market", name: "Dead Market", blurb: "Times out flat or down" },
+];
+
+export const HOUSE_SPECIAL_MAP: Record<HouseSpecialKind, HouseSpecialDef> = Object.fromEntries(
+  HOUSE_SPECIALS.map((h) => [h.kind, h]),
+) as Record<HouseSpecialKind, HouseSpecialDef>;
 
 export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
   rookie: {

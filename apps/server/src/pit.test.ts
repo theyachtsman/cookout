@@ -1,8 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { TokenConcept } from "@cookout/shared";
+import { HOUSE_SPECIAL_MAP, type TokenConcept } from "@cookout/shared";
 import { RoundEngine } from "./engine.js";
-import { enterPit } from "./pit-pools.js";
+import { enterPit, withdrawPit } from "./pit-pools.js";
 import { resolvePitRound } from "./pit-results.js";
 import { Store } from "./store.js";
 
@@ -10,8 +10,8 @@ function pitConcept(store: Store): TokenConcept {
   const c: TokenConcept = {
     id: store.id(),
     creatorAddress: "0xcreator000000000000000000000000000000000",
-    name: "Swarm Test",
-    symbol: "SWRM",
+    name: "Goon Test",
+    symbol: "GOON",
     theme: "test",
     matchType: "pit",
     pitDuration: "standard",
@@ -23,87 +23,88 @@ function pitConcept(store: Store): TokenConcept {
   return c;
 }
 
-test("Pit: two independent pools split evenly, double winner takes both", () => {
+const alice = "0xa11ce0000000000000000000000000000000000";
+const bob = "0xb0b0000000000000000000000000000000000000";
+
+test("Pit prediction: main + House Special buckets, proportional, Double Down", () => {
   const store = new Store();
   const engine = new RoundEngine(store, () => {});
-  const alice = "0xa11ce0000000000000000000000000000000000";
-  const bob = "0xb0b0000000000000000000000000000000000000";
-  store.getOrCreateUser(alice).arenaBalance = 5;
-  store.getOrCreateUser(bob).arenaBalance = 5;
+  store.getOrCreateUser(alice).arenaBalance = 10;
+  store.getOrCreateUser(bob).arenaBalance = 10;
+  const now = Date.now();
+  const round = engine.schedulePitRound(pitConcept(store), now);
+  // Deterministic config for clean math.
+  round.pit!.pitFeeBps = 0;
+  round.pit!.houseSpecial = HOUSE_SPECIAL_MAP.dead_market;
+  round.pit!.mainAllocationBps = 7500;
+  round.pit!.houseAllocationBps = 2500;
+  round.pit!.doubleDownBonus = 0.2;
 
-  const round = engine.schedulePitRound(pitConcept(store), Date.now());
-  // Alice predicts Timer and trades; Bob only predicts Rug.
-  enterPit(store, round, alice, { prediction: "timer", trading: true });
-  enterPit(store, round, bob, { prediction: "rug" });
+  // Alice: Main Timer (1.0) + House Special (0.5). Bob: Main Rug (1.0).
+  enterPit(store, round, alice, { prediction: "timer", predictionStake: 1.0, houseSpecial: true, houseSpecialStake: 0.5 });
+  enterPit(store, round, bob, { prediction: "rug", predictionStake: 1.0 });
+  assert.ok(Math.abs(round.pit!.prediction.pot - 2.5) < 1e-9, "gross prediction pot");
+  assert.equal(round.pit!.mainParticipants, 2);
+  assert.equal(round.pit!.houseParticipants, 1);
 
-  // Fees skimmed 10%: prediction pot = 0.1*0.9*2, trading pot = 0.25*0.9.
-  assert.ok(Math.abs(round.pit!.prediction.pot - 0.18) < 1e-9);
-  assert.ok(Math.abs(round.pit!.trading.pot - 0.225) < 1e-9);
-
-  // Simulate the match ending on the timer with Alice's stack in profit.
+  // End on the timer, dead market (finalMcap <= open) → House Special hits.
   round.state = "live";
-  round.liveAt = Date.now() - 60_000;
+  round.liveAt = now - 60_000;
+  round.endedAt = now;
   round.endReason = "timer";
   round.graduated = false;
-  store.setPitStack(round.id, alice, 0.5); // spent 0.5 of the 1.0 stack
-  store.position(round.id, alice).tokens = 0.8; // worth 0.8 at finalPrice 1.0
-  // Standard needs >= 8 trades to qualify; give Alice enough.
-  store.trades.set(
-    round.id,
-    Array.from({ length: 8 }, (_, i) => ({
-      id: `t${i}`,
-      roundId: round.id,
-      userAddress: alice,
-      side: "buy" as const,
-      ethAmount: 0.01,
-      tokenAmount: 0.1,
-      price: 1,
-      fee: 0,
-      at: Date.now(),
-      isCreator: false,
-    })),
-  );
-
   const summary = resolvePitRound(store, round, {
-    totalVolume: 1,
-    peakMcap: 1,
-    finalMcap: 1,
+    totalVolume: 0,
+    peakMcap: 0,
+    finalMcap: 0,
     finalPrice: 1,
-    holderCount: 1,
-    now: Date.now(),
+    holderCount: 0,
+    now,
   });
   const pit = summary.pit!;
   assert.equal(pit.outcome, "timer");
-  assert.equal(pit.prediction.winners, 1); // only Alice called Timer
-  assert.equal(pit.trading.qualified, 1); // Alice finished +0.3
-  assert.ok(Math.abs(pit.prediction.rewardEach - 0.18) < 1e-9);
-  assert.ok(Math.abs(pit.trading.rewardEach - 0.225) < 1e-9);
+  assert.equal(pit.houseSpecial?.hit, true);
+  // Buckets: main 75% of 2.5 = 1.875, house 25% = 0.625.
+  const a = pit.players.find((p) => p.address === alice)!;
+  assert.ok(Math.abs(a.predictionReward - 1.875) < 1e-9, "main reward (sole timer caller)");
+  assert.ok(Math.abs(a.houseSpecialReward - 0.625) < 1e-9, "house reward (sole HS winner)");
+  assert.ok(Math.abs(a.doubleDownBonus - 0.2) < 1e-9, "double down bonus");
+  assert.ok(Math.abs(a.totalReward - 2.7) < 1e-9, "total reward");
+  const b = pit.players.find((p) => p.address === bob)!;
+  assert.equal(b.predictionCorrect, false);
+  assert.equal(b.totalReward, 0);
 
-  const aliceRow = pit.players.find((p) => p.address === alice)!;
-  assert.equal(aliceRow.doubleWinner, true);
-  assert.ok(Math.abs(aliceRow.totalReward - 0.405) < 1e-9);
-  const bobRow = pit.players.find((p) => p.address === bob)!;
-  assert.equal(bobRow.predictionCorrect, false);
-  assert.equal(bobRow.totalReward, 0);
-
-  // Alice's lifetime Pit record reflects the double win.
   const ps = store.pitStatsOf(alice);
-  assert.equal(ps.doubleWins, 1);
   assert.equal(ps.predictionWins, 1);
-  assert.equal(ps.tradingWins, 1);
+  assert.equal(ps.houseWins, 1);
+  assert.equal(ps.doubleDowns, 1);
 });
 
-test("Pit: an unclaimed pool funds the weekly jackpot", () => {
+test("Pit: withdraw refunds the stake and clears the pool", () => {
   const store = new Store();
   const engine = new RoundEngine(store, () => {});
-  const carol = "0xca401000000000000000000000000000000000000".slice(0, 42);
-  store.getOrCreateUser(carol).arenaBalance = 5;
+  store.getOrCreateUser(alice).arenaBalance = 5;
+  const round = engine.schedulePitRound(pitConcept(store), Date.now());
+  enterPit(store, round, alice, { prediction: "graduate", predictionStake: 1.0 });
+  assert.ok(Math.abs((store.getOrCreateUser(alice).arenaBalance ?? 0) - 4) < 1e-9);
+  withdrawPit(store, round, alice);
+  assert.ok(Math.abs((store.getOrCreateUser(alice).arenaBalance ?? 0) - 5) < 1e-9, "refunded");
+  assert.equal(round.pit!.prediction.pot, 0);
+  assert.equal(round.pit!.mainParticipants, 0);
+  assert.equal(store.pitEntryOf(round.id, alice), undefined);
+});
+
+test("Pit: an unclaimed bucket funds the weekly jackpot", () => {
+  const store = new Store();
+  const engine = new RoundEngine(store, () => {});
+  store.getOrCreateUser(alice).arenaBalance = 5;
   const jackpotBefore = store.jackpotPool;
   const round = engine.schedulePitRound(pitConcept(store), Date.now());
-  enterPit(store, round, carol, { prediction: "graduate" });
+  round.pit!.pitFeeBps = 0;
+  enterPit(store, round, alice, { prediction: "graduate", predictionStake: 1.0 });
   round.state = "live";
   round.liveAt = Date.now() - 60_000;
-  round.endReason = "timer"; // Carol predicted graduate — nobody is correct
+  round.endReason = "timer"; // Alice predicted graduate — nobody correct
   round.graduated = false;
   resolvePitRound(store, round, {
     totalVolume: 1,
@@ -113,6 +114,5 @@ test("Pit: an unclaimed pool funds the weekly jackpot", () => {
     holderCount: 0,
     now: Date.now(),
   });
-  assert.ok(store.jackpotPool > jackpotBefore, "unclaimed prediction pool went to the jackpot");
-  assert.equal(store.pitCarry.prediction, 0, "nothing carried to the next match");
+  assert.ok(store.jackpotPool > jackpotBefore, "unclaimed prediction bucket swept to jackpot");
 });
