@@ -15,6 +15,8 @@ export interface Profile {
   paperBalance: number;
   /** Staked into the arena — the only money matches can spend. */
   arenaBalance?: number;
+  /** 🍔 $BURG — a permanent second progression currency (earned power). */
+  burgerBalance?: number;
   achievements: string[];
   /** Equipped cosmetics (title/badge/chatColor/frame cosmetic ids). */
   equipped?: import("@cookout/shared").EquippedCosmetics;

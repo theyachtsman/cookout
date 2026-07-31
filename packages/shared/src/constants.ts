@@ -1,4 +1,4 @@
-import type { CoinModifiers, GameMode, HouseSpecialDef, HouseSpecialKind, NotifyCategory, NotificationPrefs, PitBonusType, PitDurationKey, PitFeeSplit, RiskTier, RoundConfig, TrialTier } from "./types.js";
+import type { BurgerRevenueDest, BurgerSettings, CoinModifiers, GameMode, HouseSpecialDef, HouseSpecialKind, NotifyCategory, NotificationPrefs, PitBonusType, PitDurationKey, PitFeeSplit, RiskTier, RoundConfig, TrialTier } from "./types.js";
 
 /** Total permanent Founding Member seats. Founder numbers never repeat. */
 export const FOUNDER_CAP = 500;
@@ -320,6 +320,73 @@ export function trialTierFor(usd: number, tiers: TrialTier[]): TrialTier {
   for (const t of tiers) if (usd + 1e-9 >= t.minUsd && t.minUsd >= best.minUsd) best = t;
   return best;
 }
+
+/**
+ * Default Burger economy ($BURG). Every number here is overridable from the
+ * admin Burger Economy Manager (OpsSettings.burger) — no reward value is
+ * hardcoded in gameplay code. Tuned for a front-loaded onboarding that eases
+ * into a steady long-term pace (milestone spacing, not hard caps).
+ */
+export const BURGER_DEFAULTS: BurgerSettings = {
+  enabled: true,
+  /** $BURG minted per 1 pETH spent from the Cook Out balance on a purchase. */
+  burgersPerEth: 200,
+  /** Per-source reward rules. Placeholder sources ship disabled — the hook
+   *  exists so future systems (Pit, Collections, Loot Boxes) call the same
+   *  award service instead of minting Burgers themselves. */
+  rules: [
+    { source: "match_complete", label: "Match Complete", amount: 4, enabled: true, repeatable: true, cooldownSec: 0 },
+    { source: "daily_quest", label: "Daily Quest", amount: 18, enabled: true, repeatable: true, cooldownSec: 0 },
+    { source: "weekly_quest", label: "Weekly Quest", amount: 60, enabled: true, repeatable: true, cooldownSec: 0 },
+    { source: "coin_launch", label: "Coin Launched", amount: 10, enabled: true, repeatable: true, cooldownSec: 0 },
+    { source: "coin_graduation", label: "Coin Graduated", amount: 50, enabled: true, repeatable: true, cooldownSec: 0 },
+    { source: "referral", label: "Referral Bonus", amount: 40, enabled: true, repeatable: true, cooldownSec: 0 },
+    { source: "seasonal", label: "Seasonal Bonus", amount: 0, enabled: false, repeatable: true, cooldownSec: 0 },
+    // Placeholders — hooks only, no gameplay yet.
+    { source: "pit", label: "Pit Reward", amount: 0, enabled: false, repeatable: true, cooldownSec: 0 },
+    { source: "collection", label: "Collection Reward", amount: 0, enabled: false, repeatable: true, cooldownSec: 0 },
+    { source: "loot_box", label: "Loot Box", amount: 0, enabled: false, repeatable: true, cooldownSec: 0 },
+    { source: "season_pass", label: "Season Pass", amount: 0, enabled: false, repeatable: true, cooldownSec: 0 },
+    { source: "marketplace", label: "Marketplace", amount: 0, enabled: false, repeatable: true, cooldownSec: 0 },
+    { source: "nft", label: "NFT Reward", amount: 0, enabled: false, repeatable: true, cooldownSec: 0 },
+  ],
+  /** XP-level ladder — front-loaded early, thinning out later. */
+  xpMilestones: [
+    { level: 2, amount: 25, enabled: true },
+    { level: 5, amount: 60, enabled: true },
+    { level: 10, amount: 120, enabled: true },
+    { level: 20, amount: 250, enabled: true },
+    { level: 30, amount: 400, enabled: true },
+    { level: 50, amount: 750, enabled: true },
+  ],
+  /** One-time firsts — the exciting early rewards that introduce the collection. */
+  oneTimeMilestones: [
+    { id: "first_match", label: "First Match", amount: 20, enabled: true },
+    { id: "first_launch", label: "First Coin Launch", amount: 30, enabled: true },
+    { id: "first_graduation", label: "First Coin Graduation", amount: 60, enabled: true },
+    { id: "first_daily", label: "First Daily Quest", amount: 15, enabled: true },
+    { id: "first_weekly", label: "First Weekly Quest", amount: 40, enabled: true },
+    { id: "first_referral", label: "First Referral", amount: 50, enabled: true },
+    { id: "first_collection", label: "First Collection", amount: 0, enabled: false },
+  ],
+  /** Purchase revenue split (fractions; normalized when routed). */
+  revenueAllocation: {
+    jackpot: 0.4,
+    creator: 0.15,
+    referral: 0.05,
+    pit: 0.2,
+    house: 0.2,
+  } as Record<BurgerRevenueDest, number>,
+};
+
+/** Display order + labels for the revenue destinations (admin panel). */
+export const BURGER_REVENUE_DESTS: { key: BurgerRevenueDest; label: string }[] = [
+  { key: "jackpot", label: "Weekly Jackpot" },
+  { key: "creator", label: "Coin Creator Rewards" },
+  { key: "referral", label: "Referral Rewards" },
+  { key: "pit", label: "Pit Prize Pools" },
+  { key: "house", label: "House Revenue" },
+];
 
 /** The House Special catalog — a rotating featured side bet per Pit match. */
 export const HOUSE_SPECIALS: HouseSpecialDef[] = [

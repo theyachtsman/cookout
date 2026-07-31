@@ -44,6 +44,51 @@ body {
   animation: xpdrop 1.8s cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
 }
 
+/* 🍔 Burger reward toast: slides in from the right, holds, floats out. */
+@keyframes burgerslide {
+  0% {
+    opacity: 0;
+    transform: translateX(40px) scale(0.9);
+  }
+  12% {
+    opacity: 1;
+    transform: translateX(0) scale(1.04);
+  }
+  22% {
+    transform: translateX(0) scale(1);
+  }
+  80% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateX(24px) scale(0.96);
+  }
+}
+.animate-burgerslide {
+  animation: burgerslide 2.6s cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
+}
+
+/* Balance pop: a single glow + pulse when Burgers are credited. */
+@keyframes burgerpop {
+  0% {
+    transform: scale(1);
+    text-shadow: 0 0 0 rgba(251, 191, 36, 0);
+  }
+  35% {
+    transform: scale(1.18);
+    text-shadow: 0 0 14px rgba(251, 191, 36, 0.75);
+  }
+  100% {
+    transform: scale(1);
+    text-shadow: 0 0 0 rgba(251, 191, 36, 0);
+  }
+}
+.animate-burgerpop {
+  animation: burgerpop 0.7s cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
 /* Streaming-style rails scroll horizontally with no visible scrollbar. */
 .no-scrollbar {
   -ms-overflow-style: none;

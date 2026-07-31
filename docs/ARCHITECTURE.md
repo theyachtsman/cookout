@@ -96,3 +96,30 @@ future work:
   (`trialTierFor`), not a flat round value — bigger stake, higher bar, bigger reward.
   `PitConfig.trialRequiredPnlBps` is only the base/fallback; per-player and summary
   results carry `trialRequiredBps` for display.
+
+## Burger economy ($BURG) (spec §19)
+
+- A second, permanent progression currency stored on the user
+  (`burgerBalance`, `burgerLedger`, `burgerClaims`, `burgerEarned/Purchased/Spent`)
+  independent of XP / Cook Out balance / jackpot. Site-wide accounting lives on the
+  store (`burgerRevenueLedger`, `burgerRevenueBuckets`, `burgerRevenueEth`,
+  `burgerBySource`, `burgerDaily`). All persisted in `snapshot()`/`hydrate()`.
+- The service is `apps/server/src/burger.ts` — free functions over `Store`, mirroring
+  the `pit-*.ts` pattern. `awardBurger` (rule lookup → enabled/seasonal/one-time/
+  cooldown gates → `credit`), `awardBurgerXpMilestones`, `awardBurgerOneTime`,
+  `purchaseBurgers` (debits Cook Out via `recordLedger("burger_purchase")`, mints
+  $BURG, routes revenue), `adminAdjustBurgers`, `burgerAnalytics`. Bots (`0xb07…`)
+  and a disabled economy short-circuit to no-op.
+- Everything is config-driven from `store.settings.burger` (`BURGER_DEFAULTS` /
+  `freshBurgerSettings()`); the settings-hydrate merge carries new knobs onto old
+  snapshots. No reward value is hardcoded in gameplay code.
+- Reward hooks are one-liners at the existing event sites: match completion + First
+  Match in `gamification.ts` (participant loop), graduation + First Graduation in the
+  creator block, XP-level milestones in `store.addXp` on level-up, Daily/Weekly quest
+  + firsts in `store.trackActivity` on mission completion, coin launch + First Launch
+  in the concept-create route, referral + First Referral in `auth.ts`.
+- Delivery: `store.onBurger` → `ws.ts` `sendToUser({type:"burger"})` → `social.tsx`
+  `emitBurger` → `burgerBus` → `BurgerOverlay` toast + `BurgerBalance` count-up,
+  mirroring the XP overlay chain exactly. Balance ships in the `/api/me` self
+  payload; `/api/me/burger[/ledger]` and `/api/me/burger/purchase` serve the wallet;
+  `/api/admin/burger/{analytics,grant}` + `settings.burger` drive the manager.
