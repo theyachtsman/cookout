@@ -815,6 +815,32 @@ function register(): void {
       voice(c, E4, { dur: 0.4, type: "triangle", gain: 0.08, glideTo: A3, pitchDur: 0.3, cutoff: 1400, send: 0.22 });
     },
   });
+  // The Pit's own win/lose stings for the end-of-match modal — bigger than a UI
+  // confirm, their own moment. Win: a rising pentatonic fanfare + bell shimmer.
+  // Lose: a deep, warm descent that lands and fades.
+  R("pit.win", {
+    category: "victory",
+    priority: 9,
+    duck: true,
+    render: (c) => {
+      sub(c, 60, { dur: 0.6, gain: 0.2, drop: 44, dropDur: 0.1, drive: 1.8 });
+      fm(c, A4, { dur: 0.22, gain: 0.11, ratio: 2, index: 120, send: 0.34 });
+      fm(c, C5, { at: 0.1, dur: 0.22, gain: 0.11, ratio: 2, index: 120, send: 0.34 });
+      fm(c, E5, { at: 0.2, dur: 0.24, gain: 0.11, ratio: 2, index: 120, send: 0.36 });
+      fm(c, A5, { at: 0.3, dur: 0.6, gain: 0.12, ratio: 2, index: 110, send: 0.5 });
+      noiseBurst(c, { at: 0.3, dur: 0.45, gain: 0.02, type: "highpass", cutoff: 5500, cutoffTo: 11000, send: 0.4 });
+    },
+  });
+  R("pit.lose", {
+    category: "failure",
+    priority: 9,
+    duck: true,
+    render: (c) => {
+      sub(c, 90, { dur: 0.6, gain: 0.19, drop: 34, dropDur: 0.12, drive: 2.1 });
+      noiseBurst(c, { at: 0.12, dur: 0.5, gain: 0.05, type: "lowpass", cutoff: 1300, cutoffTo: 180, send: 0.36 });
+      voice(c, A3, { at: 0.06, dur: 0.75, type: "sawtooth", gain: 0.07, glideTo: 70, pitchDur: 0.6, cutoff: 1200, cutoffTo: 220, q: 3, detune: 10, drive: 3.5, send: 0.36 });
+    },
+  });
 
   // ---------------- Leaderboard (subtle) ----------------
   R("leaderboard.firstPlace", {

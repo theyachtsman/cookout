@@ -270,8 +270,9 @@ export const PIT_DEFAULTS = {
   /** Which duration presets creators may launch. */
   durations: ["blitz", "standard", "marathon"] as PitDurationKey[],
   // ---- Prediction market (variable betting) ----
-  /** Prediction wager bounds (pETH) and quick-bet chips. */
-  minBet: 0.05,
+  /** Prediction wager floor (pETH) — a dust guard. Bets are placed in USD with a
+   *  $5 minimum in the UI; this only stops sub-cent dust from getting through. */
+  minBet: 0.001,
   maxBet: 5,
   quickChips: [0.05, 0.1, 0.25, 0.5, 1] as number[],
   /** Net prediction pool split between the two winner groups (bps, sum 10000). */

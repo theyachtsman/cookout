@@ -1,11 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
-import { PIT_DURATIONS, PIT_DURATION_MAP, type PitDurationKey, type Round, type RoundSummary } from "@cookout/shared";
+import { PIT_DURATION_MAP, PIT_DURATIONS, type PitPlayerResult, type PitDurationKey, type Round, type RoundSummary } from "@cookout/shared";
 import { api } from "../lib/api";
+import { audio } from "../lib/audio";
 import { pdotEth } from "../lib/pit";
 
 const OUTCOME: Record<string, { text: string; cls: string; icon: string }> = {
@@ -399,6 +400,106 @@ export function RunItBack({ round, compact = false }: { round: Round; compact?: 
           document.body,
         )}
     </>
+  );
+}
+
+/**
+ * The end-of-match hero modal: the coin's card, a big You Won / You Lost verdict
+ * with a win/lose sting, and a compact reward/loss breakdown. Dismiss to reveal
+ * the full results page underneath. Shown once, when a match the player entered ends.
+ */
+export function PitOutcomeModal({
+  round,
+  mine,
+  fmt = pdotEth,
+  onClose,
+}: {
+  round: Round;
+  mine: PitPlayerResult;
+  fmt?: (eth: number) => string;
+  onClose: () => void;
+}) {
+  const won = (mine.totalReward ?? 0) > 0 || !!mine.trialPassed;
+  useEffect(() => {
+    audio.play(won ? "pit.win" : "pit.lose");
+  }, [won]);
+
+  const banner = round.token.bannerUrl ?? round.token.artworkUrl;
+  const lines: { label: string; value: string; good?: boolean }[] = [];
+  if (mine.prediction)
+    lines.push({ label: `🔮 ${mine.prediction}`, value: mine.predictionCorrect ? `+${fmt(mine.predictionReward)}` : "missed", good: mine.predictionCorrect });
+  if (mine.houseSpecial)
+    lines.push({ label: "🏠 House Special", value: mine.houseSpecialCorrect ? `+${fmt(mine.houseSpecialReward)}` : "missed", good: mine.houseSpecialCorrect });
+  if (mine.doubleDownBonus > 0) lines.push({ label: "🏆 Double Down", value: `+${fmt(mine.doubleDownBonus)}`, good: true });
+  if (mine.tradingPnl !== undefined && !mine.trial)
+    lines.push({ label: "⚔️ Trading PnL", value: `${mine.tradingPnl >= 0 ? "+" : ""}${fmt(mine.tradingPnl)}`, good: !!mine.qualified });
+  if (mine.trial)
+    lines.push({
+      label: `🔥 Flame Trial (${mine.trialTier ?? ""})`,
+      value: `${(mine.trialPnlPct ?? 0) >= 0 ? "+" : ""}${Math.round((mine.trialPnlPct ?? 0) * 100)}% / +${Math.round((mine.trialRequiredBps ?? 0) / 100)}%`,
+      good: mine.trialPassed,
+    });
+
+  return createPortal(
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4">
+      <div onClick={onClose} className="absolute inset-0 bg-black/80 backdrop-blur-sm" />
+      <div className={`relative w-full max-w-sm overflow-hidden rounded-3xl bg-zinc-950 ring-1 ${won ? "ring-lime-400/40" : "ring-red-500/40"}`}>
+        <div className="relative h-28 w-full bg-zinc-800/60">
+          {banner ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={banner} alt="" className="h-full w-full object-cover opacity-80" />
+          ) : (
+            <div className="flex h-full items-center justify-center text-4xl">🕳️</div>
+          )}
+          <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 to-transparent" />
+        </div>
+        <div className="p-6 text-center">
+          <div className={`text-3xl font-black ${won ? "text-lime-300" : "text-red-400"}`}>
+            {won ? "🎉 You won" : "You lost"}
+          </div>
+          <div className="mt-0.5 text-xs text-zinc-500">
+            {round.token.name} <span className="font-mono">${round.token.symbol}</span>
+          </div>
+
+          <div className="mt-4 space-y-1.5 text-left text-sm">
+            {lines.map((l, i) => (
+              <div key={i} className="flex items-center justify-between rounded-lg bg-zinc-900/60 px-3 py-2">
+                <span className="capitalize text-zinc-300">{l.label}</span>
+                <span className={`font-mono font-black ${l.good ? "text-lime-300" : "text-zinc-400"}`}>{l.value}</span>
+              </div>
+            ))}
+          </div>
+
+          {mine.trial ? (
+            <div className={`mt-4 rounded-xl px-3 py-2 text-sm font-black ${won ? "bg-lime-500/10 text-lime-300" : "bg-red-500/10 text-red-300"}`}>
+              {won ? `Stake returned · +${mine.trialXp ?? 0} XP` : "Stake forfeited"}
+            </div>
+          ) : (
+            <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
+              <div className="rounded-xl bg-zinc-900/60 px-3 py-2">
+                <div className="text-[10px] uppercase text-zinc-500">Reward</div>
+                <div className="font-mono font-black text-zinc-100">{fmt(mine.totalReward)}</div>
+              </div>
+              <div className="rounded-xl bg-zinc-900/60 px-3 py-2">
+                <div className="text-[10px] uppercase text-zinc-500">Net</div>
+                <div className={`font-mono font-black ${mine.net >= 0 ? "text-lime-300" : "text-red-400"}`}>
+                  {mine.net >= 0 ? "+" : ""}
+                  {fmt(mine.net)}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <button
+            onClick={onClose}
+            className="mt-5 w-full rounded-xl bg-fuchsia-500 py-3 text-sm font-black text-zinc-950 hover:bg-fuchsia-400"
+          >
+            See full results
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 
