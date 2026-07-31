@@ -11,6 +11,7 @@ import type { PitCard, PitFeed } from "../../lib/pit";
 import { pdotEth } from "../../lib/pit";
 import { Countdown } from "../../components/Countdown";
 import { ImagePicker } from "../../components/ImagePicker";
+import { RunItBack } from "../../components/PitResults";
 
 function DurationChip({ k }: { k: string }) {
   const d = PIT_DURATION_MAP[k as PitDurationKey];
@@ -43,11 +44,12 @@ function outcomeLabel(o?: string): { text: string; cls: string } {
   return { text: "Timer", cls: "text-zinc-300" };
 }
 
-function Card({ c }: { c: PitCard }) {
+function Card({ c, me }: { c: PitCard; me?: string }) {
   const r = c.round;
   const live = r.state === "live";
   const lobby = r.state === "lobby";
   const done = r.state === "results";
+  const mine = !!me && r.creatorAddress.toLowerCase() === me;
   const armed = lobby && !!r.queueOpensAt;
   const waiting = lobby && !r.queueOpensAt;
   const pit = c.summary?.pit;
@@ -145,6 +147,11 @@ function Card({ c }: { c: PitCard }) {
             </button>
           </div>
         )}
+        {done && mine && (
+          <div className="flex">
+            <RunItBack round={r} compact />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -162,7 +169,7 @@ function PoolLine({ label, pot, carry }: { label: string; pot: number; carry: nu
   );
 }
 
-function Shelf({ title, cards, empty }: { title: string; cards: PitCard[]; empty: string }) {
+function Shelf({ title, cards, empty, me }: { title: string; cards: PitCard[]; empty: string; me?: string }) {
   return (
     <section>
       <h2 className="mb-2 flex items-center gap-2 text-sm font-black uppercase tracking-wide text-zinc-400">
@@ -174,7 +181,7 @@ function Shelf({ title, cards, empty }: { title: string; cards: PitCard[]; empty
       ) : (
         <div className="no-scrollbar -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
           {cards.map((c) => (
-            <Card key={c.round.id} c={c} />
+            <Card key={c.round.id} c={c} me={me} />
           ))}
         </div>
       )}
@@ -300,6 +307,7 @@ function LaunchPitModal({ onClose }: { onClose: () => void }) {
 
 export default function PitPage() {
   const { profile, signIn } = useSession();
+  const me = profile?.address?.toLowerCase();
   const [data, setData] = useState<PitFeed | null>(null);
   const [launching, setLaunching] = useState(false);
   const [mounted, setMounted] = useState(false);
@@ -341,10 +349,10 @@ export default function PitPage() {
         </div>
       </header>
 
-      <Shelf title="Live Matches" cards={data?.live ?? []} empty="No live Pit matches right now. Launch one." />
-      <Shelf title="Lobby" cards={data?.lobby ?? []} empty="No open lobbies. A launch opens one instantly." />
-      {(data?.queue.length ?? 0) > 0 && <Shelf title="Queue" cards={data?.queue ?? []} empty="" />}
-      <Shelf title="Recent Results" cards={data?.results ?? []} empty="No finished Pit matches yet." />
+      <Shelf title="Live Matches" cards={data?.live ?? []} empty="No live Pit matches right now. Launch one." me={me} />
+      <Shelf title="Lobby" cards={data?.lobby ?? []} empty="No open lobbies. A launch opens one instantly." me={me} />
+      {(data?.queue.length ?? 0) > 0 && <Shelf title="Queue" cards={data?.queue ?? []} empty="" me={me} />}
+      <Shelf title="Recent Results" cards={data?.results ?? []} empty="No finished Pit matches yet." me={me} />
 
       {mounted && launching && <LaunchPitModal onClose={() => setLaunching(false)} />}
     </div>

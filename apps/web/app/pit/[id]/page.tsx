@@ -24,7 +24,7 @@ import { OrderBook } from "../../../components/OrderBook";
 import { TradePanel } from "../../../components/TradePanel";
 import { GraduationProgress } from "../../../components/GraduationProgress";
 import { Countdown } from "../../../components/Countdown";
-import { pdotEth } from "../../../lib/pit";
+import { pdotEth, fmtVal } from "../../../lib/pit";
 import { PitResultsView } from "../../../components/PitResults";
 
 interface RoundData {
@@ -55,6 +55,7 @@ export default function PitMatchPage() {
   const [feed, setFeed] = useState<{ id: string; text: string }[]>([]);
   const [entry, setEntry] = useState<PitEntry | null>(null);
   const [stack, setStack] = useState(0);
+  const [usd, setUsd] = useState(false);
   const seenFeed = useRef(new Set<string>());
 
   const round = data?.round;
@@ -142,11 +143,15 @@ export default function PitMatchPage() {
   useEffect(() => () => setActiveRoom(null), [setActiveRoom]);
 
   const myPos = useMemo(() => {
-    if (!me) return { tokens: 0 };
+    if (!me) return { tokens: 0, trades: 0 };
     let tokens = 0;
+    let count = 0;
     for (const t of trades)
-      if (t.userAddress.toLowerCase() === me) tokens += t.side === "buy" ? t.tokenAmount : -t.tokenAmount;
-    return { tokens: Math.max(0, tokens) };
+      if (t.userAddress.toLowerCase() === me) {
+        tokens += t.side === "buy" ? t.tokenAmount : -t.tokenAmount;
+        count++;
+      }
+    return { tokens: Math.max(0, tokens), trades: count };
   }, [trades, me]);
 
   if (!round) return <div className="py-24 text-center text-zinc-600">Loading The Pit…</div>;
@@ -154,6 +159,8 @@ export default function PitMatchPage() {
   const d = PIT_DURATION_MAP[pit?.duration ?? "standard"];
   const price = ticker?.price ?? (round.pool ? spotPrice(round.pool) : 0);
   const mcap = ticker?.mcap ?? (round.pool ? marketCap(round.pool) : 0);
+  const ethUsd = data?.ethUsd ?? 0;
+  const fmt = (eth: number) => fmtVal(eth, usd, ethUsd);
 
   return (
     <div className="space-y-5">
@@ -169,11 +176,24 @@ export default function PitMatchPage() {
           {d.icon} {d.name}
         </span>
         <span className="text-[11px] font-bold uppercase tracking-wide text-fuchsia-300/70">Powered by Swarm AI</span>
-        {round.state === "live" && round.endsAt && (
-          <span className="ml-auto font-mono text-lg font-black text-lime-300">
-            <Countdown to={round.endsAt} />
-          </span>
-        )}
+        <div className="ml-auto flex items-center gap-3">
+          <div className="flex overflow-hidden rounded-full bg-zinc-900/70 text-[10px] font-bold ring-1 ring-white/10">
+            {(["peth", "usd"] as const).map((k) => (
+              <button
+                key={k}
+                onClick={() => setUsd(k === "usd")}
+                className={`px-2.5 py-1 ${(usd ? "usd" : "peth") === k ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}
+              >
+                {k === "usd" ? "USD" : "pETH"}
+              </button>
+            ))}
+          </div>
+          {round.state === "live" && round.endsAt && (
+            <span className="font-mono text-lg font-black text-lime-300">
+              <Countdown to={round.endsAt} />
+            </span>
+          )}
+        </div>
       </div>
 
       {round.state === "lobby" && (
@@ -182,6 +202,7 @@ export default function PitMatchPage() {
           entry={entry}
           stack={stack}
           ethUsd={data.ethUsd}
+          fmt={fmt}
           signedIn={!!profile}
           onSignIn={signIn}
           onEntered={() => {
@@ -201,17 +222,19 @@ export default function PitMatchPage() {
           volume={ticker?.volume ?? 0}
           holders={ticker?.holders ?? 0}
           ethUsd={data.ethUsd}
+          fmt={fmt}
           me={me}
           entry={entry}
           stack={stack}
           myTokens={myPos.tokens}
+          myTrades={myPos.trades}
           feed={feed}
           onTraded={loadMe}
         />
       )}
 
       {round.state === "results" && (
-        <PitResultsView round={round} summary={data.summary} me={me} />
+        <PitResultsView round={round} summary={data.summary} me={me} fmt={fmt} />
       )}
     </div>
   );
@@ -219,7 +242,7 @@ export default function PitMatchPage() {
 
 // ---------------------------------------------------------------------------
 
-function Pools({ round }: { round: Round }) {
+function Pools({ round, fmt }: { round: Round; fmt: (eth: number) => string }) {
   const pit = round.pit!;
   const pred = pit.prediction.pot + pit.prediction.carryIn;
   const trade = pit.trading.pot + pit.trading.carryIn;
@@ -227,21 +250,21 @@ function Pools({ round }: { round: Round }) {
     <div className="grid grid-cols-2 gap-3">
       <div className="rounded-2xl bg-zinc-900/50 p-4 ring-1 ring-white/10">
         <div className="text-xs text-zinc-500">Prediction pool</div>
-        <div className="font-mono text-xl font-black text-zinc-50">{pdotEth(pred)}</div>
+        <div className="font-mono text-xl font-black text-zinc-50">{fmt(pred)}</div>
         <div className="text-[11px] text-zinc-600">
           {pit.prediction.participants} in
           {pit.prediction.carryIn > 1e-9 && (
-            <span className="ml-1 text-amber-300">· carry {pdotEth(pit.prediction.carryIn)}</span>
+            <span className="ml-1 text-amber-300">· carry {fmt(pit.prediction.carryIn)}</span>
           )}
         </div>
       </div>
       <div className="rounded-2xl bg-zinc-900/50 p-4 ring-1 ring-white/10">
         <div className="text-xs text-zinc-500">Trading pool</div>
-        <div className="font-mono text-xl font-black text-zinc-50">{pdotEth(trade)}</div>
+        <div className="font-mono text-xl font-black text-zinc-50">{fmt(trade)}</div>
         <div className="text-[11px] text-zinc-600">
           {pit.trading.participants} in
           {pit.trading.carryIn > 1e-9 && (
-            <span className="ml-1 text-amber-300">· carry {pdotEth(pit.trading.carryIn)}</span>
+            <span className="ml-1 text-amber-300">· carry {fmt(pit.trading.carryIn)}</span>
           )}
         </div>
       </div>
@@ -254,6 +277,7 @@ function LobbyView({
   entry,
   stack,
   ethUsd,
+  fmt,
   signedIn,
   onSignIn,
   onEntered,
@@ -262,6 +286,7 @@ function LobbyView({
   entry: PitEntry | null;
   stack: number;
   ethUsd: number;
+  fmt: (eth: number) => string;
   signedIn: boolean;
   onSignIn: () => void;
   onEntered: () => void;
@@ -341,7 +366,7 @@ function LobbyView({
         )}
       </div>
 
-      <Pools round={round} />
+      <Pools round={round} fmt={fmt} />
 
       {entry ? (
         <div className="rounded-2xl bg-lime-500/[0.06] p-4 ring-1 ring-lime-500/20">
@@ -351,15 +376,15 @@ function LobbyView({
               <span>
                 Called <b className="capitalize">{entry.prediction}</b>
                 {entry.predictionStake ? (
-                  <b className="ml-1 font-mono text-zinc-400">· {pdotEth(entry.predictionStake)}</b>
+                  <b className="ml-1 font-mono text-zinc-400">· {fmt(entry.predictionStake)}</b>
                 ) : null}
               </span>
             )}
             {entry.trading && (
               <span>
-                Trading stack <b className="font-mono">{pdotEth(stack)}</b>
+                Trading stack <b className="font-mono">{fmt(stack)}</b>
                 {entry.tradingStake ? (
-                  <b className="ml-1 font-mono text-zinc-400">· bet {pdotEth(entry.tradingStake)}</b>
+                  <b className="ml-1 font-mono text-zinc-400">· bet {fmt(entry.tradingStake)}</b>
                 ) : null}
               </span>
             )}
@@ -441,7 +466,7 @@ function LobbyView({
               <span className="flex-1">
                 <span className="text-sm font-black text-zinc-100">Join trading pool</span>
                 <span className="block text-[11px] text-zinc-500">
-                  Trade a {pdotEth(pit.startingStack)} paper stack against the Swarm. Finish in profit to qualify.
+                  Trade a {fmt(pit.startingStack)} paper stack against the Swarm. Make {PIT_DURATION_MAP[pit.duration].minTrades}+ trades and finish in profit to qualify.
                 </span>
               </span>
             </button>
@@ -487,7 +512,7 @@ function LobbyView({
               disabled={busy || cost === 0}
               className="w-full rounded-xl bg-fuchsia-500 py-3 text-sm font-black text-zinc-950 transition hover:bg-fuchsia-400 disabled:opacity-40"
             >
-              {busy ? "Entering…" : cost > 0 ? `Enter · ${pdotEth(cost, 3)}` : "Pick a pool"}
+              {busy ? "Entering…" : cost > 0 ? `Enter · ${fmt(cost)}` : "Pick a pool"}
             </button>
           ) : (
             <button
@@ -512,10 +537,12 @@ function LiveView({
   volume,
   holders,
   ethUsd,
+  fmt,
   me,
   entry,
   stack,
   myTokens,
+  myTrades,
   feed,
   onTraded,
 }: {
@@ -527,14 +554,18 @@ function LiveView({
   volume: number;
   holders: number;
   ethUsd: number;
+  fmt: (eth: number) => string;
   me?: string;
   entry: PitEntry | null;
   stack: number;
   myTokens: number;
+  myTrades: number;
   feed: { id: string; text: string }[];
   onTraded: () => void;
 }) {
   const pnl = entry?.trading ? stack + myTokens * price - round.pit!.startingStack : 0;
+  const minTrades = PIT_DURATION_MAP[round.pit!.duration].minTrades;
+  const qualifying = pnl > 0 && myTrades >= minTrades;
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
       <div className="space-y-4">
@@ -556,9 +587,17 @@ function LiveView({
           <div className="space-y-1.5">
             <div className="flex items-center justify-between px-1 text-[11px]">
               <span className="font-bold uppercase tracking-wide text-zinc-500">Trade the Swarm</span>
-              <span className={pnl >= 0 ? "font-bold text-lime-300" : "font-bold text-red-400"}>
-                PnL {pnl >= 0 ? "+" : ""}
-                {pnl.toFixed(3)} pETH · {pnl > 0 ? "qualifying" : "not yet"}
+              <span className="flex items-center gap-2">
+                <span className={pnl >= 0 ? "font-bold text-lime-300" : "font-bold text-red-400"}>
+                  PnL {pnl >= 0 ? "+" : ""}
+                  {fmt(pnl)}
+                </span>
+                <span className={myTrades >= minTrades ? "text-zinc-400" : "text-amber-300"}>
+                  {myTrades}/{minTrades} trades
+                </span>
+                <span className={`font-bold ${qualifying ? "text-lime-300" : "text-zinc-500"}`}>
+                  {qualifying ? "qualifying" : "not yet"}
+                </span>
               </span>
             </div>
             <TradePanel
@@ -589,7 +628,7 @@ function LiveView({
       </div>
 
       <div className="space-y-4">
-        <Pools round={round} />
+        <Pools round={round} fmt={fmt} />
 
         {/* Swarm feed */}
         <div className="rounded-2xl bg-zinc-900/40 p-3 ring-1 ring-white/10">

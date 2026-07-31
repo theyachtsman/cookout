@@ -49,10 +49,11 @@ export default function VotePage() {
 
   const load = useCallback(() => {
     api<TokenConcept[]>("/api/concepts")
-      .then(setConcepts)
+      // Pit coins launch straight to the Pit — they never enter the vote.
+      .then((c) => setConcepts(c.filter((x) => x.matchType !== "pit")))
       .catch(() => {});
     api<Round[]>("/api/calendar")
-      .then(setRounds)
+      .then((r) => setRounds(r.filter((x) => x.matchType !== "pit")))
       .catch(() => {});
   }, []);
   useEffect(() => {

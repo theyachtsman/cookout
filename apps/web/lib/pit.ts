@@ -40,5 +40,10 @@ export interface PitFeed {
   config: PitConfigView;
 }
 
-/** Short pETH formatter used across the Pit UI. */
-export const pdotEth = (n: number, dp = 2): string => `${n.toFixed(dp)} pETH`;
+/** pETH formatter used across the Pit UI (4 decimals by default). */
+export const pdotEth = (n: number, dp = 4): string => `${n.toFixed(dp)} pETH`;
+
+/** Format a pETH value as either pETH (4dp) or USD, for the in-match toggle. */
+export function fmtVal(eth: number, usd: boolean, ethUsd: number): string {
+  return usd ? `$${(eth * (ethUsd || 0)).toFixed(2)}` : `${eth.toFixed(4)} pETH`;
+}

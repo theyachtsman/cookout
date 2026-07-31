@@ -9,7 +9,7 @@
  * A player who wins both is a Double Winner. If nobody qualifies for a pool, it
  * carries into the next Pit match. Bots (0xb07…) never earn a reward.
  */
-import type { PitCall, PitPlayerResult, PitResult, Round, RoundSummary } from "@cookout/shared";
+import { PIT_DURATION_MAP, type PitCall, type PitPlayerResult, type PitResult, type Round, type RoundSummary } from "@cookout/shared";
 import type { Store } from "./store.js";
 
 export interface PitResolveCtx {
@@ -59,7 +59,14 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
       traderStake.set(addr, tradeStake(entry));
     }
   }
-  const qualifiers = [...traderPnl.entries()].filter(([, pnl]) => pnl > 0).map(([a]) => a);
+  // Trading qualification: positive total PnL (across every one of the player's
+  // trades, not just the last) AND at least the duration's minimum trade count.
+  const minTrades = PIT_DURATION_MAP[pit.duration].minTrades;
+  const roundTrades = store.trades.get(round.id) ?? [];
+  const tradeCountOf = (addr: string) => roundTrades.reduce((n, t) => (t.userAddress === addr ? n + 1 : n), 0);
+  const qualifiers = [...traderPnl.entries()]
+    .filter(([addr, pnl]) => pnl > 0 && tradeCountOf(addr) >= minTrades)
+    .map(([a]) => a);
   const totalWinnerStake = [...winnerStake.values()].reduce((s, v) => s + v, 0);
   const totalQualStake = qualifiers.reduce((s, a) => s + (traderStake.get(a) ?? 0), 0);
 
@@ -88,8 +95,8 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
     const tradingReward =
       isQual && totalQualStake > 0 ? tradePot * (tradeStake(entry) / totalQualStake) : 0;
     const totalReward = predictionReward + tradingReward;
-    const feesPaid =
-      (entry.prediction ? pit.predictionFee : 0) + (entry.trading ? pit.tradingFee : 0);
+    // Net uses the ACTUAL bets this player made, not the base config fees.
+    const feesPaid = (entry.prediction ? predStake(entry) : 0) + (entry.trading ? tradeStake(entry) : 0);
     const pnl = entry.trading ? (traderPnl.get(addr) ?? 0) : undefined;
     const doubleWinner = wonPred && !!isQual;
 
@@ -158,6 +165,7 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
       predictionCorrect: entry.prediction ? entry.prediction === outcome : undefined,
       tradingPnl: pnl,
       qualified: isQual,
+      trades: entry.trading ? tradeCountOf(addr) : undefined,
       predictionReward,
       tradingReward,
       totalReward,
@@ -170,6 +178,7 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
   const pitResult: PitResult = {
     duration: pit.duration,
     outcome,
+    minTrades,
     prediction: {
       pot: predPot,
       winners: predWinners.length,

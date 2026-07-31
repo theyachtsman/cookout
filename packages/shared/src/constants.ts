@@ -226,12 +226,14 @@ export interface PitDurationDef {
   icon: string;
   minutes: number;
   tagline: string;
+  /** Minimum trades a player must make to qualify for the Trading pool. */
+  minTrades: number;
 }
 
 export const PIT_DURATIONS: PitDurationDef[] = [
-  { key: "blitz", name: "Blitz", icon: "⚡", minutes: 1, tagline: "1 min · fast and violent" },
-  { key: "standard", name: "Standard", icon: "🔥", minutes: 5, tagline: "5 min · balanced pacing" },
-  { key: "marathon", name: "Marathon", icon: "🧠", minutes: 10, tagline: "10 min · long-form cycles" },
+  { key: "blitz", name: "Blitz", icon: "⚡", minutes: 1, tagline: "1 min · fast and violent", minTrades: 4 },
+  { key: "standard", name: "Standard", icon: "🔥", minutes: 5, tagline: "5 min · balanced pacing", minTrades: 8 },
+  { key: "marathon", name: "Marathon", icon: "🧠", minutes: 10, tagline: "10 min · long-form cycles", minTrades: 10 },
 ];
 
 export const PIT_DURATION_MAP: Record<PitDurationKey, PitDurationDef> = Object.fromEntries(

@@ -27,10 +27,13 @@ export function PitResultsView({
   round,
   summary,
   me,
+  fmt = pdotEth,
 }: {
   round: Round;
   summary: RoundSummary | null;
   me?: string;
+  /** pETH/USD formatter from the in-match toggle; defaults to pETH. */
+  fmt?: (eth: number) => string;
 }) {
   const pit = summary?.pit;
   if (!pit)
@@ -83,15 +86,21 @@ export function PitResultsView({
             {mine.tradingPnl !== undefined && (
               <Stat
                 label="Trading PnL"
-                value={`${mine.tradingPnl >= 0 ? "+" : ""}${mine.tradingPnl.toFixed(3)}`}
-                sub={mine.qualified ? "Qualified" : "No qualify"}
+                value={`${mine.tradingPnl >= 0 ? "+" : ""}${fmt(mine.tradingPnl)}`}
+                sub={
+                  mine.qualified
+                    ? "Qualified"
+                    : mine.tradingPnl > 0 && (mine.trades ?? 0) < pit.minTrades
+                      ? `Only ${mine.trades ?? 0}/${pit.minTrades} trades`
+                      : "No qualify"
+                }
                 good={mine.qualified}
               />
             )}
-            <Stat label="Total reward" value={pdotEth(mine.totalReward)} good={mine.totalReward > 0} />
+            <Stat label="Total reward" value={fmt(mine.totalReward)} good={mine.totalReward > 0} />
             <Stat
               label="Net"
-              value={`${mine.net >= 0 ? "+" : ""}${mine.net.toFixed(3)}`}
+              value={`${mine.net >= 0 ? "+" : ""}${fmt(mine.net)}`}
               good={mine.net >= 0}
             />
           </div>
@@ -106,6 +115,7 @@ export function PitResultsView({
           winners={pit.prediction.winners}
           rewardEach={pit.prediction.rewardEach}
           carried={pit.prediction.carried}
+          fmt={fmt}
         />
         <PoolCard
           title="Trading Pool"
@@ -114,6 +124,8 @@ export function PitResultsView({
           rewardEach={pit.trading.rewardEach}
           carried={pit.trading.carried}
           winnersLabel="qualified"
+          note={`${pit.minTrades}+ trades to qualify`}
+          fmt={fmt}
         />
       </div>
 
@@ -125,6 +137,7 @@ export function PitResultsView({
               <tr className="text-[11px] uppercase tracking-wide text-zinc-600">
                 <th className="px-3 py-2 text-left font-bold">Player</th>
                 <th className="px-3 py-2 text-left font-bold">Call</th>
+                <th className="px-3 py-2 text-right font-bold">Trades</th>
                 <th className="px-3 py-2 text-right font-bold">PnL</th>
                 <th className="px-3 py-2 text-right font-bold">Reward</th>
               </tr>
@@ -148,17 +161,26 @@ export function PitResultsView({
                     )}
                   </td>
                   <td className="px-3 py-2 text-right font-mono">
+                    {p.trades === undefined ? (
+                      <span className="text-zinc-700">—</span>
+                    ) : (
+                      <span className={p.trades >= pit.minTrades ? "text-zinc-300" : "text-amber-300"}>
+                        {p.trades}/{pit.minTrades}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 text-right font-mono">
                     {p.tradingPnl === undefined ? (
                       <span className="text-zinc-700">—</span>
                     ) : (
                       <span className={p.tradingPnl >= 0 ? "text-lime-300" : "text-red-400"}>
                         {p.tradingPnl >= 0 ? "+" : ""}
-                        {p.tradingPnl.toFixed(3)}
+                        {fmt(p.tradingPnl)}
                       </span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-right font-mono font-black text-zinc-100">
-                    {p.totalReward > 0 ? pdotEth(p.totalReward) : <span className="text-zinc-700">—</span>}
+                    {p.totalReward > 0 ? fmt(p.totalReward) : <span className="text-zinc-700">—</span>}
                   </td>
                 </tr>
               ))}
@@ -182,7 +204,7 @@ export function PitResultsView({
 
 /** Creator-only: relaunch this coin into a fresh Pit lobby, optionally in a new
  *  duration. Confirms in a modal, then jumps to the new match. */
-function RunItBack({ round }: { round: Round }) {
+export function RunItBack({ round, compact = false }: { round: Round; compact?: boolean }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const [duration, setDuration] = useState<PitDurationKey>(round.pit?.duration ?? "standard");
@@ -206,10 +228,18 @@ function RunItBack({ round }: { round: Round }) {
   return (
     <>
       <button
-        onClick={() => setOpen(true)}
-        className="rounded-xl bg-fuchsia-500 px-4 py-2 text-sm font-black text-zinc-950 hover:bg-fuchsia-400"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setOpen(true);
+        }}
+        className={
+          compact
+            ? "rounded-lg bg-fuchsia-500/15 px-3 py-1.5 text-xs font-black text-fuchsia-300 transition hover:bg-fuchsia-500/25 active:scale-95"
+            : "rounded-xl bg-fuchsia-500 px-4 py-2 text-sm font-black text-zinc-950 hover:bg-fuchsia-400"
+        }
       >
-        Run it back
+        {compact ? "↻ Run it back" : "Run it back"}
       </button>
       {open &&
         createPortal(
@@ -278,6 +308,8 @@ function PoolCard({
   rewardEach,
   carried,
   winnersLabel = "winners",
+  note,
+  fmt = pdotEth,
 }: {
   title: string;
   pot: number;
@@ -285,16 +317,21 @@ function PoolCard({
   rewardEach: number;
   carried: boolean;
   winnersLabel?: string;
+  note?: string;
+  fmt?: (eth: number) => string;
 }) {
   return (
     <div className="rounded-2xl bg-zinc-900/50 p-4 ring-1 ring-white/10">
-      <div className="text-xs text-zinc-500">{title}</div>
-      <div className="font-mono text-xl font-black text-zinc-50">{pdotEth(pot)}</div>
+      <div className="flex items-baseline justify-between">
+        <span className="text-xs text-zinc-500">{title}</span>
+        {note && <span className="text-[10px] text-zinc-600">{note}</span>}
+      </div>
+      <div className="font-mono text-xl font-black text-zinc-50">{fmt(pot)}</div>
       {carried ? (
         <div className="text-[11px] font-bold text-amber-300">No qualifiers · carried over 🏆</div>
       ) : (
         <div className="text-[11px] text-zinc-600">
-          {winners} {winnersLabel} · {pdotEth(rewardEach)} each
+          {winners} {winnersLabel} · {fmt(rewardEach)} each
         </div>
       )}
     </div>
