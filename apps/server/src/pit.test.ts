@@ -47,6 +47,22 @@ test("Pit: two independent pools split evenly, double winner takes both", () => 
   round.graduated = false;
   store.setPitStack(round.id, alice, 0.5); // spent 0.5 of the 1.0 stack
   store.position(round.id, alice).tokens = 0.8; // worth 0.8 at finalPrice 1.0
+  // Standard needs >= 8 trades to qualify; give Alice enough.
+  store.trades.set(
+    round.id,
+    Array.from({ length: 8 }, (_, i) => ({
+      id: `t${i}`,
+      roundId: round.id,
+      userAddress: alice,
+      side: "buy" as const,
+      ethAmount: 0.01,
+      tokenAmount: 0.1,
+      price: 1,
+      fee: 0,
+      at: Date.now(),
+      isCreator: false,
+    })),
+  );
 
   const summary = resolvePitRound(store, round, {
     totalVolume: 1,

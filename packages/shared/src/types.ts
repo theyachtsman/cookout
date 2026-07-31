@@ -133,10 +133,12 @@ export interface PitPlayerResult {
   /** Trading PnL on their paper stack, when they entered the Trading Pool. */
   tradingPnl?: number;
   qualified?: boolean;
+  /** Trades this player made (Trading pool has a per-duration minimum). */
+  trades?: number;
   predictionReward: number;
   tradingReward: number;
   totalReward: number;
-  /** Total reward minus entry fees paid this match. */
+  /** Total reward minus the actual bets paid this match. */
   net: number;
   /** Won both pools. */
   doubleWinner: boolean;
@@ -146,6 +148,8 @@ export interface PitPlayerResult {
 export interface PitResult {
   duration: PitDurationKey;
   outcome: PitCall;
+  /** Trades required to qualify for the Trading pool this duration. */
+  minTrades: number;
   prediction: {
     pot: number;
     winners: number;
