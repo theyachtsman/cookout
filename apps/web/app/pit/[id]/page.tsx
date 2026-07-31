@@ -383,7 +383,8 @@ function LobbyView({
   const trialUsdNum = trial ? Number(trialUsd) || 0 : 0;
   const trialStakeEth = trialUsdNum / peg;
   const trialTier = trialTierFor(Number(trialUsd) || 0, pit.trialTiers ?? []);
-  const targetPct = Math.round(pit.trialRequiredPnlBps / 100);
+  // The tier the stake buys sets the PnL bar — a bigger stake means a higher bar.
+  const targetPct = Math.round((trialTier.requiredPnlBps ?? pit.trialRequiredPnlBps) / 100);
   const cost = mainStake + houseStake + tradeStake + trialStakeEth;
 
   const startEdit = () => {
@@ -673,16 +674,15 @@ function LobbyView({
                 <span className="flex-1">
                   <span className="text-sm font-black text-zinc-100">🔥 Flame Trial · single-player</span>
                   <span className="block text-[11px] text-zinc-500">
-                    Your solo run. Trade a {fmt(pit.startingStack)} paper stack and finish at{" "}
-                    <b className="text-orange-300">+{targetPct}% PnL</b> to pass. Starts on a{" "}
-                    {pit.trialLobbySeconds ?? 15}s countdown once you stake. Prestige only — XP, titles, badges. No cash payout.
+                    Your solo run. You stake the coin and trade a {fmt(pit.startingStack)} paper stack against the
+                    Goons. Starts on a {pit.trialLobbySeconds ?? 15}s countdown once you stake.
                   </span>
                 </span>
               </button>
               {trial && (
                 <div className="mt-2 rounded-xl bg-zinc-900/60 p-3 ring-1 ring-white/10">
                   <div className="mb-1.5 flex items-center justify-between text-xs text-zinc-500">
-                    <span>Entry stake (USD, min ${pit.trialMinUsd})</span>
+                    <span>Stake the coin (USD, min ${pit.trialMinUsd})</span>
                     <span className="font-mono text-zinc-400">≈ {fmt(trialStakeEth)}</span>
                   </div>
                   <div className="flex items-center gap-2">
@@ -699,17 +699,28 @@ function LobbyView({
                       <button
                         key={t.name}
                         onClick={() => setTrialUsd(String(t.minUsd))}
-                        title={`${t.name}: ${t.xp} XP`}
+                        title={`${t.name}: +${Math.round((t.requiredPnlBps ?? pit.trialRequiredPnlBps) / 100)}% to pass · ${t.xp} XP`}
                         className={`rounded-lg px-2 py-2 text-[10px] font-bold ${trialTier.name === t.name ? "bg-orange-500/25 text-orange-200" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
                       >
                         ${t.minUsd}
                       </button>
                     ))}
                   </div>
-                  <p className="mt-1.5 text-[11px] text-zinc-600">
-                    Tier: <b className="text-orange-300">{trialTier.name}</b> · {trialTier.xp} XP on a pass. Higher
-                    stake = more XP and rarer cosmetics.
+                  <p className="mt-1.5 text-[11px] text-zinc-500">
+                    <b className="text-orange-300">{trialTier.name}</b> tier · finish at{" "}
+                    <b className="text-orange-300">+{targetPct}% PnL</b> to pass. A bigger stake raises the bar and the
+                    reward.
                   </p>
+                  <div className="mt-2 rounded-lg bg-zinc-950/50 p-2 text-[11px] leading-relaxed text-zinc-500 ring-1 ring-white/5">
+                    <div>
+                      <b className="text-lime-300">Pass:</b> your ${Number(trialUsd) || 0} stake comes back, plus {trialTier.xp} XP
+                      and {trialTier.name}-tier titles and badges.
+                    </div>
+                    <div>
+                      <b className="text-red-300">Miss it:</b> the stake is gone. No cash payout either way — this is
+                      prestige only.
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
@@ -785,7 +796,11 @@ function LiveView({
   const startStack = round.pit!.startingStack;
   const pnl = isTrader ? stack + myTokens * price - startStack : 0;
   const pnlPct = startStack > 0 ? (pnl / startStack) * 100 : 0;
-  const targetPct = Math.round(round.pit!.trialRequiredPnlBps / 100);
+  // The trial bar follows the player's staked tier, not the round default.
+  const trialTier = entry?.trial
+    ? trialTierFor((entry.trialStake ?? 0) * (ethUsd > 0 ? ethUsd : 1), round.pit!.trialTiers ?? [])
+    : null;
+  const targetPct = Math.round((trialTier?.requiredPnlBps ?? round.pit!.trialRequiredPnlBps) / 100);
   const trialPassing = pnlPct >= targetPct;
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_320px]">

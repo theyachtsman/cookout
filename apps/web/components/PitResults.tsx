@@ -120,7 +120,11 @@ export function PitResultsView({
               <Stat
                 label={`🔥 Trial (${mine.trialTier ?? ""})`}
                 value={`${(mine.trialPnlPct ?? 0) >= 0 ? "+" : ""}${Math.round((mine.trialPnlPct ?? 0) * 100)}%`}
-                sub={mine.trialPassed ? `Passed · +${mine.trialXp ?? 0} XP` : "Failed"}
+                sub={
+                  mine.trialPassed
+                    ? `Passed +${Math.round((mine.trialRequiredBps ?? 0) / 100)}% · stake back +${mine.trialXp ?? 0} XP`
+                    : `Missed +${Math.round((mine.trialRequiredBps ?? 0) / 100)}% · stake gone`
+                }
                 good={mine.trialPassed}
               />
             )}

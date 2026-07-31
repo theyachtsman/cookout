@@ -71,3 +71,28 @@ draw down a per-match paper stack instead of the Cook Out balance and skip the
 buy/sell ledger); the chart, order book, graduation progress, chat rooms, ledger,
 and presence are the existing components. The `/round/:id` page redirects Pit
 rounds to `/pit/:id` so ledger and results links keep working.
+
+**Modes.** A Pit match runs any combination of three modes chosen at launch
+(`concept.pitModes = { prediction, trading, trial }`) and preserved on Run It Back:
+Prediction Market, Battle the Flame Goon Squad (the Trading pool), and Flame Trial.
+
+**Flame Trial (single-player, spec §18.1).** A solo PvE mode reusing the Battle
+trading engine; only the win condition and reward model differ. Key points for
+future work:
+
+- Trial and Trading are mutually exclusive (enforced in `routes.ts` launch +
+  runback and in both web selectors). Trial pairs with Prediction only.
+- Creator-only: `POST /api/pit/:id/enter` 403s a non-creator trial stake; the lobby
+  hides the entry for non-creators (`LobbyView` gates on `me === creatorAddress`).
+- `armPitLobby` special-cases trial rounds — the creator's single stake arms a quick
+  countdown (`PitConfig.trialLobbySeconds`) straight to live, ignoring the prediction
+  side-pool quorum.
+- Economics (`pit-results.ts`): the stake is escrowed, not pooled. On a pass it is
+  **refunded in full** (`pit_trial` credit) and the tier XP/achievements are granted;
+  on a miss it is **forfeited** via `routeHouse()` (jackpot + platform + treasury, no
+  creator cut). `routeHouse` exists precisely so the creator never earns from their
+  own solo run. Player `net` is zero on a pass, `-stake` on a miss.
+- The PnL bar is the **tier's** `requiredPnlBps`, chosen by stake size
+  (`trialTierFor`), not a flat round value — bigger stake, higher bar, bigger reward.
+  `PitConfig.trialRequiredPnlBps` is only the base/fallback; per-player and summary
+  results carry `trialRequiredBps` for display.

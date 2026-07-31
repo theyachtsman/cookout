@@ -970,6 +970,15 @@ export class Store {
     // Ensure the Pit settings block exists + carries new prediction-market
     // knobs on snapshots that predate them.
     this.settings.pit = { ...freshPitSettings(), ...(this.settings.pit ?? {}) };
+    // Backfill per-tier Flame Trial PnL bars on tiers persisted before they were
+    // tier-scoped (match by name, else fall back to the base requirement).
+    this.settings.pit.trialTiers = (this.settings.pit.trialTiers ?? []).map((t) => ({
+      ...t,
+      requiredPnlBps:
+        t.requiredPnlBps ??
+        PIT_DEFAULTS.trialTiers.find((d) => d.name === t.name)?.requiredPnlBps ??
+        this.settings.pit.trialRequiredPnlBps,
+    }));
     // Backfill new pitStats fields on existing players.
     for (const u of this.users.values())
       if (u.pitStats) u.pitStats = { ...emptyPitStats(), ...u.pitStats };

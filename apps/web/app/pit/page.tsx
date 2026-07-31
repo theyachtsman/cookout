@@ -352,7 +352,7 @@ function LaunchPitModal({ onClose }: { onClose: () => void }) {
                 onToggle={() => setModes((m) => ({ ...m, trial: !m.trial, trading: !m.trial ? false : m.trading }))}
                 icon="🔥"
                 name="Flame Trial (single-player)"
-                blurb="Solo PvE. Only you play: beat an objective (+20% PnL) vs the Goons for XP, titles and badges. Starts on a short countdown once you stake. Pairs with Prediction only."
+                blurb="Solo PvE. Only you play: stake the coin and beat a PnL objective vs the Goons. Pass and your stake comes back plus XP, titles and badges; miss it and the stake is gone. A bigger stake means a higher bar. Starts on a short countdown once you stake. Pairs with Prediction only."
                 accent="orange"
               />
             </div>

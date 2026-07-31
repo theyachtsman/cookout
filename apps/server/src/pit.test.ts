@@ -94,7 +94,7 @@ test("Pit: withdraw refunds the stake and clears the pool", () => {
   assert.equal(store.pitEntryOf(round.id, alice), undefined);
 });
 
-test("Flame Trial: objective scoring, tier XP, achievement", () => {
+test("Flame Trial: tier bar, stake refund on pass, tier XP, achievement", () => {
   const store = new Store();
   const engine = new RoundEngine(store, () => {});
   store.ethUsd = 100; // $ per pETH → easy tier math
@@ -102,13 +102,13 @@ test("Flame Trial: objective scoring, tier XP, achievement", () => {
   const now = Date.now();
   const round = engine.schedulePitRound(pitConcept(store), now);
   round.pit!.pitFeeBps = 0;
-  round.pit!.trialRequiredPnlBps = 2000; // +20%
 
-  // Stake 0.1 pETH = $10 → Henchman tier.
+  // Stake 0.1 pETH = $10 → Henchman tier, whose bar is +30%.
   enterPit(store, round, alice, { trial: true, trialStake: 0.1 });
   assert.equal(round.pit!.trialParticipants, 1);
-  // Simulate a +30% run (stack 0.8 + 0.5 tokens @ price 1 = 1.3 vs 1.0 start).
-  store.setPitStack(round.id, alice, 0.8);
+  assert.ok(Math.abs((store.getOrCreateUser(alice).arenaBalance ?? 0) - 9.9) < 1e-9); // staked
+  // Simulate a +35% run (stack 0.85 + 0.5 tokens @ price 1 = 1.35 vs 1.0 start).
+  store.setPitStack(round.id, alice, 0.85);
   store.position(round.id, alice).tokens = 0.5;
 
   round.state = "live";
@@ -128,13 +128,59 @@ test("Flame Trial: objective scoring, tier XP, achievement", () => {
   assert.equal(p.trial, true);
   assert.equal(p.trialPassed, true);
   assert.equal(p.trialTier, "Henchman");
+  assert.equal(p.trialRequiredBps, 3000); // higher stake, higher bar
   assert.equal(p.trialXp, 120);
-  assert.ok(Math.abs((p.trialPnlPct ?? 0) - 0.3) < 1e-9);
+  assert.ok(Math.abs((p.trialPnlPct ?? 0) - 0.35) < 1e-9);
+  assert.ok(Math.abs(p.net) < 1e-9); // stake returned on a pass → net zero
   assert.equal(summary.pit!.trial.passed, 1);
+  assert.equal(summary.pit!.trial.requiredPnlBps, 3000);
+  // Stake came back in full; no creator fee credited (creator is the player).
+  assert.ok(Math.abs((store.getOrCreateUser(alice).arenaBalance ?? 0) - 10) < 1e-9);
   const ps = store.pitStatsOf(alice);
   assert.equal(ps.trialsWon, 1);
   assert.equal(ps.trialXp, 120);
   assert.ok(store.getOrCreateUser(alice).achievements.includes("first_flame"));
+});
+
+test("Flame Trial: missing the bar forfeits the stake, no creator reward", () => {
+  const store = new Store();
+  const engine = new RoundEngine(store, () => {});
+  store.ethUsd = 100;
+  store.getOrCreateUser(alice).arenaBalance = 10;
+  const now = Date.now();
+  const c = pitConcept(store);
+  const round = engine.schedulePitRound(c, now);
+  round.pit!.pitFeeBps = 0;
+  const jackpotBefore = store.jackpotPool;
+  const creatorBalBefore = store.getOrCreateUser(c.creatorAddress).arenaBalance ?? 0;
+
+  // $10 Henchman needs +30%; a +10% run misses it.
+  enterPit(store, round, alice, { trial: true, trialStake: 0.1 });
+  store.setPitStack(round.id, alice, 0.6);
+  store.position(round.id, alice).tokens = 0.5; // 0.6 + 0.5 = 1.1 → +10%
+
+  round.state = "live";
+  round.liveAt = now - 60_000;
+  round.endReason = "timer";
+  round.graduated = false;
+  const summary = resolvePitRound(store, round, {
+    totalVolume: 1,
+    peakMcap: 1,
+    finalMcap: 1,
+    finalPrice: 1,
+    holderCount: 1,
+    now,
+  });
+  const p = summary.pit!.players.find((x) => x.address === alice)!;
+  assert.equal(p.trialPassed, false);
+  assert.equal(summary.pit!.trial.passed, 0);
+  // Stake is gone (balance stays at 9.9), and it went to the house/jackpot,
+  // never the creator.
+  assert.ok(Math.abs((store.getOrCreateUser(alice).arenaBalance ?? 0) - 9.9) < 1e-9);
+  assert.ok(Math.abs((p.net ?? 0) + 0.1) < 1e-9); // net = -stake
+  assert.ok(store.jackpotPool > jackpotBefore); // forfeit routed to the house
+  assert.ok(Math.abs((store.getOrCreateUser(c.creatorAddress).arenaBalance ?? 0) - creatorBalBefore) < 1e-9);
+  assert.equal(store.pitStatsOf(alice).trialsWon, 0);
 });
 
 test("Flame Trial: solo round arms on the creator's stake, ignoring the prediction side-pool", () => {
