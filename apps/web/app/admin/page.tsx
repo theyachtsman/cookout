@@ -1,7 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { ChatMessage, Round, TokenConcept } from "@cookout/shared";
+import type { BurgerAnalytics, BurgerSettings, ChatMessage, Round, TokenConcept } from "@cookout/shared";
+import { BURGER_REVENUE_DESTS } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useChainOnly } from "../../lib/chainOnly";
 import { TierChip } from "../../components/TierChip";
@@ -26,6 +27,7 @@ interface Overview {
     announceEveryMin?: number;
     pinnedAnnouncement?: string;
     pit?: PitSettings;
+    burger?: BurgerSettings;
   };
   log: { id: string; at: number; action: string; detail: string }[];
 }
@@ -257,6 +259,253 @@ function PitOpsPanel({
           The Swarm AI that runs Pit rounds is always on. The Bot swarm toggle governs Cookout only.
         </span>
       </div>
+    </div>
+  );
+}
+
+/**
+ * The Burger Economy Manager. Everything about $BURG is configurable here with
+ * no code change: the master switch, purchase rate, every reward rule (amount /
+ * enabled / repeatable / cooldown / seasonal window), the XP-level ladder, the
+ * one-time milestones, and the purchase revenue split. Plus a manual grant/remove
+ * tool and live economy-health analytics.
+ */
+function BurgerOpsPanel({
+  settings,
+  act,
+  adminKey,
+}: {
+  settings?: BurgerSettings;
+  act: (path: string, body?: unknown, method?: string) => Promise<void>;
+  adminKey: string;
+}) {
+  const [draft, setDraft] = useState<BurgerSettings | null>(null);
+  const [analytics, setAnalytics] = useState<BurgerAnalytics | null>(null);
+  const [grantAddr, setGrantAddr] = useState("");
+  const [grantAmt, setGrantAmt] = useState("100");
+  const [grantNote, setGrantNote] = useState("");
+  const [grantMsg, setGrantMsg] = useState("");
+  const b = draft ?? settings;
+
+  useEffect(() => {
+    if (!adminKey) return;
+    api<{ analytics: BurgerAnalytics }>("/api/admin/burger/analytics", { admin: adminKey })
+      .then((d) => setAnalytics(d.analytics))
+      .catch(() => {});
+  }, [adminKey, settings]);
+
+  if (!b) return <div className="rounded-lg border border-zinc-800 p-3 text-xs text-zinc-500">Loading…</div>;
+  const set = (patch: Partial<BurgerSettings>) => setDraft({ ...b, ...patch });
+
+  const setRule = (i: number, patch: Partial<BurgerSettings["rules"][number]>) =>
+    set({ rules: b.rules.map((r, j) => (j === i ? { ...r, ...patch } : r)) });
+  const setXp = (i: number, patch: Partial<BurgerSettings["xpMilestones"][number]>) =>
+    set({ xpMilestones: b.xpMilestones.map((m, j) => (j === i ? { ...m, ...patch } : m)) });
+  const setOnce = (i: number, patch: Partial<BurgerSettings["oneTimeMilestones"][number]>) =>
+    set({ oneTimeMilestones: b.oneTimeMilestones.map((m, j) => (j === i ? { ...m, ...patch } : m)) });
+
+  const allocTotal = BURGER_REVENUE_DESTS.reduce((s, d) => s + (b.revenueAllocation[d.key] ?? 0), 0);
+
+  const grant = async () => {
+    setGrantMsg("");
+    try {
+      await act("/api/admin/burger/grant", { address: grantAddr.trim(), amount: Number(grantAmt), note: grantNote });
+      setGrantMsg(`Applied ${grantAmt} 🍔 to ${grantAddr.slice(0, 8)}…`);
+    } catch (e) {
+      setGrantMsg((e as Error).message);
+    }
+  };
+
+  return (
+    <div className="space-y-4 rounded-lg border border-amber-500/30 bg-amber-500/[0.04] p-3">
+      {/* Master + rate */}
+      <div className="flex flex-wrap items-center gap-4">
+        <label className="flex items-center gap-2 text-xs font-bold text-zinc-300">
+          <input type="checkbox" checked={b.enabled} onChange={(e) => set({ enabled: e.target.checked })} />
+          Economy enabled
+        </label>
+        <label className="flex flex-col gap-1 text-xs text-zinc-500">
+          $BURG per pETH (purchase rate)
+          <input
+            type="number"
+            step="1"
+            value={String(b.burgersPerEth)}
+            onChange={(e) => set({ burgersPerEth: Number(e.target.value) })}
+            className="w-28 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-sm text-zinc-100"
+          />
+        </label>
+      </div>
+
+      {/* Analytics */}
+      {analytics && (
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <Metric label="Earned" value={analytics.totalEarned} />
+          <Metric label="Purchased" value={analytics.totalPurchased} />
+          <Metric label="Circulating" value={analytics.circulating} />
+          <Metric label="Holders" value={analytics.holders} />
+          <Metric label="Avg / player" value={Math.round(analytics.avgPerPlayer)} />
+          <Metric label="Earned / day" value={Math.round(analytics.avgEarnedPerDay)} />
+          <Metric label="Sink ratio" value={analytics.sinkRatio} decimals={2} />
+          <Metric label="Revenue (pETH)" value={analytics.revenueEth} decimals={2} />
+        </div>
+      )}
+      {analytics && analytics.bySource.length > 0 && (
+        <div className="text-[11px] text-zinc-500">
+          Top sources:{" "}
+          {analytics.bySource.slice(0, 6).map((s) => `${s.label} ${Math.round(s.amount)}`).join(" · ")}
+        </div>
+      )}
+
+      {/* Reward rules */}
+      <div>
+        <h4 className="mb-1 text-xs font-black uppercase tracking-wide text-amber-300/80">Reward sources</h4>
+        <div className="space-y-1">
+          {b.rules.map((r, i) => (
+            <div key={r.source} className="flex flex-wrap items-center gap-2 rounded bg-zinc-950/40 px-2 py-1.5 text-xs">
+              <label className="flex items-center gap-1">
+                <input type="checkbox" checked={r.enabled} onChange={(e) => setRule(i, { enabled: e.target.checked })} />
+                <span className="w-32 font-bold text-zinc-300">{r.label}</span>
+              </label>
+              <span className="text-zinc-600">🍔</span>
+              <input
+                type="number"
+                value={String(r.amount)}
+                onChange={(e) => setRule(i, { amount: Number(e.target.value) })}
+                className="w-16 rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 font-mono"
+              />
+              <label className="flex items-center gap-1 text-zinc-500">
+                cooldown(s)
+                <input
+                  type="number"
+                  value={String(r.cooldownSec)}
+                  onChange={(e) => setRule(i, { cooldownSec: Number(e.target.value) })}
+                  className="w-20 rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 font-mono"
+                />
+              </label>
+              <label className="flex items-center gap-1 text-zinc-500">
+                <input type="checkbox" checked={r.repeatable} onChange={(e) => setRule(i, { repeatable: e.target.checked })} />
+                repeatable
+              </label>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* XP milestones + one-time firsts */}
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div>
+          <h4 className="mb-1 text-xs font-black uppercase tracking-wide text-amber-300/80">XP-level rewards</h4>
+          <div className="space-y-1">
+            {b.xpMilestones.map((m, i) => (
+              <div key={m.level} className="flex items-center gap-2 rounded bg-zinc-950/40 px-2 py-1 text-xs">
+                <input type="checkbox" checked={m.enabled} onChange={(e) => setXp(i, { enabled: e.target.checked })} />
+                <span className="w-16 text-zinc-400">Lv {m.level}</span>
+                <span className="text-zinc-600">🍔</span>
+                <input
+                  type="number"
+                  value={String(m.amount)}
+                  onChange={(e) => setXp(i, { amount: Number(e.target.value) })}
+                  className="w-16 rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 font-mono"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div>
+          <h4 className="mb-1 text-xs font-black uppercase tracking-wide text-amber-300/80">One-time milestones</h4>
+          <div className="space-y-1">
+            {b.oneTimeMilestones.map((m, i) => (
+              <div key={m.id} className="flex items-center gap-2 rounded bg-zinc-950/40 px-2 py-1 text-xs">
+                <input type="checkbox" checked={m.enabled} onChange={(e) => setOnce(i, { enabled: e.target.checked })} />
+                <span className="w-28 truncate text-zinc-400" title={m.label}>{m.label}</span>
+                <span className="text-zinc-600">🍔</span>
+                <input
+                  type="number"
+                  value={String(m.amount)}
+                  onChange={(e) => setOnce(i, { amount: Number(e.target.value) })}
+                  className="w-16 rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 font-mono"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Revenue allocation */}
+      <div>
+        <h4 className="mb-1 text-xs font-black uppercase tracking-wide text-amber-300/80">
+          Purchase revenue split{" "}
+          <span className={Math.abs(allocTotal - 1) < 0.001 ? "text-zinc-600" : "text-red-400"}>
+            (sum {(allocTotal * 100).toFixed(0)}%)
+          </span>
+        </h4>
+        <div className="flex flex-wrap gap-2">
+          {BURGER_REVENUE_DESTS.map((d) => (
+            <label key={d.key} className="flex flex-col gap-1 text-[11px] text-zinc-500">
+              {d.label}
+              <input
+                type="number"
+                step="0.05"
+                value={String(b.revenueAllocation[d.key] ?? 0)}
+                onChange={(e) => set({ revenueAllocation: { ...b.revenueAllocation, [d.key]: Number(e.target.value) } })}
+                className="w-20 rounded border border-zinc-700 bg-zinc-900 px-1.5 py-0.5 font-mono text-sm"
+              />
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button
+          disabled={!draft}
+          onClick={() => void act("/api/admin/settings", { burger: b }).then(() => setDraft(null))}
+          className="rounded bg-amber-400 px-3 py-1.5 text-xs font-black text-zinc-950 hover:bg-amber-300 disabled:opacity-40"
+        >
+          Save Burger economy
+        </button>
+        <span className="text-[11px] text-zinc-600">Placeholder sources (Pit, Collection, Loot Box…) stay disabled until their systems ship.</span>
+      </div>
+
+      {/* Manual grant / remove */}
+      <div className="rounded bg-zinc-950/40 p-2">
+        <h4 className="mb-1 text-xs font-black uppercase tracking-wide text-amber-300/80">Grant / remove Burgers</h4>
+        <div className="flex flex-wrap items-center gap-2 text-xs">
+          <input
+            value={grantAddr}
+            onChange={(e) => setGrantAddr(e.target.value)}
+            placeholder="0x wallet"
+            className="w-64 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono"
+          />
+          <input
+            type="number"
+            value={grantAmt}
+            onChange={(e) => setGrantAmt(e.target.value)}
+            className="w-24 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono"
+            title="negative removes"
+          />
+          <input
+            value={grantNote}
+            onChange={(e) => setGrantNote(e.target.value)}
+            placeholder="note (optional)"
+            className="w-40 rounded border border-zinc-700 bg-zinc-900 px-2 py-1"
+          />
+          <button onClick={() => void grant()} className="rounded bg-zinc-700 px-3 py-1 font-bold text-zinc-100 hover:bg-zinc-600">
+            Apply
+          </button>
+          {grantMsg && <span className="text-zinc-400">{grantMsg}</span>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Metric({ label, value, decimals = 0 }: { label: string; value: number; decimals?: number }) {
+  return (
+    <div className="rounded-lg bg-zinc-950/40 p-2 text-center">
+      <div className="font-mono text-lg font-black text-amber-200">
+        {decimals ? value.toFixed(decimals) : Math.round(value).toLocaleString()}
+      </div>
+      <div className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</div>
     </div>
   );
 }
@@ -1190,6 +1439,13 @@ export default function AdminPage() {
         <section>
           <h2 className="mb-2 font-bold">🕳️ The Pit (Swarm AI)</h2>
           <PitOpsPanel settings={overview.settings.pit} act={act} />
+        </section>
+      )}
+
+      {overview && (
+        <section>
+          <h2 className="mb-2 font-bold">🍔 Burger Economy Manager</h2>
+          <BurgerOpsPanel settings={overview.settings.burger} act={act} adminKey={key} />
         </section>
       )}
 

@@ -41,6 +41,8 @@ export class Hub {
     store.onActivity = (event) => this.broadcast(GLOBAL_ROOM, { type: "activity", event });
     // XP earned streams to just that player's sockets (the +XP drop-in overlay).
     store.onXp = (address, e) => this.sendToUser(address, { type: "xp", ...e });
+    // Burgers earned stream to that player's sockets (the 🍔 toast + count-up).
+    store.onBurger = (address, e) => this.sendToUser(address, { type: "burger", ...e });
   }
 
   attach(server: Server): void {

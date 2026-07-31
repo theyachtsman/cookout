@@ -275,3 +275,46 @@ difference is the win condition and the reward model.
   daily/weekly quests, cosmetic unlocks (earned via achievements, never random
   drops), and Trial leaderboards (Wins / XP / Streak / PnL). No prize pool, no payout
   multiplier, no Cook Out Balance profit.
+
+## 19. Burger economy ($BURG) — second progression currency
+
+$BURG (displayed 🍔 $BURG) is a **permanent account currency** and a second
+progression layer beside XP: XP measures progression, Burgers are **earned
+purchasing power** toward future Recruit Crates and the Flame Goon Squad
+collection. It is stored independently of XP, Cook Out balance, jackpot, and
+wallet balances, and never expires. It is a **long-term retention mechanic**, not
+a gameplay reward — front-loaded onboarding that eases into a steady, sustainable
+pace via milestone spacing (no hard caps).
+
+The whole economy is **data-driven**: every reward amount, cooldown,
+repeatability, seasonal window, XP-level ladder, one-time milestone, and revenue
+split lives in admin settings (`OpsSettings.burger`) and is editable live from the
+**Burger Economy Manager** with no code change. Gameplay code never hardcodes a
+reward value — systems call the award service (`apps/server/src/burger.ts`).
+
+- **Earn sources (configurable rules).** Match completion (participating until the
+  round ends — never trading, volume, or fees), Daily/Weekly quest completion, coin
+  launch, coin graduation, referral, XP-level milestones (Lv 2/5/10/20/30/50…), and
+  one-time firsts (First Match/Launch/Graduation/Daily/Weekly/Referral/Collection).
+  **Placeholder hooks** ship disabled for Pit, Collection, Loot Box, Season Pass,
+  Marketplace, and NFT rewards — future systems call the same service.
+- **Never rewarded.** Trade count, trade volume, trading fees paid, wallet size, or
+  portfolio value — to avoid wash-trading and unhealthy incentives.
+- **Purchasing (no spending yet).** Players buy $BURG with Cook Out balance at a
+  configurable rate (`burgersPerEth`). Spending sinks (Recruit Crates, etc.) come in
+  later phases; the balance and hooks exist now.
+- **Revenue allocation.** Each purchase is split by a configurable allocation across
+  Weekly Jackpot, Coin Creator Rewards, Referral Rewards, Pit Prize Pools, and House
+  Revenue, and every slice is written to a revenue ledger for future accounting
+  dashboards. Only the jackpot slice has a live sink today (it feeds the weekly pot);
+  the rest accrue into named buckets pending their systems. New destinations are easy
+  to add.
+- **Feedback.** Every award fires an animated 🍔 toast (slide-in, count-up, chime,
+  queued, never interrupting gameplay) and the balance — always shown beside the Cook
+  Out balance — counts up with a glow/pulse. A full Burger transaction history
+  (source, amount, running balance, category, reference) lives in the wallet.
+- **Analytics.** The manager surfaces economy health: total earned/purchased,
+  circulating, holders, average per player, earned per day, sink ratio (purchased ÷
+  earned), top sources, and top earners.
+- **Admin.** Enable/disable, purchase rate, per-source rules, XP-milestone ladder,
+  one-time milestones, revenue split, manual grant/remove, and analytics — all live.

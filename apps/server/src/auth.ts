@@ -2,6 +2,7 @@ import { randomBytes, timingSafeEqual } from "node:crypto";
 import type { NextFunction, Request, Response } from "express";
 import { verifyMessage } from "viem";
 import { SESSION_TTL_MS, type Store } from "./store.js";
+import { awardBurger, awardBurgerOneTime } from "./burger.js";
 
 /**
  * Wallet-based auth (spec §11): the only identity is an EVM address.
@@ -106,7 +107,12 @@ export function createSessionForAddress(
   const referrer = referralCode ? store.userByReferralCode(referralCode) : undefined;
   const isNew = !store.users.has(key);
   store.getOrCreateUser(key, isNew ? referrer?.address : undefined);
-  if (isNew && referrer && referrer.address !== key) referrer.referralCount++;
+  if (isNew && referrer && referrer.address !== key) {
+    referrer.referralCount++;
+    // Burger economy: reward the referrer + their First Referral milestone.
+    awardBurger(store, referrer.address, "referral", { ref: key });
+    awardBurgerOneTime(store, referrer.address, "first_referral");
+  }
   const token = randomBytes(24).toString("hex");
   store.sessions.set(token, { address: key, expiresAt: Date.now() + SESSION_TTL_MS });
   return { token, isNew };

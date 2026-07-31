@@ -902,7 +902,150 @@ export type LedgerKind =
   /** The Pit: creator's share of Pit fees for their match (credit). */
   | "pit_creator"
   /** The Pit: Flame Trial entry stake (debit — a challenge cost, no prize pool). */
-  | "pit_trial";
+  | "pit_trial"
+  /** Burger economy: Cook Out balance spent buying $BURG (debit). */
+  | "burger_purchase";
+/* ========================================================================== *
+ *  Burger economy ($BURG) — a second progression currency (earned power).
+ *  Fully data-driven: every reward amount, cooldown, and revenue split lives in
+ *  admin settings (BurgerSettings), never hardcoded in gameplay code. Balances
+ *  are permanent and stored independently from XP / Cook Out balance / jackpot.
+ * ========================================================================== */
+
+/** Where a Burger award came from. Placeholder sources (collection, pit,
+ *  loot_box, season, marketplace, nft) have reward hooks now but no gameplay
+ *  behind them yet — future systems call the same award service. */
+export type BurgerSource =
+  | "match_complete"
+  | "xp_milestone"
+  | "daily_quest"
+  | "weekly_quest"
+  | "coin_launch"
+  | "coin_graduation"
+  | "one_time"
+  | "seasonal"
+  | "collection"
+  | "pit"
+  | "loot_box"
+  | "season_pass"
+  | "referral"
+  | "marketplace"
+  | "nft"
+  | "admin_grant"
+  | "purchase"
+  | "adjustment"
+  | "refund";
+
+/** The category a Burger transaction rolls up to (for the history filter). */
+export type BurgerCategory =
+  | "reward"
+  | "purchase"
+  | "adjustment"
+  | "refund"
+  | "admin_grant"
+  | "spend";
+
+/** One movement in a player's Burger balance, newest last. */
+export interface BurgerTxn {
+  id: string;
+  at: number;
+  source: BurgerSource;
+  category: BurgerCategory;
+  /** Signed $BURG change: positive credits, negative debits. */
+  amount: number;
+  /** $BURG balance immediately after this entry. */
+  balanceAfter: number;
+  /** Human label shown in the toast + history ("Match Complete"). */
+  label: string;
+  /** Optional reference id (roundId, milestone id, purchase id, …). */
+  ref?: string;
+}
+
+/** A configurable reward rule — the backend is the sole authority on eligibility,
+ *  amount, cooldown, repeatability, and seasonal availability. */
+export interface BurgerRewardRule {
+  source: BurgerSource;
+  label: string;
+  /** $BURG paid when the rule fires. */
+  amount: number;
+  enabled: boolean;
+  /** False = claimable once per player (a one-time source). */
+  repeatable: boolean;
+  /** Minimum seconds between awards of this source per player (0 = none). */
+  cooldownSec: number;
+  /** If set, the rule only pays while now < seasonalUntil (epoch ms). */
+  seasonalUntil?: number;
+}
+
+/** A Burger reward gated on reaching an XP level. */
+export interface BurgerXpMilestone {
+  level: number;
+  amount: number;
+  enabled: boolean;
+}
+
+/** A one-time Burger milestone (First Match, First Launch, …), per player. */
+export interface BurgerOneTimeMilestone {
+  id: string;
+  label: string;
+  amount: number;
+  enabled: boolean;
+}
+
+/** Where Burger purchase revenue is routed (fractions that sum to ~1). */
+export type BurgerRevenueDest = "jackpot" | "creator" | "referral" | "pit" | "house";
+
+/** One line of the revenue ledger: a slice of a purchase routed to a dest. */
+export interface BurgerRevenueEntry {
+  id: string;
+  at: number;
+  /** The whole purchase (pETH spent) this slice came from. */
+  purchaseEth: number;
+  dest: BurgerRevenueDest;
+  /** Fraction of the purchase this slice represents. */
+  pct: number;
+  /** pETH routed to the dest. */
+  amount: number;
+  /** Purchase id this slice belongs to. */
+  ref: string;
+}
+
+/** The admin-tunable Burger economy (see BURGER_DEFAULTS). */
+export interface BurgerSettings {
+  enabled: boolean;
+  /** $BURG minted per 1 pETH of Cook Out balance spent on a purchase. */
+  burgersPerEth: number;
+  /** Per-source reward rules, keyed by source. */
+  rules: BurgerRewardRule[];
+  /** XP-level reward ladder. */
+  xpMilestones: BurgerXpMilestone[];
+  /** One-time milestone rewards. */
+  oneTimeMilestones: BurgerOneTimeMilestone[];
+  /** Purchase revenue split by destination (fractions, normalized on use). */
+  revenueAllocation: Record<BurgerRevenueDest, number>;
+}
+
+/** Aggregate economy-health analytics for the admin dashboard. */
+export interface BurgerAnalytics {
+  totalEarned: number;
+  totalPurchased: number;
+  totalSpent: number;
+  circulating: number;
+  holders: number;
+  avgPerPlayer: number;
+  avgEarnedPerDay: number;
+  /** Earned $BURG by source, biggest first. */
+  bySource: { source: BurgerSource; label: string; amount: number }[];
+  /** Earned $BURG per UTC day (dayKey → amount), recent first. */
+  daily: { day: string; amount: number }[];
+  /** Top earners by lifetime earned $BURG. */
+  topEarners: { address: string; displayName?: string; earned: number }[];
+  /** Purchased ÷ earned — a rough inflation gauge (sink readiness). */
+  sinkRatio: number;
+  revenueEth: number;
+}
+
+/** A Cook Out balance movement, for the wallet's history ledger. */
 export interface LedgerEntry {
   id: string;
   at: number;
@@ -969,6 +1112,9 @@ export type ServerEvent =
   | { type: "ping"; ping: PingEntry }
   /** XP just landed — drives the +XP drop-in overlay. Sent only to that user. */
   | { type: "xp"; amount: number; total: number; level: number; source?: string }
+  /** Burgers just landed — drives the 🍔 toast + balance count-up. Sent only to
+   *  that user. `balance` is the running $BURG total after the award. */
+  | { type: "burger"; amount: number; balance: number; source: BurgerSource; label: string }
   | { type: "error"; message: string };
 
 /** An @-mention of a player in chat, shown in their Pings feed. */

@@ -842,6 +842,20 @@ function register(): void {
     },
   });
 
+  // Burger earned: a warm, cheerful "plop + chime" — a soft tap into a quick
+  // rising bell with a light sub for a satisfying, non-intrusive reward pop.
+  R("burger.earn", {
+    category: "notify",
+    priority: 5,
+    cooldownMs: 70,
+    render: (c) => {
+      tap(c, { gain: 0.7, bright: 1.05 });
+      fm(c, C5, { dur: 0.16, gain: 0.09, ratio: 2, index: 80, send: 0.26 });
+      fm(c, E5, { at: 0.07, dur: 0.28, gain: 0.09, ratio: 2, index: 80, send: 0.32 });
+      sub(c, A2, { dur: 0.12, gain: 0.07, drop: 70, dropDur: 0.06, drive: 1.4 });
+    },
+  });
+
   // ---------------- Leaderboard (subtle) ----------------
   R("leaderboard.firstPlace", {
     category: "notify",

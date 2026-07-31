@@ -9,6 +9,7 @@ import {
 } from "@cookout/shared";
 import type { PlayerMeta } from "./engine.js";
 import { accrueJackpot } from "./jackpot.js";
+import { awardBurger, awardBurgerOneTime } from "./burger.js";
 import type { Store } from "./store.js";
 
 /**
@@ -93,6 +94,10 @@ export function evaluateRoundEnd(ctx: {
     user.stats.roundsPlayed++;
     store.trackActivity(addr, "rounds_played", 1, now);
     store.bumpPlayStreak(addr, now); // daily play streak (idempotent per day)
+    // Burger economy: reward completing the match (not trading), plus the
+    // one-time First Match milestone. Bots are ignored inside the service.
+    awardBurger(store, addr, "match_complete", { ref: round.id, now });
+    awardBurgerOneTime(store, addr, "first_match", now);
     user.history.push({
       roundId: round.id,
       name: round.token.name,
@@ -233,6 +238,9 @@ export function evaluateRoundEnd(ctx: {
     if (round.graduated) {
       store.addXp(round.creatorAddress, XP_AWARDS.launched_graduate);
       store.grantAchievement(round.creatorAddress, "graduate_launcher");
+      // Burger economy: graduating a coin pays the creator + First Graduation.
+      awardBurger(store, round.creatorAddress, "coin_graduation", { ref: round.id, now });
+      awardBurgerOneTime(store, round.creatorAddress, "first_graduation", now);
     }
     if (creator.referredBy) {
       const referrer = store.users.get(creator.referredBy);

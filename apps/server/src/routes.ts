@@ -31,6 +31,7 @@ import {
   type TokenConcept,
 } from "@cookout/shared";
 import { enterPit, pitEntryCost, withdrawPit } from "./pit-pools.js";
+import { awardBurger, awardBurgerOneTime, purchaseBurgers, adminAdjustBurgers, burgerAnalytics } from "./burger.js";
 import { linkDeepLink } from "./telegram/index.js";
 import {
   createSessionForAddress,
@@ -389,6 +390,54 @@ export function createApp(
     wrap((req, res) => {
       const u = store.getOrCreateUser(req.userAddress!);
       res.json({ ledger: [...(u.ledger ?? [])].reverse() });
+    }),
+  );
+
+  // ---- Burger economy ($BURG) ----
+  /** The caller's Burger balance, lifetime stats, purchase rate, and recent
+   *  transactions (newest first). Drives the Burger balance UI + shop. */
+  app.get(
+    "/api/me/burger",
+    auth,
+    wrap((req, res) => {
+      const u = store.getOrCreateUser(req.userAddress!);
+      const cfg = store.settings.burger;
+      res.json({
+        enabled: cfg.enabled,
+        balance: u.burgerBalance ?? 0,
+        earned: u.burgerEarned ?? 0,
+        purchased: u.burgerPurchased ?? 0,
+        spent: u.burgerSpent ?? 0,
+        burgersPerEth: cfg.burgersPerEth,
+        arenaBalance: u.arenaBalance ?? 0,
+        ledger: [...(u.burgerLedger ?? [])].reverse().slice(0, 100),
+      });
+    }),
+  );
+
+  /** The caller's full Burger transaction history, newest first. */
+  app.get(
+    "/api/me/burger/ledger",
+    auth,
+    wrap((req, res) => {
+      const u = store.getOrCreateUser(req.userAddress!);
+      res.json({ ledger: [...(u.burgerLedger ?? [])].reverse() });
+    }),
+  );
+
+  /** Buy $BURG with Cook Out balance. Body: { eth }. Routes revenue by the
+   *  configured allocation. Returns the new balances. */
+  app.post(
+    "/api/me/burger/purchase",
+    auth,
+    wrap((req, res) => {
+      const { eth } = req.body as { eth?: number };
+      try {
+        const out = purchaseBurgers(store, req.userAddress!, Number(eth));
+        res.json({ ok: true, ...out });
+      } catch (e) {
+        throw new Err(400, (e as Error).message);
+      }
     }),
   );
 
@@ -892,6 +941,7 @@ export function createApp(
         selfServeUnban,
         rugBanHours,
         pit,
+        burger,
       } = req.body as {
         autoSchedule?: boolean;
         tier?: RiskTier;
@@ -903,6 +953,7 @@ export function createApp(
         selfServeUnban?: boolean;
         rugBanHours?: number[];
         pit?: Partial<import("./store.js").PitSettings>;
+        burger?: Partial<import("@cookout/shared").BurgerSettings>;
       };
       if (autoSchedule !== undefined) store.settings.autoSchedule = !!autoSchedule;
       if (bots !== undefined) store.settings.bots = !!bots;
@@ -984,8 +1035,86 @@ export function createApp(
             .sort((a, b) => a.minUsd - b.minUsd)
             .slice(0, 8);
       }
+      if (burger && typeof burger === "object") {
+        const b = store.settings.burger;
+        const num = (v: unknown, lo: number, hi: number, dflt: number) =>
+          Math.max(lo, Math.min(hi, Number.isFinite(Number(v)) ? Number(v) : dflt));
+        if (burger.enabled !== undefined) b.enabled = !!burger.enabled;
+        if (burger.burgersPerEth !== undefined) b.burgersPerEth = num(burger.burgersPerEth, 0, 1_000_000, b.burgersPerEth);
+        if (Array.isArray(burger.rules))
+          b.rules = burger.rules
+            .filter((r) => r && typeof r === "object" && typeof r.source === "string")
+            .map((r) => ({
+              source: r.source,
+              label: String(r.label ?? r.source).slice(0, 40),
+              amount: Math.round(num(r.amount, 0, 1_000_000, 0)),
+              enabled: !!r.enabled,
+              repeatable: r.repeatable !== false,
+              cooldownSec: Math.round(num(r.cooldownSec, 0, 31_536_000, 0)),
+              ...(Number.isFinite(Number(r.seasonalUntil)) && Number(r.seasonalUntil) > 0
+                ? { seasonalUntil: Number(r.seasonalUntil) }
+                : {}),
+            }))
+            .slice(0, 40);
+        if (Array.isArray(burger.xpMilestones))
+          b.xpMilestones = burger.xpMilestones
+            .filter((m) => m && typeof m === "object" && Number.isFinite(Number(m.level)))
+            .map((m) => ({
+              level: Math.max(1, Math.round(Number(m.level))),
+              amount: Math.round(num(m.amount, 0, 1_000_000, 0)),
+              enabled: !!m.enabled,
+            }))
+            .sort((a, z) => a.level - z.level)
+            .slice(0, 40);
+        if (Array.isArray(burger.oneTimeMilestones))
+          b.oneTimeMilestones = burger.oneTimeMilestones
+            .filter((m) => m && typeof m === "object" && typeof m.id === "string")
+            .map((m) => ({
+              id: String(m.id).slice(0, 40),
+              label: String(m.label ?? m.id).slice(0, 40),
+              amount: Math.round(num(m.amount, 0, 1_000_000, 0)),
+              enabled: !!m.enabled,
+            }))
+            .slice(0, 40);
+        if (burger.revenueAllocation && typeof burger.revenueAllocation === "object") {
+          for (const key of ["jackpot", "creator", "referral", "pit", "house"] as const) {
+            const v = (burger.revenueAllocation as Record<string, unknown>)[key];
+            if (v !== undefined) b.revenueAllocation[key] = num(v, 0, 1, b.revenueAllocation[key]);
+          }
+        }
+      }
       store.logAdmin("settings", JSON.stringify(store.settings));
       res.json(store.settings);
+    }),
+  );
+
+  // ---- admin: Burger economy management ----
+  /** Economy-health analytics for the Burger Economy Manager. */
+  app.get(
+    "/api/admin/burger/analytics",
+    admin,
+    wrap((_req, res) => {
+      res.json({
+        analytics: burgerAnalytics(store),
+        revenueBuckets: store.burgerRevenueBuckets,
+        revenue: [...store.burgerRevenueLedger].reverse().slice(0, 200),
+      });
+    }),
+  );
+
+  /** Grant (positive) or remove (negative) Burgers from a player. Body:
+   *  { address, amount, note? }. Also accepts a source reward simulation. */
+  app.post(
+    "/api/admin/burger/grant",
+    admin,
+    wrap((req, res) => {
+      const { address, amount, note } = req.body as { address?: string; amount?: number; note?: string };
+      if (!address || !/^0x[0-9a-fA-F]{40}$/.test(address)) throw new Err(400, "a valid wallet address is required (0x…)");
+      const amt = Number(amount);
+      if (!Number.isFinite(amt) || amt === 0) throw new Err(400, "a nonzero amount is required");
+      const balance = adminAdjustBurgers(store, address.toLowerCase(), amt, String(note ?? "").slice(0, 60));
+      store.logAdmin("burger_grant", `${amt > 0 ? "+" : ""}${Math.round(amt)} $BURG → ${address} (${note ?? ""})`);
+      res.json({ ok: true, balance });
     }),
   );
 
@@ -1221,6 +1350,9 @@ export function createApp(
         createdAt: Date.now(),
       };
       store.concepts.set(concept.id, concept);
+      // Burger economy: launching a coin pays the creator + First Launch.
+      awardBurger(store, creator.address, "coin_launch", { ref: concept.id });
+      awardBurgerOneTime(store, creator.address, "first_launch");
       store.logAdmin(
         "vetting",
         `concept ${concept.id} (${concept.symbol}, ${tier}) accepted: template-only deploy, rug-flag check passed, cooldown ok`,
@@ -2281,6 +2413,7 @@ function publicProfile(u: StoredUser, self = false) {
     ...base,
     paperBalance,
     arenaBalance: arenaBalance ?? 0,
+    burgerBalance: u.burgerBalance ?? 0,
     referralCode,
     referredBy,
     referralCount,

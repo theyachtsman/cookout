@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { DEFAULT_CHAIN_ID, arenaBalance, hasArenaWallet } from "../lib/arenaWallet";
 import { useChainOnly } from "../lib/chainOnly";
 import { useSession } from "../lib/session";
+import { BurgerBalance } from "./BurgerBalance";
 
 export function WalletButton() {
   const { profile, signIn, signOut, busy, authError, clearAuthError, promptPlayNow } = useSession();
@@ -68,6 +69,8 @@ export function WalletButton() {
               </span>
             </span>
           )}
+          {/* 🍔 $BURG — always visible beside the Cook Out balance. */}
+          <BurgerBalance initial={profile.burgerBalance ?? 0} />
           <span className="text-xs text-zinc-500">▾</span>
         </button>
         {open && (

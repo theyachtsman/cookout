@@ -12,6 +12,7 @@ import { api, getToken, wsUrl } from "./api";
 import { useSession } from "./session";
 import { playPing } from "./sfx";
 import { emitXp } from "./xpBus";
+import { emitBurger } from "./burgerBus";
 
 /**
  * The persistent social layer.
@@ -182,6 +183,14 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
               total: ev.total as number,
               level: ev.level as number,
               source: ev.source as string | undefined,
+            });
+          } else if (ev.type === "burger") {
+            // Burgers just landed for you — hand to the 🍔 toast + balance count-up.
+            emitBurger({
+              amount: ev.amount as number,
+              balance: ev.balance as number,
+              source: ev.source as string,
+              label: ev.label as string,
             });
           } else if (ev.type === "ping") {
             // Someone @-mentioned you: sound, unread bump, top of the feed.

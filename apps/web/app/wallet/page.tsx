@@ -19,6 +19,7 @@ import { fundArenaWallet } from "../../lib/chainTx";
 import { fmtAmount, useDenomPref, useEthUsd } from "../../lib/ethUsd";
 import { DenomToggle } from "../../components/DenomToggle";
 import { ExpandableRows } from "../../components/ProfileUI";
+import { BurgerWallet } from "../../components/BurgerWallet";
 import { useSession } from "../../lib/session";
 import { playDeposit } from "../../lib/sfx";
 
@@ -53,6 +54,7 @@ const LEDGER_META: Record<LedgerKind, { icon: string; label: string; credit: boo
   pit_reward: { icon: "🏆", label: "Pit reward", credit: true },
   pit_creator: { icon: "💠", label: "Pit creator reward", credit: true },
   pit_trial: { icon: "🔥", label: "Flame Trial entry", credit: false },
+  burger_purchase: { icon: "🍔", label: "Burger purchase", credit: false },
 };
 
 export default function WalletPage() {
@@ -273,6 +275,8 @@ function PaperWalletPage() {
           />
         )}
       </div>
+
+      <BurgerWallet />
     </div>
   );
 }

@@ -53,8 +53,15 @@ import {
   type PitFeeSplit,
   type HouseSpecialKind,
   type TrialTier,
+  type BurgerTxn,
+  type BurgerSource,
+  type BurgerRevenueEntry,
+  type BurgerRevenueDest,
+  type BurgerSettings,
   PIT_DEFAULTS,
+  BURGER_DEFAULTS,
 } from "@cookout/shared";
+import { awardBurger, awardBurgerOneTime, awardBurgerXpMilestones } from "./burger.js";
 
 /** Sessions outlive deploys but not this window (see snapshot comment). */
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -164,6 +171,20 @@ export interface StoredUser extends UserProfile {
   history: RoundHistoryEntry[];
   referralCount: number;
   referralEarnings: number;
+  // ---- Burger economy ($BURG) — permanent, independent of every other balance.
+  /** Current spendable Burger balance. */
+  burgerBalance?: number;
+  /** Burger transaction history (newest last), capped. */
+  burgerLedger?: BurgerTxn[];
+  /** Award bookkeeping: "once:<id>" / "xp:<level>" claim stamps and
+   *  "cd:<source>" cooldown stamps, each an epoch-ms timestamp. */
+  burgerClaims?: Record<string, number>;
+  /** Lifetime Burgers earned (rewards only) — analytics + top earners. */
+  burgerEarned?: number;
+  /** Lifetime Burgers purchased. */
+  burgerPurchased?: number;
+  /** Lifetime Burgers spent (future spending sinks). */
+  burgerSpent?: number;
 }
 
 /**
@@ -229,6 +250,8 @@ export class Store {
     // The Pit economy + Swarm knobs, all live-editable. Deep-copied from the
     // shared defaults so admin edits never mutate the shared constant.
     pit: freshPitSettings(),
+    // The Burger economy ($BURG), fully live-editable (see freshBurgerSettings).
+    burger: freshBurgerSettings(),
   };
   /** Live ETH/USD, refreshed by the price feed; used to peg the $40k bond. */
   ethUsd = DEFAULT_ETH_USD;
@@ -254,6 +277,66 @@ export class Store {
     const wk = weekKey(now);
     if (volume > 0) this.weeklyVolume[wk] = (this.weeklyVolume[wk] ?? 0) + volume;
     if (fees > 0) this.weeklyFees[wk] = (this.weeklyFees[wk] ?? 0) + fees;
+  }
+
+  // ---- Burger economy ($BURG) site-wide accounting -----------------------
+  /** Purchase-revenue ledger: one line per allocation slice, newest last. */
+  burgerRevenueLedger: BurgerRevenueEntry[] = [];
+  /** Lifetime pETH routed to each revenue destination (cumulative accounting). */
+  burgerRevenueBuckets: Record<BurgerRevenueDest, number> = {
+    jackpot: 0,
+    creator: 0,
+    referral: 0,
+    pit: 0,
+    house: 0,
+  };
+  /** Lifetime purchase revenue routed (pETH) — headline stat. */
+  burgerRevenueEth = 0;
+  /** Site-wide Burgers earned by source (analytics). */
+  burgerBySource: Partial<Record<BurgerSource, number>> = {};
+  /** Site-wide Burgers earned per UTC day (dayKey → amount), for the daily chart. */
+  burgerDaily: Record<string, number> = {};
+  /** Set by the hub: streams a Burger award to the earner's live sockets. */
+  onBurger: (
+    address: Address,
+    e: { amount: number; balance: number; source: BurgerSource; label: string },
+  ) => void = () => {};
+
+  /**
+   * Record a Burger balance movement in the user's history (assumes the balance
+   * is already updated). `amount` is signed. Fires the socket toast + rolls up
+   * site-wide analytics for reward credits.
+   */
+  recordBurgerTxn(
+    address: Address,
+    entry: { source: BurgerSource; category: BurgerTxn["category"]; amount: number; label: string; ref?: string },
+    now = Date.now(),
+  ): void {
+    if (entry.amount === 0) return;
+    const u = this.getOrCreateUser(address);
+    const list = (u.burgerLedger ??= []);
+    list.push({
+      id: this.id(),
+      at: now,
+      source: entry.source,
+      category: entry.category,
+      amount: entry.amount,
+      balanceAfter: u.burgerBalance ?? 0,
+      label: entry.label,
+      ...(entry.ref ? { ref: entry.ref } : {}),
+    });
+    if (list.length > 300) list.splice(0, list.length - 300);
+    // Site-wide analytics only count positive reward/grant credits as "earned".
+    if (entry.category === "reward" && entry.amount > 0) {
+      this.burgerBySource[entry.source] = (this.burgerBySource[entry.source] ?? 0) + entry.amount;
+      const dk = dayKey(now);
+      this.burgerDaily[dk] = (this.burgerDaily[dk] ?? 0) + entry.amount;
+      // Keep the daily map bounded (~120 days).
+      const days = Object.keys(this.burgerDaily);
+      if (days.length > 140) for (const k of days.sort().slice(0, days.length - 120)) delete this.burgerDaily[k];
+    }
+    if (!address.startsWith("0xb07"))
+      this.onBurger(u.address, { amount: entry.amount, balance: u.burgerBalance ?? 0, source: entry.source, label: entry.label });
   }
 
   /** arena (burner) wallet address → owner profile address. */
@@ -613,8 +696,11 @@ export class Store {
     u.xp += give;
     u.level = levelForXp(u.xp);
     u.title = titleForLevel(u.level);
-    if (u.level > beforeLevel)
+    if (u.level > beforeLevel) {
       this.pushActivity(u.address, "level_up", `reached Level ${u.level} · ${u.title}`);
+      // Burger economy: pay any newly-crossed XP-level milestones.
+      awardBurgerXpMilestones(this, u.address, u.level);
+    }
     const season = (u.seasons[this.seasonKey()] ??= { pnl: 0, xp: 0, wins: 0, trades: 0 });
     season.xp += give;
     const wk = weekKey();
@@ -728,6 +814,15 @@ export class Store {
           m.period === "daily" ? "floor" : "ceiling",
           m.period === "daily" ? "quests" : "challenges",
         );
+        // Burger economy: completing a quest pays Burgers + the first-quest
+        // milestone for that cadence.
+        if (m.period === "daily") {
+          awardBurger(this, address, "daily_quest", { ref: m.id, now });
+          awardBurgerOneTime(this, address, "first_daily", now);
+        } else {
+          awardBurger(this, address, "weekly_quest", { ref: m.id, now });
+          awardBurgerOneTime(this, address, "first_weekly", now);
+        }
       }
     }
 
@@ -915,6 +1010,11 @@ export class Store {
       weeklyVolume: this.weeklyVolume,
       weeklyFees: this.weeklyFees,
       pitCarry: this.pitCarry,
+      burgerRevenueLedger: this.burgerRevenueLedger.slice(-5000),
+      burgerRevenueBuckets: this.burgerRevenueBuckets,
+      burgerRevenueEth: this.burgerRevenueEth,
+      burgerBySource: this.burgerBySource,
+      burgerDaily: this.burgerDaily,
     };
   }
 
@@ -933,6 +1033,12 @@ export class Store {
       u.arenaBalance ??= 0;
       u.jackpotWinnings ??= 0;
       u.jackpotWins ??= [];
+      // Burger economy backfill (snapshots predating $BURG).
+      u.burgerBalance ??= 0;
+      u.burgerClaims ??= {};
+      u.burgerEarned ??= 0;
+      u.burgerPurchased ??= 0;
+      u.burgerSpent ??= 0;
       this.users.set(u.address, u);
     }
     for (const c of snap.concepts) this.concepts.set(c.id, c);
@@ -987,6 +1093,14 @@ export class Store {
     // Backfill new pitStats fields on existing players.
     for (const u of this.users.values())
       if (u.pitStats) u.pitStats = { ...emptyPitStats(), ...u.pitStats };
+    // Burger economy: ensure the settings block exists + carries new knobs on
+    // snapshots that predate it, and restore site-wide accounting.
+    this.settings.burger = { ...freshBurgerSettings(), ...(this.settings.burger ?? {}) };
+    this.burgerRevenueLedger = snap.burgerRevenueLedger ?? [];
+    this.burgerRevenueBuckets = { ...this.burgerRevenueBuckets, ...(snap.burgerRevenueBuckets ?? {}) };
+    this.burgerRevenueEth = snap.burgerRevenueEth ?? 0;
+    this.burgerBySource = snap.burgerBySource ?? {};
+    this.burgerDaily = snap.burgerDaily ?? {};
     this.reindexArena();
     this.reindexTelegram();
   }
@@ -1024,6 +1138,19 @@ export interface OpsSettings {
   telegramPinsDone?: boolean;
   /** The Pit economy + Swarm AI knobs. */
   pit: PitSettings;
+  /** The Burger economy ($BURG) — reward rules, milestones, revenue split. */
+  burger: BurgerSettings;
+}
+
+/** Deep-copied default Burger settings so admin edits never touch the const. */
+export function freshBurgerSettings(): BurgerSettings {
+  return {
+    ...BURGER_DEFAULTS,
+    rules: BURGER_DEFAULTS.rules.map((r) => ({ ...r })),
+    xpMilestones: BURGER_DEFAULTS.xpMilestones.map((m) => ({ ...m })),
+    oneTimeMilestones: BURGER_DEFAULTS.oneTimeMilestones.map((m) => ({ ...m })),
+    revenueAllocation: { ...BURGER_DEFAULTS.revenueAllocation },
+  };
 }
 
 /** Admin-tunable Pit economy and Swarm behavior (see PIT_DEFAULTS). */
@@ -1152,4 +1279,10 @@ export interface Snapshot {
   weeklyFees?: Record<string, number>;
   /** Unclaimed Pit prize pools carried into the next match. */
   pitCarry?: { prediction: number; trading: number };
+  // ---- Burger economy ($BURG) site-wide accounting ----
+  burgerRevenueLedger?: BurgerRevenueEntry[];
+  burgerRevenueBuckets?: Record<BurgerRevenueDest, number>;
+  burgerRevenueEth?: number;
+  burgerBySource?: Partial<Record<BurgerSource, number>>;
+  burgerDaily?: Record<string, number>;
 }
