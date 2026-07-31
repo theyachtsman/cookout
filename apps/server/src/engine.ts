@@ -202,6 +202,7 @@ export class RoundEngine {
       trialMinUsd: pit.trialMinUsd,
       trialMaxUsd: pit.trialMaxUsd,
       trialTiers: pit.trialTiers.map((t) => ({ ...t })),
+      trialLobbySeconds: pit.trialLobbySeconds,
       minBet: pit.minBet,
       maxBet: pit.maxBet,
       quickChips: [...pit.quickChips],
@@ -276,11 +277,20 @@ export class RoundEngine {
   armPitLobby(round: Round, now: number): boolean {
     if (round.matchType !== "pit" || round.state !== "lobby" || round.queueOpensAt) return false;
     const pit = round.pit!;
+    // Flame Trial is single-player and drives its own clock: the creator's one
+    // stake starts a quick countdown straight to live. The prediction side-pool
+    // (if enabled) fills during that window and never gates the start.
+    if (pit.trialMode) {
+      if (pit.trialParticipants < 1) return false;
+      const secs = pit.trialLobbySeconds;
+      round.queueOpensAt = now + secs * 1000;
+      this.sys(round.id, "pit_open", `Flame Trial locked in. ${PIT_AI_SHORT} lights the pit — live in ${secs}s.`);
+      this.emitState(round);
+      return true;
+    }
     const predOk = !pit.predictionMode || pit.prediction.participants >= 2;
     const tradeOk = !pit.tradingMode || pit.trading.participants >= 2;
-    // Flame Trial is single-player: one entrant is enough to start immediately.
-    const trialOk = !pit.trialMode || pit.trialParticipants >= 1;
-    if (!predOk || !tradeOk || !trialOk) return false;
+    if (!predOk || !tradeOk) return false;
     round.queueOpensAt = now + round.config.lobbySeconds * 1000;
     this.sys(
       round.id,

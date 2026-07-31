@@ -1041,6 +1041,7 @@ export interface PitSettings {
   trialMinUsd: number;
   trialMaxUsd: number;
   trialTiers: TrialTier[];
+  trialLobbySeconds: number;
 }
 
 /** Deep-copied default Pit settings so admin edits never touch the shared const. */

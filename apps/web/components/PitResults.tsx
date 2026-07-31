@@ -267,7 +267,8 @@ export function RunItBack({ round, compact = false }: { round: Round; compact?: 
   const [duration, setDuration] = useState<PitDurationKey>(round.pit?.duration ?? "standard");
   const [modes, setModes] = useState({
     prediction: round.pit?.predictionMode ?? true,
-    trading: round.pit?.tradingMode ?? true,
+    // Flame Trial is solo and can't pair with the Goons; trial wins the tie-break.
+    trading: (round.pit?.tradingMode ?? true) && !round.pit?.trialMode,
     trial: round.pit?.trialMode ?? false,
   });
   const [busy, setBusy] = useState(false);
@@ -346,12 +347,24 @@ export function RunItBack({ round, compact = false }: { round: Round; compact?: 
                       : accent === "lime"
                         ? "bg-lime-500/15 text-lime-200 ring-lime-400/50"
                         : "bg-orange-500/15 text-orange-200 ring-orange-400/50";
+                  // Flame Trial is solo: it can't run alongside Battle the Goons.
+                  const blocked = (key === "trading" && modes.trial) || (key === "trial" && modes.trading);
                   return (
                     <button
                       key={key}
-                      onClick={() => setModes((m) => ({ ...m, [key]: !m[key] }))}
+                      disabled={blocked}
+                      title={blocked ? "Flame Trial is single-player and can't run with the Goons" : undefined}
+                      onClick={() =>
+                        setModes((m) =>
+                          key === "trial"
+                            ? { ...m, trial: !m.trial, trading: !m.trial ? false : m.trading }
+                            : key === "trading"
+                              ? { ...m, trading: !m.trading, trial: !m.trading ? false : m.trial }
+                              : { ...m, [key]: !m[key] },
+                        )
+                      }
                       className={`rounded-xl p-2.5 text-xs font-black ring-1 transition ${
-                        on ? onCls : "bg-zinc-900/60 text-zinc-400 ring-white/10"
+                        blocked ? "cursor-not-allowed bg-zinc-900/30 text-zinc-600 ring-white/5 opacity-40" : on ? onCls : "bg-zinc-900/60 text-zinc-400 ring-white/10"
                       }`}
                     >
                       {on ? "✓ " : ""}

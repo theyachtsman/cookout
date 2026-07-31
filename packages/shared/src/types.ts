@@ -137,6 +137,8 @@ export interface PitConfig {
   trialMinUsd: number;
   trialMaxUsd: number;
   trialTiers: TrialTier[];
+  /** Quick countdown (seconds) from the creator's stake to live in a solo trial. */
+  trialLobbySeconds: number;
   /** Prediction betting bounds + quick chips (pETH), snapshot at launch. */
   minBet: number;
   maxBet: number;

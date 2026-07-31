@@ -653,6 +653,8 @@ export function createApp(
       };
       if (!modes.prediction && !modes.trading && !modes.trial)
         throw new Err(400, "pick at least one game mode");
+      if (modes.trial && modes.trading)
+        throw new Err(400, "Flame Trial is single-player and can't run with Battle the Goon Squad");
       const creator = store.getOrCreateUser(req.userAddress!);
       const ban = activeRugBan(creator);
       if (ban)
@@ -715,6 +717,8 @@ export function createApp(
         : { prediction: round.pit!.predictionMode, trading: round.pit!.tradingMode, trial: round.pit!.trialMode };
       if (!modes.prediction && !modes.trading && !modes.trial)
         throw new Err(400, "pick at least one game mode");
+      if (modes.trial && modes.trading)
+        throw new Err(400, "Flame Trial is single-player and can't run with Battle the Goon Squad");
       const concept = store.concepts.get(round.conceptId);
       if (!concept) throw new Err(404, "the original concept is gone");
       const pending = [...store.rounds.values()].some(
@@ -782,6 +786,8 @@ export function createApp(
       }
       if (body.trial) {
         if (!pit.trialMode) throw new Err(400, "this match has no Flame Trial");
+        if (round.creatorAddress.toLowerCase() !== addr.toLowerCase())
+          throw new Err(403, "Flame Trial is single-player: only the match creator can play it");
         const raw = Number(body.trialStake);
         if (!Number.isFinite(raw) || raw <= 0) throw new Err(400, "Flame Trial stake is required");
         const usd = raw * (store.ethUsd || 0);
@@ -960,6 +966,8 @@ export function createApp(
           p.trialRequiredPnlBps = Math.round(num(pit.trialRequiredPnlBps, -10000, 100000, p.trialRequiredPnlBps));
         if (pit.trialMinUsd !== undefined) p.trialMinUsd = num(pit.trialMinUsd, 0, 100000, p.trialMinUsd);
         if (pit.trialMaxUsd !== undefined) p.trialMaxUsd = num(pit.trialMaxUsd, p.trialMinUsd, 1000000, p.trialMaxUsd);
+        if (pit.trialLobbySeconds !== undefined)
+          p.trialLobbySeconds = Math.round(num(pit.trialLobbySeconds, 3, 300, p.trialLobbySeconds));
         if (Array.isArray(pit.trialTiers))
           p.trialTiers = pit.trialTiers
             .filter((t) => t && typeof t === "object" && Number.isFinite(Number(t.minUsd)))

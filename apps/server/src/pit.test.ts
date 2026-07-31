@@ -137,6 +137,24 @@ test("Flame Trial: objective scoring, tier XP, achievement", () => {
   assert.ok(store.getOrCreateUser(alice).achievements.includes("first_flame"));
 });
 
+test("Flame Trial: solo round arms on the creator's stake, ignoring the prediction side-pool", () => {
+  const store = new Store();
+  const engine = new RoundEngine(store, () => {});
+  store.ethUsd = 100;
+  const c = pitConcept(store);
+  c.pitModes = { prediction: true, trading: false, trial: true };
+  store.getOrCreateUser(alice).arenaBalance = 10;
+  const now = Date.now();
+  const round = engine.schedulePitRound(c, now);
+  // With no trial stake, nothing arms — the prediction side-pool never drives it.
+  assert.equal(engine.armPitLobby(round, now), false);
+  enterPit(store, round, alice, { trial: true, trialStake: 0.1 });
+  // One stake (the creator's) arms a quick countdown even with zero predictions.
+  assert.equal(round.pit!.prediction.participants, 0);
+  assert.equal(engine.armPitLobby(round, now), true);
+  assert.equal(round.queueOpensAt, now + round.pit!.trialLobbySeconds * 1000);
+});
+
 test("Pit: an unclaimed bucket funds the weekly jackpot", () => {
   const store = new Store();
   const engine = new RoundEngine(store, () => {});

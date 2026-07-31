@@ -190,6 +190,7 @@ export default function PitMatchPage() {
           stack={stack}
           ethUsd={data.ethUsd}
           fmt={fmt}
+          me={me}
           signedIn={!!profile}
           onSignIn={signIn}
           onEntered={() => {
@@ -331,6 +332,7 @@ function LobbyView({
   stack,
   ethUsd,
   fmt,
+  me,
   signedIn,
   onSignIn,
   onEntered,
@@ -340,6 +342,7 @@ function LobbyView({
   stack: number;
   ethUsd: number;
   fmt: (eth: number) => string;
+  me?: string;
   signedIn: boolean;
   onSignIn: () => void;
   onEntered: () => void;
@@ -347,7 +350,10 @@ function LobbyView({
   const pit = round.pit!;
   const predMode = pit.predictionMode;
   const tradeMode = pit.tradingMode;
-  const trialModeOn = pit.trialMode;
+  // Flame Trial is single-player: only the match creator plays it. Everyone else
+  // in a trial round can still bet the prediction pool (if it's enabled).
+  const isCreator = !!me && me === round.creatorAddress.toLowerCase();
+  const trialModeOn = pit.trialMode && isCreator;
   const peg = ethUsd > 0 ? ethUsd : 1;
   const chips = pit.quickChips ?? [0.05, 0.1, 0.25, 0.5, 1];
   const firstChip = String(chips[0] ?? pit.minBet);
@@ -452,13 +458,19 @@ function LobbyView({
     }
   };
 
+  // A Flame Trial round is solo: the creator's stake starts a quick countdown on
+  // its own, so the prediction side-pool never gates the start.
+  const isTrialRound = pit.trialMode;
   const predLeft = predMode ? Math.max(0, 2 - pit.prediction.participants) : 0;
   const tradeLeft = tradeMode ? Math.max(0, 2 - pit.trading.participants) : 0;
+  const trialLeft = isTrialRound ? Math.max(0, 1 - pit.trialParticipants) : 0;
   const needs: string[] = [];
-  const trialLeft = trialModeOn ? Math.max(0, 1 - pit.trialParticipants) : 0;
-  if (predLeft > 0) needs.push(`${predLeft} prediction`);
-  if (tradeLeft > 0) needs.push(`${tradeLeft} trader${tradeLeft === 1 ? "" : "s"}`);
-  if (trialLeft > 0) needs.push(`${trialLeft} Trial player`);
+  if (isTrialRound) {
+    if (trialLeft > 0) needs.push(isCreator ? "you to stake your Flame Trial" : "the creator to start their Flame Trial");
+  } else {
+    if (predLeft > 0) needs.push(`${predLeft} prediction`);
+    if (tradeLeft > 0) needs.push(`${tradeLeft} trader${tradeLeft === 1 ? "" : "s"}`);
+  }
 
   return (
     <div className="space-y-4">
@@ -477,11 +489,18 @@ function LobbyView({
           </>
         ) : (
           <>
-            <span className="font-bold text-amber-200">Waiting on {needs.join(" and ")} to start.</span>
+            <span className="font-bold text-amber-200">
+              {isTrialRound ? (
+                <>🔥 Single-player Flame Trial. Waiting on {needs.join(" and ")}.</>
+              ) : (
+                <>Waiting on {needs.join(" and ")} to start.</>
+              )}
+            </span>
             <span className="font-mono text-[11px] font-bold text-amber-200">
-              {predMode && <>pred {pit.prediction.participants}/2</>}
-              {predMode && tradeMode && " · "}
-              {tradeMode && <>trade {pit.trading.participants}/2</>}
+              {isTrialRound && <>trial {pit.trialParticipants}/1</>}
+              {!isTrialRound && predMode && <>pred {pit.prediction.participants}/2</>}
+              {!isTrialRound && predMode && tradeMode && " · "}
+              {!isTrialRound && tradeMode && <>trade {pit.trading.participants}/2</>}
             </span>
           </>
         )}
@@ -548,6 +567,14 @@ function LobbyView({
           </div>
           <p className="mt-2 text-[11px] text-zinc-600">
             {armed ? "The Goon Squad is warming up." : "Edit or withdraw any time until it goes live."}
+          </p>
+        </div>
+      ) : isTrialRound && !predMode && !isCreator ? (
+        <div className="rounded-2xl bg-zinc-900/40 p-6 text-center ring-1 ring-white/10">
+          <div className="text-sm font-black text-orange-300">🔥 Single-player Flame Trial</div>
+          <p className="mt-1 text-xs text-zinc-500">
+            This is the creator&apos;s solo run against the Goon Squad. There&apos;s nothing to enter — hang around to
+            watch them chase +{targetPct}%.
           </p>
         </div>
       ) : (
@@ -644,10 +671,11 @@ function LobbyView({
                   {trial ? "✓" : "+"}
                 </span>
                 <span className="flex-1">
-                  <span className="text-sm font-black text-zinc-100">🔥 Flame Trial · solo challenge</span>
+                  <span className="text-sm font-black text-zinc-100">🔥 Flame Trial · single-player</span>
                   <span className="block text-[11px] text-zinc-500">
-                    Trade a {fmt(pit.startingStack)} paper stack and finish at <b className="text-orange-300">+{targetPct}% PnL</b> to
-                    pass. Prestige only — XP, titles, badges. No cash payout.
+                    Your solo run. Trade a {fmt(pit.startingStack)} paper stack and finish at{" "}
+                    <b className="text-orange-300">+{targetPct}% PnL</b> to pass. Starts on a{" "}
+                    {pit.trialLobbySeconds ?? 15}s countdown once you stake. Prestige only — XP, titles, badges. No cash payout.
                   </span>
                 </span>
               </button>
