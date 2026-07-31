@@ -52,6 +52,7 @@ const LEDGER_META: Record<LedgerKind, { icon: string; label: string; credit: boo
   pit_trading: { icon: "🕹️", label: "Pit trading entry", credit: false },
   pit_reward: { icon: "🏆", label: "Pit reward", credit: true },
   pit_creator: { icon: "💠", label: "Pit creator reward", credit: true },
+  pit_trial: { icon: "🔥", label: "Flame Trial entry", credit: false },
 };
 
 export default function WalletPage() {

@@ -54,6 +54,7 @@ export function PitProfile({ address, pitStats: initial }: { address: string; pi
   const accuracy = ps.predictionsMade ? Math.round((ps.predictionsCorrect / ps.predictionsMade) * 100) : 0;
   const avgPnl = ps.tradingEntries ? ps.totalPnl / ps.tradingEntries : 0;
   const houseRate = ps.houseEntered ? Math.round(((ps.houseWins ?? 0) / ps.houseEntered) * 100) : 0;
+  const trialRate = ps.trialsPlayed ? Math.round(((ps.trialsWon ?? 0) / ps.trialsPlayed) * 100) : 0;
   const staked = ps.predictionStaked + ps.tradingStaked + (ps.houseStaked ?? 0);
   const roi = staked > 0 ? Math.round(((ps.totalEarnings - staked) / staked) * 100) : 0;
   const favorite = DURATIONS.reduce<PitDurationKey>(
@@ -84,6 +85,22 @@ export function PitProfile({ address, pitStats: initial }: { address: string; pi
         <StatCard label="Total earnings" value={pdotEth(ps.totalEarnings)} icon="💰" tone="text-lime-300" />
         <StatCard label="Lifetime ROI" value={`${roi >= 0 ? "+" : ""}${roi}%`} icon="♻️" tone={roi >= 0 ? "text-lime-300" : "text-red-400"} />
       </StatGrid>
+
+      {(ps.trialsPlayed ?? 0) > 0 && (
+        <div>
+          <SectionTitle title="🔥 Flame Trial" />
+          <StatGrid>
+            <StatCard label="Trials played" value={ps.trialsPlayed ?? 0} icon="🔥" />
+            <StatCard label="Trials won" value={ps.trialsWon ?? 0} icon="🏆" tone="text-orange-300" />
+            <StatCard label="Win rate" value={`${trialRate}%`} icon="🎯" hint={`${ps.trialsWon ?? 0}/${ps.trialsPlayed ?? 0}`} />
+            <StatCard label="Trial XP" value={(ps.trialXp ?? 0).toLocaleString()} icon="⚡" tone="text-lime-300" />
+            <StatCard label="Highest Trial PnL" value={`+${Math.round((ps.highestTrialPnlPct ?? 0) * 100)}%`} icon="📈" tone="text-lime-300" />
+            <StatCard label="Highest tier" value={ps.highestTrialTier || "—"} icon="🥇" tone="text-orange-300" />
+            <StatCard label="Best win streak" value={ps.bestTrialWinStreak ?? 0} icon="🔥" />
+            <StatCard label="Current streak" value={ps.trialWinStreak ?? 0} icon="🔥" tone="text-orange-300" />
+          </StatGrid>
+        </div>
+      )}
 
       <div>
         <SectionTitle title="Duration records" />

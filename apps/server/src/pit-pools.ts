@@ -28,9 +28,19 @@ export function tradingStakeOf(round: Round, entry: PitEntry): number {
   return entry.trading ? (entry.tradingStake ?? pit.tradingFee) : 0;
 }
 
-/** Total pETH an entry costs (main + House Special + trading buy-in). */
+/** The Flame Trial entry stake for an entry (a challenge cost, no prize pool). */
+export function trialStakeOf(_round: Round, entry: PitEntry): number {
+  return entry.trial ? (entry.trialStake ?? 0) : 0;
+}
+
+/** Total pETH an entry costs (predictions + trading buy-in + Trial stake). */
 export function pitEntryCost(round: Round, entry: PitEntry): number {
-  return mainStakeOf(round, entry) + houseStakeOf(round, entry) + tradingStakeOf(round, entry);
+  return (
+    mainStakeOf(round, entry) +
+    houseStakeOf(round, entry) +
+    tradingStakeOf(round, entry) +
+    trialStakeOf(round, entry)
+  );
 }
 
 /** Refund and remove a player's current entry (edit/withdraw during the lobby). */
@@ -45,6 +55,7 @@ export function withdrawPit(store: Store, round: Round, address: Address): void 
   const main = mainStakeOf(round, entry);
   const house = houseStakeOf(round, entry);
   const trade = tradingStakeOf(round, entry);
+  const trial = trialStakeOf(round, entry);
   const predRefund = main + house;
 
   if (predRefund > 0) {
@@ -60,8 +71,14 @@ export function withdrawPit(store: Store, round: Round, address: Address): void 
     if (!bot) store.recordLedger(addr, "pit_trading", trade, { symbol: round.token.symbol, roundId: round.id });
     pit.trading.pot -= trade;
     pit.trading.participants = Math.max(0, pit.trading.participants - 1);
-    store.setPitStack(round.id, addr, 0);
   }
+  if (trial > 0) {
+    user.arenaBalance = (user.arenaBalance ?? 0) + trial;
+    if (!bot) store.recordLedger(addr, "pit_trial", trial, { symbol: round.token.symbol, roundId: round.id });
+    pit.trialParticipants = Math.max(0, pit.trialParticipants - 1);
+  }
+  // Both trading and Trial hand out a paper stack — clear it on withdrawal.
+  store.setPitStack(round.id, addr, 0);
   store.pitEntriesFor(round.id).delete(addr);
 }
 
@@ -80,6 +97,7 @@ export function enterPit(store: Store, round: Round, address: Address, entry: Pi
   const main = mainStakeOf(round, entry);
   const house = houseStakeOf(round, entry);
   const trade = tradingStakeOf(round, entry);
+  const trial = trialStakeOf(round, entry);
   const predTotal = main + house;
 
   if (predTotal > 0) {
@@ -95,7 +113,13 @@ export function enterPit(store: Store, round: Round, address: Address, entry: Pi
     if (!bot) store.recordLedger(addr, "pit_trading", -trade, { symbol: round.token.symbol, roundId: round.id });
     pit.trading.pot += trade;
     pit.trading.participants += 1;
-    store.setPitStack(round.id, addr, pit.startingStack);
   }
+  if (trial > 0) {
+    user.arenaBalance = (user.arenaBalance ?? 0) - trial;
+    if (!bot) store.recordLedger(addr, "pit_trial", -trial, { symbol: round.token.symbol, roundId: round.id });
+    pit.trialParticipants += 1;
+  }
+  // Trading and Trial both trade a paper stack against the Goon Squad.
+  if (entry.trading || entry.trial) store.setPitStack(round.id, addr, pit.startingStack);
   store.setPitEntry(round.id, addr, entry);
 }

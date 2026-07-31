@@ -67,10 +67,10 @@ export function PitResultsView({
       </div>
 
       {/* Your result */}
-      {mine && (mine.prediction || mine.houseSpecial || mine.tradingPnl !== undefined) && (
+      {mine && (mine.prediction || mine.houseSpecial || mine.tradingPnl !== undefined || mine.trial) && (
         <div
           className={`rounded-2xl p-4 ring-1 ${
-            mine.doubleDownBonus > 0
+            mine.doubleDownBonus > 0 || mine.trialPassed
               ? "bg-amber-500/10 ring-amber-400/40"
               : mine.totalReward > 0
                 ? "bg-lime-500/[0.08] ring-lime-500/30"
@@ -80,6 +80,11 @@ export function PitResultsView({
           {mine.doubleDownBonus > 0 && (
             <div className="mb-2 text-center text-lg font-black text-amber-300">
               🏆 Double Down · +{fmt(mine.doubleDownBonus)}
+            </div>
+          )}
+          {mine.trialPassed && (
+            <div className="mb-2 text-center text-lg font-black text-orange-300">
+              🔥 Flame Trial passed · +{mine.trialXp ?? 0} XP
             </div>
           )}
           <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3 lg:grid-cols-5">
@@ -103,12 +108,20 @@ export function PitResultsView({
                 good={mine.houseSpecialCorrect}
               />
             )}
-            {mine.tradingPnl !== undefined && (
+            {mine.tradingPnl !== undefined && !mine.trial && (
               <Stat
                 label="Trading PnL"
                 value={`${mine.tradingPnl >= 0 ? "+" : ""}${fmt(mine.tradingPnl)}`}
                 sub={mine.qualified ? `Top PnL +${fmt(mine.tradingReward)}` : "Didn't win"}
                 good={mine.qualified}
+              />
+            )}
+            {mine.trial && (
+              <Stat
+                label={`🔥 Trial (${mine.trialTier ?? ""})`}
+                value={`${(mine.trialPnlPct ?? 0) >= 0 ? "+" : ""}${Math.round((mine.trialPnlPct ?? 0) * 100)}%`}
+                sub={mine.trialPassed ? `Passed · +${mine.trialXp ?? 0} XP` : "Failed"}
+                good={mine.trialPassed}
               />
             )}
             <Stat label="Total reward" value={fmt(mine.totalReward)} good={mine.totalReward > 0} />
@@ -155,6 +168,18 @@ export function PitResultsView({
             note="highest PnL"
             fmt={fmt}
           />
+        )}
+        {round.pit?.trialMode && (
+          <div className="rounded-2xl bg-zinc-900/50 p-4 ring-1 ring-white/10">
+            <div className="flex items-baseline justify-between">
+              <span className="text-xs text-zinc-500">🔥 Flame Trial</span>
+              <span className="text-[10px] text-zinc-600">+{Math.round(pit.trial.requiredPnlBps / 100)}% to pass</span>
+            </div>
+            <div className="font-mono text-xl font-black text-orange-300">
+              {pit.trial.passed}/{pit.trial.participants}
+            </div>
+            <div className="text-[11px] text-zinc-600">passed · prestige rewards</div>
+          </div>
         )}
       </div>
 
@@ -243,13 +268,14 @@ export function RunItBack({ round, compact = false }: { round: Round; compact?: 
   const [modes, setModes] = useState({
     prediction: round.pit?.predictionMode ?? true,
     trading: round.pit?.tradingMode ?? true,
+    trial: round.pit?.trialMode ?? false,
   });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const go = async () => {
     setError("");
-    if (!modes.prediction && !modes.trading) {
+    if (!modes.prediction && !modes.trading && !modes.trial) {
       setError("Pick at least one game mode.");
       return;
     }
@@ -305,24 +331,27 @@ export function RunItBack({ round, compact = false }: { round: Round; compact?: 
                 ))}
               </div>
               <div className="mt-3 mb-1.5 text-xs text-zinc-500">Game modes</div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 {(
                   [
-                    ["prediction", "🔮 Prediction", "fuchsia"],
-                    ["trading", "⚔️ Goon Squad", "lime"],
+                    ["prediction", "🔮 Predict", "fuchsia"],
+                    ["trading", "⚔️ Goons", "lime"],
+                    ["trial", "🔥 Trial", "orange"],
                   ] as const
                 ).map(([key, label, accent]) => {
                   const on = modes[key];
+                  const onCls =
+                    accent === "fuchsia"
+                      ? "bg-fuchsia-500/15 text-fuchsia-200 ring-fuchsia-400/50"
+                      : accent === "lime"
+                        ? "bg-lime-500/15 text-lime-200 ring-lime-400/50"
+                        : "bg-orange-500/15 text-orange-200 ring-orange-400/50";
                   return (
                     <button
                       key={key}
                       onClick={() => setModes((m) => ({ ...m, [key]: !m[key] }))}
-                      className={`rounded-xl p-2.5 text-sm font-black ring-1 transition ${
-                        on
-                          ? accent === "fuchsia"
-                            ? "bg-fuchsia-500/15 text-fuchsia-200 ring-fuchsia-400/50"
-                            : "bg-lime-500/15 text-lime-200 ring-lime-400/50"
-                          : "bg-zinc-900/60 text-zinc-400 ring-white/10"
+                      className={`rounded-xl p-2.5 text-xs font-black ring-1 transition ${
+                        on ? onCls : "bg-zinc-900/60 text-zinc-400 ring-white/10"
                       }`}
                     >
                       {on ? "✓ " : ""}

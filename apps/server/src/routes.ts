@@ -638,20 +638,21 @@ export function createApp(
         artworkUrl?: string;
         bannerUrl?: string;
         duration?: string;
-        modes?: { prediction?: boolean; trading?: boolean };
+        modes?: { prediction?: boolean; trading?: boolean; trial?: boolean };
       };
       const { name, symbol, theme } = body;
       if (!name || !symbol || !theme) throw new Err(400, "name, symbol, theme required");
       const duration = (body.duration ?? "standard") as PitDurationKey;
       if (!PIT_DURATION_MAP[duration] || !store.settings.pit.durations.includes(duration))
         throw new Err(400, "unknown or disabled Pit duration");
-      // Which pools this match runs. Default to both when unspecified (legacy).
+      // Which game modes this match runs. Default to both when unspecified (legacy).
       const modes = {
         prediction: body.modes ? !!body.modes.prediction : true,
         trading: body.modes ? !!body.modes.trading : true,
+        trial: body.modes ? !!body.modes.trial : false,
       };
-      if (!modes.prediction && !modes.trading)
-        throw new Err(400, "pick at least one game mode (prediction or trading)");
+      if (!modes.prediction && !modes.trading && !modes.trial)
+        throw new Err(400, "pick at least one game mode");
       const creator = store.getOrCreateUser(req.userAddress!);
       const ban = activeRugBan(creator);
       if (ban)
@@ -702,14 +703,17 @@ export function createApp(
       const creator = store.getOrCreateUser(req.userAddress!);
       if (activeRugBan(creator))
         throw new Err(403, "this wallet is banned from launching coins after a rug");
-      const body = req.body as { duration?: string; modes?: { prediction?: boolean; trading?: boolean } };
+      const body = req.body as {
+        duration?: string;
+        modes?: { prediction?: boolean; trading?: boolean; trial?: boolean };
+      };
       const duration = (body.duration ?? round.pit!.duration) as PitDurationKey;
       if (!PIT_DURATION_MAP[duration] || !store.settings.pit.durations.includes(duration))
         throw new Err(400, "unknown or disabled Pit duration");
       const modes = body.modes
-        ? { prediction: !!body.modes.prediction, trading: !!body.modes.trading }
-        : { prediction: round.pit!.predictionMode, trading: round.pit!.tradingMode };
-      if (!modes.prediction && !modes.trading)
+        ? { prediction: !!body.modes.prediction, trading: !!body.modes.trading, trial: !!body.modes.trial }
+        : { prediction: round.pit!.predictionMode, trading: round.pit!.tradingMode, trial: round.pit!.trialMode };
+      if (!modes.prediction && !modes.trading && !modes.trial)
         throw new Err(400, "pick at least one game mode");
       const concept = store.concepts.get(round.conceptId);
       if (!concept) throw new Err(404, "the original concept is gone");
@@ -743,6 +747,8 @@ export function createApp(
         houseSpecialStake?: number;
         trading?: boolean;
         tradingStake?: number;
+        trial?: boolean;
+        trialStake?: number;
       };
       const entry: PitEntry = {};
       const user = store.getOrCreateUser(addr);
@@ -774,7 +780,19 @@ export function createApp(
             ? pit.tradingFee
             : resolveStake(body.tradingStake, "trading buy-in");
       }
-      if (!entry.prediction && !entry.houseSpecial && !entry.trading)
+      if (body.trial) {
+        if (!pit.trialMode) throw new Err(400, "this match has no Flame Trial");
+        const raw = Number(body.trialStake);
+        if (!Number.isFinite(raw) || raw <= 0) throw new Err(400, "Flame Trial stake is required");
+        const usd = raw * (store.ethUsd || 0);
+        if (usd < pit.trialMinUsd - 1e-9)
+          throw new Err(400, `Flame Trial stake is below the $${pit.trialMinUsd} minimum`);
+        if (usd > pit.trialMaxUsd + 1e-9)
+          throw new Err(400, `Flame Trial stake is above the $${pit.trialMaxUsd} maximum`);
+        entry.trial = true;
+        entry.trialStake = raw;
+      }
+      if (!entry.prediction && !entry.houseSpecial && !entry.trading && !entry.trial)
         throw new Err(400, "place at least one bet");
       // Editing refunds the current entry first, so account for that headroom.
       const existing = store.pitEntryOf(round.id, addr);
@@ -937,6 +955,24 @@ export function createApp(
           p.durations = pit.durations.filter((d): d is PitDurationKey =>
             ["blitz", "standard", "marathon"].includes(d as string),
           );
+        // Flame Trial config.
+        if (pit.trialRequiredPnlBps !== undefined)
+          p.trialRequiredPnlBps = Math.round(num(pit.trialRequiredPnlBps, -10000, 100000, p.trialRequiredPnlBps));
+        if (pit.trialMinUsd !== undefined) p.trialMinUsd = num(pit.trialMinUsd, 0, 100000, p.trialMinUsd);
+        if (pit.trialMaxUsd !== undefined) p.trialMaxUsd = num(pit.trialMaxUsd, p.trialMinUsd, 1000000, p.trialMaxUsd);
+        if (Array.isArray(pit.trialTiers))
+          p.trialTiers = pit.trialTiers
+            .filter((t) => t && typeof t === "object" && Number.isFinite(Number(t.minUsd)))
+            .map((t) => ({
+              name: String(t.name ?? "").slice(0, 24),
+              minUsd: Number(t.minUsd),
+              xp: Math.max(0, Math.round(Number(t.xp) || 0)),
+              rarity: (["common", "rare", "epic", "legendary"].includes(t.rarity as string)
+                ? t.rarity
+                : "common") as "common" | "rare" | "epic" | "legendary",
+            }))
+            .sort((a, b) => a.minUsd - b.minUsd)
+            .slice(0, 8);
       }
       store.logAdmin("settings", JSON.stringify(store.settings));
       res.json(store.settings);
@@ -1788,6 +1824,18 @@ export function createApp(
                 break;
               case "earnings":
                 value = ps.totalEarnings;
+                break;
+              case "trialWins":
+                value = ps.trialsWon;
+                break;
+              case "trialXp":
+                value = ps.trialXp;
+                break;
+              case "trialStreak":
+                value = ps.bestTrialWinStreak;
+                break;
+              case "trialPnl":
+                value = Math.round(ps.highestTrialPnlPct * 100);
                 break;
               default:
                 value = ps.highestPnl; // "profit": best single-match PnL

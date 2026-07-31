@@ -104,6 +104,9 @@ function Card({ c, me, fmt }: { c: PitCard; me?: string; fmt: Fmt }) {
           {tradeMode && (
             <span className="rounded-full bg-lime-500/10 px-2 py-0.5 text-[10px] font-bold text-lime-300">⚔️ Goon Squad</span>
           )}
+          {r.pit?.trialMode && (
+            <span className="rounded-full bg-orange-500/10 px-2 py-0.5 text-[10px] font-bold text-orange-300">🔥 Flame Trial</span>
+          )}
         </div>
 
         {done && pit ? (
@@ -219,19 +222,17 @@ function Shelf({ title, cards, empty, me, fmt }: { title: string; cards: PitCard
   );
 }
 
-function ModePick({ on, onToggle, icon, name, blurb, accent }: { on: boolean; onToggle: () => void; icon: string; name: string; blurb: string; accent: "fuchsia" | "lime" }) {
+function ModePick({ on, onToggle, icon, name, blurb, accent }: { on: boolean; onToggle: () => void; icon: string; name: string; blurb: string; accent: "fuchsia" | "lime" | "orange" }) {
+  const onBg = accent === "fuchsia" ? "bg-fuchsia-500/15 ring-fuchsia-400/50" : accent === "lime" ? "bg-lime-500/15 ring-lime-400/50" : "bg-orange-500/15 ring-orange-400/50";
+  const dot = accent === "fuchsia" ? "bg-fuchsia-400" : accent === "lime" ? "bg-lime-400" : "bg-orange-400";
   return (
     <button
       onClick={onToggle}
       className={`flex w-full items-start gap-3 rounded-xl p-3 text-left ring-1 transition ${
-        on
-          ? accent === "fuchsia"
-            ? "bg-fuchsia-500/15 ring-fuchsia-400/50"
-            : "bg-lime-500/15 ring-lime-400/50"
-          : "bg-zinc-900/60 ring-white/10 hover:ring-white/25"
+        on ? onBg : "bg-zinc-900/60 ring-white/10 hover:ring-white/25"
       }`}
     >
-      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${on ? (accent === "fuchsia" ? "bg-fuchsia-400 text-zinc-950" : "bg-lime-400 text-zinc-950") : "bg-zinc-700 text-zinc-300"}`}>
+      <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${on ? `${dot} text-zinc-950` : "bg-zinc-700 text-zinc-300"}`}>
         {on ? "✓" : "+"}
       </span>
       <span className="flex-1">
@@ -248,7 +249,7 @@ function LaunchPitModal({ onClose }: { onClose: () => void }) {
   const router = useRouter();
   const [form, setForm] = useState({ name: "", symbol: "", theme: "", bannerUrl: "" });
   const [duration, setDuration] = useState<PitDurationKey>("standard");
-  const [modes, setModes] = useState({ prediction: true, trading: true });
+  const [modes, setModes] = useState({ prediction: true, trading: true, trial: false });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -258,7 +259,7 @@ function LaunchPitModal({ onClose }: { onClose: () => void }) {
       setError("Name, ticker, and theme are required.");
       return;
     }
-    if (!modes.prediction && !modes.trading) {
+    if (!modes.prediction && !modes.trading && !modes.trial) {
       setError("Pick at least one game mode.");
       return;
     }
@@ -325,7 +326,7 @@ function LaunchPitModal({ onClose }: { onClose: () => void }) {
 
           {/* Game modes */}
           <div>
-            <div className="mb-1.5 text-xs text-zinc-500">Game modes · pick one or both</div>
+            <div className="mb-1.5 text-xs text-zinc-500">Game modes · pick one or more</div>
             <div className="space-y-2">
               <ModePick
                 on={modes.prediction}
@@ -342,6 +343,14 @@ function LaunchPitModal({ onClose }: { onClose: () => void }) {
                 name="Battle the Flame Goon Squad AI"
                 blurb="Players trade a paper stack against the Goon Squad. Highest PnL wins the pool."
                 accent="lime"
+              />
+              <ModePick
+                on={modes.trial}
+                onToggle={() => setModes((m) => ({ ...m, trial: !m.trial }))}
+                icon="🔥"
+                name="Flame Trial"
+                blurb="Solo PvE: beat an objective (+20% PnL) vs the Goons for XP, titles, badges. Starts with one player."
+                accent="orange"
               />
             </div>
           </div>

@@ -1,4 +1,4 @@
-import type { CoinModifiers, GameMode, HouseSpecialDef, HouseSpecialKind, NotifyCategory, NotificationPrefs, PitBonusType, PitDurationKey, PitFeeSplit, RiskTier, RoundConfig } from "./types.js";
+import type { CoinModifiers, GameMode, HouseSpecialDef, HouseSpecialKind, NotifyCategory, NotificationPrefs, PitBonusType, PitDurationKey, PitFeeSplit, RiskTier, RoundConfig, TrialTier } from "./types.js";
 
 /** Total permanent Founding Member seats. Founder numbers never repeat. */
 export const FOUNDER_CAP = 500;
@@ -291,7 +291,28 @@ export const PIT_DEFAULTS = {
     "bull_timer",
     "dead_market",
   ] as HouseSpecialKind[],
+  // ---- Flame Trial (solo PvE) ----
+  /** Objective: required final PnL in basis points (2000 = +20%). */
+  trialRequiredPnlBps: 2000,
+  /** Entry stake bounds (USD equivalent). */
+  trialMinUsd: 5,
+  trialMaxUsd: 500,
+  /** Reward tiers by entry stake (USD). Higher tier = more XP + rarer cosmetics. */
+  trialTiers: [
+    { name: "Recruit", minUsd: 5, xp: 60, rarity: "common" },
+    { name: "Henchman", minUsd: 10, xp: 120, rarity: "common" },
+    { name: "Elite", minUsd: 25, xp: 250, rarity: "rare" },
+    { name: "Legend", minUsd: 50, xp: 500, rarity: "epic" },
+    { name: "Mythic", minUsd: 100, xp: 1000, rarity: "legendary" },
+  ] as TrialTier[],
 };
+
+/** The tier a Flame Trial stake (in USD) qualifies for (highest met). */
+export function trialTierFor(usd: number, tiers: TrialTier[]): TrialTier {
+  let best = tiers[0]!;
+  for (const t of tiers) if (usd + 1e-9 >= t.minUsd && t.minUsd >= best.minUsd) best = t;
+  return best;
+}
 
 /** The House Special catalog — a rotating featured side bet per Pit match. */
 export const HOUSE_SPECIALS: HouseSpecialDef[] = [

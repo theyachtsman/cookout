@@ -188,6 +188,12 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "double_winner", name: "Double Winner", description: "Won both Pit pools in one match", rarity: "epic" },
   { id: "pit_veteran", name: "Pit Veteran", description: "Played 25 Pit matches", rarity: "rare" },
   { id: "swarm_nemesis", name: "Swarm Nemesis", description: "Won 25 Pit trading pools", rarity: "legendary" },
+  // Flame Trial (solo PvE)
+  { id: "first_flame", name: "First Flame", description: "Completed your first Flame Trial", rarity: "common" },
+  { id: "heat_resistant", name: "Heat Resistant", description: "Won 10 Flame Trials", rarity: "rare" },
+  { id: "fireproof", name: "Fireproof", description: "Won 50 Flame Trials", rarity: "epic" },
+  { id: "untouchable", name: "Untouchable", description: "Won a Flame Trial without going underwater", rarity: "epic" },
+  { id: "legend_hunter", name: "Legend Hunter", description: "Won a Mythic-tier Flame Trial", rarity: "legendary" },
 ];
 
 /** One-time XP an achievement grants on first unlock (0 if unknown id). */

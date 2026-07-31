@@ -52,6 +52,7 @@ import {
   type PitDurationKey,
   type PitFeeSplit,
   type HouseSpecialKind,
+  type TrialTier,
   PIT_DEFAULTS,
 } from "@cookout/shared";
 
@@ -1035,6 +1036,11 @@ export interface PitSettings {
   doubleDownBonus: number;
   doubleDownType: PitBonusType;
   houseSpecials: HouseSpecialKind[];
+  // Flame Trial
+  trialRequiredPnlBps: number;
+  trialMinUsd: number;
+  trialMaxUsd: number;
+  trialTiers: TrialTier[];
 }
 
 /** Deep-copied default Pit settings so admin edits never touch the shared const. */
@@ -1045,6 +1051,7 @@ export function freshPitSettings(): PitSettings {
     durations: [...PIT_DEFAULTS.durations],
     quickChips: [...PIT_DEFAULTS.quickChips],
     houseSpecials: [...PIT_DEFAULTS.houseSpecials],
+    trialTiers: PIT_DEFAULTS.trialTiers.map((t) => ({ ...t })),
   };
 }
 
@@ -1067,6 +1074,13 @@ export function emptyPitStats(): PitStats {
     tradingEntries: 0,
     tradingWins: 0,
     tradingStaked: 0,
+    trialsPlayed: 0,
+    trialsWon: 0,
+    trialXp: 0,
+    highestTrialPnlPct: 0,
+    highestTrialTier: "",
+    trialWinStreak: 0,
+    bestTrialWinStreak: 0,
     doubleWins: 0,
     highestPnl: 0,
     totalPnl: 0,

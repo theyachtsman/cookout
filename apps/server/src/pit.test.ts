@@ -94,6 +94,49 @@ test("Pit: withdraw refunds the stake and clears the pool", () => {
   assert.equal(store.pitEntryOf(round.id, alice), undefined);
 });
 
+test("Flame Trial: objective scoring, tier XP, achievement", () => {
+  const store = new Store();
+  const engine = new RoundEngine(store, () => {});
+  store.ethUsd = 100; // $ per pETH → easy tier math
+  store.getOrCreateUser(alice).arenaBalance = 10;
+  const now = Date.now();
+  const round = engine.schedulePitRound(pitConcept(store), now);
+  round.pit!.pitFeeBps = 0;
+  round.pit!.trialRequiredPnlBps = 2000; // +20%
+
+  // Stake 0.1 pETH = $10 → Henchman tier.
+  enterPit(store, round, alice, { trial: true, trialStake: 0.1 });
+  assert.equal(round.pit!.trialParticipants, 1);
+  // Simulate a +30% run (stack 0.8 + 0.5 tokens @ price 1 = 1.3 vs 1.0 start).
+  store.setPitStack(round.id, alice, 0.8);
+  store.position(round.id, alice).tokens = 0.5;
+
+  round.state = "live";
+  round.liveAt = now - 60_000;
+  round.endReason = "timer";
+  round.graduated = false;
+  const summary = resolvePitRound(store, round, {
+    totalVolume: 1,
+    peakMcap: 1,
+    finalMcap: 1,
+    finalPrice: 1,
+    holderCount: 1,
+    now,
+    drawdown: new Map([[alice, 0]]),
+  });
+  const p = summary.pit!.players.find((x) => x.address === alice)!;
+  assert.equal(p.trial, true);
+  assert.equal(p.trialPassed, true);
+  assert.equal(p.trialTier, "Henchman");
+  assert.equal(p.trialXp, 120);
+  assert.ok(Math.abs((p.trialPnlPct ?? 0) - 0.3) < 1e-9);
+  assert.equal(summary.pit!.trial.passed, 1);
+  const ps = store.pitStatsOf(alice);
+  assert.equal(ps.trialsWon, 1);
+  assert.equal(ps.trialXp, 120);
+  assert.ok(store.getOrCreateUser(alice).achievements.includes("first_flame"));
+});
+
 test("Pit: an unclaimed bucket funds the weekly jackpot", () => {
   const store = new Store();
   const engine = new RoundEngine(store, () => {});

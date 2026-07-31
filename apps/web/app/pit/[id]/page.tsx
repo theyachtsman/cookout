@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   PIT_DURATION_MAP,
+  trialTierFor,
   marketCap,
   spotPrice,
   type Candle,
@@ -346,6 +347,7 @@ function LobbyView({
   const pit = round.pit!;
   const predMode = pit.predictionMode;
   const tradeMode = pit.tradingMode;
+  const trialModeOn = pit.trialMode;
   const peg = ethUsd > 0 ? ethUsd : 1;
   const chips = pit.quickChips ?? [0.05, 0.1, 0.25, 0.5, 1];
   const firstChip = String(chips[0] ?? pit.minBet);
@@ -357,6 +359,8 @@ function LobbyView({
   const [houseBet, setHouseBet] = useState<string>(firstChip);
   const [trading, setTrading] = useState(false);
   const [tradeBet, setTradeBet] = useState<string>(String(pit.tradingFee));
+  const [trial, setTrial] = useState(false);
+  const [trialUsd, setTrialUsd] = useState<string>(String(pit.trialMinUsd ?? 5));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -370,7 +374,11 @@ function LobbyView({
   const mainStake = call ? Number(mainBet) || 0 : 0;
   const houseStake = house ? Number(houseBet) || 0 : 0;
   const tradeStake = trading ? Number(tradeBet) || 0 : 0;
-  const cost = mainStake + houseStake + tradeStake;
+  const trialUsdNum = trial ? Number(trialUsd) || 0 : 0;
+  const trialStakeEth = trialUsdNum / peg;
+  const trialTier = trialTierFor(Number(trialUsd) || 0, pit.trialTiers ?? []);
+  const targetPct = Math.round(pit.trialRequiredPnlBps / 100);
+  const cost = mainStake + houseStake + tradeStake + trialStakeEth;
 
   const startEdit = () => {
     if (!entry) return;
@@ -380,12 +388,14 @@ function LobbyView({
     setHouseBet(entry.houseSpecialStake ? String(entry.houseSpecialStake) : firstChip);
     setTrading(!!entry.trading);
     setTradeBet(entry.tradingStake ? String(entry.tradingStake) : String(pit.tradingFee));
+    setTrial(!!entry.trial);
+    setTrialUsd(entry.trialStake ? ((entry.trialStake * peg).toFixed(0)) : String(pit.trialMinUsd ?? 5));
     setEditing(true);
   };
 
   const submit = async () => {
     setError("");
-    if (!call && !house && !trading) {
+    if (!call && !house && !trading && !trial) {
       setError("Place at least one bet.");
       return;
     }
@@ -402,6 +412,10 @@ function LobbyView({
         }
       }
     }
+    if (trial && (trialUsdNum < (pit.trialMinUsd ?? 5) || trialUsdNum > (pit.trialMaxUsd ?? 1e9))) {
+      setError(`Flame Trial stake must be $${pit.trialMinUsd}–$${pit.trialMaxUsd}.`);
+      return;
+    }
     setBusy(true);
     try {
       await api(`/api/pit/${round.id}/enter`, {
@@ -412,6 +426,8 @@ function LobbyView({
           houseSpecialStake: house ? houseStake : undefined,
           trading: trading || undefined,
           tradingStake: trading ? tradeStake : undefined,
+          trial: trial || undefined,
+          trialStake: trial ? trialStakeEth : undefined,
         },
       });
       setEditing(false);
@@ -439,8 +455,10 @@ function LobbyView({
   const predLeft = predMode ? Math.max(0, 2 - pit.prediction.participants) : 0;
   const tradeLeft = tradeMode ? Math.max(0, 2 - pit.trading.participants) : 0;
   const needs: string[] = [];
+  const trialLeft = trialModeOn ? Math.max(0, 1 - pit.trialParticipants) : 0;
   if (predLeft > 0) needs.push(`${predLeft} prediction`);
   if (tradeLeft > 0) needs.push(`${tradeLeft} trader${tradeLeft === 1 ? "" : "s"}`);
+  if (trialLeft > 0) needs.push(`${trialLeft} Trial player`);
 
   return (
     <div className="space-y-4">
@@ -502,6 +520,12 @@ function LobbyView({
               <span>
                 Trading stack <b className="font-mono">{fmt(stack)}</b>
                 <b className="ml-1 font-mono text-zinc-400">· bet {fmt(entry.tradingStake ?? 0)}</b>
+              </span>
+            )}
+            {entry.trial && (
+              <span className="text-orange-200">
+                🔥 Flame Trial <b>+{targetPct}%</b>
+                <b className="ml-1 font-mono text-zinc-400">· {fmt(entry.trialStake ?? 0)}</b>
               </span>
             )}
           </div>
@@ -607,6 +631,62 @@ function LobbyView({
             </div>
           )}
 
+          {/* Flame Trial (solo objective) */}
+          {trialModeOn && (
+            <div>
+              <button
+                onClick={() => setTrial((t) => !t)}
+                className={`flex w-full items-start gap-3 rounded-xl p-3 text-left ring-1 transition ${
+                  trial ? "bg-orange-500/15 ring-orange-400/50" : "bg-zinc-900/60 ring-white/10 hover:ring-white/25"
+                }`}
+              >
+                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${trial ? "bg-orange-400 text-zinc-950" : "bg-zinc-700 text-zinc-300"}`}>
+                  {trial ? "✓" : "+"}
+                </span>
+                <span className="flex-1">
+                  <span className="text-sm font-black text-zinc-100">🔥 Flame Trial · solo challenge</span>
+                  <span className="block text-[11px] text-zinc-500">
+                    Trade a {fmt(pit.startingStack)} paper stack and finish at <b className="text-orange-300">+{targetPct}% PnL</b> to
+                    pass. Prestige only — XP, titles, badges. No cash payout.
+                  </span>
+                </span>
+              </button>
+              {trial && (
+                <div className="mt-2 rounded-xl bg-zinc-900/60 p-3 ring-1 ring-white/10">
+                  <div className="mb-1.5 flex items-center justify-between text-xs text-zinc-500">
+                    <span>Entry stake (USD, min ${pit.trialMinUsd})</span>
+                    <span className="font-mono text-zinc-400">≈ {fmt(trialStakeEth)}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="flex flex-1 items-center rounded-lg bg-zinc-950/60 px-3 ring-1 ring-white/10 focus-within:ring-orange-400/50">
+                      <span className="text-zinc-500">$</span>
+                      <input
+                        value={trialUsd}
+                        onChange={(e) => setTrialUsd(e.target.value.replace(/[^0-9.]/g, ""))}
+                        inputMode="decimal"
+                        className="w-full bg-transparent px-1 py-2 text-center font-mono text-lg outline-none"
+                      />
+                    </div>
+                    {(pit.trialTiers ?? []).map((t) => (
+                      <button
+                        key={t.name}
+                        onClick={() => setTrialUsd(String(t.minUsd))}
+                        title={`${t.name}: ${t.xp} XP`}
+                        className={`rounded-lg px-2 py-2 text-[10px] font-bold ${trialTier.name === t.name ? "bg-orange-500/25 text-orange-200" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
+                      >
+                        ${t.minUsd}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-zinc-600">
+                    Tier: <b className="text-orange-300">{trialTier.name}</b> · {trialTier.xp} XP on a pass. Higher
+                    stake = more XP and rarer cosmetics.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
           {error && <div className="text-xs text-red-400">{error}</div>}
 
           <div className="flex gap-2">
@@ -673,7 +753,12 @@ function LiveView({
   myTokens: number;
   onTraded: () => void;
 }) {
-  const pnl = entry?.trading ? stack + myTokens * price - round.pit!.startingStack : 0;
+  const isTrader = !!(entry?.trading || entry?.trial);
+  const startStack = round.pit!.startingStack;
+  const pnl = isTrader ? stack + myTokens * price - startStack : 0;
+  const pnlPct = startStack > 0 ? (pnl / startStack) * 100 : 0;
+  const targetPct = Math.round(round.pit!.trialRequiredPnlBps / 100);
+  const trialPassing = pnlPct >= targetPct;
   return (
     <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
       <div className="space-y-4">
@@ -690,19 +775,41 @@ function LiveView({
           />
         </div>
 
+        {/* Flame Trial objective progress. */}
+        {entry?.trial && (
+          <div className={`rounded-xl p-3 ring-1 ${trialPassing ? "bg-lime-500/10 ring-lime-400/40" : "bg-orange-500/[0.06] ring-orange-500/25"}`}>
+            <div className="flex items-center justify-between text-xs">
+              <span className="font-black uppercase tracking-wide text-orange-300">🔥 Flame Trial · target +{targetPct}%</span>
+              <span className={`font-mono font-black ${pnlPct >= 0 ? "text-lime-300" : "text-red-400"}`}>
+                {pnlPct >= 0 ? "+" : ""}
+                {pnlPct.toFixed(1)}%
+              </span>
+            </div>
+            <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-zinc-800">
+              <div
+                className={`h-full rounded-full ${trialPassing ? "bg-lime-400" : "bg-orange-400"}`}
+                style={{ width: `${Math.max(2, Math.min(100, (pnlPct / Math.max(1, targetPct)) * 100))}%` }}
+              />
+            </div>
+            <div className="mt-1 text-[11px] text-zinc-500">
+              {trialPassing ? "Passing — lock it in before the bell." : `${(targetPct - pnlPct).toFixed(1)}% to go.`}
+            </div>
+          </div>
+        )}
+
         {/* The trade board — same widget, sounds, and treatment as the Cook Out. */}
-        {entry?.trading ? (
+        {isTrader ? (
           <div className="space-y-1.5">
             <div className="flex items-center justify-between px-1 text-[11px]">
               <span className="font-bold uppercase tracking-wide text-zinc-500">
-                Battle the Flame Goon Squad AI
+                {entry?.trial && !entry?.trading ? "Flame Trial · Trade the Goons" : "Battle the Flame Goon Squad AI"}
               </span>
               <span className="flex items-center gap-2">
                 <span className={pnl >= 0 ? "font-bold text-lime-300" : "font-bold text-red-400"}>
                   PnL {pnl >= 0 ? "+" : ""}
                   {fmt(pnl)}
                 </span>
-                <span className="text-zinc-500">highest PnL wins</span>
+                <span className="text-zinc-500">{entry?.trading ? "highest PnL wins" : `hit +${targetPct}%`}</span>
               </span>
             </div>
             <TradePanel

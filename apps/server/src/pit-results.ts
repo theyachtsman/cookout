@@ -12,9 +12,9 @@
  * Trading is a race against the other traders: the highest PnL takes the trading
  * pool. Unclaimed money in any bucket funds the weekly jackpot. Bots never earn.
  */
-import { marketCap, type HouseSpecialKind, type PitCall, type PitPlayerResult, type PitResult, type Round, type RoundSummary } from "@cookout/shared";
+import { marketCap, trialTierFor, type HouseSpecialKind, type PitCall, type PitPlayerResult, type PitResult, type Round, type RoundSummary } from "@cookout/shared";
 import type { Store } from "./store.js";
-import { houseStakeOf, mainStakeOf, tradingStakeOf } from "./pit-pools.js";
+import { houseStakeOf, mainStakeOf, tradingStakeOf, trialStakeOf } from "./pit-pools.js";
 
 export interface PitResolveCtx {
   totalVolume: number;
@@ -23,6 +23,9 @@ export interface PitResolveCtx {
   finalPrice: number;
   holderCount: number;
   now: number;
+  /** Worst unrealized drawdown fraction per player (from live meta), for the
+   *  "no losing position" Trial achievement. */
+  drawdown?: Map<string, number>;
 }
 
 const isBot = (a: string) => a.startsWith("0xb07");
@@ -100,7 +103,11 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
   const feeRate = pit.pitFeeBps / 10_000;
   const predFee = pit.prediction.pot * feeRate;
   const tradeFee = pit.trading.pot * feeRate;
-  routeFee(store, round, predFee + tradeFee);
+  // Flame Trial stakes are a challenge cost, not a pool: the whole stake is
+  // house revenue, routed like a fee (creator / jackpot / platform / treasury).
+  let trialGross = 0;
+  for (const [addr, entry] of entries) if (!isBot(addr) && entry.trial) trialGross += trialStakeOf(round, entry);
+  routeFee(store, round, predFee + tradeFee + trialGross);
   const netPred = pit.prediction.pot - predFee;
   const netTrade = pit.trading.pot - tradeFee;
 
@@ -157,6 +164,7 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
   const qualified = new Set(qualifiers);
   const players: PitPlayerResult[] = [];
   let doubleDownCount = 0;
+  let trialPassedCount = 0;
 
   for (const [addr, entry] of entries) {
     if (isBot(addr)) continue;
@@ -165,13 +173,27 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
     const wonHouse = houseWinStake.has(addr);
     const isQual = entry.trading ? qualified.has(addr) : undefined;
 
+    // Flame Trial: score the solo objective (final PnL vs the target).
+    let trialPnlPct: number | undefined;
+    let trialTierName: string | undefined;
+    let trialPassed: boolean | undefined;
+    let trialXpAwarded: number | undefined;
+    if (entry.trial) {
+      const held = positions.get(addr)?.tokens ?? 0;
+      const tpnl = store.pitStackOf(round.id, addr) + held * ctx.finalPrice - pit.startingStack;
+      trialPnlPct = pit.startingStack > 0 ? tpnl / pit.startingStack : 0;
+      trialPassed = trialPnlPct * 10_000 >= pit.trialRequiredPnlBps - 1e-9;
+      trialTierName = trialTierFor((entry.trialStake ?? 0) * store.ethUsd, pit.trialTiers).name;
+    }
+
     const predictionReward = wonMain && totalMainStake > 0 ? mainBucket * (mainStakeOf(round, entry) / totalMainStake) : 0;
     const houseSpecialReward = wonHouse && totalHouseStake > 0 ? houseBucket * (houseStakeOf(round, entry) / totalHouseStake) : 0;
     const doubleDownBonus = wonMain && wonHouse ? pit.doubleDownBonus : 0;
     if (doubleDownBonus > 0) doubleDownCount += 1;
     const tradingReward = isQual ? tradeReward : 0;
     const totalReward = predictionReward + houseSpecialReward + doubleDownBonus + tradingReward;
-    const feesPaid = mainStakeOf(round, entry) + houseStakeOf(round, entry) + tradingStakeOf(round, entry);
+    const feesPaid =
+      mainStakeOf(round, entry) + houseStakeOf(round, entry) + tradingStakeOf(round, entry) + trialStakeOf(round, entry);
     const pnl = entry.trading ? (traderPnl.get(addr) ?? 0) : undefined;
     const wonPrediction = wonMain || wonHouse;
     const doubleWinner = wonPrediction && !!isQual;
@@ -217,6 +239,42 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
         ps.currentProfitStreak = 0;
       }
     }
+    // Flame Trial stats + progression (solo objective; no money payout).
+    if (entry.trial) {
+      ps.trialsPlayed += 1;
+      if ((trialPnlPct ?? 0) > ps.highestTrialPnlPct) ps.highestTrialPnlPct = trialPnlPct ?? 0;
+      const tier = trialTierFor((entry.trialStake ?? 0) * store.ethUsd, pit.trialTiers);
+      store.grantAchievement(addr, "first_flame");
+      store.trackActivity(addr, "trial_played", 1, ctx.now);
+      if (trialPassed) {
+        trialPassedCount += 1;
+        trialXpAwarded = tier.xp;
+        ps.trialsWon += 1;
+        ps.trialXp += tier.xp;
+        ps.trialWinStreak += 1;
+        if (ps.trialWinStreak > ps.bestTrialWinStreak) ps.bestTrialWinStreak = ps.trialWinStreak;
+        // Highest tier completed (by USD threshold).
+        const prevMin = pit.trialTiers.find((t) => t.name === ps.highestTrialTier)?.minUsd ?? -1;
+        if (tier.minUsd > prevMin) ps.highestTrialTier = tier.name;
+        store.addXp(addr, tier.xp, "ceiling", "pit");
+        store.trackActivity(addr, "trial_won", 1, ctx.now);
+        store.trackActivity(addr, "trial_target_hit", 1, ctx.now);
+        if (ps.trialsWon >= 10) store.grantAchievement(addr, "heat_resistant");
+        if (ps.trialsWon >= 50) store.grantAchievement(addr, "fireproof");
+        if ((ctx.drawdown?.get(addr) ?? -1) >= -1e-6) store.grantAchievement(addr, "untouchable");
+        if (tier.name === "Mythic") store.grantAchievement(addr, "legend_hunter");
+        store.pushActivity(
+          addr,
+          "won",
+          `passed a ${tier.name} Flame Trial (+${Math.round((trialPnlPct ?? 0) * 100)}%)`,
+          { roundId: round.id, roundSymbol: round.token.symbol },
+        );
+      } else {
+        ps.trialWinStreak = 0;
+        store.addXp(addr, 10, "ceiling", "pit"); // participation
+      }
+    }
+
     if (doubleWinner) ps.doubleWins += 1;
     if (wonPrediction || isQual) ps.byDuration[pit.duration].wins += 1;
     if (totalReward > ps.largestWin) ps.largestWin = totalReward;
@@ -228,7 +286,7 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
     if (wonHouse) xp += 15;
     if (doubleDownBonus > 0) xp += 20;
     if (isQual) xp += 25;
-    store.addXp(addr, xp, "ceiling", "pit");
+    if (!entry.trial) store.addXp(addr, xp, "ceiling", "pit");
 
     store.trackActivity(addr, "pit_played", 1, ctx.now);
     if (wonMain) store.trackActivity(addr, "pit_predictions_correct", 1, ctx.now);
@@ -254,8 +312,14 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
       doubleDownBonus,
       tradingPnl: pnl,
       qualified: isQual,
-      trades: entry.trading ? tradeCountOf(addr) : undefined,
+      trades: entry.trading || entry.trial ? tradeCountOf(addr) : undefined,
       tradingReward,
+      trial: entry.trial,
+      trialStake: entry.trial ? entry.trialStake : undefined,
+      trialPnlPct,
+      trialTier: trialTierName,
+      trialPassed,
+      trialXp: trialXpAwarded,
       totalReward,
       net: totalReward - feesPaid,
       doubleWinner,
@@ -285,6 +349,11 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
       qualified: qualifiers.length,
       rewardEach: tradeReward,
       carried: tradeCarried,
+    },
+    trial: {
+      participants: pit.trialParticipants,
+      passed: trialPassedCount,
+      requiredPnlBps: pit.trialRequiredPnlBps,
     },
     players,
   };
