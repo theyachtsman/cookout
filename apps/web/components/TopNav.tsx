@@ -32,7 +32,7 @@ const LINKS: NavLink[] = [
   { href: "/pit", label: "The Pit", auth: true },
   { href: "/leaderboard", label: "Boards", auth: true },
   { href: "/jackpot", label: "Jackpot", auth: true, accent: true },
-  { href: "/docs", label: "Menu" },
+  { href: "/docs", label: "Docs" },
 ];
 
 export function TopNav() {
@@ -61,7 +61,7 @@ export function TopNav() {
 
   return (
     <nav className="sticky top-0 z-30 border-b border-zinc-800 bg-zinc-950/90 backdrop-blur">
-      <div className="mx-auto flex h-14 max-w-6xl items-center gap-x-3 px-3 sm:gap-x-5 sm:px-5">
+      <div className="mx-auto flex h-16 max-w-6xl items-center gap-x-3 px-3 sm:gap-x-4 sm:px-5">
         {/* mobile hamburger */}
         <button
           onClick={() => setOpen(true)}
@@ -76,33 +76,42 @@ export function TopNav() {
         </button>
 
         <BrandLogo />
-        <span className="hidden rounded bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-300 lg:inline">
+        <span className="hidden rounded bg-amber-500/15 px-2 py-0.5 text-xs font-bold text-amber-300 xl:inline">
           open beta
         </span>
-        {profile && (
-          <div className="hidden md:block">
-            <JackpotPill />
-          </div>
-        )}
 
         <div className="flex-1" />
 
         {/* desktop inline links — only once there's room (lg+); below that the
             hamburger drawer carries them, so nothing wraps or crowds. */}
-        <div className="hidden items-center gap-x-5 lg:flex">
-          {links.map((l) => (
-            <Link
-              key={l.href}
-              href={l.href}
-              className={`whitespace-nowrap text-sm hover:text-lime-300 ${
-                l.accent ? "text-amber-400/90 hover:text-amber-300" : "text-zinc-400"
-              }`}
-            >
-              {l.label}
-            </Link>
-          ))}
+        <div className="hidden items-center gap-x-4 lg:flex xl:gap-x-5">
+          {links.map((l) => {
+            const active = pathname === l.href || (l.href !== "/" && pathname.startsWith(l.href));
+            return (
+              <Link
+                key={l.href}
+                href={l.href}
+                className={`whitespace-nowrap text-sm font-semibold transition hover:text-lime-300 ${
+                  l.accent
+                    ? "text-amber-400/90 hover:text-amber-300"
+                    : active
+                      ? "text-zinc-100"
+                      : "text-zinc-400"
+                }`}
+              >
+                {l.label}
+              </Link>
+            );
+          })}
         </div>
 
+        {/* Jackpot sits with the wallet on the right so the bar reads
+            logo · links · [jackpot | account]. */}
+        {profile && (
+          <div className="hidden sm:block">
+            <JackpotPill />
+          </div>
+        )}
         <WalletButton />
       </div>
 
@@ -114,7 +123,7 @@ export function TopNav() {
       {mounted &&
         createPortal(
           <div
-            className={`fixed inset-0 z-[60] md:hidden ${open ? "" : "pointer-events-none"}`}
+            className={`fixed inset-0 z-[60] lg:hidden ${open ? "" : "pointer-events-none"}`}
             aria-hidden={!open}
           >
             {/* backdrop */}
@@ -130,7 +139,7 @@ export function TopNav() {
                 open ? "translate-x-0" : "-translate-x-full"
               }`}
             >
-              <div className="flex h-14 items-center justify-between border-b border-zinc-800 px-4">
+              <div className="flex h-16 items-center justify-between border-b border-zinc-800 px-4">
                 <span className="text-sm font-black text-zinc-200">The Cookout</span>
                 <button
                   onClick={() => setOpen(false)}

@@ -4,16 +4,20 @@ import Link from "next/link";
 import { useBrandAsset } from "../lib/useBrandAsset";
 
 /** Nav brand: real banner from /brand/banner.png when present, bundled SVG
- *  wordmark otherwise — never a broken-image glyph. Fills the nav bar's height
- *  (minus a hair of inset) so it anchors the bar instead of floating small. */
+ *  wordmark otherwise — never a broken-image glyph. Sized to anchor the bar as
+ *  the loudest thing in it, not float small beside the links. */
 export function BrandLogo() {
   const src = useBrandAsset("/brand/banner.png", "/brand/banner.svg");
   return (
-    <Link href="/" className="flex h-full shrink-0 items-center py-1">
-      {/* Shorter on mobile so the wide wordmark fits beside the hamburger and
-          wallet; fills the bar height on desktop where there's room. */}
+    <Link href="/" className="flex shrink-0 items-center" aria-label="The Cookout — home">
+      {/* Big and legible: taller than the old fill-the-bar sizing, a touch
+          shorter on mobile so it still clears the hamburger + wallet chip. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={src} alt="THE COOKOUT" className="h-9 w-auto sm:h-full" />
+      <img
+        src={src}
+        alt="THE COOKOUT"
+        className="h-11 w-auto drop-shadow-[0_1px_6px_rgba(0,0,0,0.6)] sm:h-14"
+      />
     </Link>
   );
 }
