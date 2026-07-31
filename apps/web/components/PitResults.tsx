@@ -10,7 +10,7 @@ import { pdotEth } from "../lib/pit";
 
 const OUTCOME: Record<string, { text: string; cls: string; icon: string }> = {
   graduate: { text: "Graduated", cls: "text-lime-300", icon: "🍽️" },
-  rug: { text: "The Swarm Rugged", cls: "text-red-400", icon: "🔻" },
+  rug: { text: "The Goon Squad Rugged", cls: "text-red-400", icon: "🔻" },
   timer: { text: "Timer", cls: "text-zinc-200", icon: "⏱️" },
 };
 
@@ -77,7 +77,7 @@ export function PitResultsView({
           <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
             {mine.prediction && (
               <Stat
-                label="Prediction"
+                label={mine.houseSpecial ? "Prediction 🎲" : "Prediction"}
                 value={mine.prediction}
                 sub={mine.predictionCorrect ? "Correct" : "Missed"}
                 good={mine.predictionCorrect}
@@ -87,13 +87,7 @@ export function PitResultsView({
               <Stat
                 label="Trading PnL"
                 value={`${mine.tradingPnl >= 0 ? "+" : ""}${fmt(mine.tradingPnl)}`}
-                sub={
-                  mine.qualified
-                    ? "Qualified"
-                    : mine.tradingPnl > 0 && (mine.trades ?? 0) < pit.minTrades
-                      ? `Only ${mine.trades ?? 0}/${pit.minTrades} trades`
-                      : "No qualify"
-                }
+                sub={mine.qualified ? "Top PnL — won" : "Didn't win"}
                 good={mine.qualified}
               />
             )}
@@ -123,8 +117,8 @@ export function PitResultsView({
           winners={pit.trading.qualified}
           rewardEach={pit.trading.rewardEach}
           carried={pit.trading.carried}
-          winnersLabel="qualified"
-          note={`${pit.minTrades}+ trades to qualify`}
+          winnersLabel="winner"
+          note="highest PnL wins"
           fmt={fmt}
         />
       </div>
@@ -155,6 +149,7 @@ export function PitResultsView({
                     {p.prediction ? (
                       <span className={p.predictionCorrect ? "text-lime-300" : "text-zinc-500"}>
                         {p.prediction}
+                        {p.houseSpecial && <span className="ml-1">🎲</span>}
                       </span>
                     ) : (
                       <span className="text-zinc-700">—</span>
@@ -164,9 +159,7 @@ export function PitResultsView({
                     {p.trades === undefined ? (
                       <span className="text-zinc-700">—</span>
                     ) : (
-                      <span className={p.trades >= pit.minTrades ? "text-zinc-300" : "text-amber-300"}>
-                        {p.trades}/{pit.minTrades}
-                      </span>
+                      <span className="text-zinc-400">{p.trades}</span>
                     )}
                   </td>
                   <td className="px-3 py-2 text-right font-mono">

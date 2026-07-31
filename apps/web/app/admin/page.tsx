@@ -104,7 +104,7 @@ function PitOpsPanel({
             checked={p.carryover}
             onChange={(e) => set({ carryover: e.target.checked })}
           />
-          Carryover unclaimed pools
+          Sweep unclaimed pools to jackpot
         </label>
       </div>
       <div className="flex flex-wrap items-end gap-3">

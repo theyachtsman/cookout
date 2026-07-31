@@ -69,9 +69,11 @@ export type MatchType = "cookout" | "pit";
 /** The Pit's live-trading length presets. See PIT_DURATIONS for the table. */
 export type PitDurationKey = "blitz" | "standard" | "marathon";
 
-/** A Pit prediction call: the coin graduates, the Swarm rugs the market, or it
- *  runs the clock out (Timer). */
+/** A Pit prediction call: the coin graduates, the Goon Squad rugs the market, or
+ *  it runs the clock out (Timer). "house" (House Special) is a client-only
+ *  choice — the server rolls a random real call for it at entry. */
 export type PitCall = "graduate" | "rug" | "timer";
+export type PitCallChoice = PitCall | "house";
 
 /** One of the Pit's two independent prize pools, live state. */
 export interface PitPoolState {
@@ -95,6 +97,9 @@ export interface PitFeeSplit {
  *  resolved from admin settings at launch so nothing is hardcoded downstream. */
 export interface PitConfig {
   duration: PitDurationKey;
+  /** Which pools this match runs — chosen at launch. At least one is true. */
+  predictionMode: boolean;
+  tradingMode: boolean;
   /** Entry fee for the Prediction Pool (pETH). */
   predictionFee: number;
   /** Entry fee for the Trading Pool (pETH). */
@@ -110,8 +115,11 @@ export interface PitConfig {
 
 /** A player's Pit lobby entry. At least one of the two must be set. */
 export interface PitEntry {
-  /** Their Prediction Pool call, when entered. */
+  /** Their Prediction Pool call, when entered (resolved — House Special has
+   *  already been rolled to a real call). */
   prediction?: PitCall;
+  /** Their call came from the House Special (random) choice. */
+  houseSpecial?: boolean;
   /** Custom prediction bet (pETH). Parimutuel: winners split the pool pro-rata
    *  to their stake. Enforced at or above a $1 minimum. */
   predictionStake?: number;
@@ -129,6 +137,7 @@ export interface PitPlayerResult {
   displayName?: string;
   avatarUrl?: string;
   prediction?: PitCall;
+  houseSpecial?: boolean;
   predictionCorrect?: boolean;
   /** Trading PnL on their paper stack, when they entered the Trading Pool. */
   tradingPnl?: number;
@@ -148,8 +157,6 @@ export interface PitPlayerResult {
 export interface PitResult {
   duration: PitDurationKey;
   outcome: PitCall;
-  /** Trades required to qualify for the Trading pool this duration. */
-  minTrades: number;
   prediction: {
     pot: number;
     winners: number;
@@ -221,6 +228,8 @@ export interface TokenConcept {
   matchType?: MatchType;
   /** The Pit's chosen live-trading length preset (Blitz/Standard/Marathon). */
   pitDuration?: PitDurationKey;
+  /** Which Pit pools this launch runs (prediction and/or trading). */
+  pitModes?: { prediction: boolean; trading: boolean };
   /** Curated launch mode (Classic/Pressure/Blitz/Reflex). Drives tier, match
    *  length, and rug rules. Absent on legacy concepts. */
   mode?: GameMode;

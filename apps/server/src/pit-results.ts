@@ -9,7 +9,7 @@
  * A player who wins both is a Double Winner. If nobody qualifies for a pool, it
  * carries into the next Pit match. Bots (0xb07…) never earn a reward.
  */
-import { PIT_DURATION_MAP, type PitCall, type PitPlayerResult, type PitResult, type Round, type RoundSummary } from "@cookout/shared";
+import type { PitCall, PitPlayerResult, PitResult, Round, RoundSummary } from "@cookout/shared";
 import type { Store } from "./store.js";
 
 export interface PitResolveCtx {
@@ -45,7 +45,6 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
   const predStake = (entry: { predictionStake?: number }) => entry.predictionStake ?? pit.predictionFee;
   const tradeStake = (entry: { tradingStake?: number }) => entry.tradingStake ?? pit.tradingFee;
   const winnerStake = new Map<string, number>();
-  const traderStake = new Map<string, number>();
   for (const [addr, entry] of entries) {
     if (isBot(addr)) continue;
     if (entry.prediction === outcome) {
@@ -56,33 +55,36 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
       const held = positions.get(addr)?.tokens ?? 0;
       const value = store.pitStackOf(round.id, addr) + held * ctx.finalPrice;
       traderPnl.set(addr, value - pit.startingStack);
-      traderStake.set(addr, tradeStake(entry));
     }
   }
-  // Trading qualification: positive total PnL (across every one of the player's
-  // trades, not just the last) AND at least the duration's minimum trade count.
-  const minTrades = PIT_DURATION_MAP[pit.duration].minTrades;
+  // Trading is a competition against the OTHER TRADERS, not the Goon Squad: the
+  // human trader(s) with the highest PnL win the whole pool (ties split). No
+  // minimum trade count.
   const roundTrades = store.trades.get(round.id) ?? [];
   const tradeCountOf = (addr: string) => roundTrades.reduce((n, t) => (t.userAddress === addr ? n + 1 : n), 0);
-  const qualifiers = [...traderPnl.entries()]
-    .filter(([addr, pnl]) => pnl > 0 && tradeCountOf(addr) >= minTrades)
-    .map(([a]) => a);
+  let qualifiers: string[] = [];
+  if (traderPnl.size > 0) {
+    const best = Math.max(...traderPnl.values());
+    qualifiers = [...traderPnl.entries()].filter(([, pnl]) => pnl >= best - 1e-12).map(([a]) => a);
+  }
   const totalWinnerStake = [...winnerStake.values()].reduce((s, v) => s + v, 0);
-  const totalQualStake = qualifiers.reduce((s, a) => s + (traderStake.get(a) ?? 0), 0);
 
-  const predPot = pit.prediction.pot + pit.prediction.carryIn;
-  const tradePot = pit.trading.pot + pit.trading.carryIn;
-  // rewardEach is the average payout (per-player is pro-rata, computed below).
+  const predPot = pit.prediction.pot;
+  const tradePot = pit.trading.pot;
   const predReward = predWinners.length ? predPot / predWinners.length : 0;
+  // Trading pool is winner-take-all by PnL; ties split it evenly.
   const tradeReward = qualifiers.length ? tradePot / qualifiers.length : 0;
-  const predCarried = predWinners.length === 0 && predPot > 1e-9 && carryEnabled;
-  const tradeCarried = qualifiers.length === 0 && tradePot > 1e-9 && carryEnabled;
-  if (predCarried) store.pitCarry.prediction += predPot;
-  if (tradeCarried) store.pitCarry.trading += tradePot;
+  // Unclaimed pool money (nobody called it right / nobody traded) funds the
+  // weekly jackpot — pools never carry into the next Pit match.
+  const predCarried = predWinners.length === 0 && predPot > 1e-9;
+  const tradeCarried = qualifiers.length === 0 && tradePot > 1e-9;
+  if ((predCarried || tradeCarried) && carryEnabled) {
+    if (predCarried) store.jackpotPool += predPot;
+    if (tradeCarried) store.jackpotPool += tradePot;
+  }
 
   const predWon = new Set(predWinners);
   const qualified = new Set(qualifiers);
-  const hadCarryIn = pit.prediction.carryIn > 1e-9 || pit.trading.carryIn > 1e-9;
 
   const players: PitPlayerResult[] = [];
   for (const [addr, entry] of entries) {
@@ -92,8 +94,7 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
     const isQual = entry.trading ? qualified.has(addr) : undefined;
     const predictionReward =
       wonPred && totalWinnerStake > 0 ? predPot * (predStake(entry) / totalWinnerStake) : 0;
-    const tradingReward =
-      isQual && totalQualStake > 0 ? tradePot * (tradeStake(entry) / totalQualStake) : 0;
+    const tradingReward = isQual ? tradeReward : 0;
     const totalReward = predictionReward + tradingReward;
     // Net uses the ACTUAL bets this player made, not the base config fees.
     const feesPaid = (entry.prediction ? predStake(entry) : 0) + (entry.trading ? tradeStake(entry) : 0);
@@ -135,7 +136,6 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
     if (wonPred || isQual) ps.byDuration[pit.duration].wins += 1;
     if (totalReward > ps.largestWin) ps.largestWin = totalReward;
     ps.totalEarnings += totalReward;
-    if (totalReward > 0 && hadCarryIn) ps.carryoverWins += 1;
 
     // Shared leveling (counts toward the profile + weekly jackpot): a base for
     // playing plus a bonus per win. Categorized "pit" for the XP breakdown.
@@ -162,6 +162,7 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
       displayName: u.displayName,
       avatarUrl: u.avatarUrl,
       prediction: entry.prediction,
+      houseSpecial: entry.houseSpecial,
       predictionCorrect: entry.prediction ? entry.prediction === outcome : undefined,
       tradingPnl: pnl,
       qualified: isQual,
@@ -178,7 +179,6 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
   const pitResult: PitResult = {
     duration: pit.duration,
     outcome,
-    minTrades,
     prediction: {
       pot: predPot,
       winners: predWinners.length,

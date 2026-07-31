@@ -31,15 +31,15 @@ type Phase =
 
 /** Buy probability + size bias per phase. Size is a fraction of pool depth. */
 const PHASE: Record<Phase, { buy: number; size: number; label?: string }> = {
-  accumulation: { buy: 0.72, size: 0.05, label: "The Swarm is accumulating." },
-  momentum: { buy: 0.86, size: 0.1, label: "Momentum run. The Swarm is bidding it up." },
-  fake_recovery: { buy: 0.68, size: 0.07, label: "The Swarm is faking a recovery." },
-  distribution: { buy: 0.42, size: 0.06, label: "The Swarm is distributing into strength." },
+  accumulation: { buy: 0.72, size: 0.05, label: "The Goon Squad is accumulating." },
+  momentum: { buy: 0.86, size: 0.1, label: "Momentum run. The Goons are bidding it up." },
+  fake_recovery: { buy: 0.68, size: 0.07, label: "The Goon Squad is faking a recovery." },
+  distribution: { buy: 0.42, size: 0.06, label: "The Goons are distributing into strength." },
   panic: { buy: 0.14, size: 0.11, label: "Panic selling detected." },
-  recovery: { buy: 0.76, size: 0.08, label: "The Swarm is buying the panic." },
+  recovery: { buy: 0.76, size: 0.08, label: "The Goon Squad is buying the panic." },
   blowoff: { buy: 0.9, size: 0.13, label: "Blow-off top forming." },
-  graduate_push: { buy: 0.95, size: 0.16, label: "The Swarm is sending it toward the bond." },
-  rug: { buy: 0.0, size: 0.2, label: "The Swarm is pulling the market." },
+  graduate_push: { buy: 0.95, size: 0.16, label: "The Goons are sending it toward the bond." },
+  rug: { buy: 0.0, size: 0.2, label: "The Goon Squad is pulling the market." },
   coast: { buy: 0.5, size: 0.04 },
 };
 
@@ -111,7 +111,7 @@ export class SwarmDirector {
     const spec = PHASE[phase];
     if (spec.label && !st.announced.has(phase)) {
       st.announced.add(phase);
-      this.sys(round.id, "pit_event", `Swarm AI: ${spec.label}`);
+      this.sys(round.id, "pit_event", `Flame Goon Squad: ${spec.label}`);
     }
     // Final-ten-seconds call, once.
     if (!st.finalCalled && endsAt - now <= 10_000 && endsAt - now > 0) {

@@ -93,11 +93,12 @@ test("Pit: two independent pools split evenly, double winner takes both", () => 
   assert.equal(ps.tradingWins, 1);
 });
 
-test("Pit: an unclaimed pool carries into the next match", () => {
+test("Pit: an unclaimed pool funds the weekly jackpot", () => {
   const store = new Store();
   const engine = new RoundEngine(store, () => {});
   const carol = "0xca401000000000000000000000000000000000000".slice(0, 42);
   store.getOrCreateUser(carol).arenaBalance = 5;
+  const jackpotBefore = store.jackpotPool;
   const round = engine.schedulePitRound(pitConcept(store), Date.now());
   enterPit(store, round, carol, { prediction: "graduate" });
   round.state = "live";
@@ -112,5 +113,6 @@ test("Pit: an unclaimed pool carries into the next match", () => {
     holderCount: 0,
     now: Date.now(),
   });
-  assert.ok(store.pitCarry.prediction > 0, "prediction pool carried over");
+  assert.ok(store.jackpotPool > jackpotBefore, "unclaimed prediction pool went to the jackpot");
+  assert.equal(store.pitCarry.prediction, 0, "nothing carried to the next match");
 });

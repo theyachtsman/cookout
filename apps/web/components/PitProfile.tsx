@@ -46,7 +46,7 @@ export function PitProfile({ address, pitStats: initial }: { address: string; pi
         <Link href="/pit" className="font-bold text-fuchsia-300 hover:underline">
           Enter The Pit
         </Link>{" "}
-        to face the Swarm.
+        to face the Goon Squad.
       </div>
     );
 

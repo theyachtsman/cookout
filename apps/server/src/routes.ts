@@ -634,12 +634,20 @@ export function createApp(
         artworkUrl?: string;
         bannerUrl?: string;
         duration?: string;
+        modes?: { prediction?: boolean; trading?: boolean };
       };
       const { name, symbol, theme } = body;
       if (!name || !symbol || !theme) throw new Err(400, "name, symbol, theme required");
       const duration = (body.duration ?? "standard") as PitDurationKey;
       if (!PIT_DURATION_MAP[duration] || !store.settings.pit.durations.includes(duration))
         throw new Err(400, "unknown or disabled Pit duration");
+      // Which pools this match runs. Default to both when unspecified (legacy).
+      const modes = {
+        prediction: body.modes ? !!body.modes.prediction : true,
+        trading: body.modes ? !!body.modes.trading : true,
+      };
+      if (!modes.prediction && !modes.trading)
+        throw new Err(400, "pick at least one game mode (prediction or trading)");
       const creator = store.getOrCreateUser(req.userAddress!);
       const ban = activeRugBan(creator);
       if (ban)
@@ -664,6 +672,7 @@ export function createApp(
         tier: "degen",
         matchType: "pit",
         pitDuration: duration,
+        pitModes: modes,
         status: "submitted",
         votes: 0,
         createdAt: Date.now(),
@@ -733,15 +742,25 @@ export function createApp(
           throw new Err(400, `${label} must be at least $1 (${minStake.toFixed(4)} pETH)`);
         return stake;
       };
+      const pit = round.pit!;
       if (body.prediction !== undefined && body.prediction !== null) {
-        if (!["graduate", "rug", "timer"].includes(String(body.prediction)))
-          throw new Err(400, "prediction must be graduate, rug, or timer");
-        entry.prediction = body.prediction as PitCall;
-        entry.predictionStake = resolveStake(body.predictionStake, round.pit!.predictionFee, "prediction bet");
+        if (!pit.predictionMode) throw new Err(400, "this match has no prediction pool");
+        const choice = String(body.prediction);
+        if (!["graduate", "rug", "timer", "house"].includes(choice))
+          throw new Err(400, "prediction must be graduate, rug, timer, or house");
+        if (choice === "house") {
+          // House Special: the house rolls a random real call for you.
+          entry.prediction = (["graduate", "rug", "timer"] as PitCall[])[Math.floor(Math.random() * 3)];
+          entry.houseSpecial = true;
+        } else {
+          entry.prediction = choice as PitCall;
+        }
+        entry.predictionStake = resolveStake(body.predictionStake, pit.predictionFee, "prediction bet");
       }
       if (body.trading) {
+        if (!pit.tradingMode) throw new Err(400, "this match has no trading pool");
         entry.trading = true;
-        entry.tradingStake = resolveStake(body.tradingStake, round.pit!.tradingFee, "trading buy-in");
+        entry.tradingStake = resolveStake(body.tradingStake, pit.tradingFee, "trading buy-in");
       }
       if (!entry.prediction && !entry.trading) throw new Err(400, "enter at least one pool");
       const cost = pitEntryCost(round, entry);

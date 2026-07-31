@@ -10,7 +10,10 @@ import {
   OVERTIME_MIN_VOLUME,
   OVERTIME_TRIGGER_REMAINING_SEC,
   OVERTIME_VOLUME_FRACTION,
+  PIT_AI_NAME,
+  PIT_AI_SHORT,
   PIT_DURATION_MAP,
+  PIT_TRADING_MODE_NAME,
   RUG_DRAIN_FRACTION,
   RUG_WINDOW_SECONDS,
   TIER_CONFIGS,
@@ -182,18 +185,21 @@ export class RoundEngine {
       overtime: false,
       mcapTarget: 0,
     };
-    // Claim any carried-over pools into this match (first lobby to open wins it).
-    const carry = pit.carryover ? { ...this.store.pitCarry } : { prediction: 0, trading: 0 };
-    if (pit.carryover) this.store.pitCarry = { prediction: 0, trading: 0 };
+    // Which pools this match runs (chosen at launch; default both for legacy).
+    const modes = concept.pitModes ?? { prediction: true, trading: true };
     const pitConfig: PitConfig = {
       duration,
+      predictionMode: !!modes.prediction,
+      tradingMode: !!modes.trading,
       predictionFee: pit.predictionFee,
       tradingFee: pit.tradingFee,
       pitFeeBps: pit.pitFeeBps,
       feeSplit: { ...pit.feeSplit },
       startingStack: pit.startingStack,
-      prediction: { pot: 0, participants: 0, carryIn: carry.prediction },
-      trading: { pot: 0, participants: 0, carryIn: carry.trading },
+      // Pools no longer carry between matches — unclaimed money funds the weekly
+      // jackpot at resolution (see pit-results), so carryIn is always zero.
+      prediction: { pot: 0, participants: 0, carryIn: 0 },
+      trading: { pot: 0, participants: 0, carryIn: 0 },
     };
     const round: Round = {
       id: this.store.id(),
@@ -221,33 +227,43 @@ export class RoundEngine {
     this.store.rounds.set(round.id, round);
     this.store.intents.set(round.id, []);
     const d = PIT_DURATION_MAP[duration];
+    const modeText =
+      modes.prediction && modes.trading
+        ? "Predict and trade"
+        : modes.prediction
+          ? "Prediction match"
+          : `${PIT_TRADING_MODE_NAME}`;
     this.sys(
       round.id,
       "pit_open",
-      `The Pit is open. ${d.icon} ${d.name} match on $${concept.symbol}. Two predictions arm the countdown.`,
+      `The Pit is open. ${d.icon} ${d.name} · ${modeText} on $${concept.symbol}. Two bets per pool arm the countdown.`,
     );
     this.sys(
       GLOBAL_ROOM,
       "pit_open",
-      `New Pit match: $${concept.symbol} (${d.name}). Powered by Swarm AI. Enter The Pit.`,
+      `New Pit match: $${concept.symbol} (${d.name}). Powered by ${PIT_AI_NAME}. Enter The Pit.`,
     );
     this.emitState(round);
     return round;
   }
 
   /**
-   * Arm a Pit lobby's countdown once quorum (2+ prediction bets) is met. Idempotent
-   * — the first call starts the clock; later entries don't reset it. Returns true
-   * if it armed the countdown this call.
+   * Arm a Pit lobby's countdown once quorum is met. Each enabled pool needs 2+
+   * bets: a prediction-only match needs 2 predictions, a trading-only match needs
+   * 2 traders, and a both-pools match needs 2 of each. Idempotent — the first
+   * call starts the clock; later entries don't reset it.
    */
   armPitLobby(round: Round, now: number): boolean {
     if (round.matchType !== "pit" || round.state !== "lobby" || round.queueOpensAt) return false;
-    if ((round.pit?.prediction.participants ?? 0) < 2) return false;
+    const pit = round.pit!;
+    const predOk = !pit.predictionMode || pit.prediction.participants >= 2;
+    const tradeOk = !pit.tradingMode || pit.trading.participants >= 2;
+    if (!predOk || !tradeOk) return false;
     round.queueOpensAt = now + round.config.lobbySeconds * 1000;
     this.sys(
       round.id,
       "pit_open",
-      `Quorum reached. Trading goes live in ${round.config.lobbySeconds}s. Get in.`,
+      `Quorum reached. ${PIT_AI_SHORT} steps in — live in ${round.config.lobbySeconds}s. Get in.`,
     );
     this.emitState(round);
     return true;
@@ -270,11 +286,11 @@ export class RoundEngine {
     s.peakMcap = marketCap(round.pool);
     s.bottomPrice = price;
     s.bottomAt = now;
-    this.sys(round.id, "pit_live", "Swarm AI initializing. Trading is LIVE. Beat The Swarm.");
+    this.sys(round.id, "pit_live", `${PIT_AI_NAME} is in. Trading is LIVE. Beat the Goons.`);
     this.sys(
       GLOBAL_ROOM,
       "pit_live",
-      `$${round.token.symbol} is LIVE in The Pit. The Swarm is in the market.`,
+      `$${round.token.symbol} is LIVE in The Pit. ${PIT_AI_SHORT} is in the market.`,
     );
     this.broadcast(round.id, { type: "round_state", round });
     this.emitState(round);
@@ -1040,9 +1056,9 @@ export class RoundEngine {
     // and it never keeps trading "in the wild". Everything below is Cookout.
     let summary: RoundSummary;
     if (round.matchType === "pit") {
-      if (graduated) this.kill(round, "graduated", `${round.token.symbol} SERVED UP · beat the Swarm`, now);
+      if (graduated) this.kill(round, "graduated", `${round.token.symbol} SERVED UP · beat the Goons`, now);
       else if (reason === "rug_detected")
-        this.kill(round, "rug_detected", `The Swarm rugged $${round.token.symbol}`, now);
+        this.kill(round, "rug_detected", `${PIT_AI_SHORT} rugged $${round.token.symbol}`, now);
       summary = resolvePitRound(this.store, round, {
         totalVolume: s.totalVolume,
         peakMcap: s.peakMcap,
@@ -1201,7 +1217,7 @@ export class RoundEngine {
     this.sys(
       GLOBAL_ROOM,
       "pit_result",
-      `THE PIT · $${round.token.symbol} finished ${outcomeLabel}. Swarm AI ran the market. Results are up.`,
+      `THE PIT · $${round.token.symbol} finished ${outcomeLabel}. ${PIT_AI_NAME} ran the market. Results are up.`,
     );
 
     const doubles = pit.players.filter((p) => p.doubleWinner);

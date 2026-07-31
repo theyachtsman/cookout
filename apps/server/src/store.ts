@@ -963,7 +963,11 @@ export class Store {
     this.jackpotLifetimeEth = snap.jackpotLifetimeEth ?? 0;
     this.weeklyVolume = snap.weeklyVolume ?? {};
     this.weeklyFees = snap.weeklyFees ?? {};
-    this.pitCarry = snap.pitCarry ?? { prediction: 0, trading: 0 };
+    // Pit pools no longer carry between matches — any previously-carried money
+    // (and any that lands in the field) rolls into the weekly jackpot instead.
+    const carried = snap.pitCarry ?? { prediction: 0, trading: 0 };
+    this.jackpotPool += (carried.prediction ?? 0) + (carried.trading ?? 0);
+    this.pitCarry = { prediction: 0, trading: 0 };
     // Ensure the Pit settings block exists on snapshots that predate The Pit.
     this.settings.pit ??= {
       ...PIT_DEFAULTS,
