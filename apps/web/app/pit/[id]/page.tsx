@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -26,7 +26,7 @@ import { TradePanel } from "../../../components/TradePanel";
 import { GraduationProgress } from "../../../components/GraduationProgress";
 import { Countdown } from "../../../components/Countdown";
 import { pdotEth, fmtVal } from "../../../lib/pit";
-import { PitResultsView } from "../../../components/PitResults";
+import { PitResultsView, PitOutcomeModal } from "../../../components/PitResults";
 
 interface RoundData {
   round: Round;
@@ -56,6 +56,8 @@ export default function PitMatchPage() {
   const [entry, setEntry] = useState<PitEntry | null>(null);
   const [stack, setStack] = useState(0);
   const [usd, setUsd] = useState(true);
+  // The end-of-match win/lose modal, shown once when a match the player was in ends.
+  const [showOutcome, setShowOutcome] = useState(false);
 
   const round = data?.round;
   const pit = round?.pit;
@@ -109,7 +111,10 @@ export default function PitMatchPage() {
     } else if (ev.type === "round_state") {
       setData((d) => (d ? { ...d, round: ev.round as Round } : d));
     } else if (ev.type === "round_end") {
-      setData((d) => (d ? { ...d, round: { ...d.round, state: "results" }, summary: ev.summary as RoundSummary } : d));
+      const summary = ev.summary as RoundSummary;
+      setData((d) => (d ? { ...d, round: { ...d.round, state: "results" }, summary } : d));
+      // Only surface the hero modal to players who actually entered this match.
+      if (me && summary.pit?.players.some((p) => p.address === me)) setShowOutcome(true);
     }
   });
 
@@ -222,6 +227,14 @@ export default function PitMatchPage() {
       {round.state === "results" && (
         <PitResultsView round={round} summary={data.summary} me={me} fmt={fmt} />
       )}
+
+      {showOutcome &&
+        (() => {
+          const mine = me ? data?.summary?.pit?.players.find((p) => p.address === me) : undefined;
+          return mine ? (
+            <PitOutcomeModal round={round} mine={mine} fmt={fmt} onClose={() => setShowOutcome(false)} />
+          ) : null;
+        })()}
     </div>
   );
 }
@@ -273,55 +286,71 @@ function Pools({ round, fmt }: { round: Round; fmt: (eth: number) => string }) {
   );
 }
 
+/** USD quick-stake chips shared by every Pit bet input. */
+const BET_CHIPS_USD = [5, 10, 25, 50, 100];
+
+const BET_ACCENT: Record<string, { text: string; ring: string; chip: string }> = {
+  fuchsia: { text: "text-fuchsia-300", ring: "focus-within:ring-fuchsia-400/60", chip: "bg-fuchsia-500/20 text-fuchsia-200 ring-fuchsia-400/40" },
+  amber: { text: "text-amber-300", ring: "focus-within:ring-amber-400/60", chip: "bg-amber-500/20 text-amber-200 ring-amber-400/40" },
+  lime: { text: "text-lime-300", ring: "focus-within:ring-lime-400/60", chip: "bg-lime-500/20 text-lime-200 ring-lime-400/40" },
+  orange: { text: "text-orange-300", ring: "focus-within:ring-orange-400/60", chip: "bg-orange-500/20 text-orange-200 ring-orange-400/40" },
+};
+
+/**
+ * The shared Pit bet input — a big USD figure with quick-stake chips and the
+ * pETH equivalent. Used by every mode (prediction, house, trading, trial) so the
+ * betting screens read the same everywhere.
+ */
 function BetInput({
   value,
   onChange,
-  chips,
-  min,
-  max,
   peg,
   accent,
+  minUsd,
+  extra,
 }: {
   value: string;
   onChange: (v: string) => void;
-  chips: number[];
-  min: number;
-  max: number;
   peg: number;
-  accent: "fuchsia" | "amber" | "lime";
+  accent: "fuchsia" | "amber" | "lime" | "orange";
+  minUsd: number;
+  /** Optional trailing controls (e.g. Flame Trial tier chips). */
+  extra?: ReactNode;
 }) {
-  const ring =
-    accent === "amber"
-      ? "focus:ring-amber-400/50"
-      : accent === "lime"
-        ? "focus:ring-lime-400/50"
-        : "focus:ring-fuchsia-400/50";
+  const a = BET_ACCENT[accent]!;
+  const eth = (Number(value) || 0) / (peg > 0 ? peg : 1);
   return (
-    <div className="mt-2 rounded-xl bg-zinc-900/60 p-3 ring-1 ring-white/10">
-      <div className="mb-1.5 flex items-center justify-between text-xs text-zinc-500">
-        <span>Stake (pETH)</span>
-        <span className="font-mono text-zinc-400">≈ ${(Number(value || 0) * peg).toFixed(2)}</span>
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
+    <div className="mt-2 space-y-2">
+      <div className={`flex items-center gap-2 rounded-xl bg-zinc-950/70 px-4 py-3 ring-1 ring-white/10 ${a.ring}`}>
+        <span className={`text-2xl font-black ${a.text}`}>$</span>
         <input
           value={value}
           onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ""))}
           inputMode="decimal"
-          className={`w-24 rounded-lg bg-zinc-950/60 px-3 py-2 text-center font-mono text-lg outline-none ring-1 ring-white/10 ${ring}`}
+          placeholder={String(minUsd)}
+          className="w-full bg-transparent font-mono text-3xl font-black text-zinc-50 outline-none placeholder:text-zinc-700"
         />
-        {chips.map((c) => (
+        <span className="shrink-0 text-right font-mono text-[11px] leading-tight text-zinc-500">
+          ≈ {eth.toFixed(4)}
+          <br />
+          pETH
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {BET_CHIPS_USD.map((c) => (
           <button
             key={c}
             onClick={() => onChange(String(c))}
-            className="rounded-lg bg-zinc-800 px-2.5 py-2 text-xs font-bold hover:bg-zinc-700"
+            className={`rounded-lg px-3 py-1.5 text-sm font-black ring-1 transition ${
+              (Number(value) || 0) === c ? a.chip : "bg-zinc-800/80 text-zinc-300 ring-transparent hover:bg-zinc-700"
+            }`}
           >
-            {c}
+            ${c}
           </button>
         ))}
+        {extra}
       </div>
-      <div className="mt-1 text-[10px] text-zinc-600">
-        min {min} · max {max} pETH
-      </div>
+      <div className="text-[11px] text-zinc-600">Min ${minUsd}. Paid from your Cook Out balance.</div>
     </div>
   );
 }
@@ -355,31 +384,34 @@ function LobbyView({
   const isCreator = !!me && me === round.creatorAddress.toLowerCase();
   const trialModeOn = pit.trialMode && isCreator;
   const peg = ethUsd > 0 ? ethUsd : 1;
-  const chips = pit.quickChips ?? [0.05, 0.1, 0.25, 0.5, 1];
-  const firstChip = String(chips[0] ?? pit.minBet);
+  // Every bet is placed in USD now, with a $5 minimum, converted to pETH on send.
+  const BET_MIN_USD = 5;
+  const betMaxUsd = pit.maxBet * peg;
+  const ethToUsd = (eth: number) => (eth * peg).toFixed(0);
 
   const [editing, setEditing] = useState(false);
   const [call, setCall] = useState<PitCall | null>(null);
-  const [mainBet, setMainBet] = useState<string>(firstChip);
+  const [mainBet, setMainBet] = useState<string>("5"); // USD
   const [house, setHouse] = useState(false);
-  const [houseBet, setHouseBet] = useState<string>(firstChip);
+  const [houseBet, setHouseBet] = useState<string>("5"); // USD
   const [trading, setTrading] = useState(false);
-  const [tradeBet, setTradeBet] = useState<string>(String(pit.tradingFee));
+  const [tradeBet, setTradeBet] = useState<string>("5"); // USD
   const [trial, setTrial] = useState(false);
   const [trialUsd, setTrialUsd] = useState<string>(String(pit.trialMinUsd ?? 5));
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
   const armed = !!round.queueOpensAt;
-  const clampErr = (v: number, label: string): string | null => {
-    if (!(v > 0)) return `${label} required`;
-    if (v < pit.minBet - 1e-9) return `${label} below ${pit.minBet} pETH min`;
-    if (v > pit.maxBet + 1e-9) return `${label} above ${pit.maxBet} pETH max`;
+  const clampUsd = (usd: number, label: string): string | null => {
+    if (!(usd > 0)) return `${label} is required`;
+    if (usd < BET_MIN_USD - 1e-6) return `${label} is below the $${BET_MIN_USD} minimum`;
+    if (usd > betMaxUsd + 1e-6) return `${label} is above the $${Math.round(betMaxUsd)} maximum`;
     return null;
   };
-  const mainStake = call ? Number(mainBet) || 0 : 0;
-  const houseStake = house ? Number(houseBet) || 0 : 0;
-  const tradeStake = trading ? Number(tradeBet) || 0 : 0;
+  const usdToEth = (usd: string) => (Number(usd) || 0) / peg;
+  const mainStake = call ? usdToEth(mainBet) : 0; // pETH
+  const houseStake = house ? usdToEth(houseBet) : 0;
+  const tradeStake = trading ? usdToEth(tradeBet) : 0;
   const trialUsdNum = trial ? Number(trialUsd) || 0 : 0;
   const trialStakeEth = trialUsdNum / peg;
   const trialTier = trialTierFor(Number(trialUsd) || 0, pit.trialTiers ?? []);
@@ -390,11 +422,11 @@ function LobbyView({
   const startEdit = () => {
     if (!entry) return;
     setCall(entry.prediction ?? null);
-    setMainBet(entry.predictionStake ? String(entry.predictionStake) : firstChip);
+    setMainBet(entry.predictionStake ? ethToUsd(entry.predictionStake) : "5");
     setHouse(!!entry.houseSpecial);
-    setHouseBet(entry.houseSpecialStake ? String(entry.houseSpecialStake) : firstChip);
+    setHouseBet(entry.houseSpecialStake ? ethToUsd(entry.houseSpecialStake) : "5");
     setTrading(!!entry.trading);
-    setTradeBet(entry.tradingStake ? String(entry.tradingStake) : String(pit.tradingFee));
+    setTradeBet(entry.tradingStake ? ethToUsd(entry.tradingStake) : "5");
     setTrial(!!entry.trial);
     setTrialUsd(entry.trialStake ? ((entry.trialStake * peg).toFixed(0)) : String(pit.trialMinUsd ?? 5));
     setEditing(true);
@@ -406,13 +438,13 @@ function LobbyView({
       setError("Place at least one bet.");
       return;
     }
-    for (const [on, v, label] of [
-      [call, mainStake, "Main bet"],
-      [house, houseStake, "House Special bet"],
-      [trading, tradeStake, "Trading buy-in"],
+    for (const [on, usd, label] of [
+      [call, Number(mainBet) || 0, "Prediction bet"],
+      [house, Number(houseBet) || 0, "House Special bet"],
+      [trading, Number(tradeBet) || 0, "Goon Squad buy-in"],
     ] as [unknown, number, string][]) {
       if (on) {
-        const e = clampErr(v, label);
+        const e = clampUsd(usd, label);
         if (e) {
           setError(e);
           return;
@@ -474,31 +506,30 @@ function LobbyView({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="mx-auto w-full max-w-xl space-y-3">
       {/* Status */}
       <div
-        className={`flex items-center justify-between rounded-2xl p-3 text-sm ring-1 ${
-          armed ? "bg-fuchsia-500/[0.06] ring-fuchsia-500/25" : "bg-amber-500/[0.06] ring-amber-500/20"
+        className={`flex items-center justify-between gap-3 rounded-2xl px-4 py-3 ring-1 ${
+          armed ? "bg-fuchsia-500/10 ring-fuchsia-500/30" : "bg-amber-500/10 ring-amber-500/25"
         }`}
       >
         {armed && round.queueOpensAt ? (
           <>
-            <span className="font-bold text-fuchsia-200">Quorum reached. Goes live soon.</span>
-            <span className="font-mono font-black text-fuchsia-200">
+            <span className="text-sm font-black text-fuchsia-200">🔒 Locked in. Going live.</span>
+            <span className="font-mono text-lg font-black text-fuchsia-200">
               <Countdown to={round.queueOpensAt} />
             </span>
           </>
         ) : (
           <>
-            <span className="font-bold text-amber-200">
-              {isTrialRound ? (
-                <>🔥 Single-player Flame Trial. Waiting on {needs.join(" and ")}.</>
-              ) : (
-                <>Waiting on {needs.join(" and ")} to start.</>
-              )}
+            <span className="text-sm font-black text-amber-100">
+              {isTrialRound ? <>🔥 Single-player Flame Trial</> : <>Filling the lobby</>}
+              <span className="block text-[11px] font-bold text-amber-200/80">
+                Waiting on {needs.join(" and ")}.
+              </span>
             </span>
-            <span className="font-mono text-[11px] font-bold text-amber-200">
-              {isTrialRound && <>trial {pit.trialParticipants}/1</>}
+            <span className="shrink-0 rounded-lg bg-black/30 px-2.5 py-1 font-mono text-xs font-black text-amber-200">
+              {isTrialRound && <>{pit.trialParticipants}/1</>}
               {!isTrialRound && predMode && <>pred {pit.prediction.participants}/2</>}
               {!isTrialRound && predMode && tradeMode && " · "}
               {!isTrialRound && tradeMode && <>trade {pit.trading.participants}/2</>}
@@ -507,46 +538,35 @@ function LobbyView({
         )}
       </div>
 
-      {pit.houseSpecial && predMode && (
-        <div className="rounded-2xl bg-amber-500/[0.06] p-3 ring-1 ring-amber-500/25">
-          <span className="text-[10px] font-black uppercase tracking-wide text-amber-300/80">
-            🏠 Featured House Special
-          </span>
-          <div className="text-sm font-black text-amber-200">
-            {pit.houseSpecial.name} <span className="font-normal text-zinc-400">— {pit.houseSpecial.blurb}</span>
-          </div>
-        </div>
-      )}
-
       <Pools round={round} fmt={fmt} />
 
       {entry && !editing ? (
-        <div className="rounded-2xl bg-lime-500/[0.06] p-4 ring-1 ring-lime-500/20">
-          <div className="text-sm font-black text-lime-300">You&apos;re in.</div>
-          <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-sm text-zinc-300">
+        <div className="rounded-2xl bg-lime-500/10 p-4 ring-1 ring-lime-500/30">
+          <div className="text-base font-black text-lime-300">✓ You&apos;re in</div>
+          <div className="mt-2 space-y-1.5 text-sm">
             {entry.prediction && (
-              <span>
-                Main <b className="capitalize">{entry.prediction}</b>
-                <b className="ml-1 font-mono text-zinc-400">{fmt(entry.predictionStake ?? 0)}</b>
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-300">🔮 Prediction · <b className="capitalize text-zinc-100">{entry.prediction}</b></span>
+                <b className="font-mono text-zinc-200">{fmt(entry.predictionStake ?? 0)}</b>
+              </div>
             )}
             {entry.houseSpecial && (
-              <span>
-                🏠 {pit.houseSpecial?.name}
-                <b className="ml-1 font-mono text-zinc-400">{fmt(entry.houseSpecialStake ?? 0)}</b>
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-300">🏠 {pit.houseSpecial?.name}</span>
+                <b className="font-mono text-zinc-200">{fmt(entry.houseSpecialStake ?? 0)}</b>
+              </div>
             )}
             {entry.trading && (
-              <span>
-                Trading stack <b className="font-mono">{fmt(stack)}</b>
-                <b className="ml-1 font-mono text-zinc-400">· bet {fmt(entry.tradingStake ?? 0)}</b>
-              </span>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-300">⚔️ Goon Squad · stack <b className="font-mono text-zinc-100">{fmt(stack)}</b></span>
+                <b className="font-mono text-zinc-200">{fmt(entry.tradingStake ?? 0)}</b>
+              </div>
             )}
             {entry.trial && (
-              <span className="text-orange-200">
-                🔥 Flame Trial <b>+{targetPct}%</b>
-                <b className="ml-1 font-mono text-zinc-400">· {fmt(entry.trialStake ?? 0)}</b>
-              </span>
+              <div className="flex items-center justify-between text-orange-200">
+                <span>🔥 Flame Trial · target <b>+{targetPct}%</b></span>
+                <b className="font-mono">{fmt(entry.trialStake ?? 0)}</b>
+              </div>
             )}
           </div>
           {error && <div className="mt-2 text-xs text-red-400">{error}</div>}
@@ -554,38 +574,36 @@ function LobbyView({
             <button
               onClick={startEdit}
               disabled={busy}
-              className="rounded-xl bg-zinc-800 px-4 py-2 text-xs font-black text-zinc-200 hover:bg-zinc-700 disabled:opacity-40"
+              className="flex-1 rounded-xl bg-zinc-800 px-4 py-2.5 text-sm font-black text-zinc-100 hover:bg-zinc-700 disabled:opacity-40"
             >
               Edit
             </button>
             <button
               onClick={withdraw}
               disabled={busy}
-              className="rounded-xl bg-red-500/15 px-4 py-2 text-xs font-black text-red-300 hover:bg-red-500/25 disabled:opacity-40"
+              className="flex-1 rounded-xl bg-red-500/15 px-4 py-2.5 text-sm font-black text-red-300 hover:bg-red-500/25 disabled:opacity-40"
             >
               {busy ? "…" : "Withdraw"}
             </button>
           </div>
-          <p className="mt-2 text-[11px] text-zinc-600">
+          <p className="mt-2 text-[11px] text-zinc-500">
             {armed ? "The Goon Squad is warming up." : "Edit or withdraw any time until it goes live."}
           </p>
         </div>
       ) : isTrialRound && !predMode && !isCreator ? (
-        <div className="rounded-2xl bg-zinc-900/40 p-6 text-center ring-1 ring-white/10">
-          <div className="text-sm font-black text-orange-300">🔥 Single-player Flame Trial</div>
-          <p className="mt-1 text-xs text-zinc-500">
-            This is the creator&apos;s solo run against the Goon Squad. There&apos;s nothing to enter — hang around to
-            watch them chase +{targetPct}%.
+        <div className="rounded-2xl bg-zinc-900/50 p-6 text-center ring-1 ring-white/10">
+          <div className="text-base font-black text-orange-300">🔥 Single-player Flame Trial</div>
+          <p className="mt-1.5 text-sm text-zinc-400">
+            This is the creator&apos;s solo run against the Goon Squad. There&apos;s nothing to enter here — stick around
+            to watch them chase +{targetPct}%.
           </p>
         </div>
       ) : (
-        <div className="space-y-4 rounded-2xl bg-zinc-900/40 p-4 ring-1 ring-white/10">
-          {/* Main prediction */}
+        <div className="space-y-3">
+          {/* Prediction */}
           {predMode && (
-            <div>
-              <div className="mb-2 text-xs font-bold uppercase tracking-wide text-zinc-400">
-                Main prediction
-              </div>
+            <BetCard accent="fuchsia" icon="🔮" title="Prediction" active={!!call}
+              subtitle="Call how it ends. Correct callers split the pool.">
               <div className="grid grid-cols-3 gap-2">
                 {CALLS.map((c) => (
                   <button
@@ -593,147 +611,73 @@ function LobbyView({
                     onClick={() => setCall(call === c.key ? null : c.key)}
                     className={`rounded-xl p-3 text-center ring-1 transition ${
                       call === c.key
-                        ? "bg-fuchsia-500/15 ring-fuchsia-400/60"
-                        : "bg-zinc-900/60 ring-white/10 hover:ring-white/25"
+                        ? "bg-fuchsia-500/25 ring-fuchsia-400 ring-2"
+                        : "bg-zinc-800/60 ring-white/10 hover:ring-white/30"
                     }`}
                   >
-                    <div className="text-2xl">{c.icon}</div>
-                    <div className="mt-1 text-sm font-black text-zinc-100">{c.label}</div>
-                    <div className="text-[10px] text-zinc-500">{c.blurb}</div>
+                    <div className="text-3xl">{c.icon}</div>
+                    <div className="mt-1 text-sm font-black text-zinc-50">{c.label}</div>
+                    <div className="text-[10px] leading-tight text-zinc-400">{c.blurb}</div>
                   </button>
                 ))}
               </div>
-              {call && (
-                <BetInput value={mainBet} onChange={setMainBet} chips={chips} min={pit.minBet} max={pit.maxBet} peg={peg} accent="fuchsia" />
-              )}
-            </div>
+              {call && <BetInput value={mainBet} onChange={setMainBet} peg={peg} accent="fuchsia" minUsd={BET_MIN_USD} />}
+            </BetCard>
           )}
 
           {/* House Special */}
           {predMode && pit.houseSpecial && (
-            <div>
-              <button
-                onClick={() => setHouse((h) => !h)}
-                className={`flex w-full items-start gap-3 rounded-xl p-3 text-left ring-1 transition ${
-                  house ? "bg-amber-500/15 ring-amber-400/50" : "bg-zinc-900/60 ring-white/10 hover:ring-white/25"
-                }`}
-              >
-                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${house ? "bg-amber-400 text-zinc-950" : "bg-zinc-700 text-zinc-300"}`}>
-                  {house ? "✓" : "+"}
-                </span>
-                <span className="flex-1">
-                  <span className="text-sm font-black text-zinc-100">🏠 House Special · {pit.houseSpecial.name}</span>
-                  <span className="block text-[11px] text-zinc-500">
-                    {pit.houseSpecial.blurb}. Optional side bet — win it if it hits.
-                  </span>
-                </span>
-              </button>
-              {house && (
-                <BetInput value={houseBet} onChange={setHouseBet} chips={chips} min={pit.minBet} max={pit.maxBet} peg={peg} accent="amber" />
-              )}
-            </div>
+            <BetCard accent="amber" icon="🏠" title={`House Special · ${pit.houseSpecial.name}`} active={house}
+              subtitle={`${pit.houseSpecial.blurb}. Optional side bet, paid if it hits.`}
+              onToggle={() => setHouse((h) => !h)} toggled={house}>
+              {house && <BetInput value={houseBet} onChange={setHouseBet} peg={peg} accent="amber" minUsd={BET_MIN_USD} />}
+            </BetCard>
           )}
 
           {/* Trading */}
           {tradeMode && (
-            <div>
-              <button
-                onClick={() => setTrading((t) => !t)}
-                className={`flex w-full items-start gap-3 rounded-xl p-3 text-left ring-1 transition ${
-                  trading ? "bg-lime-500/15 ring-lime-400/50" : "bg-zinc-900/60 ring-white/10 hover:ring-white/25"
-                }`}
-              >
-                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${trading ? "bg-lime-400 text-zinc-950" : "bg-zinc-700 text-zinc-300"}`}>
-                  {trading ? "✓" : "+"}
-                </span>
-                <span className="flex-1">
-                  <span className="text-sm font-black text-zinc-100">Battle the Flame Goon Squad AI</span>
-                  <span className="block text-[11px] text-zinc-500">
-                    Trade a {fmt(pit.startingStack)} paper stack against the Goons. Highest PnL wins the pool.
-                  </span>
-                </span>
-              </button>
-              {trading && (
-                <BetInput value={tradeBet} onChange={setTradeBet} chips={chips} min={pit.minBet} max={pit.maxBet} peg={peg} accent="lime" />
-              )}
-            </div>
+            <BetCard accent="lime" icon="⚔️" title="Battle the Goon Squad" active={trading}
+              subtitle={`Trade a ${fmt(pit.startingStack)} paper stack vs the AI. Highest PnL wins the pool.`}
+              onToggle={() => setTrading((t) => !t)} toggled={trading}>
+              {trading && <BetInput value={tradeBet} onChange={setTradeBet} peg={peg} accent="lime" minUsd={BET_MIN_USD} />}
+            </BetCard>
           )}
 
-          {/* Flame Trial (solo objective) */}
+          {/* Flame Trial */}
           {trialModeOn && (
-            <div>
-              <button
-                onClick={() => setTrial((t) => !t)}
-                className={`flex w-full items-start gap-3 rounded-xl p-3 text-left ring-1 transition ${
-                  trial ? "bg-orange-500/15 ring-orange-400/50" : "bg-zinc-900/60 ring-white/10 hover:ring-white/25"
-                }`}
-              >
-                <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-black ${trial ? "bg-orange-400 text-zinc-950" : "bg-zinc-700 text-zinc-300"}`}>
-                  {trial ? "✓" : "+"}
-                </span>
-                <span className="flex-1">
-                  <span className="text-sm font-black text-zinc-100">🔥 Flame Trial · single-player</span>
-                  <span className="block text-[11px] text-zinc-500">
-                    Your solo run. You stake the coin and trade a {fmt(pit.startingStack)} paper stack against the
-                    Goons. Starts on a {pit.trialLobbySeconds ?? 15}s countdown once you stake.
-                  </span>
-                </span>
-              </button>
+            <BetCard accent="orange" icon="🔥" title="Flame Trial · single-player" active={trial}
+              subtitle={`Your solo run. Stake the coin and trade a ${fmt(pit.startingStack)} stack. Starts on a ${pit.trialLobbySeconds ?? 15}s countdown once you stake.`}
+              onToggle={() => setTrial((t) => !t)} toggled={trial}>
               {trial && (
-                <div className="mt-2 rounded-xl bg-zinc-900/60 p-3 ring-1 ring-white/10">
-                  <div className="mb-1.5 flex items-center justify-between text-xs text-zinc-500">
-                    <span>Stake the coin (USD, min ${pit.trialMinUsd})</span>
-                    <span className="font-mono text-zinc-400">≈ {fmt(trialStakeEth)}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <div className="flex flex-1 items-center rounded-lg bg-zinc-950/60 px-3 ring-1 ring-white/10 focus-within:ring-orange-400/50">
-                      <span className="text-zinc-500">$</span>
-                      <input
-                        value={trialUsd}
-                        onChange={(e) => setTrialUsd(e.target.value.replace(/[^0-9.]/g, ""))}
-                        inputMode="decimal"
-                        className="w-full bg-transparent px-1 py-2 text-center font-mono text-lg outline-none"
-                      />
+                <>
+                  <BetInput value={trialUsd} onChange={setTrialUsd} peg={peg} accent="orange" minUsd={pit.trialMinUsd ?? 5} />
+                  <div className="mt-3 rounded-xl bg-black/30 p-3 ring-1 ring-orange-500/20">
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="font-black text-orange-300">{trialTier.name} tier</span>
+                      <span className="font-mono font-black text-orange-200">finish +{targetPct}% to pass</span>
                     </div>
-                    {(pit.trialTiers ?? []).map((t) => (
-                      <button
-                        key={t.name}
-                        onClick={() => setTrialUsd(String(t.minUsd))}
-                        title={`${t.name}: +${Math.round((t.requiredPnlBps ?? pit.trialRequiredPnlBps) / 100)}% to pass · ${t.xp} XP`}
-                        className={`rounded-lg px-2 py-2 text-[10px] font-bold ${trialTier.name === t.name ? "bg-orange-500/25 text-orange-200" : "bg-zinc-800 text-zinc-400 hover:bg-zinc-700"}`}
-                      >
-                        ${t.minUsd}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="mt-1.5 text-[11px] text-zinc-500">
-                    <b className="text-orange-300">{trialTier.name}</b> tier · finish at{" "}
-                    <b className="text-orange-300">+{targetPct}% PnL</b> to pass. A bigger stake raises the bar and the
-                    reward.
-                  </p>
-                  <div className="mt-2 rounded-lg bg-zinc-950/50 p-2 text-[11px] leading-relaxed text-zinc-500 ring-1 ring-white/5">
-                    <div>
-                      <b className="text-lime-300">Pass:</b> your ${Number(trialUsd) || 0} stake comes back, plus {trialTier.xp} XP
-                      and {trialTier.name}-tier titles and badges.
-                    </div>
-                    <div>
-                      <b className="text-red-300">Miss it:</b> the stake is gone. No cash payout either way — this is
-                      prestige only.
+                    <div className="mt-2 grid gap-1 text-xs leading-relaxed text-zinc-300">
+                      <div>
+                        <b className="text-lime-300">Pass:</b> your ${Number(trialUsd) || 0} stake comes back, plus {trialTier.xp} XP and {trialTier.name}-tier titles and badges.
+                      </div>
+                      <div>
+                        <b className="text-red-300">Miss:</b> the stake is gone. Prestige only, never a cash payout.
+                      </div>
                     </div>
                   </div>
-                </div>
+                </>
               )}
-            </div>
+            </BetCard>
           )}
 
-          {error && <div className="text-xs text-red-400">{error}</div>}
+          {error && <div className="rounded-lg bg-red-500/10 px-3 py-2 text-sm font-bold text-red-300">{error}</div>}
 
-          <div className="flex gap-2">
+          <div className="flex gap-2 pt-1">
             {editing && (
               <button
                 onClick={() => setEditing(false)}
                 disabled={busy}
-                className="rounded-xl bg-zinc-800 px-4 py-3 text-sm font-bold text-zinc-300 hover:bg-zinc-700"
+                className="rounded-xl bg-zinc-800 px-5 py-3.5 text-sm font-black text-zinc-200 hover:bg-zinc-700"
               >
                 Cancel
               </button>
@@ -742,14 +686,14 @@ function LobbyView({
               <button
                 onClick={submit}
                 disabled={busy || cost === 0}
-                className="flex-1 rounded-xl bg-fuchsia-500 py-3 text-sm font-black text-zinc-950 transition hover:bg-fuchsia-400 disabled:opacity-40"
+                className="flex-1 rounded-xl bg-fuchsia-500 py-3.5 text-base font-black text-zinc-950 shadow-lg shadow-fuchsia-500/20 transition hover:bg-fuchsia-400 disabled:opacity-40 disabled:shadow-none"
               >
-                {busy ? "Placing…" : cost > 0 ? `${editing ? "Update" : "Place bets"} · ${fmt(cost)}` : "Place a bet"}
+                {busy ? "Placing…" : cost > 0 ? `${editing ? "Update bet" : "Place bet"} · ${fmt(cost)}` : "Pick a bet above"}
               </button>
             ) : (
               <button
                 onClick={onSignIn}
-                className="flex-1 rounded-xl bg-lime-400 py-3 text-sm font-black text-zinc-950 hover:bg-lime-300"
+                className="flex-1 rounded-xl bg-lime-400 py-3.5 text-base font-black text-zinc-950 hover:bg-lime-300"
               >
                 Sign in to enter The Pit
               </button>
@@ -757,6 +701,62 @@ function LobbyView({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * A single betting-mode panel: a bold, tappable header (icon, title, subtitle,
+ * and an on/off state) over the mode's controls. Gives all three Pit modes the
+ * same clear, game-like frame.
+ */
+function BetCard({
+  accent,
+  icon,
+  title,
+  subtitle,
+  active,
+  toggled,
+  onToggle,
+  children,
+}: {
+  accent: "fuchsia" | "amber" | "lime" | "orange";
+  icon: string;
+  title: string;
+  subtitle: string;
+  active: boolean;
+  /** For opt-in modes: current on/off + handler. Omit for always-open prediction. */
+  toggled?: boolean;
+  onToggle?: () => void;
+  children?: ReactNode;
+}) {
+  const a = BET_ACCENT[accent]!;
+  const on = onToggle ? !!toggled : active;
+  const ringOn =
+    accent === "fuchsia" ? "ring-fuchsia-400/50" : accent === "amber" ? "ring-amber-400/50" : accent === "lime" ? "ring-lime-400/50" : "ring-orange-400/50";
+  const glowOn =
+    accent === "fuchsia" ? "bg-fuchsia-500/[0.08]" : accent === "amber" ? "bg-amber-500/[0.08]" : accent === "lime" ? "bg-lime-500/[0.08]" : "bg-orange-500/[0.08]";
+  const Header = onToggle ? "button" : "div";
+  return (
+    <div className={`overflow-hidden rounded-2xl ring-1 transition ${on ? `${ringOn} ${glowOn}` : "bg-zinc-900/40 ring-white/10"}`}>
+      <Header
+        onClick={onToggle}
+        className={`flex w-full items-center gap-3 p-3.5 text-left ${onToggle ? "hover:bg-white/5" : ""}`}
+      >
+        <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-black/30 text-xl ${a.text}`}>
+          {icon}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-base font-black text-zinc-50">{title}</span>
+          <span className="block text-xs leading-snug text-zinc-400">{subtitle}</span>
+        </span>
+        {onToggle && (
+          <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-sm font-black ${on ? `${a.chip} ring-1` : "bg-zinc-700 text-zinc-300"}`}>
+            {on ? "✓" : "+"}
+          </span>
+        )}
+      </Header>
+      {children && <div className="border-t border-white/5 p-3.5">{children}</div>}
     </div>
   );
 }
@@ -802,8 +802,17 @@ function LiveView({
     : null;
   const targetPct = Math.round((trialTier?.requiredPnlBps ?? round.pit!.trialRequiredPnlBps) / 100);
   const trialPassing = pnlPct >= targetPct;
+  // With a single prize pool the page centers better if the pool sits above the
+  // chart; two pools keep the right-hand sidebar.
+  const poolCount = (round.pit!.predictionMode ? 1 : 0) + (round.pit!.tradingMode ? 1 : 0);
+  const twoCol = poolCount >= 2;
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_320px]">
+    <div className={twoCol ? "grid gap-4 lg:grid-cols-[1fr_320px]" : "mx-auto max-w-3xl"}>
+      {!twoCol && poolCount === 1 && (
+        <div className="mb-4">
+          <Pools round={round} fmt={fmt} />
+        </div>
+      )}
       <div className="space-y-4">
         <div className="rounded-2xl bg-zinc-900/40 p-2 ring-1 ring-white/10">
           <Chart
@@ -882,9 +891,11 @@ function LiveView({
         <OrderBook trades={trades} symbol={round.token.symbol} ethUsd={ethUsd} me={me} />
       </div>
 
-      <div className="space-y-4">
-        <Pools round={round} fmt={fmt} />
-      </div>
+      {twoCol && (
+        <div className="space-y-4">
+          <Pools round={round} fmt={fmt} />
+        </div>
+      )}
     </div>
   );
 }

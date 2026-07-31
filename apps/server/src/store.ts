@@ -970,6 +970,9 @@ export class Store {
     // Ensure the Pit settings block exists + carries new prediction-market
     // knobs on snapshots that predate them.
     this.settings.pit = { ...freshPitSettings(), ...(this.settings.pit ?? {}) };
+    // Bets are now placed in USD ($5 min) rather than a high pETH floor; drop the
+    // legacy 0.05 pETH minimum on snapshots that predate the change.
+    if (this.settings.pit.minBet >= 0.05) this.settings.pit.minBet = PIT_DEFAULTS.minBet;
     // Backfill per-tier Flame Trial PnL bars on tiers persisted before they were
     // tier-scoped (match by name, else fall back to the base requirement).
     this.settings.pit.trialTiers = (this.settings.pit.trialTiers ?? []).map((t) => ({

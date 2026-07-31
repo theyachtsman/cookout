@@ -142,7 +142,9 @@ function Card({ c, me, fmt }: { c: PitCard; me?: string; fmt: Fmt }) {
               </span>
             </>
           ) : waiting ? (
-            <span className="text-amber-300">Filling — needs 2 bets per pool</span>
+            <span className="text-amber-300">
+              {r.pit?.trialMode ? "Solo run — waiting to start" : "Filling — needs 2 bets per pool"}
+            </span>
           ) : done ? (
             <span className="text-zinc-500">View results</span>
           ) : (
