@@ -257,8 +257,10 @@ export const PIT_DEFAULTS = {
   feeSplit: { platform: 0.4, jackpot: 0.25, creator: 0.2, treasury: 0.15 } as PitFeeSplit,
   /** Simulated paper stack every trader is handed for the match (pETH). */
   startingStack: 1.0,
-  /** Paid-entry lobby window before live trading (seconds). */
-  lobbySeconds: 45,
+  /** Countdown (seconds) from quorum to live once a queued match fills. */
+  lobbySeconds: 60,
+  /** Deposit window (seconds) a queued match waits for quorum before it cancels. */
+  queueMaxSeconds: 600,
   /** Most Pit matches live at once; extras queue. */
   maxConcurrent: 5,
   /** Sweep unclaimed prize-pool money into the weekly jackpot. */

@@ -45,6 +45,7 @@ interface PitSettings {
   feeSplit: { platform: number; jackpot: number; creator: number; treasury: number };
   startingStack: number;
   lobbySeconds: number;
+  queueMaxSeconds: number;
   maxConcurrent: number;
   carryover: boolean;
   aggression: number;
@@ -114,7 +115,8 @@ function PitOpsPanel({
         {num("Trading fee (pETH)", "tradingFee")}
         {num("Starting stack (pETH)", "startingStack")}
         {num("Pit fee (bps)", "pitFeeBps", "50")}
-        {num("Lobby seconds", "lobbySeconds", "5")}
+        {num("Arm countdown (s)", "lobbySeconds", "5")}
+        {num("Queue window (s)", "queueMaxSeconds", "30")}
         {num("Max concurrent", "maxConcurrent", "1")}
       </div>
       {/* Prediction market */}

@@ -19,6 +19,7 @@ export type RoundState =
   | "settling" // queue closed, computing clearing price
   | "live" // continuous trading
   | "ended" // end trigger fired, resolving
+  | "cancelled" // Pit: queue expired without quorum, deposits refunded
   | "results"; // results published, archived
 
 export type RoundEndReason =
@@ -141,6 +142,8 @@ export interface PitConfig {
   trialTiers: TrialTier[];
   /** Quick countdown (seconds) from the creator's stake to live in a solo trial. */
   trialLobbySeconds: number;
+  /** Deposit window (seconds) a queued match waits for quorum before it cancels. */
+  queueMaxSeconds: number;
   /** Prediction betting bounds + quick chips (pETH), snapshot at launch. */
   minBet: number;
   maxBet: number;

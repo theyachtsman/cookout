@@ -934,6 +934,7 @@ export function createApp(
         if (pit.pitFeeBps !== undefined) p.pitFeeBps = Math.round(num(pit.pitFeeBps, 0, 5000, p.pitFeeBps));
         if (pit.startingStack !== undefined) p.startingStack = num(pit.startingStack, 0.01, 1000, p.startingStack);
         if (pit.lobbySeconds !== undefined) p.lobbySeconds = Math.round(num(pit.lobbySeconds, 5, 3600, p.lobbySeconds));
+        if (pit.queueMaxSeconds !== undefined) p.queueMaxSeconds = Math.round(num(pit.queueMaxSeconds, 30, 7200, p.queueMaxSeconds));
         if (pit.maxConcurrent !== undefined) p.maxConcurrent = Math.round(num(pit.maxConcurrent, 1, 50, p.maxConcurrent));
         if (pit.carryover !== undefined) p.carryover = !!pit.carryover;
         if (pit.aggression !== undefined) p.aggression = num(pit.aggression, 0, 1, p.aggression);

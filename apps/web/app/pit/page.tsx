@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createPortal } from "react-dom";
@@ -142,9 +142,16 @@ function Card({ c, me, fmt }: { c: PitCard; me?: string; fmt: Fmt }) {
               </span>
             </>
           ) : waiting ? (
-            <span className="text-amber-300">
-              {r.pit?.trialMode ? "Solo run — waiting to start" : "Filling — needs 2 bets per pool"}
-            </span>
+            <>
+              <span className="text-amber-300">
+                {r.pit?.trialMode ? "Waiting for the creator" : "Filling the queue"}
+              </span>
+              {r.pit?.queueMaxSeconds ? (
+                <span className="font-mono font-bold text-amber-300">
+                  <Countdown to={r.scheduledAt + r.pit.queueMaxSeconds * 1000} />
+                </span>
+              ) : null}
+            </>
           ) : done ? (
             <span className="text-zinc-500">View results</span>
           ) : (
@@ -191,10 +198,21 @@ function PoolLine({ label, pot, fmt }: { label: string; pot: number; fmt: Fmt })
 
 function Shelf({ title, cards, empty, me, fmt }: { title: string; cards: PitCard[]; empty: string; me?: string; fmt: Fmt }) {
   const ref = useRef<HTMLDivElement>(null);
-  // Vertical mouse-wheel scrolls the rail horizontally (no arrows needed).
+  const [atStart, setAtStart] = useState(true);
+  const [atEnd, setAtEnd] = useState(true);
+
+  const updateEdges = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    setAtStart(el.scrollLeft <= 2);
+    setAtEnd(el.scrollLeft + el.clientWidth >= el.scrollWidth - 2);
+  }, []);
+
+  // Vertical mouse-wheel scrolls the rail horizontally; arrows do the same on tap.
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
+    updateEdges();
     const onWheel = (e: WheelEvent) => {
       if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
       if (el.scrollWidth <= el.clientWidth) return;
@@ -202,8 +220,19 @@ function Shelf({ title, cards, empty, me, fmt }: { title: string; cards: PitCard
       e.preventDefault();
     };
     el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, [cards.length]);
+    el.addEventListener("scroll", updateEdges, { passive: true });
+    window.addEventListener("resize", updateEdges);
+    return () => {
+      el.removeEventListener("wheel", onWheel);
+      el.removeEventListener("scroll", updateEdges);
+      window.removeEventListener("resize", updateEdges);
+    };
+  }, [cards.length, updateEdges]);
+
+  const nudge = (dir: 1 | -1) => {
+    const el = ref.current;
+    if (el) el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: "smooth" });
+  };
 
   return (
     <section>
@@ -214,13 +243,33 @@ function Shelf({ title, cards, empty, me, fmt }: { title: string; cards: PitCard
       {cards.length === 0 ? (
         <div className="rounded-2xl bg-zinc-900/40 p-5 text-center text-xs text-zinc-600">{empty}</div>
       ) : (
-        <div ref={ref} className="no-scrollbar -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
-          {cards.map((c) => (
-            <Card key={c.round.id} c={c} me={me} fmt={fmt} />
-          ))}
+        <div className="group relative">
+          <Arrow dir="left" hidden={atStart} onClick={() => nudge(-1)} />
+          <div ref={ref} className="no-scrollbar -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
+            {cards.map((c) => (
+              <Card key={c.round.id} c={c} me={me} fmt={fmt} />
+            ))}
+          </div>
+          <Arrow dir="right" hidden={atEnd} onClick={() => nudge(1)} />
         </div>
       )}
     </section>
+  );
+}
+
+/** A round scroll button pinned to one edge of a carousel; hides at the end. */
+function Arrow({ dir, hidden, onClick }: { dir: "left" | "right"; hidden: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={dir === "left" ? "Scroll left" : "Scroll right"}
+      className={`absolute top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-950/80 text-lg font-black text-zinc-100 ring-1 ring-white/15 backdrop-blur transition hover:bg-zinc-800 ${
+        dir === "left" ? "left-0 -translate-x-1" : "right-0 translate-x-1"
+      } ${hidden ? "pointer-events-none opacity-0" : "opacity-90"}`}
+    >
+      {dir === "left" ? "‹" : "›"}
+    </button>
   );
 }
 
@@ -293,7 +342,8 @@ function LaunchPitModal({ onClose }: { onClose: () => void }) {
         <div className="text-[11px] font-black uppercase tracking-[0.2em] text-fuchsia-300">Powered by {PIT_AI_NAME}</div>
         <h2 className="mt-1 text-xl font-black text-zinc-50">Launch a Pit match</h2>
         <p className="mt-1 text-xs text-zinc-500">
-          No vote. It opens a lobby the moment you launch and goes live once each pool has two bets.
+          No vote. It drops into the queue for deposits and goes live 60s after each pool has two bets.
+          If it doesn&apos;t fill within 10 minutes it&apos;s cancelled and deposits refunded.
         </p>
 
         <div className="mt-4 space-y-3">
@@ -488,8 +538,13 @@ export default function PitPage() {
       </header>
 
       <Shelf title="Live Matches" cards={data?.live ?? []} empty="No live Pit matches right now. Launch one." me={me} fmt={fmt} />
-      <Shelf title="Lobby" cards={data?.lobby ?? []} empty="No open lobbies. A launch opens one instantly." me={me} fmt={fmt} />
-      {(data?.queue.length ?? 0) > 0 && <Shelf title="Queue" cards={data?.queue ?? []} empty="" me={me} fmt={fmt} />}
+      <Shelf
+        title="Queue"
+        cards={[...(data?.lobby ?? []), ...(data?.queue ?? [])]}
+        empty="Nothing in the queue. Launch a match to open one."
+        me={me}
+        fmt={fmt}
+      />
       <Shelf title="Recent Results" cards={data?.results ?? []} empty="No finished Pit matches yet." me={me} fmt={fmt} />
 
       {mounted && launching && <LaunchPitModal onClose={() => setLaunching(false)} />}
