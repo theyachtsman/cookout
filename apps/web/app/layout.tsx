@@ -5,6 +5,7 @@ import { SocialDock } from "../components/SocialDock";
 import { UserCardProvider } from "../components/UserCard";
 import { DevBanner } from "../components/DevBanner";
 import { UnlockToasts } from "../components/UnlockToasts";
+import { XpOverlay } from "../components/XpOverlay";
 import { BetaGate } from "../components/BetaGate";
 import { FeedbackWidget } from "../components/FeedbackWidget";
 import { Providers } from "../components/Providers";
@@ -61,6 +62,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </main>
                 <SocialDock />
                 <UnlockToasts />
+                <XpOverlay />
                 <FeedbackWidget />
               </UserCardProvider>
             </SocialProvider>

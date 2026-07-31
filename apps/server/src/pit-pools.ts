@@ -10,10 +10,21 @@
 import type { Address, PitEntry, Round } from "@cookout/shared";
 import type { Store } from "./store.js";
 
-/** Whether an address can afford the fees for the entry it's attempting. */
-export function pitEntryCost(round: Round, entry: PitEntry): number {
+/** The prediction stake for an entry (custom bet, defaulting to the base fee). */
+export function predictionStakeOf(round: Round, entry: PitEntry): number {
   const pit = round.pit!;
-  return (entry.prediction ? pit.predictionFee : 0) + (entry.trading ? pit.tradingFee : 0);
+  return entry.prediction ? (entry.predictionStake ?? pit.predictionFee) : 0;
+}
+
+/** The trading buy-in for an entry (custom bet, defaulting to the base fee). */
+export function tradingStakeOf(round: Round, entry: PitEntry): number {
+  const pit = round.pit!;
+  return entry.trading ? (entry.tradingStake ?? pit.tradingFee) : 0;
+}
+
+/** Total pETH an entry costs (prediction stake + trading buy-in). */
+export function pitEntryCost(round: Round, entry: PitEntry): number {
+  return predictionStakeOf(round, entry) + tradingStakeOf(round, entry);
 }
 
 /**
@@ -51,7 +62,8 @@ export function enterPit(store: Store, round: Round, address: Address, entry: Pi
   };
 
   if (entry.prediction) {
-    const gross = pit.predictionFee;
+    // Parimutuel prediction bet: the player's custom stake (>= the base fee).
+    const gross = entry.predictionStake ?? pit.predictionFee;
     user.arenaBalance = (user.arenaBalance ?? 0) - gross;
     if (!bot) {
       store.recordLedger(addr, "pit_prediction", -gross, { symbol: round.token.symbol, roundId: round.id });
@@ -61,7 +73,8 @@ export function enterPit(store: Store, round: Round, address: Address, entry: Pi
     pit.prediction.participants += 1;
   }
   if (entry.trading) {
-    const gross = pit.tradingFee;
+    // Custom parimutuel buy-in (>= the base fee); the traded stack stays equal.
+    const gross = entry.tradingStake ?? pit.tradingFee;
     user.arenaBalance = (user.arenaBalance ?? 0) - gross;
     if (!bot) {
       store.recordLedger(addr, "pit_trading", -gross, { symbol: round.token.symbol, roundId: round.id });
@@ -69,7 +82,7 @@ export function enterPit(store: Store, round: Round, address: Address, entry: Pi
     }
     pit.trading.pot += skim(gross);
     pit.trading.participants += 1;
-    // Hand out the paper stack immediately so the lobby shows the bankroll.
+    // Hand out the equal paper stack immediately so the lobby shows the bankroll.
     store.setPitStack(round.id, addr, pit.startingStack);
   }
   store.setPitEntry(round.id, addr, entry);

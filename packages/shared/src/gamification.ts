@@ -181,6 +181,13 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "degen_survivor", name: "Degen Survivor", description: "Profitable round in the Degen tier", rarity: "epic" },
   { id: "streak_5", name: "Heater", description: "5 winning rounds in a row", rarity: "rare" },
   { id: "oracle", name: "Oracle", description: "10 correct Moon-or-Rug predictions", rarity: "rare" },
+  // The Pit (PvE vs Swarm AI)
+  { id: "pit_initiate", name: "Pit Initiate", description: "Played your first Pit match", rarity: "common" },
+  { id: "swarm_slayer", name: "Swarm Slayer", description: "Qualified in a Pit trading pool", rarity: "rare" },
+  { id: "pit_oracle", name: "Pit Oracle", description: "Landed a correct Pit prediction", rarity: "common" },
+  { id: "double_winner", name: "Double Winner", description: "Won both Pit pools in one match", rarity: "epic" },
+  { id: "pit_veteran", name: "Pit Veteran", description: "Played 25 Pit matches", rarity: "rare" },
+  { id: "swarm_nemesis", name: "Swarm Nemesis", description: "Won 25 Pit trading pools", rarity: "legendary" },
 ];
 
 /** One-time XP an achievement grants on first unlock (0 if unknown id). */

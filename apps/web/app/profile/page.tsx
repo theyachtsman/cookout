@@ -16,6 +16,7 @@ import { Progress } from "../../components/Progress";
 import { ReputationPanel } from "../../components/Reputation";
 import { RunItBackButton } from "../../components/RunItBack";
 import { PitProfile } from "../../components/PitProfile";
+import { XpBreakdown } from "../../components/XpBreakdown";
 import {
   AchievementCard,
   Avatar,
@@ -60,7 +61,8 @@ export default function ProfilePage() {
       .catch(() => {});
     // Own launches, for the Run It Back tab.
     api<{ rounds: Array<{ round: Round }> }>(`/api/creator/${profile.address}`)
-      .then((d) => setMyRounds(d.rounds.map((r) => r.round)))
+      // Cook Out Run It Back only — Pit matches run back from the Pit results.
+      .then((d) => setMyRounds(d.rounds.map((r) => r.round).filter((r) => r.matchType !== "pit")))
       .catch(() => setMyRounds([]));
   }, [profile?.address]);
 
@@ -338,6 +340,7 @@ export default function ProfilePage() {
         <div className="space-y-6">
           <SectionTitle title="Quests & Challenges" />
           <Missions />
+          <XpBreakdown address={profile.address} />
         </div>
       )}
 

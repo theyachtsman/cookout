@@ -113,6 +113,8 @@ export class Notifier {
   // ---- the activity tap ----------------------------------------------------
 
   handleActivity(e: ActivityEvent): void {
+    // The Pit never broadcasts to Telegram.
+    if (e.roundId && this.store.rounds.get(e.roundId)?.matchType === "pit") return;
     const who = this.name(e.address);
     const u = this.store.users.get(e.address.toLowerCase());
     const sym = e.roundSymbol;
@@ -159,6 +161,8 @@ export class Notifier {
   // ---- the round-lifecycle tap ---------------------------------------------
 
   handleRoundEvent(e: RoundEvent): void {
+    // The Pit never broadcasts to Telegram — no launch, live, or results posts.
+    if (this.store.rounds.get(e.roundId)?.matchType === "pit") return;
     // The coin's game mode, as a display name for the feed copy.
     const mode = e.mode ? GAME_MODE_MAP[e.mode]?.name : undefined;
     switch (e.kind) {

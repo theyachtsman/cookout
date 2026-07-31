@@ -39,6 +39,8 @@ export class Hub {
   constructor(private store: Store) {
     // Activity recorded anywhere in the app fans out to everyone hanging out.
     store.onActivity = (event) => this.broadcast(GLOBAL_ROOM, { type: "activity", event });
+    // XP earned streams to just that player's sockets (the +XP drop-in overlay).
+    store.onXp = (address, e) => this.sendToUser(address, { type: "xp", ...e });
   }
 
   attach(server: Server): void {

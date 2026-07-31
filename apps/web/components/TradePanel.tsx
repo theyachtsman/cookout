@@ -19,6 +19,7 @@ export function TradePanel({
   ethUsd,
   price,
   variant = "widget",
+  balanceOverride,
   onTraded,
 }: {
   round: Round;
@@ -30,6 +31,9 @@ export function TradePanel({
   /** "bar" is the horizontal strip under the live chart (fast, one row);
    *  "widget" is the tabbed card used for graduated coins in the wild. */
   variant?: "bar" | "widget";
+  /** Paper balance to spend/display instead of the Cook Out balance. The Pit
+   *  passes the per-match paper stack; the server spends the same thing. */
+  balanceOverride?: number;
   onTraded: () => void;
 }) {
   const { profile, signIn, promptPlayNow } = useSession();
@@ -146,8 +150,9 @@ export function TradePanel({
     );
 
   // Paper rounds spend the arena balance, same as chain rounds spend the
-  // arena wallet. The bank balance isn't playable.
-  const balance = onChain ? ethBal : (profile.arenaBalance ?? 0);
+  // arena wallet. The bank balance isn't playable. In The Pit, the spendable
+  // balance is the per-match paper stack (balanceOverride).
+  const balance = onChain ? ethBal : (balanceOverride ?? profile.arenaBalance ?? 0);
   const holdingTokens = onChain
     ? tokenBal !== null
       ? Number(tokenBal / 10n ** 18n)

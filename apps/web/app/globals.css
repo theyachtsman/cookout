@@ -18,6 +18,32 @@ body {
   }
 }
 
+/* +XP drop-in overlay: pop in from above, settle, then float up and fade. */
+@keyframes xpdrop {
+  0% {
+    opacity: 0;
+    transform: translateY(-18px) scale(0.8);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0) scale(1.06);
+  }
+  28% {
+    transform: translateY(0) scale(1);
+  }
+  72% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-26px) scale(0.96);
+  }
+}
+.animate-xpdrop {
+  animation: xpdrop 1.8s cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
+}
+
 /* Streaming-style rails scroll horizontally with no visible scrollbar. */
 .no-scrollbar {
   -ms-overflow-style: none;

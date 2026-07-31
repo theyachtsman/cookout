@@ -675,6 +675,37 @@ export function createApp(
     }),
   );
 
+  /** Run a finished Pit match back: the creator relaunches the same coin, with
+   *  an optional new duration, into a fresh Pit lobby. No new vote. */
+  app.post(
+    "/api/pit/:id/runback",
+    auth,
+    wrap((req, res) => {
+      const round = store.rounds.get(req.params.id!);
+      if (!round || round.matchType !== "pit") throw new Err(404, "pit match not found");
+      if (round.state !== "results") throw new Err(400, "this match hasn't finished yet");
+      if (round.creatorAddress.toLowerCase() !== req.userAddress!.toLowerCase())
+        throw new Err(403, "only this match's creator can run it back");
+      const creator = store.getOrCreateUser(req.userAddress!);
+      if (activeRugBan(creator))
+        throw new Err(403, "this wallet is banned from launching coins after a rug");
+      const duration = ((req.body as { duration?: string }).duration ??
+        round.pit!.duration) as PitDurationKey;
+      if (!PIT_DURATION_MAP[duration] || !store.settings.pit.durations.includes(duration))
+        throw new Err(400, "unknown or disabled Pit duration");
+      const concept = store.concepts.get(round.conceptId);
+      if (!concept) throw new Err(404, "the original concept is gone");
+      const pending = [...store.rounds.values()].some(
+        (r) => r.conceptId === round.conceptId && r.matchType === "pit" && r.state !== "results",
+      );
+      if (pending) throw new Err(409, "this coin already has a pending Pit match");
+      concept.pitDuration = duration;
+      const fresh = engine.schedulePitRound(concept, Date.now());
+      store.logAdmin("pit", `pit run-it-back ${fresh.id} (${concept.symbol}, ${duration}) by ${creator.address}`);
+      res.json({ round: fresh });
+    }),
+  );
+
   /** Enter a Pit match: prediction call and/or trading, at least one. */
   app.post(
     "/api/pit/:id/enter",
@@ -685,20 +716,40 @@ export function createApp(
       if (round.state !== "lobby") throw new Err(409, "the lobby for this match is closed");
       const addr = req.userAddress!;
       if (store.pitEntryOf(round.id, addr)) throw new Err(409, "you're already entered in this match");
-      const body = req.body as { prediction?: string; trading?: boolean };
+      const body = req.body as {
+        prediction?: string;
+        predictionStake?: number;
+        trading?: boolean;
+        tradingStake?: number;
+      };
       const entry: PitEntry = {};
+      const user = store.getOrCreateUser(addr);
+      // Both pools take a custom parimutuel bet with a $1 minimum, converted at
+      // the live peg. A bet defaults to the base fee when the client omits it.
+      const minStake = 1 / (store.ethUsd || 1);
+      const resolveStake = (raw: unknown, base: number, label: string): number => {
+        const stake = raw === undefined || raw === null ? base : Number(raw);
+        if (!Number.isFinite(stake) || stake < minStake - 1e-12)
+          throw new Err(400, `${label} must be at least $1 (${minStake.toFixed(4)} pETH)`);
+        return stake;
+      };
       if (body.prediction !== undefined && body.prediction !== null) {
         if (!["graduate", "rug", "timer"].includes(String(body.prediction)))
           throw new Err(400, "prediction must be graduate, rug, or timer");
         entry.prediction = body.prediction as PitCall;
+        entry.predictionStake = resolveStake(body.predictionStake, round.pit!.predictionFee, "prediction bet");
       }
-      if (body.trading) entry.trading = true;
+      if (body.trading) {
+        entry.trading = true;
+        entry.tradingStake = resolveStake(body.tradingStake, round.pit!.tradingFee, "trading buy-in");
+      }
       if (!entry.prediction && !entry.trading) throw new Err(400, "enter at least one pool");
       const cost = pitEntryCost(round, entry);
-      const user = store.getOrCreateUser(addr);
       if ((user.arenaBalance ?? 0) < cost - 1e-9)
         throw new Err(400, "not enough in your Cook Out balance: deposit pETH to enter The Pit");
       enterPit(store, round, addr, entry);
+      // Two prediction bets arm the lobby countdown to live.
+      engine.armPitLobby(round, Date.now());
       engine.emitLobbyPublic(round);
       res.json({ ok: true, entry, stack: store.pitStackOf(round.id, addr), ...pitPools(round) });
     }),

@@ -57,7 +57,8 @@ export default function Home() {
     let alive = true;
     const load = () =>
       api<Round[]>("/api/calendar")
-        .then((r) => alive && setRounds(r))
+        // The Pit is its own place: its matches never appear in the Cook Out.
+        .then((r) => alive && setRounds(r.filter((x) => x.matchType !== "pit")))
         .catch(() => {});
     void load();
     const t = setInterval(load, 4000);

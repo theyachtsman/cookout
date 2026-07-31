@@ -213,7 +213,9 @@ export class RoundEngine {
       state: "lobby",
       config,
       scheduledAt: now,
-      queueOpensAt: now + pit.lobbySeconds * 1000,
+      // queueOpensAt is left unset: the lobby waits indefinitely until at least
+      // two players have paid into the Prediction pool (the countdown to live is
+      // armed then — see armPitLobby / the enter route).
     };
     concept.status = "launched";
     this.store.rounds.set(round.id, round);
@@ -222,7 +224,7 @@ export class RoundEngine {
     this.sys(
       round.id,
       "pit_open",
-      `The Pit is open. ${d.icon} ${d.name} match on $${concept.symbol}. Predict the outcome or trade the Swarm.`,
+      `The Pit is open. ${d.icon} ${d.name} match on $${concept.symbol}. Two predictions arm the countdown.`,
     );
     this.sys(
       GLOBAL_ROOM,
@@ -231,6 +233,24 @@ export class RoundEngine {
     );
     this.emitState(round);
     return round;
+  }
+
+  /**
+   * Arm a Pit lobby's countdown once quorum (2+ prediction bets) is met. Idempotent
+   * — the first call starts the clock; later entries don't reset it. Returns true
+   * if it armed the countdown this call.
+   */
+  armPitLobby(round: Round, now: number): boolean {
+    if (round.matchType !== "pit" || round.state !== "lobby" || round.queueOpensAt) return false;
+    if ((round.pit?.prediction.participants ?? 0) < 2) return false;
+    round.queueOpensAt = now + round.config.lobbySeconds * 1000;
+    this.sys(
+      round.id,
+      "pit_open",
+      `Quorum reached. Trading goes live in ${round.config.lobbySeconds}s. Get in.`,
+    );
+    this.emitState(round);
+    return true;
   }
 
   /** Pit lobby closed: seed the pool and start live trading (no auction). */
@@ -1167,7 +1187,8 @@ export class RoundEngine {
     const pit = summary.pit!;
     const outcomeLabel = pit.outcome === "graduate" ? "GRADUATED" : pit.outcome === "rug" ? "RUGGED" : "TIMER";
     const feedOk = (a: string) => !a.startsWith("0xb07");
-    this.store.emitRoundEvent({ kind: "results", roundId: round.id, symbol: round.token.symbol, mode: round.mode });
+    // The Pit never posts to Telegram — no emitRoundEvent here (see notify.ts,
+    // which also hard-skips any pit round as a belt-and-suspenders guard).
 
     // In-room last word.
     this.sys(

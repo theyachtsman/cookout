@@ -11,6 +11,7 @@ import {
 import { api, getToken, wsUrl } from "./api";
 import { useSession } from "./session";
 import { playPing } from "./sfx";
+import { emitXp } from "./xpBus";
 
 /**
  * The persistent social layer.
@@ -174,6 +175,14 @@ export function SocialProvider({ children }: { children: React.ReactNode }) {
             setOnline((ev.online as PresenceUser[]) ?? []);
           } else if (ev.type === "activity") {
             setActivity((prev) => [ev.event as ActivityEvent, ...prev].slice(0, 120));
+          } else if (ev.type === "xp") {
+            // XP just landed for you — hand it to the +XP drop-in overlay.
+            emitXp({
+              amount: ev.amount as number,
+              total: ev.total as number,
+              level: ev.level as number,
+              source: ev.source as string | undefined,
+            });
           } else if (ev.type === "ping") {
             // Someone @-mentioned you: sound, unread bump, top of the feed.
             const p = ev.ping as PingEntry;
