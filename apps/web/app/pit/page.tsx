@@ -8,11 +8,13 @@ import {
   PIT_AI_NAME,
   PIT_DURATION_MAP,
   PIT_DURATIONS,
+  PIT_ROOM,
   marketCap,
   type PitDurationKey,
 } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
+import { useSocial } from "../../lib/social";
 import type { PitCard, PitFeed } from "../../lib/pit";
 import { fmtVal } from "../../lib/pit";
 import { Countdown } from "../../components/Countdown";
@@ -396,6 +398,7 @@ interface JackpotInfo {
 
 export default function PitPage() {
   const { profile, signIn } = useSession();
+  const { setActiveRoom } = useSocial();
   const me = profile?.address?.toLowerCase();
   const [data, setData] = useState<PitFeed | null>(null);
   const [jackpot, setJackpot] = useState<JackpotInfo | null>(null);
@@ -404,6 +407,11 @@ export default function PitPage() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
+  // The Grill dock follows you into The Pit's own channel on this page.
+  useEffect(() => {
+    setActiveRoom({ id: PIT_ROOM, label: "🕳️ The Pit" });
+    return () => setActiveRoom(null);
+  }, [setActiveRoom]);
   useEffect(() => {
     const load = () => {
       api<PitFeed>("/api/pit").then(setData).catch(() => {});

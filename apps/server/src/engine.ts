@@ -13,6 +13,7 @@ import {
   HOUSE_SPECIAL_MAP,
   PIT_AI_NAME,
   PIT_AI_SHORT,
+  PIT_ROOM,
   PIT_DURATION_MAP,
   PIT_TRADING_MODE_NAME,
   RUG_DRAIN_FRACTION,
@@ -252,7 +253,7 @@ export class RoundEngine {
       `The Pit is open. ${d.icon} ${d.name} · ${modeText} on $${concept.symbol}. Two bets per pool arm the countdown.`,
     );
     this.sys(
-      GLOBAL_ROOM,
+      PIT_ROOM,
       "pit_open",
       `New Pit match: $${concept.symbol} (${d.name}). Powered by ${PIT_AI_NAME}. Enter The Pit.`,
     );
@@ -301,7 +302,7 @@ export class RoundEngine {
     s.bottomAt = now;
     this.sys(round.id, "pit_live", `${PIT_AI_NAME} is in. Trading is LIVE. Beat the Goons.`);
     this.sys(
-      GLOBAL_ROOM,
+      PIT_ROOM,
       "pit_live",
       `$${round.token.symbol} is LIVE in The Pit. ${PIT_AI_SHORT} is in the market.`,
     );
@@ -1226,9 +1227,9 @@ export class RoundEngine {
       `Match complete. Outcome: ${outcomeLabel}. ${pit.prediction.winners} prediction winner${pit.prediction.winners === 1 ? "" : "s"}, ` +
         `${pit.trading.qualified} qualified trader${pit.trading.qualified === 1 ? "" : "s"}. Chat is frozen; see you in The Grill.`,
     );
-    // Grill headline.
+    // Pit channel headline.
     this.sys(
-      GLOBAL_ROOM,
+      PIT_ROOM,
       "pit_result",
       `THE PIT · $${round.token.symbol} finished ${outcomeLabel}. ${PIT_AI_NAME} ran the market. Results are up.`,
     );
