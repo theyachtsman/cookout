@@ -71,6 +71,7 @@ function PaperWalletPage() {
   const { profile, promptPlayNow, refresh } = useSession();
   const peg = useEthUsd();
   const [usd, setUsd] = useDenomPref();
+  const [tab, setTab] = useState<"cookout" | "burger">("cookout");
   const [amount, setAmount] = useState("1");
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
@@ -141,6 +142,33 @@ function PaperWalletPage() {
         </p>
       </header>
 
+      {/* Two currencies, two tabs: the Cook Out balance (what rounds spend) and
+          $BURG (earned progression power). */}
+      <div className="flex gap-1 rounded-xl bg-zinc-900/60 p-1">
+        {([
+          { key: "cookout", label: "⚡ Cook Out Balance" },
+          { key: "burger", label: "🍔 Burger Balance" },
+        ] as const).map((t) => (
+          <button
+            key={t.key}
+            onClick={() => setTab(t.key)}
+            className={`flex-1 rounded-lg px-4 py-2 text-sm font-black transition ${
+              tab === t.key
+                ? t.key === "burger"
+                  ? "bg-amber-400 text-zinc-950"
+                  : "bg-lime-400 text-zinc-950"
+                : "text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "burger" ? (
+        <BurgerWallet />
+      ) : (
+        <>
       <PrivyWalletCard address={profile.address} />
 
       <div className="flex items-center justify-between">
@@ -275,8 +303,8 @@ function PaperWalletPage() {
           />
         )}
       </div>
-
-      <BurgerWallet />
+        </>
+      )}
     </div>
   );
 }
