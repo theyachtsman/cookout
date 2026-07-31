@@ -555,6 +555,10 @@ export const GLOBAL_ROOM = "global";
 /** The Vote page's own channel — launchpad talk stays out of The Grill. */
 export const VOTE_ROOM = "vote";
 
+/** The Pit's own channel — Pit chatter + launch/live/results announcements.
+ *  Each individual Pit match still has its own room (the round id). */
+export const PIT_ROOM = "pit";
+
 /** Where a player is right now — drives presence dots across the site. */
 export type PresenceStatus =
   | "hanging"
