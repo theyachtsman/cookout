@@ -409,7 +409,7 @@ export default function PitPage() {
   useEffect(() => setMounted(true), []);
   // The Grill dock follows you into The Pit's own channel on this page.
   useEffect(() => {
-    setActiveRoom({ id: PIT_ROOM, label: "🕳️ The Pit" });
+    setActiveRoom({ id: PIT_ROOM, label: "The Pit" });
     return () => setActiveRoom(null);
   }, [setActiveRoom]);
   useEffect(() => {
