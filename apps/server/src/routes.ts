@@ -13,6 +13,7 @@ import {
   dayKey,
   weekKey,
   marketCap,
+  HOUSE_SPECIALS,
   PIT_DURATION_MAP,
   PIT_DURATIONS,
   type AccountTrade,
@@ -20,6 +21,7 @@ import {
   type CoinSocials,
   type CosmeticType,
   type GameMode,
+  type HouseSpecialKind,
   type MyFill,
   type NotifyCategory,
   type PitCall,
@@ -28,7 +30,7 @@ import {
   type RiskTier,
   type TokenConcept,
 } from "@cookout/shared";
-import { enterPit, pitEntryCost } from "./pit-pools.js";
+import { enterPit, pitEntryCost, withdrawPit } from "./pit-pools.js";
 import { linkDeepLink } from "./telegram/index.js";
 import {
   createSessionForAddress,
@@ -596,10 +598,12 @@ export function createApp(
         results,
         carry: store.pitCarry,
         config: {
-          predictionFee: s.predictionFee,
           tradingFee: s.tradingFee,
           startingStack: s.startingStack,
           maxConcurrent: s.maxConcurrent,
+          minBet: s.minBet,
+          maxBet: s.maxBet,
+          quickChips: s.quickChips,
           durations: PIT_DURATIONS.filter((d) => s.durations.includes(d.key)),
         },
       });
@@ -698,10 +702,15 @@ export function createApp(
       const creator = store.getOrCreateUser(req.userAddress!);
       if (activeRugBan(creator))
         throw new Err(403, "this wallet is banned from launching coins after a rug");
-      const duration = ((req.body as { duration?: string }).duration ??
-        round.pit!.duration) as PitDurationKey;
+      const body = req.body as { duration?: string; modes?: { prediction?: boolean; trading?: boolean } };
+      const duration = (body.duration ?? round.pit!.duration) as PitDurationKey;
       if (!PIT_DURATION_MAP[duration] || !store.settings.pit.durations.includes(duration))
         throw new Err(400, "unknown or disabled Pit duration");
+      const modes = body.modes
+        ? { prediction: !!body.modes.prediction, trading: !!body.modes.trading }
+        : { prediction: round.pit!.predictionMode, trading: round.pit!.tradingMode };
+      if (!modes.prediction && !modes.trading)
+        throw new Err(400, "pick at least one game mode");
       const concept = store.concepts.get(round.conceptId);
       if (!concept) throw new Err(404, "the original concept is gone");
       const pending = [...store.rounds.values()].some(
@@ -709,13 +718,15 @@ export function createApp(
       );
       if (pending) throw new Err(409, "this coin already has a pending Pit match");
       concept.pitDuration = duration;
+      concept.pitModes = modes;
       const fresh = engine.schedulePitRound(concept, Date.now());
       store.logAdmin("pit", `pit run-it-back ${fresh.id} (${concept.symbol}, ${duration}) by ${creator.address}`);
       res.json({ round: fresh });
     }),
   );
 
-  /** Enter a Pit match: prediction call and/or trading, at least one. */
+  /** Place or edit a Pit entry: Main prediction, House Special, and/or trading,
+   *  each with a player-chosen wager. Re-posting replaces the current entry. */
   app.post(
     "/api/pit/:id/enter",
     auth,
@@ -724,53 +735,73 @@ export function createApp(
       if (!round || round.matchType !== "pit") throw new Err(404, "pit match not found");
       if (round.state !== "lobby") throw new Err(409, "the lobby for this match is closed");
       const addr = req.userAddress!;
-      if (store.pitEntryOf(round.id, addr)) throw new Err(409, "you're already entered in this match");
+      const pit = round.pit!;
       const body = req.body as {
         prediction?: string;
         predictionStake?: number;
+        houseSpecial?: boolean;
+        houseSpecialStake?: number;
         trading?: boolean;
         tradingStake?: number;
       };
       const entry: PitEntry = {};
       const user = store.getOrCreateUser(addr);
-      // Both pools take a custom parimutuel bet with a $1 minimum, converted at
-      // the live peg. A bet defaults to the base fee when the client omits it.
-      const minStake = 1 / (store.ethUsd || 1);
-      const resolveStake = (raw: unknown, base: number, label: string): number => {
-        const stake = raw === undefined || raw === null ? base : Number(raw);
-        if (!Number.isFinite(stake) || stake < minStake - 1e-12)
-          throw new Err(400, `${label} must be at least $1 (${minStake.toFixed(4)} pETH)`);
-        return stake;
+      // Wagers are bounded by the match's configured min/max (pETH).
+      const resolveStake = (raw: unknown, label: string): number => {
+        const v = Number(raw);
+        if (!Number.isFinite(v)) throw new Err(400, `${label} is required`);
+        if (v < pit.minBet - 1e-12) throw new Err(400, `${label} is below the ${pit.minBet} pETH minimum`);
+        if (v > pit.maxBet + 1e-12) throw new Err(400, `${label} is above the ${pit.maxBet} pETH maximum`);
+        return v;
       };
-      const pit = round.pit!;
       if (body.prediction !== undefined && body.prediction !== null) {
-        if (!pit.predictionMode) throw new Err(400, "this match has no prediction pool");
-        const choice = String(body.prediction);
-        if (!["graduate", "rug", "timer", "house"].includes(choice))
-          throw new Err(400, "prediction must be graduate, rug, timer, or house");
-        if (choice === "house") {
-          // House Special: the house rolls a random real call for you.
-          entry.prediction = (["graduate", "rug", "timer"] as PitCall[])[Math.floor(Math.random() * 3)];
-          entry.houseSpecial = true;
-        } else {
-          entry.prediction = choice as PitCall;
-        }
-        entry.predictionStake = resolveStake(body.predictionStake, pit.predictionFee, "prediction bet");
+        if (!pit.predictionMode) throw new Err(400, "this match has no prediction market");
+        if (!["graduate", "rug", "timer"].includes(String(body.prediction)))
+          throw new Err(400, "prediction must be graduate, rug, or timer");
+        entry.prediction = body.prediction as PitCall;
+        entry.predictionStake = resolveStake(body.predictionStake, "prediction bet");
+      }
+      if (body.houseSpecial) {
+        if (!pit.predictionMode || !pit.houseSpecial) throw new Err(400, "this match has no House Special");
+        entry.houseSpecial = true;
+        entry.houseSpecialStake = resolveStake(body.houseSpecialStake, "house special bet");
       }
       if (body.trading) {
         if (!pit.tradingMode) throw new Err(400, "this match has no trading pool");
         entry.trading = true;
-        entry.tradingStake = resolveStake(body.tradingStake, pit.tradingFee, "trading buy-in");
+        entry.tradingStake =
+          body.tradingStake === undefined || body.tradingStake === null
+            ? pit.tradingFee
+            : resolveStake(body.tradingStake, "trading buy-in");
       }
-      if (!entry.prediction && !entry.trading) throw new Err(400, "enter at least one pool");
+      if (!entry.prediction && !entry.houseSpecial && !entry.trading)
+        throw new Err(400, "place at least one bet");
+      // Editing refunds the current entry first, so account for that headroom.
+      const existing = store.pitEntryOf(round.id, addr);
+      const refundable = existing ? pitEntryCost(round, existing) : 0;
       const cost = pitEntryCost(round, entry);
-      if ((user.arenaBalance ?? 0) < cost - 1e-9)
-        throw new Err(400, "not enough in your Cook Out balance: deposit pETH to enter The Pit");
+      if ((user.arenaBalance ?? 0) + refundable < cost - 1e-9)
+        throw new Err(400, "not enough in your Cook Out balance for those bets");
       enterPit(store, round, addr, entry);
-      // Two prediction bets arm the lobby countdown to live.
       engine.armPitLobby(round, Date.now());
       engine.emitLobbyPublic(round);
       res.json({ ok: true, entry, stack: store.pitStackOf(round.id, addr), ...pitPools(round) });
+    }),
+  );
+
+  /** Withdraw a Pit entry (full refund) during the lobby, before it goes live. */
+  app.post(
+    "/api/pit/:id/withdraw",
+    auth,
+    wrap((req, res) => {
+      const round = store.rounds.get(req.params.id!);
+      if (!round || round.matchType !== "pit") throw new Err(404, "pit match not found");
+      if (round.state !== "lobby") throw new Err(409, "the round has started — nothing to withdraw");
+      const addr = req.userAddress!;
+      if (!store.pitEntryOf(round.id, addr)) throw new Err(404, "you have no entry to withdraw");
+      withdrawPit(store, round, addr);
+      engine.emitLobbyPublic(round);
+      res.json({ ok: true, ...pitPools(round) });
     }),
   );
 
@@ -875,7 +906,6 @@ export function createApp(
         const p = store.settings.pit;
         const num = (v: unknown, lo: number, hi: number, dflt: number) =>
           Math.max(lo, Math.min(hi, Number.isFinite(Number(v)) ? Number(v) : dflt));
-        if (pit.predictionFee !== undefined) p.predictionFee = num(pit.predictionFee, 0, 100, p.predictionFee);
         if (pit.tradingFee !== undefined) p.tradingFee = num(pit.tradingFee, 0, 100, p.tradingFee);
         if (pit.pitFeeBps !== undefined) p.pitFeeBps = Math.round(num(pit.pitFeeBps, 0, 5000, p.pitFeeBps));
         if (pit.startingStack !== undefined) p.startingStack = num(pit.startingStack, 0.01, 1000, p.startingStack);
@@ -885,6 +915,24 @@ export function createApp(
         if (pit.aggression !== undefined) p.aggression = num(pit.aggression, 0, 1, p.aggression);
         if (pit.difficulty !== undefined) p.difficulty = num(pit.difficulty, 0, 1, p.difficulty);
         if (pit.feeSplit && typeof pit.feeSplit === "object") p.feeSplit = { ...p.feeSplit, ...pit.feeSplit };
+        // Prediction market betting config.
+        if (pit.minBet !== undefined) p.minBet = num(pit.minBet, 0.0001, 1000, p.minBet);
+        if (pit.maxBet !== undefined) p.maxBet = num(pit.maxBet, p.minBet, 100000, p.maxBet);
+        if (Array.isArray(pit.quickChips))
+          p.quickChips = pit.quickChips
+            .map((c) => Number(c))
+            .filter((c) => Number.isFinite(c) && c > 0)
+            .slice(0, 8);
+        if (pit.mainAllocationBps !== undefined || pit.houseAllocationBps !== undefined) {
+          const main = Math.round(num(pit.mainAllocationBps ?? p.mainAllocationBps, 0, 10000, p.mainAllocationBps));
+          p.mainAllocationBps = main;
+          p.houseAllocationBps = 10000 - main; // the two always sum to 100%
+        }
+        if (pit.doubleDownBonus !== undefined) p.doubleDownBonus = num(pit.doubleDownBonus, 0, 1000, p.doubleDownBonus);
+        if (Array.isArray(pit.houseSpecials))
+          p.houseSpecials = pit.houseSpecials.filter((h): h is HouseSpecialKind =>
+            HOUSE_SPECIALS.some((d) => d.kind === h),
+          );
         if (Array.isArray(pit.durations))
           p.durations = pit.durations.filter((d): d is PitDurationKey =>
             ["blitz", "standard", "marathon"].includes(d as string),

@@ -53,7 +53,8 @@ export function PitProfile({ address, pitStats: initial }: { address: string; pi
   const ps = pitStats;
   const accuracy = ps.predictionsMade ? Math.round((ps.predictionsCorrect / ps.predictionsMade) * 100) : 0;
   const avgPnl = ps.tradingEntries ? ps.totalPnl / ps.tradingEntries : 0;
-  const staked = ps.predictionStaked + ps.tradingStaked;
+  const houseRate = ps.houseEntered ? Math.round(((ps.houseWins ?? 0) / ps.houseEntered) * 100) : 0;
+  const staked = ps.predictionStaked + ps.tradingStaked + (ps.houseStaked ?? 0);
   const roi = staked > 0 ? Math.round(((ps.totalEarnings - staked) / staked) * 100) : 0;
   const favorite = DURATIONS.reduce<PitDurationKey>(
     (best, k) => (ps.byDuration[k].played > ps.byDuration[best].played ? k : best),
@@ -66,15 +67,22 @@ export function PitProfile({ address, pitStats: initial }: { address: string; pi
         <StatCard label="Matches" value={ps.matchesPlayed} icon="🕳️" />
         <StatCard label="Prediction accuracy" value={`${accuracy}%`} icon="🎯" hint={`${ps.predictionsCorrect}/${ps.predictionsMade}`} />
         <StatCard label="Prediction wins" value={ps.predictionWins} icon="🔮" />
-        <StatCard label="Trading wins" value={ps.tradingWins} icon="🕹️" />
-        <StatCard label="Double wins" value={ps.doubleWins} icon="🏆" tone="text-amber-300" />
+        <StatCard label="Prediction winnings" value={pdotEth(ps.predictionEarnings ?? 0)} icon="💵" tone="text-lime-300" />
+        <StatCard
+          label="House Special win rate"
+          value={`${houseRate}%`}
+          icon="🏠"
+          tone="text-amber-300"
+          hint={`${ps.houseWins ?? 0}/${ps.houseEntered ?? 0}`}
+        />
+        <StatCard label="House Special earnings" value={pdotEth(ps.houseEarnings ?? 0)} icon="🏦" tone="text-amber-300" />
+        <StatCard label="Double Downs" value={ps.doubleDowns ?? 0} icon="🏆" tone="text-amber-300" hint={`largest ${pdotEth(ps.largestDoubleDown ?? 0)}`} />
+        <StatCard label="Trading wins" value={ps.tradingWins} icon="⚔️" />
         <StatCard label="Highest PnL" value={`${ps.highestPnl >= 0 ? "+" : ""}${ps.highestPnl.toFixed(3)}`} icon="📈" tone={ps.highestPnl >= 0 ? "text-lime-300" : "text-red-400"} />
         <StatCard label="Average PnL" value={`${avgPnl >= 0 ? "+" : ""}${avgPnl.toFixed(3)}`} icon="📊" tone={avgPnl >= 0 ? "text-lime-300" : "text-red-400"} />
         <StatCard label="Longest streak" value={ps.longestProfitStreak} icon="🔥" />
-        <StatCard label="Largest win" value={pdotEth(ps.largestWin)} icon="💰" />
-        <StatCard label="Total earnings" value={pdotEth(ps.totalEarnings)} icon="🏦" tone="text-lime-300" />
+        <StatCard label="Total earnings" value={pdotEth(ps.totalEarnings)} icon="💰" tone="text-lime-300" />
         <StatCard label="Lifetime ROI" value={`${roi >= 0 ? "+" : ""}${roi}%`} icon="♻️" tone={roi >= 0 ? "text-lime-300" : "text-red-400"} />
-        <StatCard label="Carryover wins" value={ps.carryoverWins} icon="🎰" />
       </StatGrid>
 
       <div>

@@ -69,19 +69,37 @@ export type MatchType = "cookout" | "pit";
 /** The Pit's live-trading length presets. See PIT_DURATIONS for the table. */
 export type PitDurationKey = "blitz" | "standard" | "marathon";
 
-/** A Pit prediction call: the coin graduates, the Goon Squad rugs the market, or
- *  it runs the clock out (Timer). "house" (House Special) is a client-only
- *  choice — the server rolls a random real call for it at entry. */
+/** A Pit main prediction call: the coin graduates, the Goon Squad rugs the
+ *  market, or it runs the clock out (Timer). */
 export type PitCall = "graduate" | "rug" | "timer";
-export type PitCallChoice = PitCall | "house";
 
-/** One of the Pit's two independent prize pools, live state. */
+/** The featured "House Special" side bet — one rotating condition per match. */
+export type HouseSpecialKind =
+  | "early_rug"
+  | "late_rug"
+  | "flash_rug"
+  | "whale_rug"
+  | "early_graduate"
+  | "photo_finish"
+  | "bull_timer"
+  | "dead_market";
+export interface HouseSpecialDef {
+  kind: HouseSpecialKind;
+  name: string;
+  blurb: string;
+}
+
+/** Double Down Bonus reward type. Only "flat" (Cook Out balance) for now; the
+ *  shape leaves room for percentage / XP / seasonal without a rewrite. */
+export type PitBonusType = "flat";
+
+/** One of the Pit's prize pools, live state. */
 export interface PitPoolState {
-  /** Pot funded by this match's entries, after the Pit fee skim (pETH). */
+  /** Pot funded by this match's wagers (pETH). Held gross until settlement. */
   pot: number;
   /** Players entered in this pool. */
   participants: number;
-  /** Pot carried in from prior matches where nobody qualified (pETH). */
+  /** Pot carried in from prior matches (unused — pools feed the jackpot). */
   carryIn: number;
 }
 
@@ -100,34 +118,48 @@ export interface PitConfig {
   /** Which pools this match runs — chosen at launch. At least one is true. */
   predictionMode: boolean;
   tradingMode: boolean;
-  /** Entry fee for the Prediction Pool (pETH). */
-  predictionFee: number;
-  /** Entry fee for the Trading Pool (pETH). */
+  /** Prediction betting bounds + quick chips (pETH), snapshot at launch. */
+  minBet: number;
+  maxBet: number;
+  quickChips: number[];
+  /** How the net prediction pool splits between the two winner groups (bps). */
+  mainAllocationBps: number;
+  houseAllocationBps: number;
+  /** Double Down Bonus (correct Main + correct House Special) + its type. */
+  doubleDownBonus: number;
+  doubleDownType: PitBonusType;
+  /** The featured House Special for this match (present when predictionMode). */
+  houseSpecial?: HouseSpecialDef;
+  /** Trading buy-in default (pETH). */
   tradingFee: number;
-  /** Pit fee in basis points, skimmed off every entry before it funds a pool. */
+  /** Pit fee in basis points, skimmed off the pools at settlement. */
   pitFeeBps: number;
   feeSplit: PitFeeSplit;
   /** Simulated paper stack (pETH) every trader is handed for the match. */
   startingStack: number;
+  /** Prediction pool — pot is all prediction money (main + House Special),
+   *  held gross through the lobby; participants = players with any wager. */
   prediction: PitPoolState;
+  /** How many entered the Main prediction / the House Special. */
+  mainParticipants: number;
+  houseParticipants: number;
   trading: PitPoolState;
 }
 
-/** A player's Pit lobby entry. At least one of the two must be set. */
+/** A player's Pit lobby entry. Editable/withdrawable until the round goes live. */
 export interface PitEntry {
-  /** Their Prediction Pool call, when entered (resolved — House Special has
-   *  already been rolled to a real call). */
+  /** Main prediction call. */
   prediction?: PitCall;
-  /** Their call came from the House Special (random) choice. */
-  houseSpecial?: boolean;
-  /** Custom prediction bet (pETH). Parimutuel: winners split the pool pro-rata
-   *  to their stake. Enforced at or above a $1 minimum. */
+  /** Main prediction wager (pETH). */
   predictionStake?: number;
+  /** Entered the featured House Special side bet. */
+  houseSpecial?: boolean;
+  /** House Special wager (pETH). */
+  houseSpecialStake?: number;
   /** Whether they bought into the Trading Pool. */
   trading?: boolean;
-  /** Custom trading buy-in (pETH). Parimutuel: qualified traders split the pool
-   *  pro-rata to this stake. Everyone still trades the same paper stack, so
-   *  qualification (positive PnL) stays fair. $1 minimum. */
+  /** Custom trading buy-in (pETH). Everyone trades the same paper stack; the
+   *  highest PnL wins the pool. */
   tradingStake?: number;
 }
 
@@ -136,20 +168,25 @@ export interface PitPlayerResult {
   address: Address;
   displayName?: string;
   avatarUrl?: string;
+  /** Main prediction. */
   prediction?: PitCall;
-  houseSpecial?: boolean;
   predictionCorrect?: boolean;
-  /** Trading PnL on their paper stack, when they entered the Trading Pool. */
+  predictionReward: number;
+  /** House Special side bet. */
+  houseSpecial?: boolean;
+  houseSpecialCorrect?: boolean;
+  houseSpecialReward: number;
+  /** Double Down Bonus paid (correct Main + correct House Special). */
+  doubleDownBonus: number;
+  /** Trading. */
   tradingPnl?: number;
   qualified?: boolean;
-  /** Trades this player made (Trading pool has a per-duration minimum). */
   trades?: number;
-  predictionReward: number;
   tradingReward: number;
   totalReward: number;
   /** Total reward minus the actual bets paid this match. */
   net: number;
-  /** Won both pools. */
+  /** Won the prediction market and the trading pool. */
   doubleWinner: boolean;
 }
 
@@ -157,19 +194,16 @@ export interface PitPlayerResult {
 export interface PitResult {
   duration: PitDurationKey;
   outcome: PitCall;
-  prediction: {
-    pot: number;
-    winners: number;
-    rewardEach: number;
-    /** No correct calls: the pot carried into the next Pit match. */
-    carried: boolean;
-  };
-  trading: {
-    pot: number;
-    qualified: number;
-    rewardEach: number;
-    carried: boolean;
-  };
+  /** The featured House Special and whether it hit. */
+  houseSpecial?: { def: HouseSpecialDef; hit: boolean };
+  /** Main prediction bucket. */
+  prediction: { pot: number; winners: number; rewardEach: number; carried: boolean };
+  /** House Special bucket. */
+  house: { pot: number; winners: number; rewardEach: number; carried: boolean };
+  /** Double Down Bonuses paid this match. */
+  doubleDown: { bonus: number; count: number };
+  /** Trading bucket. */
+  trading: { pot: number; qualified: number; rewardEach: number; carried: boolean };
   /** Per-player breakdown (humans only), highest total reward first. */
   players: PitPlayerResult[];
 }
@@ -177,28 +211,34 @@ export interface PitResult {
 /** Lifetime Pit record, shown on the profile's The Pit tab. */
 export interface PitStats {
   matchesPlayed: number;
+  /** Matches where the player placed any prediction (main or House Special). */
+  predictionMarketsPlayed: number;
   predictionsMade: number;
   predictionsCorrect: number;
-  /** Prediction pools won (paid out). */
+  /** Main prediction wins (paid out). */
   predictionWins: number;
+  /** Lifetime main prediction wagered + won (pETH). */
+  predictionStaked: number;
+  predictionEarnings: number;
+  /** House Special side bet. */
+  houseEntered: number;
+  houseWins: number;
+  houseStaked: number;
+  houseEarnings: number;
+  /** Double Down Bonus. */
+  doubleDowns: number;
+  largestDoubleDown: number;
+  /** Trading. */
   tradingEntries: number;
-  /** Trading pools qualified for. */
   tradingWins: number;
+  tradingStaked: number;
   doubleWins: number;
   highestPnl: number;
-  /** Sum of trading PnL, for the average. */
   totalPnl: number;
   longestProfitStreak: number;
   currentProfitStreak: number;
-  /** Biggest single-match total reward. */
   largestWin: number;
-  /** Lifetime Pit rewards received (pETH). */
   totalEarnings: number;
-  /** Lifetime prediction entry fees paid (for ROI). */
-  predictionStaked: number;
-  /** Lifetime trading entry fees paid (for ROI). */
-  tradingStaked: number;
-  /** Pools won that included a carried-over jackpot. */
   carryoverWins: number;
   byDuration: Record<PitDurationKey, { played: number; wins: number }>;
 }

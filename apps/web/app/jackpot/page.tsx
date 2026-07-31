@@ -108,6 +108,12 @@ export default function JackpotPage() {
             of every trading fee, half of the platform&apos;s house cut. Nothing is minted for it. It is
             pure fee revenue, so a busy trading week directly means a bigger jackpot.
           </p>
+          <p className="mt-3 rounded-xl border border-fuchsia-500/25 bg-fuchsia-500/[0.05] p-3 text-xs text-zinc-300">
+            <span className="font-bold text-fuchsia-300">🕳️ The Pit feeds it too.</span> A slice of every
+            Pit entry fee is routed to this jackpot, and any Pit prize-pool money left unclaimed at the end
+            of a match (no correct predictions, a House Special that missed, or no traders) is swept
+            straight into the pot instead of carrying over.
+          </p>
 
           <div className="mt-4 grid grid-cols-2 gap-3 pt-2">
             <div className="rounded-xl bg-zinc-950/50 p-3">

@@ -48,8 +48,10 @@ import {
   type UserProfile,
   type PitEntry,
   type PitStats,
+  type PitBonusType,
   type PitDurationKey,
   type PitFeeSplit,
+  type HouseSpecialKind,
   PIT_DEFAULTS,
 } from "@cookout/shared";
 
@@ -225,11 +227,7 @@ export class Store {
     rugBanHours: [24, 72, 168],
     // The Pit economy + Swarm knobs, all live-editable. Deep-copied from the
     // shared defaults so admin edits never mutate the shared constant.
-    pit: {
-      ...PIT_DEFAULTS,
-      feeSplit: { ...PIT_DEFAULTS.feeSplit },
-      durations: [...PIT_DEFAULTS.durations],
-    },
+    pit: freshPitSettings(),
   };
   /** Live ETH/USD, refreshed by the price feed; used to peg the $40k bond. */
   ethUsd = DEFAULT_ETH_USD;
@@ -968,12 +966,12 @@ export class Store {
     const carried = snap.pitCarry ?? { prediction: 0, trading: 0 };
     this.jackpotPool += (carried.prediction ?? 0) + (carried.trading ?? 0);
     this.pitCarry = { prediction: 0, trading: 0 };
-    // Ensure the Pit settings block exists on snapshots that predate The Pit.
-    this.settings.pit ??= {
-      ...PIT_DEFAULTS,
-      feeSplit: { ...PIT_DEFAULTS.feeSplit },
-      durations: [...PIT_DEFAULTS.durations],
-    };
+    // Ensure the Pit settings block exists + carries new prediction-market
+    // knobs on snapshots that predate them.
+    this.settings.pit = { ...freshPitSettings(), ...(this.settings.pit ?? {}) };
+    // Backfill new pitStats fields on existing players.
+    for (const u of this.users.values())
+      if (u.pitStats) u.pitStats = { ...emptyPitStats(), ...u.pitStats };
     this.reindexArena();
     this.reindexTelegram();
   }
@@ -1015,7 +1013,6 @@ export interface OpsSettings {
 
 /** Admin-tunable Pit economy and Swarm behavior (see PIT_DEFAULTS). */
 export interface PitSettings {
-  predictionFee: number;
   tradingFee: number;
   pitFeeBps: number;
   feeSplit: PitFeeSplit;
@@ -1029,17 +1026,47 @@ export interface PitSettings {
   difficulty: number;
   /** Duration presets creators may launch. */
   durations: PitDurationKey[];
+  // ---- Prediction market ----
+  minBet: number;
+  maxBet: number;
+  quickChips: number[];
+  mainAllocationBps: number;
+  houseAllocationBps: number;
+  doubleDownBonus: number;
+  doubleDownType: PitBonusType;
+  houseSpecials: HouseSpecialKind[];
+}
+
+/** Deep-copied default Pit settings so admin edits never touch the shared const. */
+export function freshPitSettings(): PitSettings {
+  return {
+    ...PIT_DEFAULTS,
+    feeSplit: { ...PIT_DEFAULTS.feeSplit },
+    durations: [...PIT_DEFAULTS.durations],
+    quickChips: [...PIT_DEFAULTS.quickChips],
+    houseSpecials: [...PIT_DEFAULTS.houseSpecials],
+  };
 }
 
 /** A fresh lifetime Pit record. */
 export function emptyPitStats(): PitStats {
   return {
     matchesPlayed: 0,
+    predictionMarketsPlayed: 0,
     predictionsMade: 0,
     predictionsCorrect: 0,
     predictionWins: 0,
+    predictionStaked: 0,
+    predictionEarnings: 0,
+    houseEntered: 0,
+    houseWins: 0,
+    houseStaked: 0,
+    houseEarnings: 0,
+    doubleDowns: 0,
+    largestDoubleDown: 0,
     tradingEntries: 0,
     tradingWins: 0,
+    tradingStaked: 0,
     doubleWins: 0,
     highestPnl: 0,
     totalPnl: 0,
@@ -1047,8 +1074,6 @@ export function emptyPitStats(): PitStats {
     currentProfitStreak: 0,
     largestWin: 0,
     totalEarnings: 0,
-    predictionStaked: 0,
-    tradingStaked: 0,
     carryoverWins: 0,
     byDuration: {
       blitz: { played: 0, wins: 0 },
