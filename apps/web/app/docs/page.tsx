@@ -3,6 +3,8 @@
 import Link from "next/link";
 import {
   GAME_MODES,
+  PIT_DEFAULTS,
+  PIT_DURATIONS,
   LEVEL_TITLES,
   TIER_CONFIGS,
   TIER_UNLOCK_LEVEL,
@@ -39,6 +41,7 @@ const SECTIONS = [
   ["trading", "Live Trading"],
   ["endings", "Rugs, Redemption & Graduation"],
   ["modes", "Game Modes"],
+  ["pit", "The Pit (vs Swarm AI)"],
   ["reputation", "Reputation & Rug Bans"],
   ["tiers", "Risk Tiers (under the hood)"],
   ["progression", "XP, Levels & Titles"],
@@ -330,6 +333,54 @@ export default function Docs() {
             <b className="text-lime-300">Beta:</b> every mode is open to everyone from level 1, so
             you can try them all. <b>Endurance</b> (no timer) is on the menu but locked for now, and
             unlocks later.
+          </p>
+        </Section>
+
+        <Section id="pit" title="The Pit (vs Swarm AI)">
+          <p>
+            <b className="text-fuchsia-300">The Pit</b> is a bonus game mode that lives next to the
+            Cook Out. Instead of trading against other players, you go up against{" "}
+            <b className="text-fuchsia-300">The Flame Goon Squad AI</b> — an adaptive AI that runs
+            believable market stories (accumulation, momentum runs, fake recoveries, panic selloffs,
+            late rugs). It launches straight from The Pit page, no vote.
+          </p>
+          <p>
+            A creator picks a duration —{" "}
+            {PIT_DURATIONS.map((d) => `${d.icon} ${d.name} (${d.minutes}m)`).join(", ")} — and one or
+            both game modes:
+          </p>
+          <ul className="ml-5 list-disc space-y-2 text-sm text-zinc-300">
+            <li>
+              <b className="text-fuchsia-300">🔮 Prediction.</b> Bet on how it ends: Graduate, Rug,
+              Timer, or <b>House Special</b> (the house rolls a random call for you). Your bet is
+              custom ($1 minimum); everyone who called it right splits the pool pro-rata to their bet.
+            </li>
+            <li>
+              <b className="text-lime-300">⚔️ Battle the Flame Goon Squad AI.</b> Pay a custom buy-in
+              ($1 minimum) and trade an equal paper stack against the Goons. It&apos;s a race against
+              the <b>other traders</b> — the highest PnL when the bell rings takes the whole pool
+              (ties split).
+            </li>
+          </ul>
+          <p>
+            A match needs <b>two bets in each enabled pool</b> before a short countdown starts and it
+            goes live. Winnings and entries flow through your Cook Out balance and the ledger, and
+            every Pit match earns profile XP that also counts toward the Weekly Jackpot.
+          </p>
+
+          <h3 className="mt-6 text-lg font-black text-zinc-100">Entry fees & the split</h3>
+          <p>
+            A small <b>Pit fee</b> ({(PIT_DEFAULTS.pitFeeBps / 100).toFixed(0)}%) is skimmed off every
+            entry before it funds a pool. Here&apos;s where that fee goes:
+          </p>
+          <FeeSplitBar split={PIT_DEFAULTS.feeSplit} />
+          <p className="rounded-xl border border-amber-400/30 bg-amber-400/[0.05] p-3 text-sm text-zinc-300">
+            <b className="text-amber-300">No carryover.</b> If a pool goes unclaimed (nobody called it
+            right, or nobody traded), that money is swept into the{" "}
+            <Link href="#jackpot" className="text-amber-300 underline">
+              Weekly Jackpot
+            </Link>{" "}
+            — Pit pools never carry into the next match.
           </p>
         </Section>
 
@@ -1091,6 +1142,38 @@ function GrillDiagram() {
           </li>
         ))}
       </ol>
+    </div>
+  );
+}
+
+function FeeSplitBar({ split }: { split: { platform: number; jackpot: number; creator: number; treasury: number } }) {
+  const parts = [
+    { key: "platform", label: "Platform", pct: split.platform, cls: "bg-fuchsia-500", text: "text-fuchsia-300" },
+    { key: "jackpot", label: "Weekly Jackpot", pct: split.jackpot, cls: "bg-amber-400", text: "text-amber-300" },
+    { key: "creator", label: "Creator", pct: split.creator, cls: "bg-lime-400", text: "text-lime-300" },
+    { key: "treasury", label: "Treasury", pct: split.treasury, cls: "bg-sky-400", text: "text-sky-300" },
+  ];
+  return (
+    <div className="not-prose my-2">
+      <div className="flex h-6 w-full overflow-hidden rounded-full ring-1 ring-white/10">
+        {parts.map((p) => (
+          <div
+            key={p.key}
+            className={p.cls}
+            style={{ width: `${Math.round(p.pct * 100)}%` }}
+            title={`${p.label} ${Math.round(p.pct * 100)}%`}
+          />
+        ))}
+      </div>
+      <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {parts.map((p) => (
+          <div key={p.key} className="flex items-center gap-2 text-xs">
+            <span className={`h-2.5 w-2.5 rounded-full ${p.cls}`} />
+            <span className="text-zinc-400">{p.label}</span>
+            <span className={`ml-auto font-mono font-bold ${p.text}`}>{Math.round(p.pct * 100)}%</span>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

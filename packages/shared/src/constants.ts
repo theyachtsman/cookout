@@ -226,14 +226,12 @@ export interface PitDurationDef {
   icon: string;
   minutes: number;
   tagline: string;
-  /** Minimum trades a player must make to qualify for the Trading pool. */
-  minTrades: number;
 }
 
 export const PIT_DURATIONS: PitDurationDef[] = [
-  { key: "blitz", name: "Blitz", icon: "⚡", minutes: 1, tagline: "1 min · fast and violent", minTrades: 4 },
-  { key: "standard", name: "Standard", icon: "🔥", minutes: 5, tagline: "5 min · balanced pacing", minTrades: 8 },
-  { key: "marathon", name: "Marathon", icon: "🧠", minutes: 10, tagline: "10 min · long-form cycles", minTrades: 10 },
+  { key: "blitz", name: "Blitz", icon: "⚡", minutes: 1, tagline: "1 min · fast and violent" },
+  { key: "standard", name: "Standard", icon: "🔥", minutes: 5, tagline: "5 min · balanced pacing" },
+  { key: "marathon", name: "Marathon", icon: "🧠", minutes: 10, tagline: "10 min · long-form cycles" },
 ];
 
 export const PIT_DURATION_MAP: Record<PitDurationKey, PitDurationDef> = Object.fromEntries(
@@ -241,6 +239,12 @@ export const PIT_DURATION_MAP: Record<PitDurationKey, PitDurationDef> = Object.f
 ) as Record<PitDurationKey, PitDurationDef>;
 
 export const DEFAULT_PIT_DURATION: PitDurationKey = "standard";
+
+/** The Pit's AI opponent brand — the crowd trades and predicts against them. */
+export const PIT_AI_NAME = "The Flame Goon Squad AI";
+export const PIT_AI_SHORT = "The Goon Squad";
+/** Display name of the trading game mode. */
+export const PIT_TRADING_MODE_NAME = "Battle the Flame Goon Squad AI";
 
 /**
  * Default Pit economy and Swarm knobs. Every value here is overridable from the
