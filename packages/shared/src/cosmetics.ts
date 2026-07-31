@@ -52,6 +52,16 @@ export const COSMETICS: CosmeticDef[] = [
   { id: "f_silver", type: "frame", name: "Silver Frame", value: "frame-silver", unlock: { level: 35 } },
   { id: "f_gold", type: "frame", name: "Gold Frame", value: "frame-gold", unlock: { level: 65 } },
   { id: "f_season", type: "frame", name: "Season Frame", value: "frame-season", unlock: { monthlyXp: 3500 } },
+
+  // Flame Trial cosmetics (earned through Trial progression)
+  { id: "b_trial", type: "badge", name: "Trial Winner", value: "🏅", unlock: { achievement: "first_flame" } },
+  { id: "b_fireproof", type: "badge", name: "Fireproof", value: "🧯", unlock: { achievement: "fireproof" } },
+  { id: "b_untouchable", type: "badge", name: "Untouchable", value: "✨", unlock: { achievement: "untouchable" } },
+  { id: "b_mythic_trial", type: "badge", name: "Mythic Flame", value: "☄️", unlock: { achievement: "legend_hunter" } },
+  { id: "t_flamesurvivor", type: "title", name: "Flame Survivor", value: "Flame Survivor", unlock: { achievement: "first_flame" } },
+  { id: "t_firewalker", type: "title", name: "Fire Walker", value: "Fire Walker", unlock: { achievement: "heat_resistant" } },
+  { id: "t_trialmaster", type: "title", name: "Trial Master", value: "Trial Master", unlock: { achievement: "fireproof" } },
+  { id: "t_lastflame", type: "title", name: "The Last Flame", value: "The Last Flame", unlock: { achievement: "legend_hunter" } },
 ];
 
 export interface EquippedCosmetics {

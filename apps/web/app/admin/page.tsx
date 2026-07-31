@@ -58,6 +58,10 @@ interface PitSettings {
   doubleDownBonus: number;
   doubleDownType: string;
   houseSpecials: string[];
+  trialRequiredPnlBps: number;
+  trialMinUsd: number;
+  trialMaxUsd: number;
+  trialTiers: { name: string; minUsd: number; xp: number; rarity: string }[];
 }
 
 const HOUSE_SPECIAL_KINDS = [
@@ -181,6 +185,25 @@ function PitOpsPanel({
           />
           Sweep unclaimed pools to jackpot
         </label>
+      </div>
+      {/* Flame Trial */}
+      <div className="flex flex-wrap items-end gap-3 border-t border-zinc-800 pt-3">
+        <span className="text-[11px] font-bold uppercase text-orange-300">🔥 Flame Trial</span>
+        <label className="flex flex-col gap-1 text-xs text-zinc-500">
+          Required PnL (%)
+          <input
+            type="number"
+            step="1"
+            value={String(Math.round((p.trialRequiredPnlBps ?? 2000) / 100))}
+            onChange={(e) => set({ trialRequiredPnlBps: Math.round((Number(e.target.value) || 0) * 100) })}
+            className="w-24 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-sm text-zinc-100"
+          />
+        </label>
+        {num("Min stake ($)", "trialMinUsd", "1")}
+        {num("Max stake ($)", "trialMaxUsd", "5")}
+        <span className="text-[11px] text-zinc-600">
+          Tiers: {(p.trialTiers ?? []).map((t) => `${t.name} $${t.minUsd}/${t.xp}xp`).join(" · ")}
+        </span>
       </div>
       <div className="flex flex-wrap items-end gap-3">
         {(["platform", "jackpot", "creator", "treasury"] as const).map((k) => (

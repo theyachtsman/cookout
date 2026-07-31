@@ -23,7 +23,11 @@ export type MissionMetric =
   | "pit_played"
   | "pit_predictions_correct"
   | "pit_trading_wins"
-  | "pit_double_wins";
+  | "pit_double_wins"
+  // Flame Trial (solo PvE)
+  | "trial_played"
+  | "trial_won"
+  | "trial_target_hit";
 
 export interface MissionDef {
   id: string;
@@ -63,6 +67,9 @@ export const MISSIONS: MissionDef[] = [
   { id: "d_pit_play_1", name: "Enter The Pit", description: "Play a Pit match today", period: "daily", metric: "pit_played", target: 1, xp: 25 },
   { id: "d_pit_predict_1", name: "Read the Swarm", description: "Land a correct Pit prediction today", period: "daily", metric: "pit_predictions_correct", target: 1, xp: 35 },
   { id: "d_pit_trade_1", name: "Beat the Swarm", description: "Qualify in a Pit trading pool today", period: "daily", metric: "pit_trading_wins", target: 1, xp: 40 },
+  // ---- Flame Trial dailies (solo PvE) ----
+  { id: "d_trial_play_1", name: "Into the Fire", description: "Play a Flame Trial today", period: "daily", metric: "trial_played", target: 1, xp: 30 },
+  { id: "d_trial_win_1", name: "Flame Survivor", description: "Win a Flame Trial today", period: "daily", metric: "trial_won", target: 1, xp: 45 },
   // ---- Weekly challenges (all live all week; clearing the set pays a bonus) ----
   { id: "w_play_20", name: "Regular", description: "Play 20 rounds this week", period: "weekly", metric: "rounds_played", target: 20, xp: 200 },
   { id: "w_win_10", name: "Consistent", description: "Finish 10 rounds in profit this week", period: "weekly", metric: "profitable_rounds", target: 10, xp: 250 },
@@ -74,6 +81,9 @@ export const MISSIONS: MissionDef[] = [
   { id: "w_pit_play_10", name: "Pit Regular", description: "Play 10 Pit matches this week", period: "weekly", metric: "pit_played", target: 10, xp: 200 },
   { id: "w_pit_trade_5", name: "Swarm Slayer", description: "Qualify in 5 Pit trading pools this week", period: "weekly", metric: "pit_trading_wins", target: 5, xp: 220 },
   { id: "w_pit_double_1", name: "Double Trouble", description: "Land a Pit Double Winner this week", period: "weekly", metric: "pit_double_wins", target: 1, xp: 180 },
+  // ---- Flame Trial weeklies ----
+  { id: "w_trial_play_5", name: "Trial Regular", description: "Play 5 Flame Trials this week", period: "weekly", metric: "trial_played", target: 5, xp: 180 },
+  { id: "w_trial_win_3", name: "Fire Walker", description: "Win 3 Flame Trials this week", period: "weekly", metric: "trial_won", target: 3, xp: 240 },
 ];
 
 /** FNV-1a hash → deterministic per-day mission rotation. */

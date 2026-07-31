@@ -196,6 +196,12 @@ export class RoundEngine {
       duration,
       predictionMode: !!modes.prediction,
       tradingMode: !!modes.trading,
+      trialMode: !!modes.trial,
+      trialParticipants: 0,
+      trialRequiredPnlBps: pit.trialRequiredPnlBps,
+      trialMinUsd: pit.trialMinUsd,
+      trialMaxUsd: pit.trialMaxUsd,
+      trialTiers: pit.trialTiers.map((t) => ({ ...t })),
       minBet: pit.minBet,
       maxBet: pit.maxBet,
       quickChips: [...pit.quickChips],
@@ -272,7 +278,9 @@ export class RoundEngine {
     const pit = round.pit!;
     const predOk = !pit.predictionMode || pit.prediction.participants >= 2;
     const tradeOk = !pit.tradingMode || pit.trading.participants >= 2;
-    if (!predOk || !tradeOk) return false;
+    // Flame Trial is single-player: one entrant is enough to start immediately.
+    const trialOk = !pit.trialMode || pit.trialParticipants >= 1;
+    if (!predOk || !tradeOk || !trialOk) return false;
     round.queueOpensAt = now + round.config.lobbySeconds * 1000;
     this.sys(
       round.id,
@@ -1080,6 +1088,7 @@ export class RoundEngine {
         finalPrice,
         holderCount: holdersAtEnd.length,
         now,
+        drawdown: new Map([...s.meta].map(([a, m]) => [a, m.minPnlFrac])),
       });
       this.store.summaries.set(round.id, summary);
       this.finishPitEnd(round, summary, now);

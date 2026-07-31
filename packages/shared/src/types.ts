@@ -93,6 +93,16 @@ export interface HouseSpecialDef {
  *  shape leaves room for percentage / XP / seasonal without a rewrite. */
 export type PitBonusType = "flat";
 
+/** A Flame Trial stake tier — an entry-cost band (USD) that scales rewards.
+ *  The stake is a challenge cost, never a payout: a higher tier means more XP
+ *  and higher-rarity cosmetic eligibility, not money back. */
+export interface TrialTier {
+  name: string;
+  minUsd: number;
+  xp: number;
+  rarity: "common" | "rare" | "epic" | "legendary";
+}
+
 /** One of the Pit's prize pools, live state. */
 export interface PitPoolState {
   /** Pot funded by this match's wagers (pETH). Held gross until settlement. */
@@ -115,9 +125,18 @@ export interface PitFeeSplit {
  *  resolved from admin settings at launch so nothing is hardcoded downstream. */
 export interface PitConfig {
   duration: PitDurationKey;
-  /** Which pools this match runs — chosen at launch. At least one is true. */
+  /** Which game modes this match runs — chosen at launch. At least one is true. */
   predictionMode: boolean;
   tradingMode: boolean;
+  /** Flame Trial: solo PvE objective mode (single-player, min 1 to start). */
+  trialMode: boolean;
+  trialParticipants: number;
+  /** Trial objective: required final PnL in basis points (2000 = +20%). */
+  trialRequiredPnlBps: number;
+  /** Trial entry stake bounds (USD equivalent) + reward tiers, snapshot at launch. */
+  trialMinUsd: number;
+  trialMaxUsd: number;
+  trialTiers: TrialTier[];
   /** Prediction betting bounds + quick chips (pETH), snapshot at launch. */
   minBet: number;
   maxBet: number;
@@ -161,6 +180,10 @@ export interface PitEntry {
   /** Custom trading buy-in (pETH). Everyone trades the same paper stack; the
    *  highest PnL wins the pool. */
   tradingStake?: number;
+  /** Whether they entered the solo Flame Trial. */
+  trial?: boolean;
+  /** Flame Trial entry stake (pETH) — a challenge cost that sets the reward tier. */
+  trialStake?: number;
 }
 
 /** One participant's Pit outcome, for the results modal and profile. */
@@ -183,6 +206,13 @@ export interface PitPlayerResult {
   qualified?: boolean;
   trades?: number;
   tradingReward: number;
+  /** Flame Trial (solo objective). */
+  trial?: boolean;
+  trialStake?: number;
+  trialPnlPct?: number;
+  trialTier?: string;
+  trialPassed?: boolean;
+  trialXp?: number;
   totalReward: number;
   /** Total reward minus the actual bets paid this match. */
   net: number;
@@ -204,6 +234,8 @@ export interface PitResult {
   doubleDown: { bonus: number; count: number };
   /** Trading bucket. */
   trading: { pot: number; qualified: number; rewardEach: number; carried: boolean };
+  /** Flame Trial summary. */
+  trial: { participants: number; passed: number; requiredPnlBps: number };
   /** Per-player breakdown (humans only), highest total reward first. */
   players: PitPlayerResult[];
 }
@@ -232,6 +264,14 @@ export interface PitStats {
   tradingEntries: number;
   tradingWins: number;
   tradingStaked: number;
+  /** Flame Trial (solo objective mode). */
+  trialsPlayed: number;
+  trialsWon: number;
+  trialXp: number;
+  highestTrialPnlPct: number;
+  highestTrialTier: string;
+  trialWinStreak: number;
+  bestTrialWinStreak: number;
   doubleWins: number;
   highestPnl: number;
   totalPnl: number;
@@ -268,8 +308,8 @@ export interface TokenConcept {
   matchType?: MatchType;
   /** The Pit's chosen live-trading length preset (Blitz/Standard/Marathon). */
   pitDuration?: PitDurationKey;
-  /** Which Pit pools this launch runs (prediction and/or trading). */
-  pitModes?: { prediction: boolean; trading: boolean };
+  /** Which Pit game modes this launch runs (prediction / trading / Flame Trial). */
+  pitModes?: { prediction: boolean; trading: boolean; trial?: boolean };
   /** Curated launch mode (Classic/Pressure/Blitz/Reflex). Drives tier, match
    *  length, and rug rules. Absent on legacy concepts. */
   mode?: GameMode;
@@ -851,7 +891,9 @@ export type LedgerKind =
   /** The Pit: prize-pool payout (credit). */
   | "pit_reward"
   /** The Pit: creator's share of Pit fees for their match (credit). */
-  | "pit_creator";
+  | "pit_creator"
+  /** The Pit: Flame Trial entry stake (debit — a challenge cost, no prize pool). */
+  | "pit_trial";
 export interface LedgerEntry {
   id: string;
   at: number;

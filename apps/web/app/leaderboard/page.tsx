@@ -36,6 +36,10 @@ const PIT_METRICS: [string, string][] = [
   ["blitz", "Best Blitz"],
   ["standard", "Best Standard"],
   ["marathon", "Best Marathon"],
+  ["trialWins", "🔥 Trial Wins"],
+  ["trialXp", "🔥 Trial XP"],
+  ["trialStreak", "🔥 Trial Streak"],
+  ["trialPnl", "🔥 Trial PnL"],
 ];
 
 const PETH_METRICS = new Set(["profit", "largest", "earnings"]);
@@ -43,6 +47,7 @@ const PETH_METRICS = new Set(["profit", "largest", "earnings"]);
 function formatValue(scope: string, metric: string, v: number): string {
   if (scope === "pit") {
     if (metric === "accuracy") return `${v}%`;
+    if (metric === "trialPnl") return `+${v}%`;
     if (PETH_METRICS.has(metric)) return `${v >= 0 ? "" : ""}${v.toFixed(3)}`;
     return String(v);
   }
