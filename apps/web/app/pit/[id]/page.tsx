@@ -9,6 +9,7 @@ import {
   marketCap,
   spotPrice,
   type Candle,
+  type GoonOverlayEvent,
   type KillFeedEvent,
   type PitCall,
   type PitEntry,
@@ -42,6 +43,7 @@ import {
 } from "../../../lib/sfx";
 import { pdotEth, fmtVal } from "../../../lib/pit";
 import { PitResultsView, PitOutcomeModal } from "../../../components/PitResults";
+import { GoonOverlayLayer, useGoonOverlays } from "../../../components/GoonOverlay";
 
 /** The live-round drama state threaded from the socket into the trade view —
  *  the same flashes, shakes, sounds, and overlays the Cook Out arena runs. */
@@ -93,6 +95,8 @@ export default function PitMatchPage() {
   const [usd, setUsd] = useState(true);
   // The end-of-match win/lose modal, shown once when a match the player was in ends.
   const [showOutcome, setShowOutcome] = useState(false);
+  // Flame Goon Squad cinematic moments in this match room.
+  const { overlays: goonOverlays, push: pushGoon } = useGoonOverlays();
 
   // ---- live drama: flashes / shake / sounds / overlays (Cook Out parity) ----
   const [killfeed, setKillfeed] = useState<KillFeedEvent[]>([]);
@@ -204,6 +208,8 @@ export default function PitMatchPage() {
       }
     } else if (ev.type === "candle") {
       setCandles((c) => [...c, ev.candle as Candle].slice(-1200));
+    } else if (ev.type === "goon_overlay") {
+      pushGoon(ev.overlay as GoonOverlayEvent);
     } else if (ev.type === "killfeed") {
       const event = ev.event as KillFeedEvent;
       setKillfeed((prev) => [...prev.slice(-99), event]);
@@ -268,6 +274,7 @@ export default function PitMatchPage() {
 
   return (
     <div className="space-y-5">
+      <GoonOverlayLayer overlays={goonOverlays} />
       {/* Header */}
       <div className="flex flex-wrap items-center gap-3">
         <Link href="/pit" className="text-sm text-zinc-500 hover:text-zinc-300">

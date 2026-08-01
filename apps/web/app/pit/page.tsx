@@ -12,14 +12,17 @@ import {
   marketCap,
   type PitDurationKey,
 } from "@cookout/shared";
+import type { GoonOverlayEvent } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { useSocial } from "../../lib/social";
+import { useRoundSocket } from "../../lib/useRoundSocket";
 import type { PitCard, PitFeed } from "../../lib/pit";
 import { fmtVal } from "../../lib/pit";
 import { Countdown } from "../../components/Countdown";
 import { ImagePicker } from "../../components/ImagePicker";
 import { RunItBack } from "../../components/PitResults";
+import { GoonOverlayLayer, useGoonOverlays } from "../../components/GoonOverlay";
 
 type Fmt = (eth: number) => string;
 
@@ -596,8 +599,15 @@ export default function PitPage() {
   const ethUsd = jackpot?.ethUsd ?? 0;
   const fmt: Fmt = (eth) => fmtVal(eth, usd, ethUsd);
 
+  // Flame Goon Squad cinematic moments in the general Pit room.
+  const { overlays, push } = useGoonOverlays();
+  useRoundSocket(PIT_ROOM, (ev) => {
+    if (ev.type === "goon_overlay") push(ev.overlay as GoonOverlayEvent);
+  });
+
   return (
     <div className="space-y-7">
+      <GoonOverlayLayer overlays={overlays} />
       <header className="rounded-3xl bg-gradient-to-br from-lime-500/10 via-zinc-900/40 to-zinc-950 p-6 ring-1 ring-white/10 sm:p-8">
         <div className="min-w-0">
           <div className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-300">

@@ -1,4 +1,5 @@
 /** Shared domain types for The Cookout (Phase 1: paper money). */
+import type { GoonOverlayEvent } from "./goons.js";
 
 export type Address = string;
 
@@ -701,6 +702,12 @@ export interface UserProfile {
   avatarUrl?: string;
   /** Wide header banner shown behind the avatar + level on profiles. */
   bannerUrl?: string;
+  /** Flame Goon Squad system account? Drives the AI badge on their profile. */
+  isAI?: boolean;
+  /** Short bio (used by Goon Squad profiles). */
+  bio?: string;
+  /** Goon Squad handle (/profile/<handle>), for system AI accounts. */
+  goonHandle?: string;
   /** Linked Telegram companion account, if any. */
   telegram?: TelegramLink;
   /** Per-category Telegram notification switches (defaults applied when unset). */
@@ -1115,6 +1122,9 @@ export type ServerEvent =
   /** Burgers just landed — drives the 🍔 toast + balance count-up. Sent only to
    *  that user. `balance` is the running $BURG total after the award. */
   | { type: "burger"; amount: number; balance: number; source: BurgerSource; label: string }
+  /** A cinematic Flame Goon Squad moment ("GHOST ENTERED THE PIT"), broadcast to
+   *  a Pit room. Drives the overlay banners on the Pit pages. */
+  | { type: "goon_overlay"; overlay: GoonOverlayEvent }
   | { type: "error"; message: string };
 
 /** An @-mention of a player in chat, shown in their Pings feed. */
