@@ -43,7 +43,7 @@ export function PitProfile({ address, pitStats: initial }: { address: string; pi
     return (
       <div className="rounded-2xl bg-zinc-900/40 p-8 text-center text-sm text-zinc-500">
         No Pit matches yet.{" "}
-        <Link href="/pit" className="font-bold text-fuchsia-300 hover:underline">
+        <Link href="/pit" className="font-bold text-sky-300 hover:underline">
           Enter The Pit
         </Link>{" "}
         to face the Goon Squad.
@@ -112,7 +112,7 @@ export function PitProfile({ address, pitStats: initial }: { address: string; pi
               <div
                 key={k}
                 className={`rounded-2xl bg-zinc-900/50 p-4 ring-1 ${
-                  favorite === k ? "ring-fuchsia-400/40" : "ring-white/10"
+                  favorite === k ? "ring-sky-400/40" : "ring-white/10"
                 }`}
               >
                 <div className="text-sm font-black text-zinc-100">
@@ -122,7 +122,7 @@ export function PitProfile({ address, pitStats: initial }: { address: string; pi
                   {rec.wins}W / {rec.played} played
                 </div>
                 {favorite === k && rec.played > 0 && (
-                  <div className="mt-1 text-[10px] font-bold uppercase text-fuchsia-300">Favorite</div>
+                  <div className="mt-1 text-[10px] font-bold uppercase text-sky-300">Favorite</div>
                 )}
               </div>
             );

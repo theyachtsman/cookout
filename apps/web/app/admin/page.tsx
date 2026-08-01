@@ -112,7 +112,7 @@ function PitOpsPanel({
   const durations = ["blitz", "standard", "marathon"];
 
   return (
-    <div className="space-y-3 rounded-lg border border-fuchsia-500/30 bg-fuchsia-500/[0.04] p-3">
+    <div className="space-y-3 rounded-lg border border-sky-500/30 bg-sky-500/[0.04] p-3">
       <div className="flex flex-wrap items-end gap-3">
         {num("Trading fee (pETH)", "tradingFee")}
         {num("Starting stack (pETH)", "startingStack")}
@@ -239,7 +239,7 @@ function PitOpsPanel({
                 set({ durations: on ? p.durations.filter((x) => x !== d) : [...p.durations, d] })
               }
               className={`rounded px-2 py-1 text-xs font-bold ${
-                on ? "bg-fuchsia-500/20 text-fuchsia-300" : "bg-zinc-800 text-zinc-500"
+                on ? "bg-sky-500/20 text-sky-300" : "bg-zinc-800 text-zinc-500"
               }`}
             >
               {d}
@@ -251,7 +251,7 @@ function PitOpsPanel({
         <button
           disabled={!draft}
           onClick={() => void act("/api/admin/settings", { pit: p }).then(() => setDraft(null))}
-          className="rounded bg-fuchsia-500 px-3 py-1.5 text-xs font-black text-zinc-950 hover:bg-fuchsia-400 disabled:opacity-40"
+          className="rounded bg-sky-500 px-3 py-1.5 text-xs font-black text-zinc-950 hover:bg-sky-400 disabled:opacity-40"
         >
           Save Pit settings
         </button>

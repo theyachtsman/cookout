@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -25,8 +25,36 @@ import { OrderBook } from "../../../components/OrderBook";
 import { TradePanel } from "../../../components/TradePanel";
 import { GraduationProgress } from "../../../components/GraduationProgress";
 import { Countdown } from "../../../components/Countdown";
+import { BattleFX, type FxEvent, type FxKind } from "../../../components/BattleFX";
+import { EventStrip, PhaseFlash } from "../../../components/arena/ArenaEvents";
+import { UrgencyPulse } from "../../../components/arena/RoundOverlays";
+import { EdgeCallouts } from "../../../components/arena/EdgeCallouts";
+import { FloatingReactions } from "../../../components/ArcadeOverlays";
+import {
+  playAthSparkle,
+  playFanfare,
+  playHorn,
+  playMilestone,
+  playRug,
+  playThud,
+  playTradeTick,
+  playWhale,
+} from "../../../lib/sfx";
 import { pdotEth, fmtVal } from "../../../lib/pit";
 import { PitResultsView, PitOutcomeModal } from "../../../components/PitResults";
+
+/** The live-round drama state threaded from the socket into the trade view —
+ *  the same flashes, shakes, sounds, and overlays the Cook Out arena runs. */
+interface PitDrama {
+  killfeed: KillFeedEvent[];
+  fx: FxEvent[];
+  shake: boolean;
+  flash: { text: string; tone: "go" | "end" | "bad" } | null;
+  reactions: Array<{ id: number; emoji: string }>;
+  cooking: boolean;
+  bigTradeEth: number;
+  clockOffset: number;
+}
 
 interface RoundData {
   round: Round;
@@ -52,15 +80,66 @@ export default function PitMatchPage() {
   const [data, setData] = useState<RoundData | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [candles, setCandles] = useState<Candle[]>([]);
-  const [ticker, setTicker] = useState<{ price: number; mcap: number; volume: number; holders: number } | null>(null);
+  const [ticker, setTicker] = useState<{
+    price: number;
+    mcap: number;
+    volume: number;
+    holders: number;
+    cooking?: boolean;
+    liquidity?: number;
+  } | null>(null);
   const [entry, setEntry] = useState<PitEntry | null>(null);
   const [stack, setStack] = useState(0);
   const [usd, setUsd] = useState(true);
   // The end-of-match win/lose modal, shown once when a match the player was in ends.
   const [showOutcome, setShowOutcome] = useState(false);
 
+  // ---- live drama: flashes / shake / sounds / overlays (Cook Out parity) ----
+  const [killfeed, setKillfeed] = useState<KillFeedEvent[]>([]);
+  const [fx, setFx] = useState<FxEvent[]>([]);
+  const [shake, setShake] = useState(false);
+  const [flash, setFlash] = useState<{ text: string; tone: "go" | "end" | "bad" } | null>(null);
+  const [reactions, setReactions] = useState<Array<{ id: number; emoji: string }>>([]);
+  const liveRef = useRef(false);
+  const myAddrRef = useRef<string | undefined>(undefined);
+  const athRef = useRef(0);
+  const bigEthRef = useRef(0.05);
+  const clockOffset = useRef(0);
+
+  const fireFx = useCallback((kind: FxKind) => {
+    const fxId = Date.now() + Math.random();
+    setFx((list) => [...list.slice(-8), { id: fxId, kind }]);
+    setTimeout(() => setFx((list) => list.filter((f) => f.id !== fxId)), 1100);
+  }, []);
+  const quake = useCallback(() => {
+    setShake(true);
+    setTimeout(() => setShake(false), 650);
+  }, []);
+  const announce = useCallback((text: string, tone: "go" | "end" | "bad") => {
+    setFlash({ text, tone });
+    setTimeout(() => setFlash((f) => (f?.text === text ? null : f)), 1900);
+  }, []);
+
   const round = data?.round;
   const pit = round?.pit;
+
+  // Seed the killfeed from the initial load; sync the drama refs each render.
+  useEffect(() => {
+    if (data?.killfeed) setKillfeed(data.killfeed);
+  }, [data?.killfeed]);
+  liveRef.current = round?.state === "live";
+  myAddrRef.current = profile?.address;
+  bigEthRef.current = Math.max(0.05, (ticker?.liquidity ?? round?.config.initialEthLiquidity ?? 1) * 0.05);
+
+  // A hard flash + horn when the match goes live — the bell.
+  const wasLive = useRef(false);
+  useEffect(() => {
+    if (round?.state === "live" && !wasLive.current) {
+      wasLive.current = true;
+      announce("LIVE — beat the Goons", "go");
+      playFanfare();
+    }
+  }, [round?.state, announce]);
 
   const loadRound = useCallback(() => {
     api<RoundData>(`/api/rounds/${id}`)
@@ -98,16 +177,49 @@ export default function PitMatchPage() {
 
   useRoundSocket(id ?? null, (ev) => {
     if (ev.type === "ticker") {
+      const tk = ev as unknown as {
+        price: number; mcap: number; volume: number; holders: number;
+        cooking?: boolean; liquidity?: number; athMcap?: number; serverNow?: number;
+      };
       setTicker({
-        price: ev.price as number,
-        mcap: ev.mcap as number,
-        volume: ev.volume as number,
-        holders: ev.holders as number,
+        price: tk.price, mcap: tk.mcap, volume: tk.volume, holders: tk.holders,
+        cooking: tk.cooking, liquidity: tk.liquidity,
       });
+      if (typeof tk.serverNow === "number") clockOffset.current = tk.serverNow - Date.now();
+      // New all-time-high market cap: sparkle + a sky flash.
+      if (typeof tk.athMcap === "number") {
+        if (athRef.current > 0 && tk.athMcap > athRef.current * 1.001 && liveRef.current) {
+          playAthSparkle();
+          fireFx("ath");
+        }
+        athRef.current = Math.max(athRef.current, tk.athMcap);
+      }
     } else if (ev.type === "trade") {
-      setTrades((t) => [...t, ev.trade as Trade].slice(-200));
+      const t = ev.trade as Trade;
+      setTrades((prev) => [...prev, { ...t, seenAt: Date.now() } as Trade].slice(-200));
+      if (liveRef.current) {
+        // Everyone else's trades tick past; the big ones flash the sky.
+        if (t.userAddress !== myAddrRef.current) playTradeTick(t.side, t.ethAmount);
+        if (t.ethAmount >= bigEthRef.current) fireFx(t.side === "buy" ? "buy" : "sell");
+      }
     } else if (ev.type === "candle") {
       setCandles((c) => [...c, ev.candle as Candle].slice(-1200));
+    } else if (ev.type === "killfeed") {
+      const event = ev.event as KillFeedEvent;
+      setKillfeed((prev) => [...prev.slice(-99), event]);
+      if (liveRef.current) {
+        switch (event.kind) {
+          case "whale_entered": playWhale(); fireFx("whale"); break;
+          case "rug_detected": playRug(); fireFx("rug"); quake(); announce("RUG PULL", "bad"); break;
+          case "mcap_milestone": playMilestone(); fireFx("milestone"); break;
+          case "new_leader": playHorn(); break;
+          case "big_sell":
+          case "dev_sell": playThud(); break;
+          case "graduated": playFanfare(); fireFx("graduated"); announce("GRADUATED", "go"); break;
+        }
+      }
+    } else if (ev.type === "reaction") {
+      setReactions((prev) => [...prev.slice(-15), { id: Date.now() + Math.random(), emoji: ev.emoji as string }]);
     } else if (ev.type === "round_state") {
       setData((d) => (d ? { ...d, round: ev.round as Round } : d));
     } else if (ev.type === "round_end") {
@@ -164,10 +276,10 @@ export default function PitMatchPage() {
         <h1 className="text-xl font-black text-zinc-50">
           {round.token.name} <span className="font-mono text-sm text-zinc-500">${round.token.symbol}</span>
         </h1>
-        <span className="inline-flex items-center gap-1 rounded-full bg-fuchsia-500/10 px-2 py-0.5 text-[11px] font-bold text-fuchsia-300">
+        <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-bold text-zinc-300">
           {d.icon} {d.name}
         </span>
-        <span className="text-[11px] font-bold uppercase tracking-wide text-fuchsia-300/70">Powered by The Flame Goon Squad AI</span>
+        <span className="text-[11px] font-bold uppercase tracking-wide text-lime-300/70">Powered by The Flame Goon Squad AI</span>
         <div className="ml-auto flex items-center gap-3">
           <div className="flex overflow-hidden rounded-full bg-zinc-900/70 text-[10px] font-bold ring-1 ring-white/10">
             {(["peth", "usd"] as const).map((k) => (
@@ -221,6 +333,16 @@ export default function PitMatchPage() {
           stack={stack}
           myTokens={myPos.tokens}
           onTraded={loadMe}
+          drama={{
+            killfeed,
+            fx,
+            shake,
+            flash,
+            reactions,
+            cooking: ticker?.cooking ?? false,
+            bigTradeEth: bigEthRef.current,
+            clockOffset: clockOffset.current,
+          }}
         />
       )}
 
@@ -234,7 +356,7 @@ export default function PitMatchPage() {
           </p>
           <Link
             href="/pit"
-            className="mt-4 inline-block rounded-xl bg-fuchsia-500 px-5 py-2.5 text-sm font-black text-zinc-950 hover:bg-fuchsia-400"
+            className="mt-4 inline-block rounded-xl bg-lime-400 px-5 py-2.5 text-sm font-black text-zinc-950 hover:bg-lime-300"
           >
             Back to The Pit
           </Link>
@@ -307,7 +429,7 @@ function Pools({ round, fmt }: { round: Round; fmt: (eth: number) => string }) {
 const BET_CHIPS_USD = [5, 10, 25, 50, 100];
 
 const BET_ACCENT: Record<string, { text: string; ring: string; chip: string }> = {
-  fuchsia: { text: "text-fuchsia-300", ring: "focus-within:ring-fuchsia-400/60", chip: "bg-fuchsia-500/20 text-fuchsia-200 ring-fuchsia-400/40" },
+  sky: { text: "text-sky-300", ring: "focus-within:ring-sky-400/60", chip: "bg-sky-500/20 text-sky-200 ring-sky-400/40" },
   amber: { text: "text-amber-300", ring: "focus-within:ring-amber-400/60", chip: "bg-amber-500/20 text-amber-200 ring-amber-400/40" },
   lime: { text: "text-lime-300", ring: "focus-within:ring-lime-400/60", chip: "bg-lime-500/20 text-lime-200 ring-lime-400/40" },
   orange: { text: "text-orange-300", ring: "focus-within:ring-orange-400/60", chip: "bg-orange-500/20 text-orange-200 ring-orange-400/40" },
@@ -329,7 +451,7 @@ function BetInput({
   value: string;
   onChange: (v: string) => void;
   peg: number;
-  accent: "fuchsia" | "amber" | "lime" | "orange";
+  accent: "sky" | "amber" | "lime" | "orange";
   minUsd: number;
   /** Optional trailing controls (e.g. Flame Trial tier chips). */
   extra?: ReactNode;
@@ -527,13 +649,13 @@ function LobbyView({
       {/* Status */}
       <div
         className={`flex items-center justify-between gap-3 rounded-2xl px-4 py-3 ring-1 ${
-          armed ? "bg-fuchsia-500/10 ring-fuchsia-500/30" : "bg-amber-500/10 ring-amber-500/25"
+          armed ? "bg-lime-500/10 ring-lime-500/30" : "bg-amber-500/10 ring-amber-500/25"
         }`}
       >
         {armed && round.queueOpensAt ? (
           <>
-            <span className="text-sm font-black text-fuchsia-200">🔒 Locked in. Going live.</span>
-            <span className="font-mono text-lg font-black text-fuchsia-200">
+            <span className="text-sm font-black text-lime-200">🔒 Locked in. Going live.</span>
+            <span className="font-mono text-lg font-black text-lime-200">
               <Countdown to={round.queueOpensAt} />
             </span>
           </>
@@ -624,7 +746,7 @@ function LobbyView({
         <div className="space-y-3">
           {/* Prediction */}
           {predMode && (
-            <BetCard accent="fuchsia" icon="🔮" title="Prediction" active={!!call}
+            <BetCard accent="sky" icon="🔮" title="Prediction" active={!!call}
               subtitle="Call how it ends. Correct callers split the pool.">
               <div className="grid grid-cols-3 gap-2">
                 {CALLS.map((c) => (
@@ -633,7 +755,7 @@ function LobbyView({
                     onClick={() => setCall(call === c.key ? null : c.key)}
                     className={`rounded-xl p-3 text-center ring-1 transition ${
                       call === c.key
-                        ? "bg-fuchsia-500/25 ring-fuchsia-400 ring-2"
+                        ? "bg-sky-500/25 ring-sky-400 ring-2"
                         : "bg-zinc-800/60 ring-white/10 hover:ring-white/30"
                     }`}
                   >
@@ -643,7 +765,7 @@ function LobbyView({
                   </button>
                 ))}
               </div>
-              {call && <BetInput value={mainBet} onChange={setMainBet} peg={peg} accent="fuchsia" minUsd={BET_MIN_USD} />}
+              {call && <BetInput value={mainBet} onChange={setMainBet} peg={peg} accent="sky" minUsd={BET_MIN_USD} />}
             </BetCard>
           )}
 
@@ -708,7 +830,7 @@ function LobbyView({
               <button
                 onClick={submit}
                 disabled={busy || cost === 0}
-                className="flex-1 rounded-xl bg-fuchsia-500 py-3.5 text-base font-black text-zinc-950 shadow-lg shadow-fuchsia-500/20 transition hover:bg-fuchsia-400 disabled:opacity-40 disabled:shadow-none"
+                className="flex-1 rounded-xl bg-lime-400 py-3.5 text-base font-black text-zinc-950 shadow-lg shadow-lime-500/20 transition hover:bg-lime-300 disabled:opacity-40 disabled:shadow-none"
               >
                 {busy ? "Placing…" : cost > 0 ? `${editing ? "Update bet" : "Place bet"} · ${fmt(cost)}` : "Pick a bet above"}
               </button>
@@ -742,7 +864,7 @@ function BetCard({
   onToggle,
   children,
 }: {
-  accent: "fuchsia" | "amber" | "lime" | "orange";
+  accent: "sky" | "amber" | "lime" | "orange";
   icon: string;
   title: string;
   subtitle: string;
@@ -755,9 +877,9 @@ function BetCard({
   const a = BET_ACCENT[accent]!;
   const on = onToggle ? !!toggled : active;
   const ringOn =
-    accent === "fuchsia" ? "ring-fuchsia-400/50" : accent === "amber" ? "ring-amber-400/50" : accent === "lime" ? "ring-lime-400/50" : "ring-orange-400/50";
+    accent === "sky" ? "ring-sky-400/50" : accent === "amber" ? "ring-amber-400/50" : accent === "lime" ? "ring-lime-400/50" : "ring-orange-400/50";
   const glowOn =
-    accent === "fuchsia" ? "bg-fuchsia-500/[0.08]" : accent === "amber" ? "bg-amber-500/[0.08]" : accent === "lime" ? "bg-lime-500/[0.08]" : "bg-orange-500/[0.08]";
+    accent === "sky" ? "bg-sky-500/[0.08]" : accent === "amber" ? "bg-amber-500/[0.08]" : accent === "lime" ? "bg-lime-500/[0.08]" : "bg-orange-500/[0.08]";
   const Header = onToggle ? "button" : "div";
   return (
     <div className={`overflow-hidden rounded-2xl ring-1 transition ${on ? `${ringOn} ${glowOn}` : "bg-zinc-900/40 ring-white/10"}`}>
@@ -798,6 +920,7 @@ function LiveView({
   stack,
   myTokens,
   onTraded,
+  drama,
 }: {
   round: Round;
   trades: Trade[];
@@ -813,6 +936,7 @@ function LiveView({
   stack: number;
   myTokens: number;
   onTraded: () => void;
+  drama: PitDrama;
 }) {
   const isTrader = !!(entry?.trading || entry?.trial);
   const startStack = round.pit!.startingStack;
@@ -836,16 +960,32 @@ function LiveView({
         </div>
       )}
       <div className="space-y-4">
-        <div className="rounded-2xl bg-zinc-900/40 p-2 ring-1 ring-white/10">
+        {/* The event feed — whale entries, milestones, big sells, leader flips. */}
+        <EventStrip killfeed={drama.killfeed} since={round.liveAt} live={round.state === "live"} />
+        {/* Chart with the full Cook Out drama layer: shockwave flashes, screen
+            shake on a rug, an urgency pulse in the final minute, phase banners,
+            edge callouts, and floating crowd reactions. */}
+        <div className={`relative rounded-2xl bg-zinc-900/40 p-2 ring-1 ring-white/10 ${drama.shake ? "fx-shake" : ""}`}>
+          <BattleFX events={drama.fx} />
+          <EdgeCallouts killfeed={drama.killfeed} />
+          <UrgencyPulse endsAt={round.endsAt} active={round.state === "live"} nowOffset={drama.clockOffset} />
+          {drama.flash && <PhaseFlash text={drama.flash.text} tone={drama.flash.tone} />}
+          <FloatingReactions reactions={drama.reactions} />
           <Chart
             candles={candles}
             trades={trades}
             livePrice={price}
             supply={round.config.totalSupply}
+            bigTradeEth={drama.bigTradeEth}
+            cooking={drama.cooking}
             ethUsd={ethUsd}
             liveAt={round.liveAt}
             liquidity={round.pool?.ethReserve}
             highlightAddress={me}
+            phase={round.state}
+            bubbleLabels={false}
+            endReason={round.graduated ? undefined : round.endReason}
+            graduated={round.graduated}
           />
         </div>
 

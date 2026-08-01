@@ -27,7 +27,7 @@ function DurationChip({ k }: { k: string }) {
   const d = PIT_DURATION_MAP[k as PitDurationKey];
   if (!d) return null;
   return (
-    <span className="inline-flex items-center gap-1 rounded-full bg-fuchsia-500/10 px-2 py-0.5 text-[11px] font-bold text-fuchsia-300">
+    <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-bold text-zinc-300">
       {d.icon} {d.name} · {d.minutes}m
     </span>
   );
@@ -66,7 +66,7 @@ function Card({ c, me, fmt }: { c: PitCard; me?: string; fmt: Fmt }) {
   const tradeMode = r.pit?.tradingMode ?? true;
 
   return (
-    <div className="group flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl bg-zinc-900/40 ring-1 ring-white/10 transition hover:ring-white/20">
+    <div className="group/card flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl bg-zinc-900/40 ring-1 ring-white/10 transition hover:ring-white/20">
       <Link href={`/pit/${r.id}`} className="block">
         <div className="relative h-24 w-full overflow-hidden bg-zinc-800/60">
           {r.token.bannerUrl || r.token.artworkUrl ? (
@@ -74,7 +74,7 @@ function Card({ c, me, fmt }: { c: PitCard; me?: string; fmt: Fmt }) {
             <img
               src={r.token.bannerUrl ?? r.token.artworkUrl}
               alt=""
-              className="h-full w-full object-cover opacity-90 transition group-hover:scale-105"
+              className="h-full w-full object-cover opacity-90 transition duration-300 group-hover/card:scale-105"
             />
           ) : (
             <div className="flex h-full items-center justify-center text-3xl">🕳️</div>
@@ -99,7 +99,7 @@ function Card({ c, me, fmt }: { c: PitCard; me?: string; fmt: Fmt }) {
         {/* Mode chips */}
         <div className="flex flex-wrap gap-1">
           {predMode && (
-            <span className="rounded-full bg-fuchsia-500/10 px-2 py-0.5 text-[10px] font-bold text-fuchsia-300">🔮 Prediction</span>
+            <span className="rounded-full bg-sky-500/10 px-2 py-0.5 text-[10px] font-bold text-sky-300">🔮 Prediction</span>
           )}
           {tradeMode && (
             <span className="rounded-full bg-lime-500/10 px-2 py-0.5 text-[10px] font-bold text-lime-300">⚔️ Goon Squad</span>
@@ -137,7 +137,7 @@ function Card({ c, me, fmt }: { c: PitCard; me?: string; fmt: Fmt }) {
           ) : armed && r.queueOpensAt ? (
             <>
               <span className="text-zinc-500">Goes live in</span>
-              <span className="font-mono font-bold text-fuchsia-300">
+              <span className="font-mono font-bold text-lime-300">
                 <Countdown to={r.queueOpensAt} />
               </span>
             </>
@@ -163,7 +163,7 @@ function Card({ c, me, fmt }: { c: PitCard; me?: string; fmt: Fmt }) {
           <div className="flex gap-2">
             <Link
               href={`/pit/${r.id}`}
-              className="flex-1 rounded-lg bg-fuchsia-500 px-3 py-1.5 text-center text-xs font-black text-zinc-950 transition hover:bg-fuchsia-400"
+              className="flex-1 rounded-lg bg-lime-400 px-3 py-1.5 text-center text-xs font-black text-zinc-950 transition hover:bg-lime-300"
             >
               {live ? "Trade" : "Enter"}
             </Link>
@@ -229,10 +229,15 @@ function Shelf({ title, cards, empty, me, fmt }: { title: string; cards: PitCard
     };
   }, [cards.length, updateEdges]);
 
+  // Click = a big paged jump; hovering an arrow (below) scrolls continuously.
   const nudge = (dir: 1 | -1) => {
     const el = ref.current;
     if (el) el.scrollBy({ left: dir * el.clientWidth * 0.85, behavior: "smooth" });
   };
+  const step = useCallback((dir: 1 | -1) => {
+    const el = ref.current;
+    if (el) el.scrollLeft += dir * 14;
+  }, []);
 
   return (
     <section>
@@ -243,26 +248,49 @@ function Shelf({ title, cards, empty, me, fmt }: { title: string; cards: PitCard
       {cards.length === 0 ? (
         <div className="rounded-2xl bg-zinc-900/40 p-5 text-center text-xs text-zinc-600">{empty}</div>
       ) : (
-        <div className="group relative">
-          <Arrow dir="left" hidden={atStart} onClick={() => nudge(-1)} />
+        <div className="relative">
+          <Arrow dir="left" hidden={atStart} onNudge={() => nudge(-1)} step={step} />
           <div ref={ref} className="no-scrollbar -mx-1 flex gap-3 overflow-x-auto px-1 pb-1">
             {cards.map((c) => (
               <Card key={c.round.id} c={c} me={me} fmt={fmt} />
             ))}
           </div>
-          <Arrow dir="right" hidden={atEnd} onClick={() => nudge(1)} />
+          <Arrow dir="right" hidden={atEnd} onNudge={() => nudge(1)} step={step} />
         </div>
       )}
     </section>
   );
 }
 
-/** A round scroll button pinned to one edge of a carousel; hides at the end. */
-function Arrow({ dir, hidden, onClick }: { dir: "left" | "right"; hidden: boolean; onClick: () => void }) {
+/**
+ * A round scroll button pinned to one edge of a carousel; hides at the end.
+ * Click pages a big jump; holding the mouse over it scrolls the rail
+ * continuously (auto-repeat) so you can glide to the far end without clicking.
+ */
+function Arrow({
+  dir,
+  hidden,
+  onNudge,
+  step,
+}: {
+  dir: "left" | "right";
+  hidden: boolean;
+  onNudge: () => void;
+  step: (dir: 1 | -1) => void;
+}) {
+  const [hovering, setHovering] = useState(false);
+  const stepDir: 1 | -1 = dir === "left" ? -1 : 1;
+  useEffect(() => {
+    if (!hovering || hidden) return;
+    const id = window.setInterval(() => step(stepDir), 16);
+    return () => window.clearInterval(id);
+  }, [hovering, hidden, step, stepDir]);
   return (
     <button
       type="button"
-      onClick={onClick}
+      onClick={onNudge}
+      onMouseEnter={() => setHovering(true)}
+      onMouseLeave={() => setHovering(false)}
       aria-label={dir === "left" ? "Scroll left" : "Scroll right"}
       className={`absolute top-1/2 z-10 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full bg-zinc-950/80 text-lg font-black text-zinc-100 ring-1 ring-white/15 backdrop-blur transition hover:bg-zinc-800 ${
         dir === "left" ? "left-0 -translate-x-1" : "right-0 translate-x-1"
@@ -273,9 +301,9 @@ function Arrow({ dir, hidden, onClick }: { dir: "left" | "right"; hidden: boolea
   );
 }
 
-function ModePick({ on, onToggle, icon, name, blurb, accent, disabled, disabledNote }: { on: boolean; onToggle: () => void; icon: string; name: string; blurb: string; accent: "fuchsia" | "lime" | "orange"; disabled?: boolean; disabledNote?: string }) {
-  const onBg = accent === "fuchsia" ? "bg-fuchsia-500/15 ring-fuchsia-400/50" : accent === "lime" ? "bg-lime-500/15 ring-lime-400/50" : "bg-orange-500/15 ring-orange-400/50";
-  const dot = accent === "fuchsia" ? "bg-fuchsia-400" : accent === "lime" ? "bg-lime-400" : "bg-orange-400";
+function ModePick({ on, onToggle, icon, name, blurb, accent, disabled, disabledNote }: { on: boolean; onToggle: () => void; icon: string; name: string; blurb: string; accent: "sky" | "lime" | "orange"; disabled?: boolean; disabledNote?: string }) {
+  const onBg = accent === "sky" ? "bg-sky-500/15 ring-sky-400/50" : accent === "lime" ? "bg-lime-500/15 ring-lime-400/50" : "bg-orange-500/15 ring-orange-400/50";
+  const dot = accent === "sky" ? "bg-sky-400" : accent === "lime" ? "bg-lime-400" : "bg-orange-400";
   return (
     <button
       onClick={onToggle}
@@ -339,7 +367,7 @@ function LaunchPitModal({ onClose }: { onClose: () => void }) {
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
       <div onClick={() => !busy && onClose()} className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
       <div className="relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-3xl bg-zinc-950 p-5 ring-1 ring-white/10 sm:p-6">
-        <div className="text-[11px] font-black uppercase tracking-[0.2em] text-fuchsia-300">Powered by {PIT_AI_NAME}</div>
+        <div className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-300">Powered by {PIT_AI_NAME}</div>
         <h2 className="mt-1 text-xl font-black text-zinc-50">Launch a Pit match</h2>
         <p className="mt-1 text-xs text-zinc-500">
           No vote. It drops into the queue for deposits and goes live 60s after each pool has two bets.
@@ -351,20 +379,20 @@ function LaunchPitModal({ onClose }: { onClose: () => void }) {
             value={form.name}
             onChange={(e) => setForm({ ...form, name: e.target.value })}
             placeholder="Coin name"
-            className="w-full rounded-xl bg-zinc-900/60 px-3 py-2.5 text-sm outline-none ring-1 ring-white/10 focus:ring-fuchsia-400/50"
+            className="w-full rounded-xl bg-zinc-900/60 px-3 py-2.5 text-sm outline-none ring-1 ring-white/10 focus:ring-lime-400/50"
           />
           <input
             value={form.symbol}
             onChange={(e) => setForm({ ...form, symbol: e.target.value.toUpperCase().slice(0, 8) })}
             placeholder="TICKER"
-            className="w-full rounded-xl bg-zinc-900/60 px-3 py-2.5 font-mono text-sm outline-none ring-1 ring-white/10 focus:ring-fuchsia-400/50"
+            className="w-full rounded-xl bg-zinc-900/60 px-3 py-2.5 font-mono text-sm outline-none ring-1 ring-white/10 focus:ring-lime-400/50"
           />
           <textarea
             value={form.theme}
             onChange={(e) => setForm({ ...form, theme: e.target.value.slice(0, 140) })}
             placeholder="Theme (one line)"
             rows={2}
-            className="w-full rounded-xl bg-zinc-900/60 px-3 py-2.5 text-sm outline-none ring-1 ring-white/10 focus:ring-fuchsia-400/50"
+            className="w-full rounded-xl bg-zinc-900/60 px-3 py-2.5 text-sm outline-none ring-1 ring-white/10 focus:ring-lime-400/50"
           />
           <div>
             <div className="mb-1 text-xs text-zinc-500">Match card banner</div>
@@ -387,7 +415,7 @@ function LaunchPitModal({ onClose }: { onClose: () => void }) {
                 icon="🔮"
                 name="Prediction"
                 blurb="Players bet on the outcome: Graduate, Rug, Timer, or House Special."
-                accent="fuchsia"
+                accent="sky"
               />
               <ModePick
                 on={modes.trading}
@@ -419,7 +447,7 @@ function LaunchPitModal({ onClose }: { onClose: () => void }) {
                   onClick={() => setDuration(d.key)}
                   className={`rounded-xl p-2.5 text-center ring-1 transition ${
                     duration === d.key
-                      ? "bg-fuchsia-500/15 ring-fuchsia-400/50"
+                      ? "bg-lime-500/15 ring-lime-400/50"
                       : "bg-zinc-900/60 ring-white/10 hover:ring-white/25"
                   }`}
                 >
@@ -442,11 +470,89 @@ function LaunchPitModal({ onClose }: { onClose: () => void }) {
             <button
               onClick={submit}
               disabled={busy}
-              className="flex-1 rounded-xl bg-fuchsia-500 py-2.5 text-sm font-black text-zinc-950 hover:bg-fuchsia-400 disabled:opacity-40"
+              className="flex-1 rounded-xl bg-lime-400 py-2.5 text-sm font-black text-zinc-950 hover:bg-lime-300 disabled:opacity-40"
             >
               {busy ? "Launching…" : "Enter The Pit →"}
             </button>
           </div>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+/** Explains how each Pit mode pays out, so a player knows what to expect from a
+ *  bet before they place it. Mechanics are fixed; exact fee/splits are set by the
+ *  house (admin), so this describes the shape and works a plain example. */
+function PayoutInfoModal({ onClose }: { onClose: () => void }) {
+  return createPortal(
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+      <div onClick={onClose} className="absolute inset-0 bg-black/75 backdrop-blur-sm" />
+      <div className="relative max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-3xl bg-zinc-950 p-5 ring-1 ring-white/10 sm:p-6">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-300">What you can win</div>
+            <h2 className="mt-1 text-xl font-black text-zinc-50">Payout expectations</h2>
+          </div>
+          <button onClick={onClose} className="rounded-lg p-1.5 text-zinc-400 hover:bg-zinc-800" aria-label="Close">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <line x1="6" y1="6" x2="18" y2="18" />
+              <line x1="18" y1="6" x2="6" y2="18" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {/* Prediction Market */}
+          <div className="rounded-2xl bg-sky-500/[0.07] p-4 ring-1 ring-sky-400/20">
+            <div className="text-sm font-black text-sky-300">🔮 Prediction Market</div>
+            <p className="mt-1 text-xs leading-relaxed text-zinc-300">
+              Every bet pools together. When the round ends, the Pit skims a small house fee and the rest is
+              split among the <span className="font-bold text-zinc-100">correct callers, pro-rata to their wager</span>{" "}
+              — the bigger your bet, the bigger your slice. Two ways to stack more on top:
+            </p>
+            <ul className="mt-2 space-y-1 text-xs text-zinc-400">
+              <li>
+                <span className="font-bold text-zinc-200">House Special</span> — a rotating bonus condition. Call it
+                right and everyone who did splits that side bucket.
+              </li>
+              <li>
+                <span className="font-bold text-zinc-200">Double Down</span> — nail the main call{" "}
+                <span className="italic">and</span> the House Special for a bonus on top.
+              </li>
+            </ul>
+            <div className="mt-2 rounded-lg bg-zinc-900/60 p-2.5 text-[11px] text-zinc-400">
+              <span className="font-bold text-sky-300">Example:</span> the pool is $100 and you put up $10 of the $40
+              that called Graduate. It graduates → after the fee you take ~25% of the pot (your share of the winning
+              side). Nobody calls it right? The pot rolls into the Weekly Jackpot.
+            </div>
+          </div>
+
+          {/* Battle the Goon Squad */}
+          <div className="rounded-2xl bg-lime-500/[0.07] p-4 ring-1 ring-lime-400/20">
+            <div className="text-sm font-black text-lime-300">⚔️ Battle the Flame Goon Squad</div>
+            <p className="mt-1 text-xs leading-relaxed text-zinc-300">
+              Everyone buys in and gets the <span className="font-bold text-zinc-100">same paper stack</span> to trade
+              against the AI market. The <span className="font-bold text-zinc-100">highest PnL at the buzzer takes the
+              entire trading pool</span> (ties split it evenly). Read the pump, dodge the rug, exit on top.
+            </p>
+          </div>
+
+          {/* Flame Trial */}
+          <div className="rounded-2xl bg-orange-500/[0.07] p-4 ring-1 ring-orange-400/20">
+            <div className="text-sm font-black text-orange-300">🔥 Flame Trial · solo</div>
+            <p className="mt-1 text-xs leading-relaxed text-zinc-300">
+              One player, one stake, one target. Stake the coin and finish at or above your tier&apos;s PnL bar.{" "}
+              <span className="font-bold text-lime-300">Pass and your stake comes back in full</span>, plus the tier&apos;s
+              XP, titles, and badges. <span className="font-bold text-red-400">Miss the bar and the stake is gone.</span>{" "}
+              A bigger stake means a higher bar — and rarer rewards. It never pays out cash: the flex is the progression.
+            </p>
+          </div>
+
+          <p className="text-center text-[11px] text-zinc-600">
+            Exact fees, splits, and bonuses are set by the house and shown on each match before you bet.
+          </p>
         </div>
       </div>
     </div>,
@@ -468,6 +574,7 @@ export default function PitPage() {
   const [jackpot, setJackpot] = useState<JackpotInfo | null>(null);
   const [usd, setUsd] = useState(true);
   const [launching, setLaunching] = useState(false);
+  const [payoutOpen, setPayoutOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => setMounted(true), []);
@@ -491,51 +598,54 @@ export default function PitPage() {
 
   return (
     <div className="space-y-7">
-      <header className="rounded-3xl bg-gradient-to-br from-fuchsia-500/15 via-zinc-900/40 to-zinc-950 p-6 ring-1 ring-white/10 sm:p-8">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            <div className="text-[11px] font-black uppercase tracking-[0.2em] text-fuchsia-300">
-              Powered by {PIT_AI_NAME}
-            </div>
-            <h1 className="mt-1 text-3xl font-black text-zinc-50 sm:text-4xl">The Pit</h1>
-            <p className="mt-2 max-w-xl text-sm text-zinc-400">
-              You versus The Flame Goon Squad. Call the outcome, or trade a paper stack against an adaptive
-              AI market. Beat the Goons and take the pools.
-            </p>
+      <header className="rounded-3xl bg-gradient-to-br from-lime-500/10 via-zinc-900/40 to-zinc-950 p-6 ring-1 ring-white/10 sm:p-8">
+        <div className="min-w-0">
+          <div className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-300">
+            Powered by {PIT_AI_NAME}
           </div>
-          {/* Weekly jackpot — right side, full amount. Unclaimed Pit pools feed it. */}
-          <div className="shrink-0 rounded-2xl bg-amber-500/10 px-4 py-3 text-right ring-1 ring-amber-500/30 sm:min-w-[190px]">
-            <div className="text-[10px] font-black uppercase tracking-wide text-amber-300/80">Weekly Jackpot</div>
-            <div className="font-mono text-2xl font-black text-amber-200">
-              {jackpot ? `$${jackpot.poolUsd.toLocaleString(undefined, { maximumFractionDigits: 0 })}` : "…"}
-            </div>
-            <div className="font-mono text-[11px] text-amber-300/70">
-              {jackpot ? `${jackpot.poolEth.toFixed(4)} pETH` : ""}
-            </div>
-          </div>
+          <h1 className="mt-1 text-3xl font-black text-zinc-50 sm:text-4xl">The Pit</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-300">
+            This is where you prove it. Step into the <span className="font-bold text-sky-300">Prediction Market</span>{" "}
+            and call it — Graduate, Rug, or Timer — then stack the House Special and Double Down for the big score.
+            Think you can out-trade the machine? <span className="font-bold text-lime-300">Battle the Flame Goon Squad</span>{" "}
+            head to head and take the whole pool. Or go it alone in the{" "}
+            <span className="font-bold text-orange-300">Flame Trial</span>: one player, one stake, one PnL target —
+            clear the bar and walk away with your stake plus XP, titles, and badges. Read the market. Beat the Goons.
+            Own The Pit.
+          </p>
         </div>
 
         <div className="mt-4 flex flex-wrap items-center gap-2">
           <button
             onClick={() => (profile ? setLaunching(true) : signIn())}
-            className="rounded-xl bg-fuchsia-500 px-4 py-2 text-sm font-black text-zinc-950 transition hover:bg-fuchsia-400"
+            className="rounded-xl bg-lime-400 px-4 py-2 text-sm font-black text-zinc-950 transition hover:bg-lime-300"
           >
             Launch a Pit match
           </button>
-          {/* USD / pETH toggle (defaults to USD) */}
-          <div className="flex overflow-hidden rounded-full bg-zinc-900/70 text-[10px] font-bold ring-1 ring-white/10">
-            {(["usd", "peth"] as const).map((k) => (
-              <button
-                key={k}
-                onClick={() => setUsd(k === "usd")}
-                className={`px-3 py-1.5 ${(usd ? "usd" : "peth") === k ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}
-              >
-                {k === "usd" ? "USD" : "pETH"}
-              </button>
-            ))}
-          </div>
+          <button
+            onClick={() => setPayoutOpen(true)}
+            className="rounded-xl bg-zinc-800 px-4 py-2 text-sm font-bold text-zinc-200 ring-1 ring-white/10 transition hover:bg-zinc-700"
+          >
+            💰 Payout expectations
+          </button>
         </div>
       </header>
+
+      {/* Denomination toggle lives above the live row, pinned right — out of the
+          hero so it doesn't crowd the pitch. */}
+      <div className="flex items-center justify-end">
+        <div className="flex overflow-hidden rounded-full bg-zinc-900/70 text-[10px] font-bold ring-1 ring-white/10">
+          {(["usd", "peth"] as const).map((k) => (
+            <button
+              key={k}
+              onClick={() => setUsd(k === "usd")}
+              className={`px-3 py-1.5 ${(usd ? "usd" : "peth") === k ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"}`}
+            >
+              {k === "usd" ? "USD" : "pETH"}
+            </button>
+          ))}
+        </div>
+      </div>
 
       <Shelf title="Live Matches" cards={data?.live ?? []} empty="No live Pit matches right now. Launch one." me={me} fmt={fmt} />
       <Shelf
@@ -548,6 +658,7 @@ export default function PitPage() {
       <Shelf title="Recent Results" cards={data?.results ?? []} empty="No finished Pit matches yet." me={me} fmt={fmt} />
 
       {mounted && launching && <LaunchPitModal onClose={() => setLaunching(false)} />}
+      {mounted && payoutOpen && <PayoutInfoModal onClose={() => setPayoutOpen(false)} />}
     </div>
   );
 }
