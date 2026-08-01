@@ -89,6 +89,32 @@ body {
   animation: burgerpop 0.7s cubic-bezier(0.2, 0.9, 0.2, 1);
 }
 
+/* Flame Goon Squad cinematic banner: slams in, holds, fades. */
+@keyframes goonslam {
+  0% {
+    opacity: 0;
+    transform: translateY(-16px) scale(1.08);
+    filter: brightness(1.6);
+  }
+  12% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: brightness(1.15);
+  }
+  80% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px) scale(0.98);
+  }
+}
+.animate-goonslam {
+  animation: goonslam 3.8s cubic-bezier(0.2, 0.9, 0.2, 1) forwards;
+}
+
 /* Streaming-style rails scroll horizontally with no visible scrollbar. */
 .no-scrollbar {
   -ms-overflow-style: none;

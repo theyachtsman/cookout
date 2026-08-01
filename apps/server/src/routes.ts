@@ -534,9 +534,28 @@ export function createApp(
   app.get(
     "/api/profile/:address",
     wrap((req, res) => {
-      const u = store.users.get(req.params.address!.toLowerCase());
+      const key = req.params.address!.toLowerCase();
+      // Accept a wallet address OR a Flame Goon Squad handle (/profile/ghost).
+      const u = key.startsWith("0x") ? store.users.get(key) : store.goonByHandle(key);
       if (!u) throw new Err(404, "profile not found");
-      res.json(publicProfile(u));
+      const base = publicProfile(u) as Record<string, unknown>;
+      // Attach the live persona (bio, rarity, catchphrase, speech style) so a
+      // Goon profile reads as a real resident, not an empty account.
+      if (u.isAI) {
+        const persona = store.settings.goons.personas.find((p) => p.address === u.address);
+        if (persona) {
+          base.goon = {
+            handle: persona.handle,
+            rarity: persona.rarity,
+            bio: persona.bio,
+            speechStyle: persona.speechStyle,
+            catchphrase: persona.catchphrase,
+            favoriteTopics: persona.favoriteTopics,
+            rivals: persona.rivals,
+          };
+        }
+      }
+      res.json(base);
     }),
   );
 
@@ -942,6 +961,7 @@ export function createApp(
         rugBanHours,
         pit,
         burger,
+        goons,
       } = req.body as {
         autoSchedule?: boolean;
         tier?: RiskTier;
@@ -954,6 +974,7 @@ export function createApp(
         rugBanHours?: number[];
         pit?: Partial<import("./store.js").PitSettings>;
         burger?: Partial<import("@cookout/shared").BurgerSettings>;
+        goons?: Partial<import("@cookout/shared").GoonSettings>;
       };
       if (autoSchedule !== undefined) store.settings.autoSchedule = !!autoSchedule;
       if (bots !== undefined) store.settings.bots = !!bots;
@@ -1083,7 +1104,50 @@ export function createApp(
           }
         }
       }
-      store.logAdmin("settings", JSON.stringify(store.settings));
+      if (goons && typeof goons === "object") {
+        const g = store.settings.goons;
+        const num = (v: unknown, lo: number, hi: number, dflt: number) =>
+          Math.max(lo, Math.min(hi, Number.isFinite(Number(v)) ? Number(v) : dflt));
+        const unit = (v: unknown, dflt: number) => num(v, 0, 1, dflt);
+        if (goons.enabled !== undefined) g.enabled = !!goons.enabled;
+        if (goons.chatCooldownSec !== undefined) g.chatCooldownSec = num(goons.chatCooldownSec, 0, 3600, g.chatCooldownSec);
+        if (goons.namedChancePerEvent !== undefined) g.namedChancePerEvent = unit(goons.namedChancePerEvent, g.namedChancePerEvent);
+        if (goons.henchmanChancePerEvent !== undefined) g.henchmanChancePerEvent = unit(goons.henchmanChancePerEvent, g.henchmanChancePerEvent);
+        if (goons.maxPerEvent !== undefined) g.maxPerEvent = Math.round(num(goons.maxPerEvent, 1, 5, g.maxPerEvent));
+        if (goons.humanQuietSec !== undefined) g.humanQuietSec = num(goons.humanQuietSec, 0, 600, g.humanQuietSec);
+        if (goons.ambientEverySec !== undefined) g.ambientEverySec = num(goons.ambientEverySec, 10, 3600, g.ambientEverySec);
+        if (goons.overlayChance !== undefined) g.overlayChance = unit(goons.overlayChance, g.overlayChance);
+        if (goons.memoryHours !== undefined) g.memoryHours = num(goons.memoryHours, 0, 8760, g.memoryHours);
+        if (Array.isArray(goons.personas)) {
+          const schedules = ["always", "random", "weekend", "tournament", "manual"];
+          const rarities = ["legendary", "epic", "elite", "henchman"];
+          g.personas = goons.personas
+            .filter((p) => p && typeof p === "object" && typeof p.handle === "string" && typeof p.address === "string")
+            .map((p) => ({
+              handle: String(p.handle).slice(0, 24),
+              address: String(p.address).toLowerCase(),
+              name: String(p.name ?? p.handle).slice(0, 24),
+              rarity: (rarities.includes(p.rarity as string) ? p.rarity : "epic") as import("@cookout/shared").GoonRarity,
+              bio: String(p.bio ?? "").slice(0, 280),
+              speechStyle: String(p.speechStyle ?? "").slice(0, 200),
+              catchphrase: p.catchphrase ? String(p.catchphrase).slice(0, 120) : undefined,
+              avatarUrl: p.avatarUrl ? sanitizeImageUrl(String(p.avatarUrl)) : undefined,
+              chattiness: unit(p.chattiness, 0.4),
+              aggression: unit(p.aggression, 0.4),
+              confidence: unit(p.confidence, 0.5),
+              optimism: unit(p.optimism, 0.5),
+              sarcasm: unit(p.sarcasm, 0.4),
+              humor: unit(p.humor, 0.4),
+              rivals: Array.isArray(p.rivals) ? p.rivals.map((r) => String(r).slice(0, 24)).slice(0, 8) : [],
+              favoriteTopics: Array.isArray(p.favoriteTopics) ? p.favoriteTopics.map((t) => String(t).slice(0, 40)).slice(0, 10) : [],
+              schedule: (schedules.includes(p.schedule as string) ? p.schedule : "random") as import("@cookout/shared").GoonSchedule,
+              enabled: p.enabled !== false,
+              pools: sanitizeGoonPools(p.pools),
+            }))
+            .slice(0, 60);
+        }
+      }
+      store.logAdmin("settings", JSON.stringify({ ...store.settings, goons: "[roster]" }));
       res.json(store.settings);
     }),
   );
@@ -1099,6 +1163,35 @@ export function createApp(
         revenueBuckets: store.burgerRevenueBuckets,
         revenue: [...store.burgerRevenueLedger].reverse().slice(0, 200),
       });
+    }),
+  );
+
+  /** Preview a persona's dialogue: return a sample filled line for a category.
+   *  Body: { handle, category }. Lets admins test a personality before saving. */
+  app.post(
+    "/api/admin/goons/preview",
+    admin,
+    wrap((req, res) => {
+      const { handle, category } = req.body as { handle?: string; category?: string };
+      const p = store.settings.goons.personas.find((x) => x.handle === String(handle));
+      if (!p) throw new Err(404, "persona not found");
+      const pool = (p.pools as Record<string, { text: string }[]>)[String(category)] ?? [];
+      if (pool.length === 0) {
+        res.json({ line: `(${p.name} has no ${category} lines)` });
+        return;
+      }
+      const raw = pool[Math.floor(Math.random() * pool.length)]!.text;
+      const rivalName =
+        p.rivals.length > 0
+          ? store.settings.goons.personas.find((x) => x.handle === p.rivals[0])?.name ?? p.rivals[0]
+          : "someone";
+      const line = raw
+        .replace(/\{player\}/g, "trader")
+        .replace(/\{winner\}/g, "trader")
+        .replace(/\{symbol\}/g, "$DEMO")
+        .replace(/\{rival\}/g, rivalName ?? "someone")
+        .replace(/\{streak\}/g, "3");
+      res.json({ line, name: p.name });
     }),
   );
 
@@ -2374,6 +2467,36 @@ function sanitizeModifiers(value: unknown): CoinModifiers | undefined {
   const out: CoinModifiers = {};
   if (src.overtime === true) out.overtime = true;
   return Object.keys(out).length ? out : undefined;
+}
+
+const GOON_CATEGORIES = [
+  "ambient", "greeting", "prediction", "bigBuy", "bigSell", "upset",
+  "finalMinute", "leaderChange", "matchCreated", "winner", "rug", "sarcastic",
+];
+
+/** Coerce an admin-supplied dialogue-pools object into clean weighted lines. */
+function sanitizeGoonPools(pools: unknown): import("@cookout/shared").GoonPersona["pools"] {
+  const out: Record<string, { text: string; weight?: number }[]> = {};
+  if (!pools || typeof pools !== "object") return {};
+  for (const [k, v] of Object.entries(pools as Record<string, unknown>)) {
+    if (!GOON_CATEGORIES.includes(k) || !Array.isArray(v)) continue;
+    const lines = v
+      .map((l) => {
+        if (typeof l === "string") return { text: l.slice(0, 200) };
+        if (l && typeof l === "object") {
+          const rec = l as { text?: unknown; weight?: unknown };
+          const text = String(rec.text ?? "").slice(0, 200);
+          return Number.isFinite(Number(rec.weight))
+            ? { text, weight: Math.max(0, Number(rec.weight)) }
+            : { text };
+        }
+        return { text: "" };
+      })
+      .filter((l) => l.text.length > 0)
+      .slice(0, 40);
+    if (lines.length) out[k] = lines;
+  }
+  return out as import("@cookout/shared").GoonPersona["pools"];
 }
 
 function publicProfile(u: StoredUser, self = false) {

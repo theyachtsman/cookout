@@ -318,3 +318,37 @@ reward value — systems call the award service (`apps/server/src/burger.ts`).
   earned), top sources, and top earners.
 - **Admin.** Enable/disable, purchase rate, per-source rules, XP-milestone ladder,
   one-time milestones, revenue split, manual grant/remove, and analytics — all live.
+
+## 20. The Flame Goon Squad (Pit AI personalities)
+
+The Pit is inhabited by the **Flame Goon Squad** — named System AI Accounts that
+live only inside The Pit and exist to build atmosphere, drama, and lore. They are
+**not** the Cookout trading bots (0xb07…): they never trade, never earn, and never
+appear in The Grill, the queue/lobby, or standard Cookout rounds. The players are
+the stars; the Squad amplifies memorable moments and never dominates chat.
+
+- **Roster.** Legendary/epic named characters (Ghost, Reaper, Legend, Rat, Proxy,
+  Static, Oracle, Flame, Cipher, Titan, Nightfang, Specter, Volt, Ash) plus
+  ambient Henchmen. Each is a real, profile-backed account (0x900d… address,
+  /profile/<handle>) with an AI badge + persona bio/catchphrase/rivals on its page.
+- **Personalities (data-driven).** Every persona has editable knobs (chattiness,
+  aggression, confidence, optimism, sarcasm, humor), a schedule, rivalries,
+  favorite topics, and **weighted dialogue pools** per category. No LLM — curated
+  lines with anti-repeat tracking + {player}/{winner}/{rival}/{symbol}/{streak}
+  token substitution from live events and continuity memory.
+- **Event-driven, never timed.** Gameplay reports Pit moments (match created, live,
+  whale/big-sell/rug/leader-change from the killfeed, final minute, winner, upset);
+  the backend decides whether/who reacts. Named legends speak rarely; henchmen
+  provide ambient life. Players first: a recent human message suppresses the Squad,
+  a per-room cooldown gates frequency, and at most two AI lines fire per event.
+- **Cinematic overlays.** Marquee beats occasionally fire a banner ("🔥 GHOST
+  ENTERED THE PIT", "👑 {winner} TAKES THE PIT", "👁 PROXY IS WATCHING"), rarity-
+  tinted and sparse.
+- **Memory + rivalries.** Recent winners, per-name streaks, and the last upset
+  persist and feed dialogue; personas occasionally reference their rivals.
+- **Rotating presence.** Schedules (always / random / weekend / tournament /
+  manual) mean not everyone appears every day, creating anticipation.
+- **Admin AI Swarm Manager.** Global behavior knobs + a per-persona editor
+  (identity, rarity, schedule, personality sliders, rivalries, avatar URL, and the
+  weighted dialogue pools) with a live dialogue Preview. Everything editable with
+  no code change. Extensible for future tournaments, seasons, and live events.

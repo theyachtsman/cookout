@@ -123,3 +123,29 @@ future work:
   mirroring the XP overlay chain exactly. Balance ships in the `/api/me` self
   payload; `/api/me/burger[/ledger]` and `/api/me/burger/purchase` serve the wallet;
   `/api/admin/burger/{analytics,grant}` + `settings.burger` drive the manager.
+
+## Flame Goon Squad (spec §20)
+
+- Roster + personalities are shared data (`packages/shared/src/goons.ts`:
+  `GOON_ROSTER`, `GoonPersona`, `GoonSettings`, `GOON_DEFAULTS`), fully overridable
+  from `store.settings.goons` (admin) — `freshGoonSettings()` deep-copies defaults;
+  the hydrate merge carries new behavior knobs while preserving persona edits.
+- Engine: `apps/server/src/goons.ts` `GoonSwarm(store, broadcast)`. `register()`
+  makes each persona a real user (0x900d… address, `isAI`, `bio`, `goonHandle`) and
+  indexes its handle (`store.goonByHandle` → `/api/profile/<handle>`). `onMoment()`
+  applies players-first suppression, per-room cooldown, schedule/enabled/pool
+  eligibility, rarity-weighted chattiness rolls (cap `maxPerEvent`), weighted
+  anti-repeat line selection, token fill from `store.goonMemory`, and rare cinematic
+  overlays. `tick()` drives ambient PIT_ROOM chatter + one-shot final-minute beats.
+- Delivery: gameplay reports beats via `store.onPitMoment` (wired to the swarm in
+  index.ts). Hooks: the engine `kill()` maps Pit killfeed kinds → moments
+  (whale/big_sell/rug/leader_change), `schedulePitRound` → match_created (PIT_ROOM),
+  `startPitLive` → live, and `pit-results.resolvePitRound` → winner/upset. The Squad
+  posts chat exactly like the bots (ChatMessage → `broadcast(room, {type:"chat"})`)
+  but **only** into PIT_ROOM or a Pit round id (a hard guard in `say`). Overlays go
+  out as `{type:"goon_overlay"}`; the web listens via `useRoundSocket(PIT_ROOM|id)`
+  and renders `GoonOverlayLayer`.
+- Admin: `settings.goons` validated in `/api/admin/settings` (behavior knobs +
+  sanitized persona roster + dialogue pools via `sanitizeGoonPools`);
+  `/api/admin/goons/preview` returns a sample filled line. The AI Swarm Manager
+  panel (`GoonOpsPanel`) edits it all live.

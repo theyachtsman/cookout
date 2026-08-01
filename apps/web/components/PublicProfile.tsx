@@ -50,6 +50,19 @@ interface PlayerProfile {
   jackpotWinnings?: number;
   jackpotWins?: JackpotWin[];
   pitStats?: PitStats;
+  /** Flame Goon Squad system account? */
+  isAI?: boolean;
+  bio?: string;
+  /** Live persona (present for Goon accounts). */
+  goon?: {
+    handle: string;
+    rarity: string;
+    bio: string;
+    speechStyle: string;
+    catchphrase?: string;
+    favoriteTopics: string[];
+    rivals: string[];
+  };
 }
 
 interface CreatorView {
@@ -171,6 +184,11 @@ export function PublicProfile({
         chips={
           <>
             <span className="font-mono text-xs text-zinc-500">{profile.xp.toLocaleString()} XP</span>
+            {profile.goon && (
+              <span className="rounded-full bg-sky-500/20 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide text-sky-300">
+                🕳️ Flame Goon · {profile.goon.rarity}
+              </span>
+            )}
             {profile.banned && (
               <span className="rounded-full bg-red-500/20 px-2 py-0.5 text-[11px] font-black uppercase tracking-wide text-red-300">
                 🚫 banned
@@ -190,6 +208,26 @@ export function PublicProfile({
           </div>
         }
       />
+
+      {profile.goon && (
+        <div className="rounded-2xl bg-sky-500/[0.06] p-5 ring-1 ring-sky-400/20">
+          <div className="text-[11px] font-black uppercase tracking-[0.2em] text-sky-300/80">
+            Flame Goon Squad · resident of The Pit
+          </div>
+          <p className="mt-2 text-sm text-zinc-200">{profile.goon.bio}</p>
+          {profile.goon.catchphrase && (
+            <p className="mt-2 text-sm italic text-sky-200">“{profile.goon.catchphrase}”</p>
+          )}
+          <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+            {profile.goon.favoriteTopics.map((t) => (
+              <span key={t} className="rounded-full bg-white/5 px-2 py-0.5 text-zinc-400">{t}</span>
+            ))}
+            {profile.goon.rivals.map((r) => (
+              <span key={r} className="rounded-full bg-red-500/10 px-2 py-0.5 text-red-300">rival: {r}</span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {tabs.length > 1 && <TabBar tabs={tabs} value={activeTab} onChange={setTab} />}
 

@@ -404,5 +404,15 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
   };
   const topTrader = [...traderPnl.entries()].sort((a, b) => b[1] - a[1])[0];
   if (topTrader) summary.topProfit = { address: topTrader[0], pnl: topTrader[1] };
+
+  // The Flame Goon Squad calls the winner — in the match room and, for a marquee
+  // result, the general Pit room. An underdog trading win reads as an upset.
+  const champ = players[0];
+  if (champ && (champ.totalReward > 0 || champ.trialPassed)) {
+    const upset = !!champ.qualified && (champ.trades ?? 0) <= 3;
+    const moment = { kind: (upset ? "upset" : "winner") as "upset" | "winner", symbol: round.token.symbol, winner: champ.displayName ?? "someone", now: ctx.now };
+    store.onPitMoment({ ...moment, roomId: round.id });
+    store.onPitMoment({ ...moment, roomId: "pit" });
+  }
   return summary;
 }

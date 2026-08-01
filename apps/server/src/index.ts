@@ -4,6 +4,7 @@ import { BotSwarm } from "./bots.js";
 import { ChainService } from "./chain.js";
 import { RoundEngine } from "./engine.js";
 import { SwarmDirector } from "./swarm-director.js";
+import { GoonSwarm } from "./goons.js";
 import { settleWeeklyJackpot } from "./jackpot.js";
 import { FilePersistence, PgPersistence, type Persistence } from "./persistence.js";
 import { createApp } from "./routes.js";
@@ -48,6 +49,11 @@ if (botsAllowed) console.log("paper bot swarm armed — admin Live Ops toggles i
 // Swarm AI Director: drives believable market stories in The Pit. Always on for
 // Pit rounds (the mode's whole point) — it ignores the Cookout bots toggle.
 const swarm = new SwarmDirector(store, engine, hub.system);
+// The Flame Goon Squad: The Pit's resident AI personalities. Event-driven
+// commentary + cinematic overlays, Pit-only, players-first. Gameplay reports
+// moments via store.onPitMoment; the swarm decides who (if anyone) reacts.
+const goons = new GoonSwarm(store, hub.broadcast);
+store.onPitMoment = (m) => goons.onMoment(m);
 const server = createServer(app);
 hub.attach(server);
 
@@ -101,6 +107,8 @@ setInterval(() => {
     if (botsAllowed && store.settings.bots) bots.tick(Date.now());
     // The Pit's Swarm is always live; it self-limits to live Pit rounds.
     swarm.tick(Date.now());
+    // The Goon Squad: ambient Pit chatter + final-minute beats (Pit-only).
+    goons.tick(Date.now());
     evaluateVoting(store, engine);
     // Chain-only deployments never auto-spawn paper rounds, regardless of
     // the Live Ops toggle — real rounds cost the operator real gas/liquidity,

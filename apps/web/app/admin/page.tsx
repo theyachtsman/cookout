@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { BurgerAnalytics, BurgerSettings, ChatMessage, Round, TokenConcept } from "@cookout/shared";
+import type { BurgerAnalytics, BurgerSettings, ChatMessage, GoonPersona, GoonSettings, Round, TokenConcept } from "@cookout/shared";
 import { BURGER_REVENUE_DESTS } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useChainOnly } from "../../lib/chainOnly";
@@ -28,6 +28,7 @@ interface Overview {
     pinnedAnnouncement?: string;
     pit?: PitSettings;
     burger?: BurgerSettings;
+    goons?: GoonSettings;
   };
   log: { id: string; at: number; action: string; detail: string }[];
 }
@@ -506,6 +507,252 @@ function Metric({ label, value, decimals = 0 }: { label: string; value: number; 
         {decimals ? value.toFixed(decimals) : Math.round(value).toLocaleString()}
       </div>
       <div className="text-[10px] uppercase tracking-wide text-zinc-500">{label}</div>
+    </div>
+  );
+}
+
+const GOON_CATS: { key: string; label: string }[] = [
+  { key: "ambient", label: "Ambient" },
+  { key: "greeting", label: "Greeting / Live" },
+  { key: "matchCreated", label: "Match created" },
+  { key: "prediction", label: "Prediction" },
+  { key: "bigBuy", label: "Big buy / Whale" },
+  { key: "bigSell", label: "Big sell" },
+  { key: "rug", label: "Rug" },
+  { key: "leaderChange", label: "Leader change" },
+  { key: "finalMinute", label: "Final minute" },
+  { key: "winner", label: "Winner" },
+  { key: "upset", label: "Upset" },
+  { key: "sarcastic", label: "Sarcastic" },
+];
+/** Serialize a weighted pool to newline text ("line" or "line |weight"). */
+const poolToText = (lines?: { text: string; weight?: number }[]) =>
+  (lines ?? []).map((l) => (l.weight && l.weight !== 1 ? `${l.text} |${l.weight}` : l.text)).join("\n");
+/** Parse newline text back into weighted lines. */
+const textToPool = (text: string) =>
+  text
+    .split("\n")
+    .map((raw) => raw.trim())
+    .filter(Boolean)
+    .map((raw) => {
+      const m = raw.match(/^(.*?)\s*\|(\d+(?:\.\d+)?)$/);
+      return m ? { text: m[1]!.trim(), weight: Number(m[2]) } : { text: raw };
+    });
+
+/**
+ * The Flame Goon Squad AI Swarm Manager. Global behavior knobs + a per-persona
+ * editor (identity, rarity, schedule, personality sliders, rivalries, and the
+ * weighted dialogue pools). Everything is editable with no code change, and a
+ * Preview button tests a personality's voice before saving.
+ */
+function GoonOpsPanel({
+  settings,
+  act,
+  adminKey,
+}: {
+  settings?: GoonSettings;
+  act: (path: string, body?: unknown, method?: string) => Promise<void>;
+  adminKey: string;
+}) {
+  const [draft, setDraft] = useState<GoonSettings | null>(null);
+  const [sel, setSel] = useState(0);
+  const [preview, setPreview] = useState("");
+  const g = draft ?? settings;
+  if (!g) return <div className="rounded-lg border border-zinc-800 p-3 text-xs text-zinc-500">Loading…</div>;
+
+  const set = (patch: Partial<GoonSettings>) => setDraft({ ...g, ...patch });
+  const p: GoonPersona | undefined = g.personas[sel];
+  const setPersona = (patch: Partial<GoonPersona>) =>
+    set({ personas: g.personas.map((x, i) => (i === sel ? { ...x, ...patch } : x)) });
+
+  const slider = (label: string, key: keyof GoonPersona) =>
+    p ? (
+      <label className="flex flex-col gap-0.5 text-[11px] text-zinc-500">
+        {label} <span className="font-mono text-zinc-300">{Number(p[key]).toFixed(2)}</span>
+        <input
+          type="range"
+          min="0"
+          max="1"
+          step="0.05"
+          value={Number(p[key])}
+          onChange={(e) => setPersona({ [key]: Number(e.target.value) } as Partial<GoonPersona>)}
+        />
+      </label>
+    ) : null;
+
+  const runPreview = async (category: string) => {
+    if (!p) return;
+    try {
+      const r = await fetch("/api/admin/goons/preview", {
+        method: "POST",
+        headers: { "content-type": "application/json", "x-admin-key": adminKey },
+        body: JSON.stringify({ handle: p.handle, category }),
+      });
+      const d = (await r.json()) as { line?: string; name?: string };
+      setPreview(d.line ? `${d.name}: ${d.line}` : "(no line)");
+    } catch {
+      setPreview("preview failed");
+    }
+  };
+
+  const num = (label: string, key: keyof GoonSettings, step = "1") => (
+    <label className="flex flex-col gap-1 text-xs text-zinc-500">
+      {label}
+      <input
+        type="number"
+        step={step}
+        value={String(g[key] as number)}
+        onChange={(e) => set({ [key]: Number(e.target.value) } as Partial<GoonSettings>)}
+        className="w-24 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-sm text-zinc-100"
+      />
+    </label>
+  );
+
+  return (
+    <div className="space-y-4 rounded-lg border border-sky-500/30 bg-sky-500/[0.04] p-3">
+      {/* Global behavior */}
+      <div className="flex flex-wrap items-end gap-4">
+        <label className="flex items-center gap-2 text-xs font-bold text-zinc-300">
+          <input type="checkbox" checked={g.enabled} onChange={(e) => set({ enabled: e.target.checked })} />
+          Squad enabled
+        </label>
+        {num("Chat cooldown (s)", "chatCooldownSec")}
+        {num("Named chance", "namedChancePerEvent", "0.05")}
+        {num("Henchman chance", "henchmanChancePerEvent", "0.05")}
+        {num("Max / event", "maxPerEvent")}
+        {num("Human quiet (s)", "humanQuietSec")}
+        {num("Ambient every (s)", "ambientEverySec", "5")}
+        {num("Overlay chance", "overlayChance", "0.05")}
+        {num("Memory (hrs)", "memoryHours")}
+      </div>
+
+      {/* Persona picker */}
+      <div className="flex flex-wrap items-center gap-2">
+        <select
+          value={sel}
+          onChange={(e) => {
+            setSel(Number(e.target.value));
+            setPreview("");
+          }}
+          className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm text-zinc-100"
+        >
+          {g.personas.map((x, i) => (
+            <option key={x.handle} value={i}>
+              {x.name} · {x.rarity}
+              {x.enabled ? "" : " (off)"}
+            </option>
+          ))}
+        </select>
+        <span className="text-[11px] text-zinc-600">{g.personas.length} personalities</span>
+      </div>
+
+      {p && (
+        <div className="space-y-3 rounded-lg bg-zinc-950/40 p-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              value={p.name}
+              onChange={(e) => setPersona({ name: e.target.value })}
+              className="w-36 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-sm font-black text-zinc-100"
+            />
+            <span className="font-mono text-[11px] text-zinc-600">/profile/{p.handle}</span>
+            <select
+              value={p.rarity}
+              onChange={(e) => setPersona({ rarity: e.target.value as GoonPersona["rarity"] })}
+              className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-100"
+            >
+              {["legendary", "epic", "elite", "henchman"].map((r) => (
+                <option key={r} value={r}>{r}</option>
+              ))}
+            </select>
+            <select
+              value={p.schedule}
+              onChange={(e) => setPersona({ schedule: e.target.value as GoonPersona["schedule"] })}
+              className="rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-100"
+            >
+              {["always", "random", "weekend", "tournament", "manual"].map((s) => (
+                <option key={s} value={s}>{s}</option>
+              ))}
+            </select>
+            <label className="flex items-center gap-1 text-xs text-zinc-400">
+              <input type="checkbox" checked={p.enabled} onChange={(e) => setPersona({ enabled: e.target.checked })} />
+              enabled
+            </label>
+          </div>
+
+          <input
+            value={p.bio}
+            onChange={(e) => setPersona({ bio: e.target.value })}
+            placeholder="Bio"
+            className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-300"
+          />
+          <div className="flex flex-wrap gap-3">
+            <input
+              value={p.catchphrase ?? ""}
+              onChange={(e) => setPersona({ catchphrase: e.target.value })}
+              placeholder="Catchphrase"
+              className="w-52 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-300"
+            />
+            <input
+              value={p.rivals.join(", ")}
+              onChange={(e) => setPersona({ rivals: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })}
+              placeholder="Rivals (handles, comma-sep)"
+              className="w-56 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-300"
+            />
+            <input
+              value={p.avatarUrl ?? ""}
+              onChange={(e) => setPersona({ avatarUrl: e.target.value })}
+              placeholder="Avatar URL"
+              className="w-56 rounded border border-zinc-700 bg-zinc-900 px-2 py-1 text-xs text-zinc-300"
+            />
+          </div>
+
+          <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
+            {slider("Chatty", "chattiness")}
+            {slider("Aggro", "aggression")}
+            {slider("Confid", "confidence")}
+            {slider("Optim", "optimism")}
+            {slider("Sarcasm", "sarcasm")}
+            {slider("Humor", "humor")}
+          </div>
+
+          {/* Dialogue pools */}
+          <div className="grid gap-2 sm:grid-cols-2">
+            {GOON_CATS.map((c) => (
+              <div key={c.key}>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold uppercase tracking-wide text-sky-300/80">{c.label}</span>
+                  <button onClick={() => void runPreview(c.key)} className="text-[10px] text-zinc-500 hover:text-zinc-300">
+                    preview
+                  </button>
+                </div>
+                <textarea
+                  value={poolToText((p.pools as Record<string, { text: string; weight?: number }[]>)[c.key])}
+                  onChange={(e) =>
+                    setPersona({ pools: { ...p.pools, [c.key]: textToPool(e.target.value) } as GoonPersona["pools"] })
+                  }
+                  rows={2}
+                  placeholder="one line per row · add | 2 for weight · {player} {winner} {rival} {symbol}"
+                  className="w-full rounded border border-zinc-700 bg-zinc-900 px-2 py-1 font-mono text-[11px] text-zinc-200"
+                />
+              </div>
+            ))}
+          </div>
+          {preview && <div className="rounded bg-zinc-900/60 px-3 py-2 text-sm text-sky-200">🗣 {preview}</div>}
+        </div>
+      )}
+
+      <div className="flex items-center gap-3">
+        <button
+          disabled={!draft}
+          onClick={() => void act("/api/admin/settings", { goons: g }).then(() => setDraft(null))}
+          className="rounded bg-sky-400 px-3 py-1.5 text-xs font-black text-zinc-950 hover:bg-sky-300 disabled:opacity-40"
+        >
+          Save Goon Squad
+        </button>
+        <span className="text-[11px] text-zinc-600">
+          The Squad only ever speaks in The Pit — never The Grill or Cookout rounds.
+        </span>
+      </div>
     </div>
   );
 }
@@ -1446,6 +1693,13 @@ export default function AdminPage() {
         <section>
           <h2 className="mb-2 font-bold">🍔 Burger Economy Manager</h2>
           <BurgerOpsPanel settings={overview.settings.burger} act={act} adminKey={key} />
+        </section>
+      )}
+
+      {overview && (
+        <section>
+          <h2 className="mb-2 font-bold">🕳️ Flame Goon Squad (AI Swarm Manager)</h2>
+          <GoonOpsPanel settings={overview.settings.goons} act={act} adminKey={key} />
         </section>
       )}
 

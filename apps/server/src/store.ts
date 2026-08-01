@@ -58,8 +58,12 @@ import {
   type BurgerRevenueEntry,
   type BurgerRevenueDest,
   type BurgerSettings,
+  type GoonSettings,
+  type GoonMoment,
   PIT_DEFAULTS,
   BURGER_DEFAULTS,
+  GOON_DEFAULTS,
+  GOON_ROSTER,
 } from "@cookout/shared";
 import { awardBurger, awardBurgerOneTime, awardBurgerXpMilestones } from "./burger.js";
 
@@ -252,6 +256,8 @@ export class Store {
     pit: freshPitSettings(),
     // The Burger economy ($BURG), fully live-editable (see freshBurgerSettings).
     burger: freshBurgerSettings(),
+    // The Flame Goon Squad AI — personalities + behavior, all live-editable.
+    goons: freshGoonSettings(),
   };
   /** Live ETH/USD, refreshed by the price feed; used to peg the $40k bond. */
   ethUsd = DEFAULT_ETH_USD;
@@ -337,6 +343,30 @@ export class Store {
     }
     if (!address.startsWith("0xb07"))
       this.onBurger(u.address, { amount: entry.amount, balance: u.burgerBalance ?? 0, source: entry.source, label: entry.label });
+  }
+
+  // ---- Flame Goon Squad AI ----
+  /** Reported Pit moments fan out to the Goon engine (wired in index.ts). The
+   *  frontend never triggers dialogue; it only reports gameplay events. */
+  onPitMoment: (m: GoonMoment) => void = () => {};
+  /** Continuity memory so personalities feel persistent: recent winners, current
+   *  win streaks by name, and the last upset. Persisted; pruned by memoryHours. */
+  goonMemory: {
+    recentWinners: { name: string; at: number }[];
+    streaks: Record<string, number>;
+    lastUpset?: { name: string; at: number };
+  } = { recentWinners: [], streaks: {} };
+  /** handle → account address, for /profile/<handle> resolution. */
+  private goonHandleIndex = new Map<string, Address>();
+  /** Look up a Goon account by its handle (case-insensitive). */
+  goonByHandle(handle: string): StoredUser | undefined {
+    const addr = this.goonHandleIndex.get(handle.toLowerCase());
+    return addr ? this.users.get(addr) : undefined;
+  }
+  /** (Re)build the handle index from the current roster. Call after hydrate and
+   *  whenever the Goon engine registers accounts. */
+  indexGoon(handle: string, address: Address): void {
+    this.goonHandleIndex.set(handle.toLowerCase(), address.toLowerCase() as Address);
   }
 
   /** arena (burner) wallet address → owner profile address. */
@@ -1015,6 +1045,7 @@ export class Store {
       burgerRevenueEth: this.burgerRevenueEth,
       burgerBySource: this.burgerBySource,
       burgerDaily: this.burgerDaily,
+      goonMemory: this.goonMemory,
     };
   }
 
@@ -1101,6 +1132,11 @@ export class Store {
     this.burgerRevenueEth = snap.burgerRevenueEth ?? 0;
     this.burgerBySource = snap.burgerBySource ?? {};
     this.burgerDaily = snap.burgerDaily ?? {};
+    // Goon Squad: carry new behavior knobs, keep persisted persona edits. New
+    // roster members added in code appear; admin-tuned ones are preserved.
+    this.settings.goons = { ...freshGoonSettings(), ...(this.settings.goons ?? {}) };
+    if (!this.settings.goons.personas?.length) this.settings.goons.personas = freshGoonSettings().personas;
+    this.goonMemory = snap.goonMemory ?? { recentWinners: [], streaks: {} };
     this.reindexArena();
     this.reindexTelegram();
   }
@@ -1140,6 +1176,23 @@ export interface OpsSettings {
   pit: PitSettings;
   /** The Burger economy ($BURG) — reward rules, milestones, revenue split. */
   burger: BurgerSettings;
+  /** The Flame Goon Squad AI — personalities, dialogue pools, behavior. */
+  goons: GoonSettings;
+}
+
+/** Deep-copied default Goon Squad settings (roster + behavior). */
+export function freshGoonSettings(): GoonSettings {
+  return {
+    ...GOON_DEFAULTS,
+    personas: GOON_ROSTER.map((p) => ({
+      ...p,
+      rivals: [...p.rivals],
+      favoriteTopics: [...p.favoriteTopics],
+      pools: Object.fromEntries(
+        Object.entries(p.pools).map(([k, v]) => [k, v.map((l) => ({ ...l }))]),
+      ),
+    })),
+  };
 }
 
 /** Deep-copied default Burger settings so admin edits never touch the const. */
@@ -1285,4 +1338,9 @@ export interface Snapshot {
   burgerRevenueEth?: number;
   burgerBySource?: Partial<Record<BurgerSource, number>>;
   burgerDaily?: Record<string, number>;
+  goonMemory?: {
+    recentWinners: { name: string; at: number }[];
+    streaks: Record<string, number>;
+    lastUpset?: { name: string; at: number };
+  };
 }

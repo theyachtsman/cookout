@@ -266,6 +266,8 @@ export class RoundEngine {
       "pit_open",
       `New Pit match: $${concept.symbol} (${d.name}). Powered by ${PIT_AI_NAME}. Enter The Pit.`,
     );
+    // The Goon Squad may hype a fresh match in the general Pit room.
+    this.store.onPitMoment({ kind: "match_created", roomId: PIT_ROOM, symbol: concept.symbol, now });
     this.emitState(round);
     return round;
   }
@@ -321,6 +323,8 @@ export class RoundEngine {
     s.bottomPrice = price;
     s.bottomAt = now;
     this.sys(round.id, "pit_live", `${PIT_AI_NAME} is in. Trading is LIVE. Beat the Goons.`);
+    // A legendary may make a cinematic entrance as the match goes live.
+    this.store.onPitMoment({ kind: "live", roomId: round.id, symbol: round.token.symbol, now });
     this.sys(
       PIT_ROOM,
       "pit_live",
@@ -878,7 +882,7 @@ export class RoundEngine {
     const leader = this.currentLeader(round);
     if (leader && leader !== s.leader) {
       s.leader = leader;
-      this.kill(round, "new_leader", `${short(leader)} took the PnL lead`, now);
+      this.kill(round, "new_leader", `${short(leader)} took the PnL lead`, now, { who: short(leader) });
     }
     if (round.config.mcapTarget > 0 && mcap >= round.config.mcapTarget) {
       this.endRound(round, "mcap_target", now);
@@ -1515,6 +1519,24 @@ export class RoundEngine {
     };
     const kindSys = asSystem[kind];
     if (kindSys) this.sys(round.id, kindSys, text);
+    // The Flame Goon Squad reacts to Pit killfeed beats (Pit rounds only).
+    if (round.matchType === "pit") {
+      const goonKind = {
+        whale_entered: "whale",
+        dev_sell: "big_sell",
+        rug_detected: "rug",
+        new_leader: "leader_change",
+      }[kind as string] as import("@cookout/shared").GoonEventKind | undefined;
+      if (goonKind) {
+        this.store.onPitMoment({
+          kind: goonKind,
+          roomId: round.id,
+          symbol: round.token.symbol,
+          player: typeof meta?.who === "string" ? meta.who : undefined,
+          now,
+        });
+      }
+    }
   }
 
   private emitState(round: Round): void {
