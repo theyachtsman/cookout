@@ -51,7 +51,7 @@ export function PitResultsView({
   return (
     <div className="space-y-4">
       {/* Outcome banner */}
-      <div className="rounded-3xl bg-gradient-to-br from-fuchsia-500/10 via-zinc-900/50 to-zinc-950 p-6 text-center ring-1 ring-white/10">
+      <div className="rounded-3xl bg-gradient-to-br from-sky-500/10 via-zinc-900/50 to-zinc-950 p-6 text-center ring-1 ring-white/10">
         <div className="text-4xl">{o.icon}</div>
         <div className={`mt-1 text-2xl font-black ${o.cls}`}>{o.text}</div>
         <div className="mt-1 text-xs text-zinc-500">
@@ -307,8 +307,8 @@ export function RunItBack({ round, compact = false }: { round: Round; compact?: 
         }}
         className={
           compact
-            ? "rounded-lg bg-fuchsia-500/15 px-3 py-1.5 text-xs font-black text-fuchsia-300 transition hover:bg-fuchsia-500/25 active:scale-95"
-            : "rounded-xl bg-fuchsia-500 px-4 py-2 text-sm font-black text-zinc-950 hover:bg-fuchsia-400"
+            ? "rounded-lg bg-sky-500/15 px-3 py-1.5 text-xs font-black text-sky-300 transition hover:bg-sky-500/25 active:scale-95"
+            : "rounded-xl bg-lime-400 px-4 py-2 text-sm font-black text-zinc-950 hover:bg-lime-300"
         }
       >
         {compact ? "↻ Run it back" : "Run it back"}
@@ -327,7 +327,7 @@ export function RunItBack({ round, compact = false }: { round: Round; compact?: 
                     key={d.key}
                     onClick={() => setDuration(d.key)}
                     className={`rounded-xl p-2.5 text-center ring-1 transition ${
-                      duration === d.key ? "bg-fuchsia-500/15 ring-fuchsia-400/60" : "bg-zinc-900/60 ring-white/10 hover:ring-white/25"
+                      duration === d.key ? "bg-sky-500/15 ring-sky-400/60" : "bg-zinc-900/60 ring-white/10 hover:ring-white/25"
                     }`}
                   >
                     <div className="text-lg">{d.icon}</div>
@@ -340,15 +340,15 @@ export function RunItBack({ round, compact = false }: { round: Round; compact?: 
               <div className="grid grid-cols-3 gap-2">
                 {(
                   [
-                    ["prediction", "🔮 Predict", "fuchsia"],
+                    ["prediction", "🔮 Predict", "sky"],
                     ["trading", "⚔️ Goons", "lime"],
                     ["trial", "🔥 Trial", "orange"],
                   ] as const
                 ).map(([key, label, accent]) => {
                   const on = modes[key];
                   const onCls =
-                    accent === "fuchsia"
-                      ? "bg-fuchsia-500/15 text-fuchsia-200 ring-fuchsia-400/50"
+                    accent === "sky"
+                      ? "bg-sky-500/15 text-sky-200 ring-sky-400/50"
                       : accent === "lime"
                         ? "bg-lime-500/15 text-lime-200 ring-lime-400/50"
                         : "bg-orange-500/15 text-orange-200 ring-orange-400/50";
@@ -390,7 +390,7 @@ export function RunItBack({ round, compact = false }: { round: Round; compact?: 
                 <button
                   onClick={go}
                   disabled={busy}
-                  className="flex-1 rounded-xl bg-fuchsia-500 py-2.5 text-sm font-black text-zinc-950 hover:bg-fuchsia-400 disabled:opacity-40"
+                  className="flex-1 rounded-xl bg-lime-400 py-2.5 text-sm font-black text-zinc-950 hover:bg-lime-300 disabled:opacity-40"
                 >
                   {busy ? "Launching…" : "Run it back →"}
                 </button>
@@ -492,7 +492,7 @@ export function PitOutcomeModal({
 
           <button
             onClick={onClose}
-            className="mt-5 w-full rounded-xl bg-fuchsia-500 py-3 text-sm font-black text-zinc-950 hover:bg-fuchsia-400"
+            className="mt-5 w-full rounded-xl bg-lime-400 py-3 text-sm font-black text-zinc-950 hover:bg-lime-300"
           >
             See full results
           </button>
