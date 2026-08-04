@@ -45,6 +45,7 @@ import {
   isDevWallet,
   issueNonce,
   requireAuth,
+  optionalAuth,
   verifyAndCreateSession,
   type AuthedRequest,
 } from "./auth.js";
@@ -135,6 +136,7 @@ export function createApp(
   });
 
   const auth = requireAuth(store);
+  const maybeAuth = optionalAuth(store);
   // The legacy admin surface now accepts EITHER a Command Center staff session
   // or the shared admin key, so an operator signed into the Command Center can
   // drive the existing ops routes without also holding the raw key. The key
@@ -2480,6 +2482,10 @@ export function createApp(
    *  something exists without knowing what it is. */
   app.get(
     "/api/collection",
+    // Optional: the catalogue is public, but a signed-in caller also gets their
+    // roster, progress and Burger balance. Without this the route always looked
+    // signed-out — which is why the crate page showed 0 Burgers.
+    maybeAuth,
     wrap((req, res) => {
       const address = req.userAddress;
       const owned = address ? collection.collectionOf(address).owned : {};

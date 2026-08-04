@@ -19,6 +19,7 @@ import { fundArenaWallet } from "../../lib/chainTx";
 import { fmtAmount, useDenomPref, useEthUsd } from "../../lib/ethUsd";
 import { DenomToggle } from "../../components/DenomToggle";
 import { ExpandableRows } from "../../components/ProfileUI";
+import { BurgerSummary } from "../../components/BurgerSummary";
 import { BurgerWallet } from "../../components/BurgerWallet";
 import { useSession } from "../../lib/session";
 import { playDeposit } from "../../lib/sfx";
@@ -170,6 +171,8 @@ function PaperWalletPage() {
       ) : (
         <>
       <PrivyWalletCard address={profile.address} />
+
+      <BurgerSummary onOpenFull={() => setTab("burger")} />
 
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Balances</span>

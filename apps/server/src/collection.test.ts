@@ -9,6 +9,7 @@ import {
   setComplete,
   type CardRarity,
 } from "@cookout/shared";
+import { optionalAuth } from "./auth.js";
 import { CollectionError, CollectionService, freshCollectionSettings, mergeCollectionSettings } from "./collection.js";
 import { Store } from "./store.js";
 
@@ -277,4 +278,37 @@ test("every rarity in the hierarchy has cards in the shipped catalogue", () => {
   const progress = computeProgress(cards, [], { owned: {}, setsClaimed: [], cratesOpened: 0, burgersSpent: 0 });
   assert.equal(progress.collected, 0);
   assert.equal(progress.byRarity.legendary.total > 0, true);
+});
+
+test("optionalAuth resolves a session without rejecting anonymous callers", async () => {
+  const store = new Store();
+  const gate = optionalAuth(store);
+  const run = (headers: Record<string, string>) =>
+    new Promise<string | undefined>((resolve) => {
+      const req = { headers } as unknown as Parameters<typeof gate>[0];
+      gate(req, {} as never, () => resolve(req.userAddress));
+    });
+
+  // Anonymous: allowed through, no address — the catalogue is public.
+  assert.equal(await run({}), undefined);
+  assert.equal(await run({ authorization: "Bearer nonsense" }), undefined);
+
+  // Signed in: the address is attached, which is what makes the crate page
+  // show the caller's Burgers and roster instead of a signed-out zero.
+  const token = "tok_" + store.id();
+  store.sessions.set(token, { address: A, expiresAt: Date.now() + 60_000 });
+  assert.equal(await run({ authorization: `Bearer ${token}` }), A);
+});
+
+test("a signed-in collection view reports the caller's Burgers and roster", () => {
+  const { store, svc } = setup(750);
+  // Simulates what the route does once optionalAuth has run.
+  const owned = svc.collectionOf(A).owned;
+  assert.equal(Object.keys(owned).length, 0);
+  assert.equal(store.getOrCreateUser(A).burgerBalance, 750);
+
+  svc.openPack(A, "x1", rolls(0.0, 0.0));
+  assert.equal(Object.keys(svc.collectionOf(A).owned).length, 1);
+  assert.ok((store.getOrCreateUser(A).burgerBalance ?? 0) < 750, "the crate was paid for");
+  assert.ok(svc.progress(A).collected === 1);
 });

@@ -136,6 +136,25 @@ export function requireAuth(store: Store) {
   };
 }
 
+/**
+ * Resolve a session when one is present, but never reject.
+ *
+ * For routes that are useful signed-out and richer signed-in — the Collection
+ * catalogue is the same list either way, but a signed-in caller also gets what
+ * they own and their Burger balance. Using no middleware at all leaves
+ * `userAddress` permanently undefined, which silently degrades those routes to
+ * the signed-out view for everyone.
+ */
+export function optionalAuth(store: Store) {
+  return (req: AuthedRequest, _res: Response, next: NextFunction) => {
+    const header = req.headers.authorization ?? "";
+    const token = header.startsWith("Bearer ") ? header.slice(7) : undefined;
+    const address = token ? store.sessionAddress(token) : undefined;
+    if (address) req.userAddress = address;
+    next();
+  };
+}
+
 export function requireAdmin(adminKey: string) {
   const expected = Buffer.from(adminKey);
   return (req: Request, res: Response, next: NextFunction) => {
