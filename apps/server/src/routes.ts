@@ -10,6 +10,8 @@ import {
   TIER_UNLOCK_LEVEL,
   resolveNotifyPrefs,
   isEnduranceMode,
+  activeTheme,
+  MEDIA_MAX_BYTES,
   unlockedCosmetics,
   dayKey,
   weekKey,
@@ -32,6 +34,7 @@ import {
   type TokenConcept,
 } from "@cookout/shared";
 import { mountCommandCenter } from "./command-center.js";
+import { MediaService, readAsset } from "./media.js";
 import { StaffService, requireStaff } from "./staff.js";
 import { enterPit, pitEntryCost, withdrawPit } from "./pit-pools.js";
 import { awardBurger, awardBurgerOneTime, purchaseBurgers, adminAdjustBurgers, burgerAnalytics } from "./burger.js";
@@ -82,6 +85,13 @@ export function createApp(
   const app = express();
   // Body limit covers client-downscaled data-URL images (coin art, avatars).
   app.use(express.json({ limit: "2mb" }));
+  // Media Library uploads are base64 data URLs and are deliberately allowed to
+  // be much larger (audio, full-bleed theme art). Scoped to the upload routes
+  // so the player-facing API keeps its tight 2mb ceiling.
+  app.use(
+    ["/api/cc/media", "/api/cc/media/:id/replace"],
+    express.json({ limit: `${Math.ceil((MEDIA_MAX_BYTES * 4) / 3 / 1_048_576) + 2}mb` }),
+  );
 
   // CORS_ORIGIN is a comma-separated allowlist of web origins (the API and the
   // web app are on different hosts in production: API behind a tunnel, web on
@@ -2467,9 +2477,40 @@ export function createApp(
    *  client needs them on every load to know which modes are switched on. */
   app.get("/api/flags", (_req, res) => res.json({ flags: store.flags() }));
 
+  // Media Library files, served read-only from disk. Public by design: these
+  // are logos, theme art and sounds the player client has to fetch. The
+  // filename is validated inside pathFor, which is what stops a crafted name
+  // from walking out of the media directory.
+  const media = new MediaService(store);
+  const pruned = media.reconcile();
+  if (pruned.length) console.log(`media: pruned ${pruned.length} asset(s) with no file on disk`);
+  app.get("/media/:filename", (req, res) => {
+    const path = media.pathFor(String(req.params.filename));
+    if (!path) {
+      res.status(404).json({ error: "not found" });
+      return;
+    }
+    const asset = [...store.media.values()].find((a) => a.filename === req.params.filename);
+    res.setHeader("content-type", asset?.mime ?? "application/octet-stream");
+    // Content is immutable per filename (a replace mints a new one), so it can
+    // be cached hard — that's the whole point of storing by id.
+    res.setHeader("cache-control", "public, max-age=31536000, immutable");
+    res.send(readAsset(path));
+  });
+
+  /** Presentation the player client needs on every load: branding, the live
+   *  theme (if any) and sound overrides. Public and unauthenticated. */
+  app.get("/api/presentation", (_req, res) => {
+    res.json({
+      branding: store.settings.branding,
+      theme: activeTheme(store.settings.themes),
+      audio: store.settings.audio,
+    });
+  });
+
   // The Command Center — the internal ops platform. Mounted last so its
   // /api/cc/* namespace can't shadow any player route.
-  mountCommandCenter(app, store, adminKey);
+  mountCommandCenter(app, store, adminKey, media);
 
   return app;
 }
