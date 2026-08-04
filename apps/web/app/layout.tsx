@@ -46,10 +46,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="min-h-screen">
-        {/* Command Center branding + seasonal theme, applied as CSS vars. */}
-        <PresentationProvider />
         <DevBanner />
         {/* Privy wraps auth; SessionProvider bridges it to our session. */}
+        {/* Command Center branding, seasonal theme and editable site copy. */}
+        <PresentationProvider>
         <Providers>
           <SessionProvider>
             {/* The persistent social layer wraps the whole app: one always-on
@@ -73,6 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </SocialProvider>
           </SessionProvider>
         </Providers>
+        </PresentationProvider>
       </body>
     </html>
   );

@@ -12,6 +12,7 @@ import {
   type RiskTier,
 } from "@cookout/shared";
 import { api } from "../lib/api";
+import { useCopy } from "../lib/copy";
 import { useSession } from "../lib/session";
 import { CoinCard } from "./CoinCard";
 
@@ -37,6 +38,7 @@ interface RunnableRound {
 }
 
 export function RunItBackButton({ round, className = "" }: { round: RunnableRound; className?: string }) {
+  const { t } = useCopy();
   const { profile } = useSession();
   const router = useRouter();
   const [modal, setModal] = useState<"confirm" | "explain" | "error" | null>(null);
@@ -147,10 +149,10 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
                             onClick={() => !locked && setMode(m.key)}
                             title={
                               m.disabled
-                                ? `${m.name} unlocks later`
+                                ? `${t(`mode.${m.key}.name`)} unlocks later`
                                 : locked
-                                  ? `Reach level ${m.unlockLevel} to launch ${m.name}`
-                                  : m.blurb
+                                  ? `Reach level ${m.unlockLevel} to launch ${t(`mode.${m.key}.name`)}`
+                                  : t(`mode.${m.key}.blurb`)
                             }
                             className={`rounded-xl border p-2.5 text-left transition ${
                               active
@@ -163,7 +165,7 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
                             }`}
                           >
                             <div className="flex items-center justify-between gap-1">
-                              <span className="text-sm font-black">{m.name}</span>
+                              <span className="text-sm font-black">{t(`mode.${m.key}.name`)}</span>
                               {m.disabled ? (
                                 <span className="text-[9px] font-bold text-zinc-500">🔒 Soon</span>
                               ) : locked ? (
@@ -173,7 +175,7 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
                               ) : null}
                             </div>
                             <div className="mt-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-500">
-                              {m.tagline} · {m.pullUpCap} pull-up cap
+                              {t(`mode.${m.key}.tagline`)} · {m.pullUpCap} pull-up cap
                             </div>
                           </button>
                         );

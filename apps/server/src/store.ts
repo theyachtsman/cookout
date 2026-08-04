@@ -79,6 +79,8 @@ import {
   freshGameSettings,
   mergeGameSettings,
   resolveMission,
+  copyText,
+  resolveCopy,
   flagEnabled,
   resolveFlags,
   PIT_DEFAULTS,
@@ -296,6 +298,7 @@ export class Store {
     branding: freshBrandingSettings(),
     themes: freshThemeSettings(),
     audio: freshAudioSettings(),
+    copy: {},
   };
   /** Live ETH/USD, refreshed by the price feed; used to peg the $40k bond. */
   ethUsd = DEFAULT_ETH_USD;
@@ -898,12 +901,31 @@ export class Store {
     const g = this.settings.game;
     const pool =
       period === "daily" ? activeDailyMissions(now, g.dailyActiveCount) : WEEKLY_MISSIONS;
-    return pool.filter((m) => g.missions[m.id]?.enabled !== false).map((m) => resolveMission(m, g));
+    const copy = this.copyMap();
+    return pool
+      .filter((m) => g.missions[m.id]?.enabled !== false)
+      .map((m) => ({
+        ...resolveMission(m, g),
+        // Names and descriptions are editable copy, so the board shows whatever
+        // the Command Center says rather than the compiled wording.
+        name: copyText(copy, `mission.${m.id}.name`),
+        description: copyText(copy, `mission.${m.id}.description`),
+      }));
   }
 
   /** Every quest live right now, dailies first. */
   liveMissions(now = Date.now()): MissionDef[] {
     return [...this.missionDefs("daily", now), ...this.missionDefs("weekly", now)];
+  }
+
+  /** Every site string, defaults with the operator's overrides applied. */
+  copyMap(): Record<string, string> {
+    return resolveCopy(this.settings.copy);
+  }
+
+  /** One site string. Used where the server renders player-facing text. */
+  text(key: string): string {
+    return copyText(this.copyMap(), key);
   }
 
   /** Every feature flag resolved against its registry default. */
@@ -1224,6 +1246,7 @@ export class Store {
       this.settings.branding ??= freshBrandingSettings();
       this.settings.themes ??= freshThemeSettings();
       this.settings.audio ??= freshAudioSettings();
+      this.settings.copy ??= {};
     }
     this.adminLog = snap.adminLog;
     for (const a of snap.staff ?? []) this.staff.set(a.id, a);
@@ -1325,6 +1348,9 @@ export interface OpsSettings {
   themes: ThemeSettings;
   /** Sound cue assignments and volumes. */
   audio: AudioSettings;
+  /** Site copy overrides, sparse: key → text. Anything absent uses the
+   *  shipped default from the copy registry. */
+  copy: Record<string, string>;
 }
 
 /** Deep-copied default Goon Squad settings (roster + behavior). */

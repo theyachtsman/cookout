@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
+import { useCopy } from "../lib/copy";
 import { useBrandAsset } from "../lib/useBrandAsset";
 import { useSession } from "../lib/session";
 
@@ -91,13 +92,14 @@ function Reveal({
 
 /** The product in six words. */
 function Slogan({ className = "" }: { className?: string }) {
+  const { t } = useCopy();
   return (
     <div
       className={`flex flex-wrap items-center justify-center gap-x-3 gap-y-0.5 font-black tracking-tight ${className}`}
     >
-      <span className="text-zinc-100">Same price.</span>
-      <span className="text-emerald-400">Same second.</span>
-      <span className="text-lime-400">Everyone.</span>
+      <span className="text-zinc-100">{t("landing.slogan.a")}</span>
+      <span className="text-emerald-400">{t("landing.slogan.b")}</span>
+      <span className="text-lime-400">{t("landing.slogan.c")}</span>
     </div>
   );
 }
@@ -105,6 +107,7 @@ function Slogan({ className = "" }: { className?: string }) {
 /* ---------------- hero with animated candle-field canvas ---------------- */
 
 function Hero() {
+  const { t } = useCopy();
   const ref = useRef<HTMLCanvasElement>(null);
   const mascotSrc = useBrandAsset("/brand/mascot.png", "/brand/mascot.svg");
 
@@ -243,25 +246,24 @@ function Hero() {
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-lime-400 opacity-75" />
             <span className="relative inline-flex h-2 w-2 rounded-full bg-lime-400" />
           </span>
-          OPEN BETA · 100% PAPER MONEY · NO WALLET NEEDED
+          {t("landing.badge")}
         </span>
         <h1 className="text-5xl font-black tracking-tight md:text-8xl">
-          <span className="text-lime-400">THE</span>{" "}
+          <span className="text-lime-400">{t("landing.hero.titleA")}</span>{" "}
           <span className="text-zinc-50 [text-shadow:0_0_2px_#a3e635,0_0_18px_rgba(163,230,53,0.5)]">
-            COOKOUT
+            {t("landing.hero.titleB")}
           </span>
         </h1>
         <p className="mx-auto mt-4 text-2xl font-black tracking-tight text-zinc-50 md:text-4xl">
-          Every chart is a multiplayer match.
+          {t("landing.hero.headline")}
         </p>
         <p className="mx-auto mt-3 max-w-xl text-base text-zinc-400 md:text-lg">
-          A room full of people piles into the same coin at the same second. You get a few
-          minutes to out-trade all of them. Then we run it back.
+          {t("landing.hero.sub")}
         </p>
 
         {/* the promise, readable in one glance */}
         <div className="mx-auto mt-7 flex max-w-2xl flex-wrap items-center justify-center gap-2.5">
-          {["Same price", "Same second", "No bots", "No snipers"].map((p) => (
+          {[1, 2, 3, 4].map((n) => t(`landing.hero.promise${n}`)).map((p) => (
             <span
               key={p}
               className="rounded-full bg-emerald-400/10 px-4 py-1.5 text-sm font-black text-emerald-300 ring-1 ring-emerald-400/30 md:text-base"
@@ -274,20 +276,20 @@ function Hero() {
 
         <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
           <PlayNowButton className="rounded-xl bg-lime-400 px-8 py-4 text-lg font-black text-zinc-950 shadow-lg shadow-lime-400/30 transition hover:scale-105 hover:bg-lime-300">
-            Play Now
+            {t("landing.hero.ctaPlay")}
           </PlayNowButton>
           <Link
             href="/matches"
             className="rounded-xl bg-zinc-800/70 px-8 py-4 text-lg font-bold text-zinc-200 transition hover:bg-zinc-800"
           >
-            Watch a match
+            {t("landing.hero.ctaWatch")}
           </Link>
         </div>
         <div className="mx-auto mt-7 inline-flex max-w-xl items-center gap-3 rounded-xl bg-lime-400/[0.06] px-5 py-2.5 ring-1 ring-lime-400/20">
           <span className="text-xl">🎮</span>
           <p className="text-left text-sm text-zinc-200">
-            <span className="font-black text-lime-300">Pick a name and play.</span>{" "}
-            Paper money, no deposit, no wallet. You&apos;re in a match in under a minute.
+            <span className="font-black text-lime-300">{t("landing.hero.noteTitle")}</span>{" "}
+            {t("landing.hero.noteBody")}
           </p>
         </div>
       </div>
@@ -297,22 +299,14 @@ function Hero() {
 
 /* ---------------- the room, right now ---------------- */
 
-const TICKER_LINES = [
-  "🐋 someone walked in with 0.8 and moved the whole chart",
-  "🏆 DiamondDan took the PnL lead with 40 seconds left",
-  "💀 RUGRAT went to zero. eight people got out first.",
-  "🔥 queue filled in under a minute",
-  "🍽️ WAGYU served up. holders kept their bags.",
-  "📈 fomo_fred doubled his position at the top. bold.",
-  "🎰 the pot went up again",
-];
-
 /**
  * A pulse under the hero. Player count, pot, and matches are real when the
  * API answers; the ticker is flavor from actual round events. Nothing here
  * is load-bearing, so a cold API just shows fewer numbers.
  */
 function LiveNow() {
+  const { t, lines } = useCopy();
+  const tickerLines = lines("landing.ticker");
   const [online, setOnline] = useState<number | null>(null);
   const [pot, setPot] = useState<number | null>(null);
   const [matches, setMatches] = useState<number | null>(null);
@@ -336,15 +330,16 @@ function LiveNow() {
   }, []);
 
   useEffect(() => {
-    const t = setInterval(() => setLine((n) => (n + 1) % TICKER_LINES.length), 3400);
-    return () => clearInterval(t);
-  }, []);
+    if (tickerLines.length === 0) return;
+    const id = setInterval(() => setLine((n) => (n + 1) % tickerLines.length), 3400);
+    return () => clearInterval(id);
+  }, [tickerLines.length]);
 
   const stats: Array<[string, string]> = [
-    ["in the room", online === null ? "—" : String(online)],
-    ["this week's pot", pot === null ? "—" : `$${Math.round(pot).toLocaleString()}`],
-    ["matches run", matches === null ? "—" : String(matches)],
-    ["a match takes", "~10 min"],
+    [t("landing.stats.online"), online === null ? "—" : String(online)],
+    [t("landing.stats.pot"), pot === null ? "—" : `$${Math.round(pot).toLocaleString()}`],
+    [t("landing.stats.matches"), matches === null ? "—" : String(matches)],
+    [t("landing.stats.lengthLabel"), t("landing.stats.lengthValue")],
   ];
 
   return (
@@ -364,7 +359,7 @@ function LiveNow() {
             <span className="relative inline-flex h-2 w-2 rounded-full bg-lime-400" />
           </span>
           <span key={line} className="animate-[fadein_.4s_ease] truncate text-sm text-zinc-400">
-            {TICKER_LINES[line]}
+            {tickerLines[line % Math.max(1, tickerLines.length)]}
           </span>
         </div>
       </div>
@@ -374,47 +369,31 @@ function LiveNow() {
 
 /* ---------------- how a round works ---------------- */
 
-const STEPS = [
-  {
-    icon: "🚪",
-    title: "Pull Up",
-    body: "Somebody's coin comes up on the calendar. You walk into the lobby, see who else is here, and call it: moon or rug.",
-  },
-  {
-    icon: "⚖️",
-    title: "Fair Open",
-    body: "Everyone puts in their buy before the bell. Nobody gets filled early. When it closes, the whole room gets the exact same price.",
-  },
-  {
-    icon: "📈",
-    title: "Trade Live",
-    body: "Now it's a real market and everyone can see what you're doing. Scalp it, ride it, or panic. Chat will have opinions either way.",
-  },
-  {
-    icon: "🎓",
-    title: "Graduate or Burn",
-    body: "Hit the targets and the coin lives on. Fall short and everybody cashes out at the same price. Get rugged and, well, that happened.",
-  },
-];
-
 function RoundFlow() {
+  const { t } = useCopy();
+  const steps = [
+    { icon: "🚪", key: "step1" },
+    { icon: "⚖️", key: "step2" },
+    { icon: "📈", key: "step3" },
+    { icon: "🎓", key: "step4" },
+  ];
   return (
     <section className="mx-auto max-w-6xl px-6 py-20">
       <Reveal>
         <h2 className="text-center text-4xl font-black tracking-tight md:text-5xl">
-          How a match works
+          {t("landing.flow.title")}
         </h2>
         <p className="mx-auto mt-3 max-w-xl text-center text-sm text-zinc-400">
-          Ten minutes, start to finish. Then the next one.
+          {t("landing.flow.sub")}
         </p>
       </Reveal>
       <div className="mt-12 grid gap-6 md:grid-cols-4">
-        {STEPS.map((s, i) => (
-          <Reveal key={s.title} delay={i * 90}>
+        {steps.map((s, i) => (
+          <Reveal key={s.key} delay={i * 90}>
             <div className="group h-full rounded-2xl bg-zinc-900/40 p-6 transition hover:-translate-y-1 hover:bg-zinc-900/70">
               <div className="text-4xl transition group-hover:scale-110">{s.icon}</div>
-              <h3 className="mt-3 text-lg font-black">{s.title}</h3>
-              <p className="mt-2 text-sm text-zinc-400">{s.body}</p>
+              <h3 className="mt-3 text-lg font-black">{t(`landing.flow.${s.key}.title`)}</h3>
+              <p className="mt-2 text-sm text-zinc-400">{t(`landing.flow.${s.key}.body`)}</p>
             </div>
           </Reveal>
         ))}
@@ -426,24 +405,24 @@ function RoundFlow() {
 /* ---------------- the fair open (differentiator band) ---------------- */
 
 function FairOpen() {
+  const { t } = useCopy();
   return (
     <section className="bg-gradient-to-b from-emerald-500/[0.06] to-transparent py-20">
       <div className="mx-auto max-w-3xl px-6">
         <Reveal className="text-center">
           <div className="text-xs font-bold uppercase tracking-[0.3em] text-emerald-400">
-            The one rule
+            {t("landing.fair.eyebrow")}
           </div>
           <h2 className="mt-3 text-4xl font-black tracking-tight md:text-6xl">
-            Nobody gets in first.
+            {t("landing.fair.title")}
           </h2>
           <Slogan className="mt-6 text-2xl md:text-4xl" />
           <p className="mx-auto mt-6 max-w-xl text-lg text-zinc-300">
-            Buys don&apos;t fill as they come in. They pile up until the bell, then the whole room
-            gets one price. Being fast doesn&apos;t help. Neither does a bot.
+            {t("landing.fair.body")}
           </p>
           <p className="mx-auto mt-3 max-w-xl text-sm text-zinc-500">
             <Link href="/docs#auction" className="text-emerald-400 underline hover:text-emerald-300">
-              It&apos;s all in the menu.
+              {t("landing.fair.link")}
             </Link>
           </p>
         </Reveal>
@@ -454,34 +433,32 @@ function FairOpen() {
 
 /* ---------------- open beta: just play ---------------- */
 
-const HOW_INSTANT = [
-  ["🎮", "Pick a name", "No email, no wallet, no forms. Choose a handle and you have an account."],
-  ["⚡", "Get your paper stack", "We stake your starter pETH into your Cook Out Balance automatically. It's paper. Nothing to deposit, nothing at risk."],
-  ["🔥", "Walk into a match", "There's always one running. You're trading against the room in under a minute."],
-];
-
 function Access() {
+  const { t, fmt } = useCopy();
+  const steps = [
+    { icon: "🎮", key: "step1" },
+    { icon: "⚡", key: "step2" },
+    { icon: "🔥", key: "step3" },
+  ];
   return (
     <section id="access" className="relative mx-auto max-w-4xl scroll-mt-20 px-6 py-24">
       <Reveal className="text-center">
-        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">Open beta</div>
+        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">{t("landing.access.eyebrow")}</div>
         <h2 className="mt-3 text-4xl font-black tracking-tight md:text-5xl">
-          Just play. Right now.
+          {t("landing.access.title")}
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-zinc-400">
-          No whitelist, no waves, no wallet. It&apos;s all paper money while we&apos;re in beta, so
-          the only thing you&apos;re risking is your ego. Bring a wallet later if you want. You
-          don&apos;t need one to play.
+          {t("landing.access.body")}
         </p>
       </Reveal>
 
       <div className="mt-12 grid gap-4 md:grid-cols-3">
-        {HOW_INSTANT.map(([icon, title, body], i) => (
-          <Reveal key={title} delay={i * 80}>
+        {steps.map((s, i) => (
+          <Reveal key={s.key} delay={i * 80}>
             <div className="h-full rounded-2xl bg-zinc-900/40 p-5 transition hover:bg-zinc-900/70">
-              <div className="text-3xl">{icon}</div>
-              <h3 className="mt-2 font-black">{title}</h3>
-              <p className="mt-1 text-sm text-zinc-400">{body}</p>
+              <div className="text-3xl">{s.icon}</div>
+              <h3 className="mt-2 font-black">{t(`landing.access.${s.key}.title`)}</h3>
+              <p className="mt-1 text-sm text-zinc-400">{t(`landing.access.${s.key}.body`)}</p>
             </div>
           </Reveal>
         ))}
@@ -490,10 +467,10 @@ function Access() {
       <Reveal className="mt-10 text-center">
         <div className="rounded-2xl bg-lime-400/[0.06] p-8">
           <PlayNowButton className="inline-flex items-center gap-2 rounded-xl bg-lime-400 px-10 py-4 text-xl font-black text-zinc-950 shadow-lg shadow-lime-400/30 transition hover:scale-105 hover:bg-lime-300">
-            Play Now →
+            {t("landing.access.cta")}
           </PlayNowButton>
           <div className="mt-5 flex flex-wrap items-center justify-center gap-2.5">
-            {["No whitelist", "No deposit", "No wallet needed", "Instant"].map((p) => (
+            {[1, 2, 3, 4].map((n) => t(`landing.access.chip${n}`)).map((p) => (
               <span
                 key={p}
                 className="rounded-full bg-emerald-400/10 px-3 py-1 text-xs font-black text-emerald-300"
@@ -503,8 +480,7 @@ function Access() {
             ))}
           </div>
           <p className="mt-4 text-xs text-zinc-600">
-            Safety: {X_HANDLE} is our only official account. We will never DM you first, never ask
-            for a seed phrase, and never charge you to play.
+            {fmt("landing.access.safety", { handle: X_HANDLE })}
           </p>
         </div>
       </Reveal>

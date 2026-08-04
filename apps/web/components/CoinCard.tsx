@@ -8,6 +8,7 @@ import {
   type GameMode,
   type RiskTier,
 } from "@cookout/shared";
+import { useCopy } from "../lib/copy";
 import { CreatorBadge } from "./CreatorBadge";
 import { EditCoinButton } from "./EditCoinButton";
 import { TierChip } from "./TierChip";
@@ -28,15 +29,19 @@ export function OverTimeChip() {
  *  also runs rug-rules-off, but for the opposite reason (it's the slow, plain
  *  launchpad, not a violent sprint), so it gets its own calm amber chip. */
 export function ModeChip({ mode }: { mode: GameMode }) {
+  const { t } = useCopy();
   const def = GAME_MODE_MAP[mode];
   if (!def) return null;
+  // Names and taglines are editable copy, so read them rather than the constant.
+  const name = t(`mode.${mode}.name`);
+  const tagline = t(`mode.${mode}.tagline`);
   if (isEnduranceMode(mode))
     return (
       <span
         className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-black uppercase text-amber-300"
-        title={`${def.name} · ${def.tagline} · the dev trades like anyone else`}
+        title={`${name} · ${tagline} · the dev trades like anyone else`}
       >
-        🕛 {def.name} · ∞
+        🕛 {name} · ∞
       </span>
     );
   const noRug = !def.rugRules;
@@ -45,9 +50,9 @@ export function ModeChip({ mode }: { mode: GameMode }) {
       className={`rounded px-1.5 py-0.5 text-[10px] font-black uppercase ${
         noRug ? "bg-red-500/20 text-red-300" : "bg-lime-400/15 text-lime-300"
       }`}
-      title={`${def.name} · ${def.tagline}`}
+      title={`${name} · ${tagline}`}
     >
-      {noRug ? "🔥" : "🍳"} {def.name} · {def.minutes ? `${def.minutes}m` : "∞"}
+      {noRug ? "🔥" : "🍳"} {name} · {def.minutes ? `${def.minutes}m` : "∞"}
     </span>
   );
 }

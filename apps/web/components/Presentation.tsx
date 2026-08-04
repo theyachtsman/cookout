@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import type { AudioSettings, BrandingSettings, Theme } from "@cookout/shared";
 import { apiUrl } from "../lib/api";
+import { CopyProvider, usePresentation, type PresentationData } from "../lib/copy";
 
 /**
  * Applies Command Center presentation settings to the running site.
@@ -14,12 +14,6 @@ import { apiUrl } from "../lib/api";
  * A theme must never be able to break the app it decorates.
  */
 
-export interface PresentationData {
-  branding: BrandingSettings;
-  theme: Theme | null;
-  audio: AudioSettings;
-}
-
 /** Latest presentation payload, for code that needs it outside React. */
 export let presentation: PresentationData | null = null;
 
@@ -28,10 +22,15 @@ export function mediaUrl(id: string | undefined): string | undefined {
   return id ? `${apiUrl()}/media/${id}` : undefined;
 }
 
-export function PresentationProvider() {
-  useEffect(() => {
-    let cancelled = false;
+/**
+ * Applies branding + theme to the document and supplies site copy to the tree.
+ * One fetch feeds both, so a reskin and a copy edit land together.
+ */
+export function PresentationProvider({ children }: { children?: React.ReactNode }) {
+  const data = usePresentation();
 
+  useEffect(() => {
+    if (!data) return;
     const apply = (data: PresentationData) => {
       presentation = data;
       const root = document.documentElement;
@@ -61,26 +60,10 @@ export function PresentationProvider() {
         root.dataset.themeBackground = "off";
       }
     };
+    apply(data);
+  }, [data]);
 
-    const load = () =>
-      fetch(`${apiUrl()}/api/presentation`)
-        .then((r) => (r.ok ? r.json() : null))
-        .then((d: PresentationData | null) => {
-          if (!cancelled && d) apply(d);
-        })
-        .catch(() => {
-          /* fail open — the built-in look is always a valid fallback */
-        });
-
-    void load();
-    // Picks up a theme going live (or its scheduled window opening) without a
-    // reload. Slow on purpose: this is decoration, not gameplay state.
-    const t = setInterval(load, 120_000);
-    return () => {
-      cancelled = true;
-      clearInterval(t);
-    };
-  }, []);
-
-  return null;
+  // Children render against the served copy, falling back to the shipped
+  // defaults until (or unless) the fetch lands.
+  return <CopyProvider value={data?.copy ?? {}}>{children}</CopyProvider>;
 }

@@ -10,6 +10,9 @@ import type { Express, Response } from "express";
 import {
   ACHIEVEMENTS,
   ALL_PERMISSIONS,
+  COPY_ENTRIES,
+  COPY_MAP,
+  copyGroups,
   BRANDING_SLOTS,
   SOUND_CUES,
   THEME_ASSET_SLOTS,
@@ -942,6 +945,80 @@ export function mountCommandCenter(
         a.groupVolume[group] = clamp01(vol);
       audit(store, req, { module: "audio", action: "audio.update", before, after: structuredClone(a) });
       res.json({ audio: a });
+    }),
+  );
+
+  // -------------------------------------------------------------- site copy
+
+  /** Every editable string: its key, group, current value and shipped default. */
+  app.get(
+    "/api/cc/copy",
+    gate("content.manage"),
+    wrap((_req, res) => {
+      const current = store.copyMap();
+      res.json({
+        entries: COPY_ENTRIES.map((e) => ({
+          ...e,
+          value: current[e.key] ?? e.defaultText,
+          overridden: store.settings.copy[e.key] !== undefined,
+        })),
+        groups: copyGroups(),
+        overrideCount: Object.keys(store.settings.copy).length,
+      });
+    }),
+  );
+
+  /**
+   * Patch copy by key. Writing a value identical to the default clears the
+   * override instead of storing it, so "overridden" always means "somebody
+   * deliberately changed this" rather than "somebody once touched the field".
+   */
+  app.patch(
+    "/api/cc/copy",
+    gate("content.manage"),
+    wrap((req, res) => {
+      const patch = req.body as Record<string, unknown>;
+      if (!patch || typeof patch !== "object") throw new CcError(400, "expected a patch object");
+      const before: Record<string, string> = {};
+      const after: Record<string, string> = {};
+      for (const [key, value] of Object.entries(patch)) {
+        const entry = COPY_MAP[key];
+        if (!entry) throw new CcError(400, `"${key}" isn't a known copy key`);
+        if (typeof value !== "string") throw new CcError(400, `"${key}" must be text`);
+        if (value.length > 8000) throw new CcError(400, `"${key}" is too long (8000 character limit)`);
+        before[key] = store.copyMap()[key] ?? entry.defaultText;
+        if (value === entry.defaultText) delete store.settings.copy[key];
+        else store.settings.copy[key] = value;
+        after[key] = value;
+      }
+      audit(store, req, {
+        module: "content",
+        action: "copy.update",
+        target: Object.keys(patch).join(", ").slice(0, 200),
+        before,
+        after,
+      });
+      res.json({ ok: true, overrideCount: Object.keys(store.settings.copy).length });
+    }),
+  );
+
+  /** Reset specific keys, or every override when no keys are given. */
+  app.post(
+    "/api/cc/copy/reset",
+    gate("content.manage"),
+    wrap((req, res) => {
+      const { keys } = req.body as { keys?: string[] };
+      const before = { ...store.settings.copy };
+      if (Array.isArray(keys) && keys.length) for (const k of keys) delete store.settings.copy[k];
+      else store.settings.copy = {};
+      audit(store, req, {
+        module: "content",
+        action: "copy.reset",
+        target: keys?.length ? keys.join(", ").slice(0, 200) : "(all)",
+        before,
+        after: { ...store.settings.copy },
+      });
+      res.json({ ok: true, overrideCount: Object.keys(store.settings.copy).length });
     }),
   );
 
