@@ -546,12 +546,24 @@ export type KillFeedKind =
   | "graduated"
   | "overtime";
 
+/** Who a kill-feed event is about, resolved at emit time. Present on the
+ *  developer's own trades so every alert and overlay can put a face and a name
+ *  to it — a dev selling should never be a nameless line in the tape. */
+export interface KillFeedActor {
+  address: Address;
+  displayName?: string;
+  avatarUrl?: string;
+  /** True when this is the coin's developer. */
+  isCreator?: boolean;
+}
+
 export interface KillFeedEvent {
   id: string;
   roundId: string;
   kind: KillFeedKind;
   text: string;
   at: number;
+  actor?: KillFeedActor;
   meta?: Record<string, string | number>;
 }
 
@@ -585,6 +597,9 @@ export type SystemChatKind =
   | "bond"
   | "whale"
   | "rug"
+  /** The developer sold their own coin. Not a rug — just a signal the room
+   *  deserves to see, loudly and by name. */
+  | "dev_sell"
   | "graduated"
   | "ended"
   /** Admin/house announcement or rotating tip — high-attention styling. */
@@ -843,6 +858,13 @@ export interface UserStats {
   predictionsMade: number;
   currentWinStreak: number;
   bestWinStreak: number;
+  /** Endurance launches played (lifetime). Its progression is separate from
+   *  timed matches — patience, not reflexes — so it counts on its own. */
+  enduranceRounds?: number;
+  /** Endurance coins held all the way through their bonding curve. */
+  enduranceBonds?: number;
+  /** Longest single Endurance hold, in seconds. */
+  longestEnduranceHoldSeconds?: number;
 }
 
 export interface RoundSummary {

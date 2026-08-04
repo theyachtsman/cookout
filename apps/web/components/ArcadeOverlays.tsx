@@ -1,6 +1,7 @@
 "use client";
 
 import type { KillFeedEvent } from "@cookout/shared";
+import { ActorFace } from "./arena/ActorFace";
 
 const KILL_ICONS: Record<string, string> = {
   big_buy: "🟢",
@@ -23,7 +24,22 @@ export function KillFeedTicker({ killfeed }: { killfeed: KillFeedEvent[] }) {
       {items.map((e) => (
         <span key={`${key}-${e.id}`} className="inline-flex items-center gap-1.5 text-xs">
           <span>{KILL_ICONS[e.kind] ?? "•"}</span>
-          <span className={e.kind === "rug_detected" ? "font-bold text-red-400" : "text-zinc-300"}>
+          {e.actor && (
+            <ActorFace
+              actor={e.actor}
+              size={15}
+              ring={e.kind === "dev_buy" ? "ring-lime-400/70" : "ring-orange-400/70"}
+            />
+          )}
+          <span
+            className={
+              e.kind === "rug_detected"
+                ? "font-bold text-red-400"
+                : e.kind === "dev_sell"
+                  ? "font-bold text-orange-300"
+                  : "text-zinc-300"
+            }
+          >
             {e.kind === "rug_detected" ? `Burnt · ${e.text}` : e.text}
           </span>
         </span>

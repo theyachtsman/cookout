@@ -3,6 +3,7 @@ import {
   PODIUM_XP,
   REFERRAL_FEE_SHARE,
   XP_AWARDS,
+  isEnduranceMode,
   type Address,
   type Round,
   type RoundSummary,
@@ -33,6 +34,14 @@ export function evaluateRoundEnd(ctx: {
   const rugged = round.endReason === "rug_detected" || round.endReason === "liquidity_removed";
   const durationSeconds = Math.max(1, Math.floor((now - (round.liveAt ?? now)) / 1000));
   const season = store.seasonKey(now);
+
+  // Endurance has its own progression track. It has no clock, so its rewards
+  // key off real elapsed time and conviction rather than round-relative
+  // percentages: hours held, riding a launch to its bond, and staying in
+  // (profitably) after the dev sold their own bag.
+  const endurance = isEnduranceMode(round.mode);
+  const devSold = (meta.get(round.creatorAddress)?.tokensSoldBeforeEnd ?? 0) > 0;
+  const HOUR = 3_600_000;
 
   let winner: RoundSummary["winner"];
   let bestTrade: RoundSummary["bestTrade"];
@@ -170,6 +179,49 @@ export function evaluateRoundEnd(ctx: {
       store.trackActivity(addr, "graduations_held", 1, now);
     }
 
+    // ---- Endurance progression ----
+    if (endurance) {
+      const st = user.stats;
+      st.enduranceRounds = (st.enduranceRounds ?? 0) + 1;
+      store.trackActivity(addr, "endurance_played", 1, now);
+      grant("endurance_initiate");
+      if (st.enduranceRounds >= 25) grant("endurance_veteran");
+      if (won) store.trackActivity(addr, "endurance_profit", 1, now);
+
+      // Time actually held, in wall-clock terms — the whole point of a mode
+      // with no clock. An open position is held right up to the end.
+      if (m?.firstBuyAt) {
+        const heldMs = (m.fullExitAt ?? now) - m.firstBuyAt;
+        st.longestEnduranceHoldSeconds = Math.max(
+          st.longestEnduranceHoldSeconds ?? 0,
+          Math.floor(heldMs / 1000),
+        );
+        if (heldMs >= HOUR) {
+          award("endurance_long_hold");
+          grant("long_hauler");
+          store.trackActivity(addr, "endurance_long_holds", 1, now);
+        }
+        if (heldMs >= 24 * HOUR) {
+          award("endurance_marathon");
+          grant("marathon_runner");
+        }
+      }
+
+      // Rode it all the way to the bonding curve, still holding at the bell.
+      if (round.graduated && pos.tokens > 0) {
+        st.enduranceBonds = (st.enduranceBonds ?? 0) + 1;
+        award("endurance_bond");
+        grant("went_the_distance");
+        store.trackActivity(addr, "endurance_bonds", 1, now);
+      }
+
+      // Conviction: the dev dumped their own bag and you still came out ahead.
+      if (devSold && won && addr !== round.creatorAddress) {
+        award("endurance_unshaken");
+        grant("unshaken");
+      }
+    }
+
     // Lifetime milestone ladders (trades / rounds / cumulative PnL).
     store.checkMilestones(addr);
   }
@@ -238,6 +290,9 @@ export function evaluateRoundEnd(ctx: {
     if (round.graduated) {
       store.addXp(round.creatorAddress, XP_AWARDS.launched_graduate);
       store.grantAchievement(round.creatorAddress, "graduate_launcher");
+      // Taking a coin all the way to the bond with no clock forcing the issue
+      // is the hardest thing a creator can do here — its own legendary.
+      if (endurance) store.grantAchievement(round.creatorAddress, "endurance_launcher");
       // Burger economy: graduating a coin pays the creator + First Graduation.
       awardBurger(store, round.creatorAddress, "coin_graduation", { ref: round.id, now });
       awardBurgerOneTime(store, round.creatorAddress, "first_graduation", now);

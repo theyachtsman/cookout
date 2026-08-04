@@ -56,6 +56,16 @@ interface RunnableCoin {
   attempts: number;
 }
 
+/** Endurance holds are measured in hours and days, not round percentages. */
+function holdLabel(seconds: number): string {
+  if (seconds <= 0) return "—";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)}h`;
+  const days = Math.floor(seconds / 86_400);
+  const hours = Math.floor((seconds % 86_400) / 3600);
+  return hours ? `${days}d ${hours}h` : `${days}d`;
+}
+
 /** Fold a dev's rounds into one entry per coin, newest attempt first. */
 function foldRunnable(rounds: Round[]): RunnableCoin[] {
   const byCoin = new Map<string, RunnableCoin>();
@@ -326,6 +336,29 @@ export default function ProfilePage() {
               <StatCard icon="🔥" label="Win Streak" value={s.currentWinStreak} tone="text-orange-300" />
             </StatGrid>
           </section>
+
+          {/* Endurance runs on its own track (no clock, no bots), so its record
+              is kept and shown separately from the timed matches above. */}
+          {(s.enduranceRounds ?? 0) > 0 && (
+            <section>
+              <SectionTitle title="🕛 Endurance" />
+              <StatGrid>
+                <StatCard icon="🕛" label="Launches" value={s.enduranceRounds ?? 0} />
+                <StatCard
+                  icon="🎓"
+                  label="Held to Bond"
+                  value={s.enduranceBonds ?? 0}
+                  tone="text-lime-300"
+                />
+                <StatCard
+                  icon="⏳"
+                  label="Longest Hold"
+                  value={holdLabel(s.longestEnduranceHoldSeconds ?? 0)}
+                  tone="text-amber-300"
+                />
+              </StatGrid>
+            </section>
+          )}
 
           <section>
             <SectionTitle title="Recent Matches" />

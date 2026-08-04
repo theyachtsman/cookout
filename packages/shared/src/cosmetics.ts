@@ -62,6 +62,19 @@ export const COSMETICS: CosmeticDef[] = [
   { id: "t_firewalker", type: "title", name: "Fire Walker", value: "Fire Walker", unlock: { achievement: "heat_resistant" } },
   { id: "t_trialmaster", type: "title", name: "Trial Master", value: "Trial Master", unlock: { achievement: "fireproof" } },
   { id: "t_lastflame", type: "title", name: "The Last Flame", value: "The Last Flame", unlock: { achievement: "legend_hunter" } },
+
+  // Endurance cosmetics (earned through the no-timer launchpad track)
+  { id: "b_endurance", type: "badge", name: "Slow Cook", value: "🕛", unlock: { achievement: "endurance_initiate" } },
+  { id: "b_longhaul", type: "badge", name: "Long Haul", value: "🐢", unlock: { achievement: "long_hauler" } },
+  { id: "b_marathon", type: "badge", name: "Marathoner", value: "⏳", unlock: { achievement: "marathon_runner" } },
+  { id: "b_unshaken", type: "badge", name: "Unshaken", value: "🪨", unlock: { achievement: "unshaken" } },
+  { id: "b_builder", type: "badge", name: "Built to Last", value: "🏗️", unlock: { achievement: "endurance_launcher" } },
+  { id: "t_longhauler", type: "title", name: "Long Hauler", value: "Long Hauler", unlock: { achievement: "long_hauler" } },
+  { id: "t_marathoner", type: "title", name: "Marathoner", value: "Marathoner", unlock: { achievement: "marathon_runner" } },
+  { id: "t_stillstanding", type: "title", name: "Still Standing", value: "Still Standing", unlock: { achievement: "endurance_veteran" } },
+  { id: "t_distance", type: "title", name: "Went the Distance", value: "Went the Distance", unlock: { achievement: "went_the_distance" } },
+  { id: "t_unshaken", type: "title", name: "Unshaken", value: "Unshaken", unlock: { achievement: "unshaken" } },
+  { id: "t_builder", type: "title", name: "Built to Last", value: "Built to Last", unlock: { achievement: "endurance_launcher" } },
 ];
 
 export interface EquippedCosmetics {

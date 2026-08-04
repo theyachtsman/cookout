@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { KillFeedEvent, KillFeedKind } from "@cookout/shared";
+import { ActorFace } from "./ActorFace";
 
 /**
  * Two halves of the same idea: a persistent event strip that runs in every
@@ -58,6 +59,15 @@ export function EventStrip({
             <span key={e.id} className="flex shrink-0 items-center gap-1.5 whitespace-nowrap">
               {since && <span className="font-mono text-[10px] text-zinc-600">{stamp(e.at, since)}</span>}
               <span>{k.icon}</span>
+              {/* Dev trades carry the developer's face, so you can spot one
+                  scrolling past without reading the line. */}
+              {e.actor && (
+                <ActorFace
+                  actor={e.actor}
+                  size={16}
+                  ring={e.kind === "dev_buy" ? "ring-lime-400/70" : "ring-orange-400/70"}
+                />
+              )}
               <span className={k.cls}>{e.text}</span>
             </span>
           );
@@ -95,11 +105,38 @@ export function Callouts({ killfeed }: { killfeed: KillFeedEvent[] }) {
     <div className="pointer-events-none absolute right-3 top-3 z-30 flex w-64 flex-col gap-2">
       {shown.map((e) => {
         const k = KIND[e.kind];
+        const devSell = e.kind === "dev_sell";
         return (
           <div
             key={e.id}
-            className="animate-[fadein_.25s_ease] rounded-xl border border-zinc-700 bg-zinc-950/95 px-3 py-2 shadow-2xl shadow-black/60 backdrop-blur"
+            className={`animate-[fadein_.25s_ease] rounded-xl border bg-zinc-950/95 px-3 py-2 shadow-2xl shadow-black/60 backdrop-blur ${
+              devSell ? "border-orange-400/70 shadow-orange-500/20" : "border-zinc-700"
+            }`}
           >
+            {/* A dev sell is the one alert that names the person out loud: the
+                picture and handle sit above the line so nobody misses who. */}
+            {e.actor && (
+              <div className="mb-1 flex items-center gap-2">
+                <ActorFace
+                  actor={e.actor}
+                  size={22}
+                  ring={devSell ? "ring-orange-400/70" : "ring-lime-400/70"}
+                />
+                <span className="min-w-0 truncate text-[11px] font-black text-zinc-100">
+                  {e.actor.displayName ??
+                    `${e.actor.address.slice(0, 6)}…${e.actor.address.slice(-4)}`}
+                </span>
+                {e.actor.isCreator && (
+                  <span
+                    className={`shrink-0 rounded px-1 py-0.5 text-[9px] font-black uppercase ${
+                      devSell ? "bg-orange-400/20 text-orange-200" : "bg-lime-400/20 text-lime-200"
+                    }`}
+                  >
+                    Dev
+                  </span>
+                )}
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <span className="text-lg">{k.icon}</span>
               <span className={`text-xs font-black leading-tight ${k.cls}`}>{e.text}</span>

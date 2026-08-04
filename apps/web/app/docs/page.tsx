@@ -20,6 +20,7 @@ import {
   TRADE_XP,
   ACHIEVEMENT_XP,
   ACHIEVEMENTS,
+  XP_AWARDS,
   FLOOR_XP_WEEKLY_CAP,
   DAILY_STREAK_MILESTONES,
   WEEKLY_STREAK_MILESTONES,
@@ -333,12 +334,27 @@ export default function Docs() {
             <b className="text-lime-300">🕛 Endurance:</b> the plain launchpad, for when you just
             want to launch a coin instead of playing a timed round. There is{" "}
             <b>no clock</b> — it opens with the same Fair Open and then keeps trading until the coin
-            completes its bonding curve and serves up (or the dev rugs it). It&apos;s{" "}
-            <b>strictly PvP</b>: no bot swarm ever trades an Endurance coin, and no modifiers can be
-            added. Endurance runs on its own track, so any number can be live at once alongside the
-            timed matches — but it still has to clear the community vote to start. Active Endurance
-            launches get their own queue on the Cook Out page; when one serves up it lands in Past
-            Results under Endurance.
+            completes its bonding curve and serves up. It&apos;s <b>strictly PvP</b>: no bot swarm
+            ever trades an Endurance coin, and no modifiers can be added. Endurance runs on its own
+            track, so any number can be live at once alongside the timed matches — but it still has
+            to clear the community vote to start. Active Endurance launches get their own queue on
+            the Cook Out page; when one serves up it lands in Past Results under Endurance.
+          </p>
+          <p>
+            <b className="text-amber-300">No dev rug in Endurance.</b> There are no rug mechanics
+            here at all — no dev-dump auto-rug, no pool-drain rug, no dev sell lock, no reputation
+            hit and no launch ban. The reason is simple: the developer has to{" "}
+            <b>fair-enter their own coin</b> through the same Fair Open as everyone else, at the
+            same pull-up cap, with no pre-allocated bag. They hold nothing you could be rugged of,
+            so if they sell, they&apos;re just a trader selling — the price takes it and the market
+            moves on.
+          </p>
+          <p>
+            What you do get is <b>visibility</b>. Every developer sell is called out immediately{" "}
+            <b>with the dev&apos;s name and profile picture</b>: a full-screen banner in the arena, a
+            callout on the chart, a highlighted line in the event feed, and a message in the match
+            chat. A dev dumping their own coin isn&apos;t punished by the rules — it just tells the
+            room the dev isn&apos;t serious about it, and everyone can price that in.
           </p>
           <p className="rounded-xl border border-lime-400/30 bg-lime-400/[0.05] p-3 text-sm text-zinc-300">
             <b className="text-lime-300">Beta:</b> every mode is open to everyone from level 1, so
@@ -666,6 +682,20 @@ export default function Docs() {
                   <td className="py-2 text-zinc-400">
                     Just showing up and playing, first buys, profitable finishes, diamond hands,
                     perfect exits, whale hunts, rug survival. All pay, win or lose.
+                  </td>
+                </tr>
+                <tr className="border-t border-zinc-800">
+                  <td className="py-2 pr-4 font-bold">🕛 Endurance</td>
+                  <td className="py-2 pr-4 font-mono text-amber-300">
+                    {XP_AWARDS.endurance_long_hold}–{XP_AWARDS.endurance_bond}
+                  </td>
+                  <td className="py-2 text-zinc-400">
+                    Its own track, because it has no clock: XP for holding a position past an{" "}
+                    <b>hour</b> and past <b>24 hours</b>, for riding a launch all the way through its{" "}
+                    <b>bonding curve</b>, and for finishing in profit after the{" "}
+                    <b>dev sold</b>. Endurance has its own daily and weekly quests too, plus its own
+                    achievements, titles and badges — Long Hauler, Marathoner, Went the Distance,
+                    Unshaken, Built to Last.
                   </td>
                 </tr>
                 <tr className="border-t border-zinc-800">

@@ -302,7 +302,17 @@ export default function Submissions() {
                   );
                 })}
               </div>
-              {!GAME_MODE_MAP[form.mode].rugRules && (
+              {isEnduranceMode(form.mode) ? (
+                <div className="mt-2 rounded-lg bg-amber-500/[0.1] p-3 text-xs text-zinc-300">
+                  <b className="text-amber-300">🕛 Endurance: no dev rug, and no dev privileges.</b>{" "}
+                  You buy into your own coin through the same Fair Open as everyone else, at the same
+                  cap — you hold nothing anyone could be rugged of. So there&apos;s{" "}
+                  <b>no auto-rug, no sell lock, no reputation hit and no launch ban</b>: sell
+                  whenever you like. But every dev sell is called out loudly{" "}
+                  <b>with your name and profile picture</b> on the alerts, the chart, and in chat —
+                  the room will know, and they&apos;ll draw their own conclusions about the coin.
+                </div>
+              ) : !GAME_MODE_MAP[form.mode].rugRules ? (
                 <div className="mt-2 rounded-lg bg-red-500/[0.1] p-3 text-xs text-zinc-300">
                   <b className="text-red-300">🔥 {GAME_MODE_MAP[form.mode].name}: rug rules off.</b>{" "}
                   No dev-dump auto-rug, no pool-drain rug, no dev sell lock. As the dev you can{" "}
@@ -310,7 +320,7 @@ export default function Submissions() {
                   launch ban. Nobody gets &quot;rugged,&quot; the price action is the whole game.
                   Traders, it&apos;s fast and it&apos;s violent. Get in, get a bag, get out.
                 </div>
-              )}
+              ) : null}
             </div>
             {/* Modifiers — optional tweaks layered on the mode. Endurance takes
                 none: every modifier acts on the clock, and it has no clock. */}
@@ -403,7 +413,10 @@ export default function Submissions() {
           (cumulative) pulls the launch and brands it Burnt, which tanks your reputation and bans you
           from launching. Trim to take profit; don&apos;t full-send your own bag.{" "}
           <b className="text-amber-300">Blitz and Reflex turn rug rules off</b>: no auto-rug, no
-          sell lock, no penalty. The price action is the whole game.
+          sell lock, no penalty. The price action is the whole game.{" "}
+          <b className="text-amber-300">Endurance has no dev rug either</b> — the dev fair-enters
+          like everyone else, so a dev sell isn&apos;t a rug, just a very loud signal posted under
+          their name and face.
         </div>
       </section>
 

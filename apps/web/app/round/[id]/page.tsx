@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import type {
   AuctionResult,
   Candle,
+  KillFeedActor,
   KillFeedEvent,
   MyFill,
   Round,
@@ -27,6 +28,7 @@ import { BattleFX, type FxEvent, type FxKind } from "../../../components/BattleF
 import { ArenaHeader } from "../../../components/arena/ArenaHeader";
 import { EventStrip, PhaseFlash } from "../../../components/arena/ArenaEvents";
 import { EdgeCallouts } from "../../../components/arena/EdgeCallouts";
+import { ActorFace } from "../../../components/arena/ActorFace";
 import { FirstMatchCelebration } from "../../../components/arena/FirstMatchCelebration";
 import { RoundOverlays, UrgencyPulse } from "../../../components/arena/RoundOverlays";
 import { LiveLeaders } from "../../../components/arena/LiveLeaders";
@@ -119,6 +121,12 @@ export default function RoundPage() {
   const [flash, setFlash] = useState<{ text: string; tone: "go" | "end" | "bad" } | null>(null);
   // Over Time: a big buzzer-beater banner when the coin earns a bonus minute.
   const [overtime, setOvertime] = useState<{ minute: number } | null>(null);
+  // The dev-sell banner: who sold, with their picture, front and centre.
+  const [devSell, setDevSell] = useState<{
+    id: string;
+    text: string;
+    actor?: KillFeedActor;
+  } | null>(null);
   // The arena doors opening: one hard flash across the chart on COOK!.
   const [launching, setLaunching] = useState(false);
   const lastPhase = useRef<string>("");
@@ -271,7 +279,15 @@ export default function RoundPage() {
             fireFx("milestone");
           } else if (kind === "new_leader") {
             playHorn();
-          } else if (kind === "big_sell" || kind === "dev_sell") {
+          } else if (kind === "dev_sell") {
+            // The dev selling their own coin isn't a rug — but the room should
+            // see exactly who did it, so it gets the full-bleed banner.
+            playThud();
+            fireFx("sell");
+            const ev = e.event as KillFeedEvent;
+            setDevSell({ id: ev.id, text: ev.text, actor: ev.actor });
+            setTimeout(() => setDevSell((d) => (d?.id === ev.id ? null : d)), 3400);
+          } else if (kind === "big_sell") {
             playThud();
           } else if (kind === "graduated") {
             playFanfare();
@@ -451,6 +467,27 @@ export default function RoundPage() {
                   x{overtime.minute}
                 </span>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+      {devSell && (
+        <div className="pointer-events-none fixed inset-0 z-50 flex items-center justify-center">
+          <div
+            className="animate-[bannerIn_.35s_cubic-bezier(.2,1.5,.4,1)] flex max-w-[92vw] flex-col items-center text-center"
+            style={{ animationFillMode: "both" }}
+          >
+            {devSell.actor && (
+              <ActorFace actor={devSell.actor} size={96} ring="ring-2 ring-orange-400" />
+            )}
+            <div className="mt-3 text-4xl font-black tracking-tight text-orange-300 drop-shadow-[0_0_30px_rgba(251,146,60,0.6)] md:text-6xl">
+              ⚠️ DEV SOLD
+            </div>
+            <div className="mt-1 text-xl font-black text-orange-100 md:text-2xl">
+              {devSell.actor?.displayName ?? "The dev"}
+            </div>
+            <div className="mt-1 max-w-xl text-sm font-bold text-zinc-300 md:text-base">
+              {devSell.text}
             </div>
           </div>
         </div>

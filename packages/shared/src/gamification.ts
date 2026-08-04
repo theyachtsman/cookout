@@ -15,6 +15,13 @@ export const XP_AWARDS = {
   launched_graduate: 200, // creator whose round graduated
   community_pick: 100, // creator whose submission won the vote
   degen_survivor: 80, // positive PnL in a degen round
+  // Endurance (the no-timer launchpad). It rewards patience rather than
+  // reflexes, so the payouts sit on holding through real time and on riding a
+  // launch all the way to its bond.
+  endurance_long_hold: 50, // held an Endurance position ≥ 1 hour
+  endurance_marathon: 120, // held an Endurance position ≥ 24 hours
+  endurance_bond: 150, // held an Endurance coin through its bonding curve
+  endurance_unshaken: 90, // profited in an Endurance launch after the dev sold
 } as const;
 
 export type XpEventKind = keyof typeof XP_AWARDS;
@@ -194,6 +201,15 @@ export const ACHIEVEMENTS: AchievementDef[] = [
   { id: "fireproof", name: "Fireproof", description: "Won 50 Flame Trials", rarity: "epic" },
   { id: "untouchable", name: "Untouchable", description: "Won a Flame Trial without going underwater", rarity: "epic" },
   { id: "legend_hunter", name: "Legend Hunter", description: "Won a Mythic-tier Flame Trial", rarity: "legendary" },
+  // Endurance (no-timer launchpad). These reward time in the seat and
+  // conviction — nothing here can be cleared in a five-minute round.
+  { id: "endurance_initiate", name: "Slow Cook", description: "Played your first Endurance launch", rarity: "common" },
+  { id: "long_hauler", name: "Long Hauler", description: "Held an Endurance position for over an hour", rarity: "rare" },
+  { id: "marathon_runner", name: "Marathoner", description: "Held an Endurance position for over 24 hours", rarity: "epic" },
+  { id: "endurance_veteran", name: "Still Standing", description: "Played 25 Endurance launches", rarity: "rare" },
+  { id: "went_the_distance", name: "Went the Distance", description: "Held an Endurance coin through its bonding curve", rarity: "epic" },
+  { id: "unshaken", name: "Unshaken", description: "Finished an Endurance launch in profit after the dev sold", rarity: "epic" },
+  { id: "endurance_launcher", name: "Built to Last", description: "Launched an Endurance coin that completed its bonding curve", rarity: "legendary" },
 ];
 
 /** One-time XP an achievement grants on first unlock (0 if unknown id). */

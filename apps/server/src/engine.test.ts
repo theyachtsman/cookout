@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import type { ServerEvent, TokenConcept } from "@cookout/shared";
+import { dayKey, unlockedCosmetics, weekKey, type ServerEvent, type TokenConcept } from "@cookout/shared";
 import { RoundEngine } from "./engine.js";
 import { nextFreeSlot } from "./seed.js";
 import { Store } from "./store.js";
@@ -8,7 +8,15 @@ import { Store } from "./store.js";
 function setup() {
   const store = new Store();
   const events: ServerEvent[] = [];
-  const engine = new RoundEngine(store, (_roundId, e) => events.push(e));
+  // System banners are posted through the `sys` hook (index.ts wires it to the
+  // chat room); record them so tests can assert on the ones that matter.
+  const sys: { room: string; kind: string; text: string }[] = [];
+  const engine = new RoundEngine(
+    store,
+    (_roundId, e) => events.push(e),
+    () => 0,
+    (room, kind, text) => sys.push({ room, kind, text }),
+  );
   const creator = store.getOrCreateUser("0x00000000000000000000000000000000000000c1");
   const concept: TokenConcept = {
     id: store.id(),
@@ -21,7 +29,7 @@ function setup() {
     createdAt: 0,
   };
   store.concepts.set(concept.id, concept);
-  return { store, engine, events, concept };
+  return { store, engine, events, sys, concept };
 }
 
 const A = "0x00000000000000000000000000000000000000aa";
@@ -330,4 +338,125 @@ test("Endurance never blocks the timed match calendar", () => {
   // would push every timed match out forever. It must be ignored instead.
   const slot = nextFreeSlot(store, 30_000, t0 + 10_000);
   assert.ok(slot <= t0 + 40_000, `slot should ignore the endless round, got ${slot - t0}ms after t0`);
+});
+
+test("Endurance: the dev can dump freely — no rug, no ban, just a named alert", () => {
+  const { store, engine, sys, concept } = setup();
+  const t0 = 9_000_000_000;
+  concept.mode = "endurance";
+  const dev = store.getOrCreateUser(concept.creatorAddress);
+  dev.displayName = "hood_chef";
+  dev.avatarUrl = "data:image/png;base64,ZmFrZQ==";
+  const round = engine.scheduleRound(concept, "standard", t0);
+  assert.equal(round.config.rugRules, false, "Endurance has no rug mechanics");
+  assert.equal(round.config.devSellLockSeconds, 0, "and no dev sell lock");
+
+  engine.tick(t0);
+  engine.tick(round.queueOpensAt!);
+  // The dev fair-enters through the same queue as everyone else.
+  store.arenaDeposit(concept.creatorAddress, 10);
+  store.arenaDeposit(A, 10);
+  engine.submitIntent(round.id, concept.creatorAddress, 0.3, undefined, round.queueOpensAt! + 1);
+  engine.submitIntent(round.id, A, 0.3, undefined, round.queueOpensAt! + 2);
+  engine.tick(round.queueClosesAt!);
+  assert.equal(round.state, "live");
+
+  // The dev dumps their whole bag the instant it opens. In a rug-rules mode
+  // that ends the round as a rug; here it's just a sell.
+  engine.trade(round.id, concept.creatorAddress, "sell", { pct: 100 }, round.liveAt! + 1000);
+  assert.equal(round.state, "live", "a dev dump doesn't end an Endurance round");
+  assert.equal(round.endReason, undefined);
+  assert.equal(store.getOrCreateUser(concept.creatorAddress).rugBans ?? undefined, undefined);
+
+  // …but it is announced, by name and with their picture, and says how much.
+  const feed = store.killfeed.get(round.id) ?? [];
+  const devSell = feed.filter((e) => e.kind === "dev_sell");
+  assert.equal(devSell.length, 1, "the sell is called out");
+  const alert = devSell[0]!;
+  assert.match(alert.text, /hood_chef/, "the dev is named");
+  assert.match(alert.text, /ENTIRE BAG/, "a full exit says so plainly");
+  assert.equal(alert.actor?.address, concept.creatorAddress);
+  assert.equal(alert.actor?.displayName, "hood_chef");
+  assert.equal(alert.actor?.avatarUrl, dev.avatarUrl, "the alert carries their picture");
+  assert.equal(alert.actor?.isCreator, true);
+
+  // And it breaks into the match chat so the room can't miss it.
+  assert.ok(
+    sys.some((m) => m.room === round.id && m.kind === "dev_sell" && /hood_chef/.test(m.text)),
+    "the dev sell posts a system banner in chat",
+  );
+});
+
+test("timed modes still rug on a dev dump", () => {
+  const { store, engine, concept } = setup();
+  const t0 = 10_000_000_000;
+  concept.mode = "classic";
+  const round = engine.scheduleRound(concept, "standard", t0);
+  assert.notEqual(round.config.rugRules, false);
+  engine.tick(t0);
+  engine.tick(round.queueOpensAt!);
+  store.arenaDeposit(concept.creatorAddress, 10);
+  store.arenaDeposit(A, 10);
+  engine.submitIntent(round.id, concept.creatorAddress, 0.3, undefined, round.queueOpensAt! + 1);
+  engine.submitIntent(round.id, A, 0.3, undefined, round.queueOpensAt! + 2);
+  engine.tick(round.queueClosesAt!);
+
+  engine.trade(
+    round.id,
+    concept.creatorAddress,
+    "sell",
+    { pct: 100 },
+    round.liveAt! + round.config.devSellLockSeconds * 1000 + 1000,
+  );
+  assert.equal(round.endReason, "rug_detected", "the dev-dump auto-rug still applies elsewhere");
+});
+
+test("Endurance progression: quests, achievements, titles and badges", () => {
+  const { store, engine, concept } = setup();
+  const t0 = 11_000_000_000;
+  concept.mode = "endurance";
+  const round = engine.scheduleRound(concept, "standard", t0);
+  engine.tick(t0);
+  engine.tick(round.queueOpensAt!);
+  store.arenaDeposit(concept.creatorAddress, 10);
+  store.arenaDeposit(A, 10);
+  engine.submitIntent(round.id, concept.creatorAddress, 0.3, undefined, round.queueOpensAt! + 1);
+  engine.submitIntent(round.id, A, 0.5, undefined, round.queueOpensAt! + 2);
+  engine.tick(round.queueClosesAt!);
+
+  // The dev bails early; A holds on for two days and rides it to the bond.
+  engine.trade(round.id, concept.creatorAddress, "sell", { pct: 100 }, round.liveAt! + 60_000);
+  const end = round.liveAt! + 48 * 3_600_000;
+  engine.endRound(round, "graduated", end, true);
+
+  const a = store.getOrCreateUser(A);
+  assert.equal(a.stats.enduranceRounds, 1);
+  assert.equal(a.stats.enduranceBonds, 1);
+  assert.ok(a.stats.longestEnduranceHoldSeconds! >= 47 * 3600, "records the real hold time");
+
+  // Achievements: the Endurance ladder, held-to-bond, and conviction.
+  for (const id of ["endurance_initiate", "long_hauler", "marathon_runner", "went_the_distance", "unshaken"])
+    assert.ok(a.achievements.includes(id), `A unlocked ${id}`);
+
+  // Quest metrics feed the daily/weekly Endurance missions.
+  const daily = a.activity[dayKey(end)] ?? {};
+  const weekly = a.activity[weekKey(end)] ?? {};
+  for (const metric of ["endurance_played", "endurance_profit", "endurance_long_holds", "endurance_bonds"] as const) {
+    assert.ok((daily[metric] ?? 0) >= 1, `${metric} tracked for the daily Endurance quests`);
+    assert.ok((weekly[metric] ?? 0) >= 1, `${metric} tracked for the weekly Endurance quests`);
+  }
+
+  // Titles and badges are unlocked by those achievements.
+  const unlocked = unlockedCosmetics({ level: a.level, achievements: a.achievements }).map((c) => c.id);
+  for (const id of ["b_endurance", "b_longhaul", "b_marathon", "b_unshaken", "t_longhauler", "t_marathoner", "t_distance", "t_unshaken"])
+    assert.ok(unlocked.includes(id), `cosmetic ${id} unlocked`);
+
+  // The creator who took a no-timer launch all the way gets the legendary.
+  const dev = store.getOrCreateUser(concept.creatorAddress);
+  assert.ok(dev.achievements.includes("endurance_launcher"), "Built to Last");
+  assert.ok(
+    unlockedCosmetics({ level: dev.level, achievements: dev.achievements })
+      .map((c) => c.id)
+      .includes("t_builder"),
+  );
 });
