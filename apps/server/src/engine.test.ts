@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { ServerEvent, TokenConcept } from "@cookout/shared";
 import { RoundEngine } from "./engine.js";
+import { nextFreeSlot } from "./seed.js";
 import { Store } from "./store.js";
 
 function setup() {
@@ -278,4 +279,55 @@ test("limit intents below clearing are refunded in full at settlement", () => {
   assert.ok(Math.abs((a.arenaBalance ?? 0) - 10) < 1e-9, "excluded limit intent fully refunded");
   assert.equal(store.position(round.id, A).tokens, 0);
   assert.ok(store.position(round.id, B).tokens > 0);
+});
+
+test("Endurance: no clock, no low-volume cutoff — it runs until it bonds", () => {
+  const { store, engine, concept } = setup();
+  const t0 = 7_000_000_000;
+  concept.mode = "endurance";
+  concept.modifiers = { overtime: true }; // must be dropped: no clock to extend
+  const round = engine.scheduleRound(concept, "standard", t0);
+  assert.equal(round.modifiers, undefined, "Endurance takes no modifiers");
+  assert.equal(round.config.overtime, false);
+  assert.equal(round.config.mcapTarget, 0, "no early mcap ending");
+
+  engine.tick(t0);
+  engine.tick(round.queueOpensAt!);
+  store.arenaDeposit(A, 10);
+  engine.submitIntent(round.id, A, 0.2, undefined, round.queueOpensAt! + 1);
+  engine.tick(round.queueClosesAt!);
+  assert.equal(round.state, "live");
+  assert.equal(round.endsAt, undefined, "an Endurance round has no end time");
+
+  // Way past any normal match length, and dead quiet the whole way: a timed
+  // round would have ended on the timer or on low volume. This one is still on.
+  let now = round.liveAt! + 1000;
+  for (let i = 0; i < 60; i++) {
+    now += 60_000;
+    engine.tick(now);
+  }
+  assert.equal(round.state, "live", "still trading an hour later with zero volume");
+
+  // The one ending that does apply: completing the bonding curve.
+  engine.endRound(round, "graduated", now + 1000);
+  assert.equal(round.state, "results");
+  assert.equal(round.graduated, true);
+});
+
+test("Endurance never blocks the timed match calendar", () => {
+  const { store, engine, concept } = setup();
+  const t0 = 8_000_000_000;
+  concept.mode = "endurance";
+  const endless = engine.scheduleRound(concept, "standard", t0);
+  engine.tick(t0);
+  engine.tick(endless.queueOpensAt!);
+  store.arenaDeposit(A, 10);
+  engine.submitIntent(endless.id, A, 0.2, undefined, endless.queueOpensAt! + 1);
+  engine.tick(endless.queueClosesAt!);
+  assert.equal(endless.state, "live");
+
+  // A live Endurance round has no endsAt, so a slot search that counted it
+  // would push every timed match out forever. It must be ignored instead.
+  const slot = nextFreeSlot(store, 30_000, t0 + 10_000);
+  assert.ok(slot <= t0 + 40_000, `slot should ignore the endless round, got ${slot - t0}ms after t0`);
 });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { Round } from "@cookout/shared";
+import { isEnduranceMode, type Round } from "@cookout/shared";
 import { CoinSocials } from "../CoinSocials";
 import { OverTimeChip } from "../CoinCard";
 import { CreatorBadge } from "../CreatorBadge";
@@ -82,6 +82,17 @@ function skinFor(round: Round): PhaseSkin {
         bar: "bg-violet-400",
       };
     case "live":
+      // Endurance has no clock: it trades until the bonding curve completes,
+      // so there's no deadline to count down to.
+      if (isEnduranceMode(round.mode))
+        return {
+          label: "LIVE TRADING",
+          detail: "No timer. This runs until the coin serves up.",
+          border: "border-emerald-500/60",
+          text: "text-emerald-300",
+          bar: "bg-emerald-400",
+          glow: true,
+        };
       return {
         label: "LIVE TRADING",
         detail: "Market closes in",

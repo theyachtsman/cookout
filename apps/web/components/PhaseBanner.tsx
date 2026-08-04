@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Round } from "@cookout/shared";
+import { isEnduranceMode, type Round } from "@cookout/shared";
 
 /** Big always-visible banner: what phase the round is in, what happens next,
  *  and a live countdown + progress bar to the next transition. */
@@ -56,7 +56,9 @@ export function PhaseBanner({ round }: { round: Round }) {
       case "live":
         return {
           label: "● LIVE TRADING",
-          detail: "Round ends on the timer, a rug, low volume, or the mcap target",
+          detail: isEnduranceMode(round.mode)
+            ? "No timer. This runs until the coin bonds — or the dev rugs it"
+            : "Round ends on the timer, a rug, low volume, or the mcap target",
           from: round.liveAt,
           until: round.endsAt,
           tone: "border-emerald-500/60 bg-emerald-500/10",

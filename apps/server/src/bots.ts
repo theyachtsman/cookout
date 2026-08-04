@@ -11,7 +11,7 @@
  * excluded from weekly jackpot payouts so real players always win the pot.
  * Enabled unless BOTS=0; always off on CHAIN_ONLY deployments.
  */
-import { spotPrice, type ChatMessage, type Round } from "@cookout/shared";
+import { isEnduranceMode, spotPrice, type ChatMessage, type Round } from "@cookout/shared";
 import type { Broadcast, RoundEngine } from "./engine.js";
 import type { Store } from "./store.js";
 
@@ -249,6 +249,9 @@ export class BotSwarm {
     this.voteOnConcepts(now);
     for (const round of this.store.rounds.values()) {
       if (round.chain) continue; // real-money rounds are humans-only
+      // Endurance is strictly PvP: the swarm never pulls up, trades, or talks
+      // in a launchpad round. Whatever happens there is real players only.
+      if (isEnduranceMode(round.mode)) continue;
       const phase = round.state;
       if (phase === "lobby" || phase === "queue_open") this.preRound(round, now);
       else if (phase === "live") this.live(round, now);

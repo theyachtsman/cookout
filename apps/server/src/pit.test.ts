@@ -4,6 +4,7 @@ import { HOUSE_SPECIAL_MAP, type TokenConcept } from "@cookout/shared";
 import { RoundEngine } from "./engine.js";
 import { enterPit, withdrawPit } from "./pit-pools.js";
 import { resolvePitRound } from "./pit-results.js";
+import { PIT_PENDING_STATES } from "./routes.js";
 import { Store } from "./store.js";
 
 function pitConcept(store: Store): TokenConcept {
@@ -245,4 +246,34 @@ test("Pit: an unclaimed bucket funds the weekly jackpot", () => {
     now: Date.now(),
   });
   assert.ok(store.jackpotPool > jackpotBefore, "unclaimed prediction bucket swept to jackpot");
+});
+
+test("Pit queue timeout: cancelled, refunded, and the coin is free to run back", () => {
+  const store = new Store();
+  const engine = new RoundEngine(store, () => {});
+  store.getOrCreateUser(alice).arenaBalance = 10;
+  const now = Date.now();
+  const concept = pitConcept(store);
+  const round = engine.schedulePitRound(concept, now);
+
+  // One player pulls up — never enough for quorum, so the queue just runs out.
+  enterPit(store, round, alice, { prediction: "timer", predictionStake: 1.0 });
+  assert.equal(store.getOrCreateUser(alice).arenaBalance, 9);
+
+  engine.tick(now + round.pit!.queueMaxSeconds * 1000 + 1);
+  assert.equal(round.state, "cancelled");
+  assert.equal(store.getOrCreateUser(alice).arenaBalance, 10, "deposit refunded");
+
+  // The regression: a cancelled match used to still read as "pending", so its
+  // coin could never be relaunched ("this coin already has a pending Pit match").
+  assert.equal(PIT_PENDING_STATES.has(round.state), false);
+  const stillPending = [...store.rounds.values()].some(
+    (r) => r.conceptId === concept.id && r.matchType === "pit" && PIT_PENDING_STATES.has(r.state),
+  );
+  assert.equal(stillPending, false, "the coin is free for a fresh Pit match");
+
+  // And running it back really does open a new lobby on the same coin.
+  const fresh = engine.schedulePitRound(concept, now + 1000);
+  assert.equal(fresh.state, "lobby");
+  assert.notEqual(fresh.id, round.id);
 });

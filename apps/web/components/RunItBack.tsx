@@ -7,6 +7,7 @@ import {
   DEFAULT_GAME_MODE,
   GAME_MODES,
   MODIFIERS,
+  isEnduranceMode,
   type GameMode,
   type RiskTier,
 } from "@cookout/shared";
@@ -65,7 +66,8 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
     setError("");
     try {
       const back = await api<{ conceptId: string }>(`/api/rounds/${round.id}/runback`, {
-        body: { mode, modifiers: { overtime } },
+        // Endurance takes no modifiers (the server enforces this too).
+        body: { mode, modifiers: isEnduranceMode(mode) ? {} : { overtime } },
       });
       router.push(`/vote#coin-${back.conceptId}`);
     } catch (err) {
@@ -181,7 +183,12 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
 
                   <div className="mt-3">
                     <div className="mb-1.5 text-xs text-zinc-500">Modifiers</div>
-                    {MODIFIERS.map((mod) => {
+                    {isEnduranceMode(mode) ? (
+                      <div className="rounded-xl border border-zinc-800 p-2.5 text-[11px] leading-snug text-zinc-500">
+                        Endurance takes no modifiers — there&apos;s no clock for one to act on.
+                      </div>
+                    ) : (
+                    MODIFIERS.map((mod) => {
                       const on = mod.key === "overtime" ? overtime : false;
                       return (
                         <button
@@ -208,7 +215,8 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
                           </span>
                         </button>
                       );
-                    })}
+                    })
+                    )}
                   </div>
 
                   {error && <p className="mt-3 text-center text-sm text-red-300">{error}</p>}

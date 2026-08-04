@@ -12,17 +12,14 @@ import {
   marketCap,
   type PitDurationKey,
 } from "@cookout/shared";
-import type { GoonOverlayEvent } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
 import { useSocial } from "../../lib/social";
-import { useRoundSocket } from "../../lib/useRoundSocket";
 import type { PitCard, PitFeed } from "../../lib/pit";
 import { fmtVal } from "../../lib/pit";
 import { Countdown } from "../../components/Countdown";
 import { ImagePicker } from "../../components/ImagePicker";
 import { RunItBack } from "../../components/PitResults";
-import { GoonOverlayLayer, useGoonOverlays } from "../../components/GoonOverlay";
 
 type Fmt = (eth: number) => string;
 
@@ -60,13 +57,18 @@ function Card({ c, me, fmt }: { c: PitCard; me?: string; fmt: Fmt }) {
   const r = c.round;
   const live = r.state === "live";
   const lobby = r.state === "lobby";
-  const done = r.state === "results";
+  // A queue timeout cancels the match and refunds every deposit — that's a
+  // finished match too, and its creator can run it straight back.
+  const cancelled = r.state === "cancelled";
+  const done = r.state === "results" || cancelled;
   const mine = !!me && r.creatorAddress.toLowerCase() === me;
   const armed = lobby && !!r.queueOpensAt;
   const waiting = lobby && !r.queueOpensAt;
   const pit = c.summary?.pit;
   const predMode = r.pit?.predictionMode ?? true;
   const tradeMode = r.pit?.tradingMode ?? true;
+  // The viewer's own Flame Trial result on this match, when they ran one.
+  const myTrial = me ? pit?.players.find((p) => p.address === me && p.trial) : undefined;
 
   return (
     <div className="group/card flex w-72 shrink-0 flex-col overflow-hidden rounded-2xl bg-zinc-900/40 ring-1 ring-white/10 transition hover:ring-white/20">
@@ -112,15 +114,37 @@ function Card({ c, me, fmt }: { c: PitCard; me?: string; fmt: Fmt }) {
           )}
         </div>
 
-        {done && pit ? (
+        {cancelled ? (
+          <div className="mt-auto space-y-1 text-xs">
+            <div className="font-black text-amber-300">🚫 Cancelled</div>
+            <div className="text-zinc-500">
+              The queue timed out before it filled. Every deposit was refunded.
+            </div>
+          </div>
+        ) : done && pit ? (
           <div className="mt-auto space-y-1 text-xs">
             <div className={`font-black ${outcomeLabel(pit.outcome).cls}`}>{outcomeLabel(pit.outcome).text}</div>
-            <div className="text-zinc-500">
-              {[predMode && `${pit.prediction.winners} prediction`, tradeMode && `${pit.trading.qualified} trading`]
-                .filter(Boolean)
-                .join(" · ")}{" "}
-              winner{pit.prediction.winners + pit.trading.qualified === 1 ? "" : "s"}
-            </div>
+            {/* Flame Trial is solo, so the only result that matters on a past
+                card is the player's own: did they clear the bar or not. */}
+            {myTrial ? (
+              <div
+                className={`font-black ${myTrial.trialPassed ? "text-lime-300" : "text-red-400"}`}
+              >
+                🔥 Trial {myTrial.trialPassed ? "passed" : "failed"}
+                <span className="ml-1 font-mono font-bold text-zinc-500">
+                  {(myTrial.trialPnlPct ?? 0) >= 0 ? "+" : ""}
+                  {Math.round((myTrial.trialPnlPct ?? 0) * 100)}% /{" "}
+                  {`+${Math.round((myTrial.trialRequiredBps ?? 0) / 100)}%`}
+                </span>
+              </div>
+            ) : (
+              <div className="text-zinc-500">
+                {[predMode && `${pit.prediction.winners} prediction`, tradeMode && `${pit.trading.qualified} trading`]
+                  .filter(Boolean)
+                  .join(" · ")}{" "}
+                winner{pit.prediction.winners + pit.trading.qualified === 1 ? "" : "s"}
+              </div>
+            )}
           </div>
         ) : (
           <div className="mt-auto space-y-1">
@@ -155,6 +179,8 @@ function Card({ c, me, fmt }: { c: PitCard; me?: string; fmt: Fmt }) {
                 </span>
               ) : null}
             </>
+          ) : cancelled ? (
+            <span className="text-zinc-500">Never went live · run it back</span>
           ) : done ? (
             <span className="text-zinc-500">View results</span>
           ) : (
@@ -599,15 +625,8 @@ export default function PitPage() {
   const ethUsd = jackpot?.ethUsd ?? 0;
   const fmt: Fmt = (eth) => fmtVal(eth, usd, ethUsd);
 
-  // Flame Goon Squad cinematic moments in the general Pit room.
-  const { overlays, push } = useGoonOverlays();
-  useRoundSocket(PIT_ROOM, (ev) => {
-    if (ev.type === "goon_overlay") push(ev.overlay as GoonOverlayEvent);
-  });
-
   return (
     <div className="space-y-7">
-      <GoonOverlayLayer overlays={overlays} />
       <header className="rounded-3xl bg-gradient-to-br from-lime-500/10 via-zinc-900/40 to-zinc-950 p-6 ring-1 ring-white/10 sm:p-8">
         <div className="min-w-0">
           <div className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-300">

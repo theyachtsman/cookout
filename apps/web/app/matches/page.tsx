@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { CoinCard, ModeChip, OverTimeChip } from "../../components/CoinCard";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { GAME_MODES, marketCap, type GameMode, type Round } from "@cookout/shared";
+import { GAME_MODES, isEnduranceMode, marketCap, type GameMode, type Round } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { audio } from "../../lib/audio";
 import { Countdown } from "../../components/Countdown";
@@ -68,8 +68,16 @@ export default function Home() {
     };
   }, []);
 
-  const active = rounds.filter((r) => ACTIVE_STATES.includes(r.state));
-  const scheduled = rounds.filter((r) => r.state === "scheduled");
+  // Endurance is the launchpad track, not a timed match: it runs indefinitely
+  // and any number can be live at once, so it never takes the hero slot or a
+  // place in Up Next. It gets its own active queue view below instead.
+  const timed = rounds.filter((r) => !isEnduranceMode(r.mode));
+  const endurance = rounds.filter(
+    (r) => isEnduranceMode(r.mode) && (ACTIVE_STATES.includes(r.state) || r.state === "scheduled"),
+  );
+
+  const active = timed.filter((r) => ACTIVE_STATES.includes(r.state));
+  const scheduled = timed.filter((r) => r.state === "scheduled");
 
   // The featured slot: a truly-live round (hottest by market cap) wins; else the
   // nearest opening round; else the soonest scheduled teaser.
@@ -96,8 +104,22 @@ export default function Home() {
     [active, scheduled, hero],
   );
 
+  // Active Endurance launches, closest-to-trading first. There's no "past
+  // Endurance" rail: when one bonds it lands in Past Results under Endurance.
+  const enduranceQueue = useMemo(
+    () =>
+      [...endurance].sort(
+        (a, b) =>
+          (STATE_ORDER[a.state] ?? 9) - (STATE_ORDER[b.state] ?? 9) || a.scheduledAt - b.scheduledAt,
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [rounds],
+  );
+
+  // Past Results covers coins launched in a game mode. Pre-game-mode launches
+  // carry no mode and are dropped rather than shown in an "Unlabeled" rail.
   const finished = useMemo(
-    () => rounds.filter((r) => r.state === "results" || r.state === "ended"),
+    () => rounds.filter((r) => !!r.mode && (r.state === "results" || r.state === "ended")),
     [rounds],
   );
   const counts = useMemo(
@@ -169,24 +191,15 @@ export default function Home() {
         },
       ];
     }
-    const byMode = GAME_MODES.map((m) => ({
+    // Mode shelves only. Pre-game-mode launches have no shelf of their own —
+    // they're history, and an "Unlabeled" rail just clutters the page.
+    return GAME_MODES.map((m) => ({
       key: m.key,
       title: m.name,
       icon: MODE_ICON[m.key],
       tagline: m.tagline,
       rounds: sortRounds(visible.filter((r) => r.mode === m.key)),
     }));
-    const unlabeled = sortRounds(visible.filter((r) => !r.mode));
-    return [
-      ...byMode,
-      {
-        key: "unlabeled",
-        title: "Unlabeled",
-        icon: "🪙",
-        tagline: "Legacy launches",
-        rounds: unlabeled,
-      },
-    ];
   }, [groupBy, visible, sortRounds]);
 
   const nonEmpty = groups.filter((g) => g.rounds.length > 0);
@@ -240,6 +253,30 @@ export default function Home() {
           </div>
         )}
       </section>
+
+      {enduranceQueue.length > 0 && (
+        <section>
+          <div className="mb-2 flex flex-wrap items-baseline gap-2">
+            <h2 className="text-sm font-black uppercase tracking-wide text-zinc-300">
+              🕛 Endurance
+            </h2>
+            <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-bold text-zinc-400">
+              {enduranceQueue.length} active
+            </span>
+            <p className="text-xs text-zinc-500">
+              No timer. These run until the coin completes its bonding curve — pure PvP, no bots, no
+              modifiers.
+            </p>
+          </div>
+          <div className="no-scrollbar flex gap-4 overflow-x-auto py-2">
+            {enduranceQueue.map((r) => (
+              <div key={r.id} className="w-80 shrink-0">
+                <RoundCard round={r} />
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {finished.length > 0 && (
         <section>
@@ -685,7 +722,11 @@ function RoundCard({ round }: { round: Round }) {
               Queue closes in <Countdown to={round.queueClosesAt} />
             </>
           )}
-          {round.state === "live" && <span className="text-emerald-400">Trading now</span>}
+          {round.state === "live" && (
+            <span className="text-emerald-400">
+              Trading now{isEnduranceMode(round.mode) && " · no timer, runs to the bond"}
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <ShillButton round={round} className="px-3 py-2" />

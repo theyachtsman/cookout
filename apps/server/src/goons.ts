@@ -4,9 +4,9 @@
  * Event-driven, never timer-scripted: gameplay reports "moments" (via
  * store.onPitMoment) and this engine decides — using cooldowns, human-priority,
  * per-persona chattiness, rarity, schedules, weighted anti-repeat dialogue,
- * continuity memory, and rivalries — whether anyone reacts, who, with what line,
- * and whether the moment earns a cinematic overlay. Players always come first:
- * if a human just spoke, the Squad mostly stays quiet.
+ * continuity memory, and rivalries — whether anyone reacts, and with what line.
+ * The Squad speaks in chat only: it never takes over the screen with a hero
+ * banner. Players always come first: if a human just spoke, it mostly stays quiet.
  *
  * The Squad lives ONLY in The Pit (PIT_ROOM + individual match rooms). It never
  * posts to The Grill, the queue/lobby, or standard Cookout rounds. The accounts
@@ -21,7 +21,6 @@ import {
   type GoonEventKind,
   type GoonMoment,
   type GoonPersona,
-  type GoonOverlayEvent,
   type Round,
 } from "@cookout/shared";
 import type { Broadcast } from "./engine.js";
@@ -41,7 +40,7 @@ const CATEGORY: Record<GoonEventKind, GoonDialogueCategory> = {
   ambient: "ambient",
 };
 
-/** Events worth a cinematic overlay when a rare persona reacts. */
+/** Marquee beats — important enough to break the players-first quiet rule. */
 const MARQUEE = new Set<GoonEventKind>(["live", "whale", "rug", "winner", "upset"]);
 
 const isNamed = (p: GoonPersona) => p.rarity === "legendary" || p.rarity === "epic";
@@ -127,10 +126,6 @@ export class GoonSwarm {
       const line = this.pickLine(p, category);
       if (!line) continue;
       this.say(m.roomId, p, this.fillTokens(line, m, p), m.now);
-      // Rare personas on a marquee beat can earn a cinematic overlay.
-      if (isNamed(p) && MARQUEE.has(m.kind) && Math.random() < s.overlayChance) {
-        this.overlay(m.roomId, p, m);
-      }
       spoke++;
     }
     if (spoke > 0) this.lastAiAt.set(m.roomId, m.now);
@@ -241,27 +236,6 @@ export class GoonSwarm {
     list.push(message);
     if (list.length > 500) list.splice(0, list.length - 500);
     this.broadcast(roomId, { type: "chat", message });
-  }
-
-  /** Fire a cinematic overlay banner for a marquee moment. */
-  private overlay(roomId: string, p: GoonPersona, m: GoonMoment): void {
-    const NAME = p.name.toUpperCase();
-    let text: string;
-    if (m.kind === "winner") text = `👑 ${(m.winner ?? "SOMEONE").toUpperCase()} TAKES THE PIT`;
-    else if (m.kind === "upset") text = `⚡ UPSET · ${(m.winner ?? "SOMEONE").toUpperCase()}`;
-    else if (m.kind === "rug") text = `⚠ ${NAME}: HARVEST TIME`;
-    else if (m.kind === "whale") text = `👁 ${NAME} IS WATCHING`;
-    else text = `🔥 ${NAME} ENTERED THE PIT`;
-    const overlay: GoonOverlayEvent = {
-      id: this.store.id(),
-      handle: p.handle,
-      name: p.name,
-      rarity: p.rarity,
-      text,
-      at: m.now,
-      roomId,
-    };
-    this.broadcast(roomId, { type: "goon_overlay", overlay });
   }
 
   /** Did a real human post here within the players-first window? */
