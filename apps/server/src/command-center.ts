@@ -91,6 +91,7 @@ export function mountCommandCenter(
   adminKey: string,
   media: MediaService,
   pitBoss: import("./telegram/index.js").PitBoss | null = null,
+  broadcast: import("./engine.js").Broadcast = () => {},
 ): StaffService {
   const staffService = new StaffService(store);
   const gate = (permission?: Permission) => requireStaff(staffService, adminKey, permission);
@@ -1407,6 +1408,129 @@ export function mountCommandCenter(
         note,
       });
       res.json({ ok: true });
+    }),
+  );
+
+  // --------------------------------------------------------------- moderation
+
+  /** Rooms with recent chat, so a moderator can find where the noise is. */
+  app.get(
+    "/api/cc/moderation/rooms",
+    gate("users.moderate"),
+    wrap((_req, res) => {
+      const now = Date.now();
+      const rooms = [...store.chat.entries()]
+        .map(([id, messages]) => {
+          const round = store.rounds.get(id);
+          return {
+            id,
+            label:
+              id === "global"
+                ? "The Grill"
+                : id === "pit"
+                  ? "The Pit"
+                  : round
+                    ? `$${round.token.symbol}`
+                    : id,
+            state: round?.state,
+            messages: messages.length,
+            lastAt: messages.at(-1)?.at ?? 0,
+          };
+        })
+        .filter((r) => r.messages > 0)
+        .sort((a, b) => b.lastAt - a.lastAt)
+        .slice(0, 40);
+      res.json({
+        rooms,
+        muted: [...store.muted.entries()]
+          .filter(([, until]) => until > now)
+          .map(([address, until]) => {
+            const u = store.users.get(address);
+            return { address, displayName: u?.displayName, until };
+          })
+          .sort((a, b) => b.until - a.until),
+        rugBanned: [...store.users.values()]
+          .filter((u) => activeRugBan(u))
+          .map((u) => {
+            const ban = activeRugBan(u)!;
+            return {
+              address: u.address,
+              displayName: u.displayName,
+              symbol: ban.symbol,
+              at: ban.at,
+              offense: ban.offense,
+              expiresAt: ban.expiresAt,
+              reputation: u.creatorReputation,
+            };
+          }),
+      });
+    }),
+  );
+
+  /** Recent messages in one room, newest last. */
+  app.get(
+    "/api/cc/moderation/chat/:roomId",
+    gate("users.moderate"),
+    wrap((req, res) => {
+      const messages = store.chat.get(req.params.roomId!) ?? [];
+      res.json({ messages: messages.slice(-120) });
+    }),
+  );
+
+  /** Delete or censor a message. Censoring keeps the record; deleting removes it. */
+  app.post(
+    "/api/cc/moderation/chat/:roomId/:messageId",
+    gate("users.moderate"),
+    wrap((req, res) => {
+      const { action } = req.body as { action?: "delete" | "censor" };
+      const list = store.chat.get(req.params.roomId!);
+      if (!list) throw new CcError(404, "no such room");
+      const i = list.findIndex((m) => m.id === req.params.messageId);
+      if (i < 0) throw new CcError(404, "no such message");
+      const message = list[i]!;
+      const before = message.text;
+
+      if (action === "censor") {
+        message.text = "‹ removed by a moderator ›";
+        broadcast(req.params.roomId!, { type: "chat_update", message });
+      } else {
+        list.splice(i, 1);
+        broadcast(req.params.roomId!, { type: "chat_delete", roundId: req.params.roomId!, messageId: message.id });
+      }
+      audit(store, req, {
+        module: "moderation",
+        action: action === "censor" ? "chat.censor" : "chat.delete",
+        target: `${message.displayName ?? message.userAddress} in ${req.params.roomId}`,
+        before: { text: before },
+        after: action === "censor" ? { text: message.text } : null,
+      });
+      res.json({ ok: true });
+    }),
+  );
+
+  /** Live and upcoming matches, with the controls a moderator may need. */
+  app.get(
+    "/api/cc/moderation/matches",
+    gate("matches.control"),
+    wrap((_req, res) => {
+      const active = ["scheduled", "lobby", "queue_open", "settling", "live"];
+      res.json({
+        matches: [...store.rounds.values()]
+          .filter((r) => active.includes(r.state))
+          .sort((a, b) => a.scheduledAt - b.scheduledAt)
+          .map((r) => ({
+            id: r.id,
+            symbol: r.token.symbol,
+            name: r.token.name,
+            state: r.state,
+            matchType: r.matchType ?? "cookout",
+            mode: r.mode,
+            creatorAddress: r.creatorAddress,
+            scheduledAt: r.scheduledAt,
+            endsAt: r.endsAt,
+            mcap: r.pool ? marketCap(r.pool) : 0,
+          })),
+      });
     }),
   );
 
