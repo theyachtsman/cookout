@@ -16,6 +16,7 @@ import {
 import { GameConfigModule } from "../../components/cc/GameConfig";
 import { CopyEditorModule } from "../../components/cc/CopyEditor";
 import { AnalyticsModule } from "../../components/cc/Analytics";
+import { PlayersModule } from "../../components/cc/Players";
 import { TelegramModule } from "../../components/cc/Telegram";
 import { MediaModule } from "../../components/cc/MediaLibrary";
 import { AudioModule, BrandingModule, ThemesModule } from "../../components/cc/Presentation";
@@ -238,6 +239,8 @@ function ModuleBody({
       return <TelegramModule />;
     case "analytics":
       return <AnalyticsModule />;
+    case "users":
+      return <PlayersModule session={session} />;
     case "media":
       return <MediaModule />;
     case "branding":
@@ -248,7 +251,6 @@ function ModuleBody({
       return <AudioModule />;
     // These run on the established ops surface — the panels that already
     // manage them are mounted here rather than rewritten.
-    case "users":
     case "moderation":
     case "economy":
     case "goons":

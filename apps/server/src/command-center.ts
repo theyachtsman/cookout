@@ -39,7 +39,8 @@ import {
   type SearchHit,
   type StaffRole,
 } from "@cookout/shared";
-import { buildAnalytics } from "./analytics.js";
+import { buildAnalytics, isRealPlayer } from "./analytics.js";
+import { adminAdjustBurgers } from "./burger.js";
 import { MediaService } from "./media.js";
 import { rateLimit } from "./ratelimit.js";
 import {
@@ -57,7 +58,7 @@ import {
   type StaffRequest,
   type StoredStaff,
 } from "./staff.js";
-import type { Store } from "./store.js";
+import { activeRugBan, type Store, type StoredUser } from "./store.js";
 
 class CcError extends Error {
   constructor(
@@ -1236,6 +1237,179 @@ export function mountCommandCenter(
     }),
   );
 
+  // ------------------------------------------------------------------ players
+
+  /** Search and browse players. Bots and Goon accounts are filtered out unless
+   *  explicitly asked for, so the list is people by default. */
+  app.get(
+    "/api/cc/players",
+    gate("users.view"),
+    wrap((req, res) => {
+      const q = String(req.query.q ?? "").trim().toLowerCase();
+      const sort = String(req.query.sort ?? "recent");
+      const includeSystem = req.query.system === "1";
+      const limit = Math.min(200, Math.max(1, Number(req.query.limit ?? 50)));
+
+      let list = [...store.users.values()];
+      if (!includeSystem) list = list.filter(isRealPlayer);
+      if (q)
+        list = list.filter(
+          (u) =>
+            u.address.toLowerCase().includes(q) ||
+            (u.displayName ?? "").toLowerCase().includes(q) ||
+            (u.telegram?.username ?? "").toLowerCase().includes(q),
+        );
+
+      const key: Record<string, (u: StoredUser) => number> = {
+        recent: (u) => u.createdAt ?? 0,
+        xp: (u) => u.xp,
+        level: (u) => u.level,
+        pnl: (u) => u.stats.totalPnl,
+        trades: (u) => u.stats.trades,
+        balance: (u) => (u.arenaBalance ?? 0) + u.paperBalance,
+        burgers: (u) => u.burgerBalance ?? 0,
+      };
+      const pick = key[sort] ?? key.recent!;
+      list.sort((a, b) => pick(b) - pick(a));
+
+      res.json({
+        total: list.length,
+        players: list.slice(0, limit).map((u) => ({
+          address: u.address,
+          displayName: u.displayName,
+          level: u.level,
+          xp: u.xp,
+          title: u.title,
+          createdAt: u.createdAt,
+          arenaBalance: u.arenaBalance ?? 0,
+          paperBalance: u.paperBalance,
+          burgerBalance: u.burgerBalance ?? 0,
+          totalPnl: u.stats.totalPnl,
+          trades: u.stats.trades,
+          roundsPlayed: u.stats.roundsPlayed,
+          creatorReputation: u.creatorReputation,
+          banned: !!activeRugBan(u),
+          mutedUntil: store.muted.get(u.address) ?? 0,
+          telegram: u.telegram?.username,
+          founderNumber: u.founderNumber,
+          isAI: !!u.isAI,
+        })),
+      });
+    }),
+  );
+
+  /** One player, in full: balances, progression, history and moderation state. */
+  app.get(
+    "/api/cc/players/:address",
+    gate("users.view"),
+    wrap((req, res) => {
+      const u = store.users.get(req.params.address!.toLowerCase());
+      if (!u) throw new CcError(404, "no such player");
+      res.json({
+        player: u,
+        mutedUntil: store.muted.get(u.address) ?? 0,
+        banned: !!activeRugBan(u),
+        ledger: (u.ledger ?? []).slice(-50).reverse(),
+        burgerLedger: (u.burgerLedger ?? []).slice(-50).reverse(),
+        history: (u.history ?? []).slice(-50).reverse(),
+      });
+    }),
+  );
+
+  /**
+   * Adjust a player's balances or progression. Every field is a delta, not a
+   * value, so two operators acting at once can't silently overwrite each other
+   * — and the audit entry records exactly what moved.
+   */
+  app.post(
+    "/api/cc/players/:address/adjust",
+    gate("users.economy"),
+    wrap((req, res) => {
+      const u = store.users.get(req.params.address!.toLowerCase());
+      if (!u) throw new CcError(404, "no such player");
+      const b = req.body as { xp?: number; arenaBalance?: number; paperBalance?: number; burgers?: number; reason?: string };
+      const reason = String(b.reason ?? "").slice(0, 200);
+      if (!reason) throw new CcError(400, "a reason is required for a balance adjustment");
+
+      const before = {
+        xp: u.xp,
+        arenaBalance: u.arenaBalance ?? 0,
+        paperBalance: u.paperBalance,
+        burgers: u.burgerBalance ?? 0,
+      };
+      const delta = {
+        xp: num(b.xp),
+        arenaBalance: num(b.arenaBalance),
+        paperBalance: num(b.paperBalance),
+        burgers: num(b.burgers),
+      };
+      if (delta.xp) store.addXp(u.address, delta.xp, "ceiling", "admin");
+      if (delta.arenaBalance) u.arenaBalance = Math.max(0, (u.arenaBalance ?? 0) + delta.arenaBalance);
+      if (delta.paperBalance) u.paperBalance = Math.max(0, u.paperBalance + delta.paperBalance);
+      if (delta.burgers) adminAdjustBurgers(store, u.address, delta.burgers, reason);
+
+      audit(store, req, {
+        module: "users",
+        action: "player.adjust",
+        target: u.displayName ?? u.address,
+        before,
+        after: {
+          xp: u.xp,
+          arenaBalance: u.arenaBalance ?? 0,
+          paperBalance: u.paperBalance,
+          burgers: u.burgerBalance ?? 0,
+        },
+        note: reason,
+      });
+      res.json({ ok: true });
+    }),
+  );
+
+  /** Mute, unmute, ban (a very long mute), lift a rug ban, or clear flags. */
+  app.post(
+    "/api/cc/players/:address/moderate",
+    gate("users.moderate"),
+    wrap((req, res) => {
+      const u = store.users.get(req.params.address!.toLowerCase());
+      if (!u) throw new CcError(404, "no such player");
+      const { action, minutes, reason } = req.body as { action?: string; minutes?: number; reason?: string };
+      const note = String(reason ?? "").slice(0, 200);
+      const before = { mutedUntil: store.muted.get(u.address) ?? 0, banned: !!activeRugBan(u), reputation: u.creatorReputation };
+
+      switch (action) {
+        case "mute": {
+          const mins = Math.min(100 * 365 * 24 * 60, Math.max(1, Number(minutes) || 60));
+          store.muted.set(u.address, Date.now() + mins * 60_000);
+          break;
+        }
+        case "unmute":
+          store.muted.delete(u.address);
+          break;
+        case "lift_rug_ban": {
+          const ban = activeRugBan(u);
+          if (!ban) throw new CcError(400, "no active rug ban on this wallet");
+          ban.expiresAt = Date.now();
+          break;
+        }
+        case "clear_flags":
+          if (u.creatorReputation < 0) u.creatorReputation = 0;
+          break;
+        default:
+          throw new CcError(400, `unknown action "${action}"`);
+      }
+
+      audit(store, req, {
+        module: "users",
+        action: `player.${action}`,
+        target: u.displayName ?? u.address,
+        before,
+        after: { mutedUntil: store.muted.get(u.address) ?? 0, banned: !!activeRugBan(u), reputation: u.creatorReputation },
+        note,
+      });
+      res.json({ ok: true });
+    }),
+  );
+
   // ---------------------------------------------------------------- analytics
 
   app.get(
@@ -1564,4 +1738,10 @@ function clampInt(v: unknown, min: number, max: number, fallback: number): numbe
   const n = Math.round(Number(v));
   if (!Number.isFinite(n)) return fallback;
   return Math.min(max, Math.max(min, n));
+}
+
+/** A finite number from untrusted input, or 0. */
+function num(v: unknown): number {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : 0;
 }
