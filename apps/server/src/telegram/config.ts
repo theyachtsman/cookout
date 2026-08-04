@@ -1,17 +1,8 @@
-/**
- * The seven community topics. Five receive the automated feed; "feedback" and
- * "support" are human-conversation spaces (no auto-posts) but are wired so the
- * admin broadcaster and pinned-message setup can target them too.
- */
-export type TopicKey =
-  | "announcements"
-  | "general"
-  | "feedback"
-  | "launch"
-  | "voteshill"
-  | "trading"
-  | "leaderboards"
-  | "support";
+/** The community topics now live in shared, so the Command Center's Telegram
+ *  settings can reference them. Re-exported here so every existing import of
+ *  `./config.js` keeps working. */
+export type { TopicKey } from "@cookout/shared";
+import type { TopicKey } from "@cookout/shared";
 
 /** Everything the Pit Boss needs to know about its world, from env. */
 export interface PitBossConfig {

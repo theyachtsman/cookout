@@ -67,6 +67,10 @@ import {
   type GameSettings,
   type MediaAsset,
   type ThemeSettings,
+  type TelegramLogEntry,
+  type TelegramSettings,
+  freshTelegramSettings,
+  mergeTelegramSettings,
   freshAudioSettings,
   freshBrandingSettings,
   freshThemeSettings,
@@ -90,6 +94,19 @@ import {
 } from "@cookout/shared";
 import { awardBurger, awardBurgerOneTime, awardBurgerXpMilestones } from "./burger.js";
 import type { StaffSession, StoredStaff } from "./staff.js";
+
+/** The bot's command list, duplicated as plain data so the store can seed its
+ *  Telegram settings without importing the bot (which would be a cycle). Kept
+ *  in step with telegram/commands.ts by a test. */
+export const TELEGRAM_COMMAND_DEFS = [
+  { command: "pullup", description: "What's cooking right now" },
+  { command: "profile", description: "Your stats" },
+  { command: "leaderboard", description: "Who's cooking this week" },
+  { command: "jackpot", description: "The weekly pot" },
+  { command: "coin", description: "The coin on the grill" },
+  { command: "creator", description: "Your launches & reputation" },
+  { command: "founders", description: "Founding Members" },
+];
 
 /** Sessions outlive deploys but not this window (see snapshot comment). */
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -256,6 +273,8 @@ export class Store {
   featureFlags: Record<string, boolean> = {};
   /** Media Library metadata. The bytes live on disk (see MediaService). */
   media = new Map<string, MediaAsset>();
+  /** Telegram delivery log — sends, failures, command usage. Newest last. */
+  telegramLog: TelegramLogEntry[] = [];
   /** Platform fee revenue collected per round (paper ETH). */
   feesByRound = new Map<string, number>();
   /** Chat mutes/bans: address → muted-until epoch ms (persisted; a ban is a
@@ -299,6 +318,7 @@ export class Store {
     themes: freshThemeSettings(),
     audio: freshAudioSettings(),
     copy: {},
+    telegram: freshTelegramSettings(TELEGRAM_COMMAND_DEFS),
   };
   /** Live ETH/USD, refreshed by the price feed; used to peg the $40k bond. */
   ethUsd = DEFAULT_ETH_USD;
@@ -918,6 +938,19 @@ export class Store {
     return [...this.missionDefs("daily", now), ...this.missionDefs("weekly", now)];
   }
 
+  /** Record a Telegram delivery outcome. Bounded so a broken chat id can't
+   *  grow the log without limit. */
+  logTelegram(entry: Omit<TelegramLogEntry, "id" | "at">): void {
+    this.telegramLog.push({ id: this.id(), at: Date.now(), ...entry });
+    if (this.telegramLog.length > 1000) this.telegramLog.splice(0, this.telegramLog.length - 1000);
+  }
+
+  /** Is an automated Telegram event switched on? */
+  telegramEventEnabled(key: string): boolean {
+    const tg = this.settings.telegram;
+    return tg.enabled && tg.events[key]?.enabled !== false;
+  }
+
   /** Every site string, defaults with the operator's overrides applied. */
   copyMap(): Record<string, string> {
     return resolveCopy(this.settings.copy);
@@ -1170,6 +1203,7 @@ export class Store {
       auditLog: this.auditLog.slice(-5000),
       featureFlags: { ...this.featureFlags },
       media: [...this.media.values()],
+      telegramLog: this.telegramLog.slice(-500),
       betaSignups: [...this.betaSignups.values()],
       // Sessions persist so a deploy/restart never signs the beta out.
       sessions: [...this.sessions.entries()]
@@ -1247,12 +1281,17 @@ export class Store {
       this.settings.themes ??= freshThemeSettings();
       this.settings.audio ??= freshAudioSettings();
       this.settings.copy ??= {};
+      this.settings.telegram = mergeTelegramSettings(
+        snap.settings.telegram,
+        TELEGRAM_COMMAND_DEFS,
+      );
     }
     this.adminLog = snap.adminLog;
     for (const a of snap.staff ?? []) this.staff.set(a.id, a);
     this.auditLog = snap.auditLog ?? [];
     this.featureFlags = snap.featureFlags ?? {};
     for (const m of snap.media ?? []) this.media.set(m.id, m);
+    this.telegramLog = snap.telegramLog ?? [];
     for (const b of snap.betaSignups ?? []) this.betaSignups.set(b.address, b);
     this.jackpotPool = snap.jackpotPool ?? 0;
     this.jackpotWeekKey = snap.jackpotWeekKey ?? weekKey();
@@ -1351,6 +1390,9 @@ export interface OpsSettings {
   /** Site copy overrides, sparse: key → text. Anything absent uses the
    *  shipped default from the copy registry. */
   copy: Record<string, string>;
+  /** Telegram operations: connection overrides, automation, schedules,
+   *  commands and moderation. Env remains the fallback for the connection. */
+  telegram: TelegramSettings;
 }
 
 /** Deep-copied default Goon Squad settings (roster + behavior). */
@@ -1497,6 +1539,7 @@ export interface Snapshot {
   auditLog?: AuditEntry[];
   featureFlags?: Record<string, boolean>;
   media?: MediaAsset[];
+  telegramLog?: TelegramLogEntry[];
   betaSignups?: BetaSignup[];
   sessions?: Array<[string, Address | SessionRecord]>;
   feedback?: FeedbackEntry[];

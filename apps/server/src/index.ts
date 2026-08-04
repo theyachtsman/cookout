@@ -11,7 +11,7 @@ import { createApp } from "./routes.js";
 import { autoScheduler, evaluateVoting, seedDemo } from "./seed.js";
 import { StaffService } from "./staff.js";
 import { Store } from "./store.js";
-import { createPitBoss } from "./telegram/index.js";
+import { createPitBoss, TelegramScheduler } from "./telegram/index.js";
 import { Hub } from "./ws.js";
 
 const PORT = Number(process.env.PORT ?? 4000);
@@ -45,6 +45,8 @@ const app = createApp(store, engine, ADMIN_KEY, hub.broadcast, chain, hub.presen
 // no state of its own — everything lives on the store — so this instance and
 // the one inside the mounted routes act on exactly the same session map.
 const staffService = new StaffService(store);
+// Scheduled Telegram posts, evaluated once a second against their windows.
+const telegramScheduler = new TelegramScheduler(store, pitBoss);
 // The paper bot swarm: a crowd to trade against on the paper beta. Hard-off
 // on chain-only deployments and via BOTS=0; otherwise the admin Live Ops
 // toggle (store.settings.bots) turns it on and off at runtime.
@@ -117,6 +119,7 @@ setInterval(() => {
     evaluateVoting(store, engine);
     // Expire idle Command Center sessions on the same beat as everything else.
     staffService.sweep(Date.now());
+    telegramScheduler.tick(Date.now());
     // Chain-only deployments never auto-spawn paper rounds, regardless of
     // the Live Ops toggle — real rounds cost the operator real gas/liquidity,
     // so they stay deliberate (admin schedule-chain).

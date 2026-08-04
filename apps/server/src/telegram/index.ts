@@ -11,3 +11,4 @@ export { Notifier } from "./notify.js";
 export { linkDeepLink, type PitBossConfig } from "./config.js";
 export { COMMANDS } from "./commands.js";
 export { TelegramApi } from "./api.js";
+export { TelegramScheduler } from "./scheduler.js";
