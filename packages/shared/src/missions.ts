@@ -27,7 +27,12 @@ export type MissionMetric =
   // Flame Trial (solo PvE)
   | "trial_played"
   | "trial_won"
-  | "trial_target_hit";
+  | "trial_target_hit"
+  // Endurance (the no-timer launchpad track)
+  | "endurance_played"
+  | "endurance_profit"
+  | "endurance_long_holds"
+  | "endurance_bonds";
 
 export interface MissionDef {
   id: string;
@@ -70,6 +75,10 @@ export const MISSIONS: MissionDef[] = [
   // ---- Flame Trial dailies (solo PvE) ----
   { id: "d_trial_play_1", name: "Into the Fire", description: "Play a Flame Trial today", period: "daily", metric: "trial_played", target: 1, xp: 30 },
   { id: "d_trial_win_1", name: "Flame Survivor", description: "Win a Flame Trial today", period: "daily", metric: "trial_won", target: 1, xp: 45 },
+  // ---- Endurance dailies (no-timer launchpad) ----
+  { id: "d_end_play_1", name: "Slow Cook", description: "Play an Endurance launch today", period: "daily", metric: "endurance_played", target: 1, xp: 30 },
+  { id: "d_end_profit_1", name: "Patience Pays", description: "Finish an Endurance launch in profit today", period: "daily", metric: "endurance_profit", target: 1, xp: 45 },
+  { id: "d_end_hold_1", name: "Sit On It", description: "Hold an Endurance position for an hour today", period: "daily", metric: "endurance_long_holds", target: 1, xp: 40 },
   // ---- Weekly challenges (all live all week; clearing the set pays a bonus) ----
   { id: "w_play_20", name: "Regular", description: "Play 20 rounds this week", period: "weekly", metric: "rounds_played", target: 20, xp: 200 },
   { id: "w_win_10", name: "Consistent", description: "Finish 10 rounds in profit this week", period: "weekly", metric: "profitable_rounds", target: 10, xp: 250 },
@@ -84,6 +93,10 @@ export const MISSIONS: MissionDef[] = [
   // ---- Flame Trial weeklies ----
   { id: "w_trial_play_5", name: "Trial Regular", description: "Play 5 Flame Trials this week", period: "weekly", metric: "trial_played", target: 5, xp: 180 },
   { id: "w_trial_win_3", name: "Fire Walker", description: "Win 3 Flame Trials this week", period: "weekly", metric: "trial_won", target: 3, xp: 240 },
+  // ---- Endurance weeklies ----
+  { id: "w_end_play_5", name: "The Long Game", description: "Play 5 Endurance launches this week", period: "weekly", metric: "endurance_played", target: 5, xp: 200 },
+  { id: "w_end_profit_3", name: "Patience Pays", description: "Finish 3 Endurance launches in profit this week", period: "weekly", metric: "endurance_profit", target: 3, xp: 240 },
+  { id: "w_end_bond_1", name: "Went the Distance", description: "Hold an Endurance coin through its bond this week", period: "weekly", metric: "endurance_bonds", target: 1, xp: 220 },
 ];
 
 /** FNV-1a hash → deterministic per-day mission rotation. */

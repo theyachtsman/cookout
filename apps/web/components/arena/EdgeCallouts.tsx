@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { KillFeedEvent } from "@cookout/shared";
+import type { KillFeedActor, KillFeedEvent } from "@cookout/shared";
+import { ActorFace } from "./ActorFace";
 
 /**
  * Structural callouts that live on the chart's edges instead of on top of it.
@@ -23,6 +24,8 @@ interface Callout {
   text: string;
   cls: string;
   at: number;
+  /** Set on developer events, so the callout shows their face and name. */
+  actor?: KillFeedActor;
 }
 
 const LIFETIME_MS = 3000;
@@ -71,7 +74,15 @@ export function EdgeCallouts({ killfeed }: { killfeed: KillFeedEvent[] }) {
       seenFeed.current.add(e.id);
       const meta = FEED_EDGE[e.kind];
       if (!meta) continue;
-      push({ id: e.id, edge: meta.edge, icon: meta.icon, text: e.text, cls: meta.cls, at: Date.now() });
+      push({
+        id: e.id,
+        edge: meta.edge,
+        icon: meta.icon,
+        text: e.text,
+        cls: meta.cls,
+        at: Date.now(),
+        actor: e.actor,
+      });
     }
   }, [killfeed]);
 
@@ -102,8 +113,12 @@ export function EdgeCallouts({ killfeed }: { killfeed: KillFeedEvent[] }) {
                 key={c.id}
                 className={`animate-[calloutIn_.28s_cubic-bezier(.2,1.4,.4,1)] whitespace-nowrap rounded-lg border bg-zinc-950/85 px-2.5 py-1 text-[11px] font-bold shadow-lg shadow-black/50 backdrop-blur ${c.cls}`}
               >
-                <span className="mr-1">{c.icon}</span>
-                {c.text}
+                <span className="inline-flex items-center gap-1.5">
+                  <span>{c.icon}</span>
+                  {/* Dev sells name the dev right on the chart edge. */}
+                  {c.actor && <ActorFace actor={c.actor} size={16} ring="ring-orange-400/70" />}
+                  <span>{c.text}</span>
+                </span>
               </div>
             ))}
           </div>

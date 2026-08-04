@@ -31,6 +31,7 @@ import {
   type Address,
   type AuctionResult,
   type Candle,
+  type KillFeedActor,
   type KillFeedKind,
   type PitConfig,
   type PoolState,
@@ -742,7 +743,14 @@ export class RoundEngine {
         this.kill(round, "whale_entered", `Whale entered with ${fmt(ethIn)} ETH`, now);
       }
       if (user.address === round.creatorAddress)
-        this.kill(round, "dev_buy", `Developer bought ${fmt(ethIn)} ETH`, now);
+        this.kill(
+          round,
+          "dev_buy",
+          `${this.devName(round)} (dev) bought ${fmt(ethIn)} ETH of their own coin`,
+          now,
+          undefined,
+          this.devActor(round),
+        );
     } else {
       // Tiered anti-instarug: the creator's sells are locked briefly after
       // the open on lower tiers (degen keeps the anything-can-happen charm).
@@ -791,11 +799,19 @@ export class RoundEngine {
           now,
         );
       if (user.address === round.creatorAddress) {
-        this.kill(round, "dev_sell", `Developer sold ${fmt(r.amountOut)} ETH`, now);
+        this.kill(
+          round,
+          "dev_sell",
+          this.devSellText(round, r.amountOut, m.tokensSoldBeforeEnd, m.maxTokens, pos.tokens),
+          now,
+          undefined,
+          this.devActor(round),
+        );
         // A rug is now defined by the creator dumping the bulk of their OWN
         // bag: once their cumulative sells cross DEV_DUMP_FRACTION of the most
         // they ever held, the coin is pulled. Trimming below that is fine.
-        // Skipped entirely when rug rules are off (Blitz/Reflex).
+        // Skipped entirely when rug rules are off (Blitz/Reflex/Endurance) —
+        // there the dev is just another trader and a dump is only a signal.
         if (
           round.config.rugRules !== false &&
           m.maxTokens > 0 &&
@@ -1436,7 +1452,14 @@ export class RoundEngine {
         this.kill(round, "whale_entered", `Whale entered with ${fmt(ethAmount)} ETH`, now);
       }
       if (user.address === round.creatorAddress)
-        this.kill(round, "dev_buy", `Developer bought ${fmt(ethAmount)} ETH`, now);
+        this.kill(
+          round,
+          "dev_buy",
+          `${this.devName(round)} (dev) bought ${fmt(ethAmount)} ETH of their own coin`,
+          now,
+          undefined,
+          this.devActor(round),
+        );
     } else {
       const sold = Math.min(tokenAmount, pos.tokens);
       const costShare = pos.tokens > 0 ? pos.costBasisEth * (sold / pos.tokens) : 0;
@@ -1454,7 +1477,14 @@ export class RoundEngine {
         if (!m.fullExitAt) m.fullExitAt = now;
       }
       if (user.address === round.creatorAddress)
-        this.kill(round, "dev_sell", `Developer sold ${fmt(ethAmount)} ETH`, now);
+        this.kill(
+          round,
+          "dev_sell",
+          this.devSellText(round, ethAmount, m.tokensSoldBeforeEnd, m.maxTokens, pos.tokens),
+          now,
+          undefined,
+          this.devActor(round),
+        );
     }
 
     this.store.feesByRound.set(round.id, (this.store.feesByRound.get(round.id) ?? 0) + fee);
@@ -1510,14 +1540,60 @@ export class RoundEngine {
     this.broadcast(roundId, { type: "candle", roundId, candle });
   }
 
+  /** The coin's developer as a kill-feed actor — name and picture resolved now,
+   *  so a dev alert renders as a person rather than an anonymous "Developer". */
+  private devActor(round: Round): KillFeedActor {
+    const dev = this.store.users.get(round.creatorAddress);
+    return {
+      address: round.creatorAddress,
+      displayName: dev?.displayName,
+      avatarUrl: dev?.avatarUrl,
+      isCreator: true,
+    };
+  }
+
+  /** How the developer's name reads in alert copy when they haven't set one. */
+  private devName(round: Round): string {
+    return this.store.users.get(round.creatorAddress)?.displayName ?? "The dev";
+  }
+
+  /**
+   * The dev-sell headline. Size in ETH is the least useful part — what a
+   * trader actually wants is how much of their own bag the dev just let go
+   * and whether anything is left, so the copy leads with that.
+   */
+  private devSellText(
+    round: Round,
+    ethOut: number,
+    soldTotal: number,
+    maxHeld: number,
+    remaining: number,
+  ): string {
+    const name = this.devName(round);
+    const out = `${fmt(ethOut)} ETH`;
+    if (remaining <= 1e-9) return `${name} (dev) SOLD THEIR ENTIRE BAG · ${out}`;
+    const pct = maxHeld > 0 ? Math.round((soldTotal / maxHeld) * 100) : 0;
+    if (pct > 0) return `${name} (dev) sold ${out} · ${pct}% of their bag gone`;
+    return `${name} (dev) sold ${out} of their own coin`;
+  }
+
   private kill(
     round: Round,
     kind: KillFeedKind,
     text: string,
     now: number,
     meta?: Record<string, string | number>,
+    actor?: KillFeedActor,
   ): void {
-    const event = { id: this.store.id(), roundId: round.id, kind, text, at: now, ...(meta ? { meta } : {}) };
+    const event = {
+      id: this.store.id(),
+      roundId: round.id,
+      kind,
+      text,
+      at: now,
+      ...(actor ? { actor } : {}),
+      ...(meta ? { meta } : {}),
+    };
     let list = this.store.killfeed.get(round.id);
     if (!list) {
       list = [];
@@ -1531,6 +1607,9 @@ export class RoundEngine {
       mcap_milestone: "bond",
       whale_entered: "whale",
       rug_detected: "rug",
+      // A dev selling their own coin is exactly the kind of thing the room
+      // should not be able to miss, so it breaks into chat too.
+      dev_sell: "dev_sell",
       graduated: "graduated",
     };
     const kindSys = asSystem[kind];

@@ -2,6 +2,7 @@
 
 import {
   GAME_MODE_MAP,
+  isEnduranceMode,
   type CoinModifiers,
   type CoinSocials,
   type GameMode,
@@ -23,10 +24,21 @@ export function OverTimeChip() {
   );
 }
 
-/** A single mode badge — red when rug rules are off (Blitz/Reflex). */
+/** A single mode badge — red when rug rules are off (Blitz/Reflex). Endurance
+ *  also runs rug-rules-off, but for the opposite reason (it's the slow, plain
+ *  launchpad, not a violent sprint), so it gets its own calm amber chip. */
 export function ModeChip({ mode }: { mode: GameMode }) {
   const def = GAME_MODE_MAP[mode];
   if (!def) return null;
+  if (isEnduranceMode(mode))
+    return (
+      <span
+        className="rounded bg-amber-400/15 px-1.5 py-0.5 text-[10px] font-black uppercase text-amber-300"
+        title={`${def.name} · ${def.tagline} · the dev trades like anyone else`}
+      >
+        🕛 {def.name} · ∞
+      </span>
+    );
   const noRug = !def.rugRules;
   return (
     <span

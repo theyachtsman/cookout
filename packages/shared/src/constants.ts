@@ -160,15 +160,20 @@ export const GAME_MODES: GameModeDef[] = [
     key: "endurance",
     name: "Endurance",
     minutes: null,
-    rugRules: true,
+    // No dev-rug mechanics here. The developer buys in through the same Fair
+    // Open as everyone else and holds no special position, so there is nothing
+    // to be "rugged" of: if they dump, the price takes it and the tape says so
+    // in their name. No auto-rug, no sell lock, no reputation hit, no ban.
+    rugRules: false,
     tier: "standard",
     pullUpCap: 2.0,
     unlockLevel: 1,
     tagline: "No timer · runs until it bonds",
     blurb:
       "The plain launchpad. No clock, no bots, no modifiers — pure PvP that keeps trading until the coin " +
-      "completes its bonding curve. Endurance launches run on their own track, so any number can be live at " +
-      "once alongside the timed matches.",
+      "completes its bonding curve. The dev fair-enters like everyone else and can sell whenever they want; " +
+      "it's not a rug, it's just a signal, and every dev sell is called out by name. Endurance launches run " +
+      "on their own track, so any number can be live at once alongside the timed matches.",
   },
 ];
 

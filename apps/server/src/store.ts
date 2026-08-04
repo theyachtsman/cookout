@@ -686,6 +686,11 @@ export class Store {
           predictionsMade: 0,
           currentWinStreak: 0,
           bestWinStreak: 0,
+          // Endurance track — separate from timed matches. Optional on the
+          // type so accounts stored before Endurance shipped still load.
+          enduranceRounds: 0,
+          enduranceBonds: 0,
+          longestEnduranceHoldSeconds: 0,
         },
       };
       this.users.set(key, u);
