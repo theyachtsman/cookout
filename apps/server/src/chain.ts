@@ -33,7 +33,7 @@ import {
   type Log,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { BOND_TARGET_USD, TIER_CONFIGS } from "@cookout/shared";
+
 import type { AuctionIntent, AuctionResult, Round, RiskTier, TokenConcept } from "@cookout/shared";
 import type { RoundEngine } from "./engine.js";
 import { Err } from "./engine.js";
@@ -164,8 +164,8 @@ export class ChainService {
   ): Promise<Round> {
     if (!this.enabled) throw new Err(503, "chain service is not configured");
     const s = this.scale;
-    const config = { ...TIER_CONFIGS[tier] };
-    config.graduationMcap = (BOND_TARGET_USD / this.store.ethUsd) * s;
+    const config = this.store.tierConfig(tier);
+    config.graduationMcap = this.store.bondTargetEth() * s;
     config.auctionMaxRaise *= s;
     config.initialEthLiquidity *= s;
     config.graduationMinVolume *= s;

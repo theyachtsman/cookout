@@ -1,7 +1,5 @@
 import {
-  BOND_TARGET_USD,
   DEV_DUMP_FRACTION,
-  GAME_MODE_MAP,
   GLOBAL_ROOM,
   MCAP_MILESTONES,
   OVERTIME_EXTENSION_SEC,
@@ -18,8 +16,6 @@ import {
   PIT_TRADING_MODE_NAME,
   RUG_DRAIN_FRACTION,
   RUG_WINDOW_SECONDS,
-  TIER_CONFIGS,
-  TRADE_XP,
   WHALE_TRADE_FRACTION,
   buy,
   isEnduranceMode,
@@ -27,7 +23,7 @@ import {
   sell,
   settleAuction,
   spotPrice,
-  tradeXpForIndex,
+  tradeXpOnCurve,
   type Address,
   type AuctionResult,
   type Candle,
@@ -104,20 +100,23 @@ export class RoundEngine {
   ) {}
 
   scheduleRound(concept: TokenConcept, tier: RiskTier, scheduledAt: number): Round {
-    const config = { ...TIER_CONFIGS[tier] };
-    // Bond pegged to $40k mcap at the live ETH price, frozen per round.
-    config.graduationMcap = BOND_TARGET_USD / this.store.ethUsd;
+    // Tier economics and the bond target are database-backed (Command Center →
+    // Game Configuration), so a retune applies to the next round scheduled.
+    const config = this.store.tierConfig(tier);
+    // Bond pegged to the configured USD target at the live ETH price, frozen
+    // per round.
+    config.graduationMcap = this.store.bondTargetEth();
     // Creator-chosen match length overrides the tier default.
     if (concept.matchMinutes) config.maxDurationSeconds = concept.matchMinutes * 60;
     // The curated mode decides whether rug mechanics apply. Blitz/Reflex turn
     // them off — nobody can be rugged, price action is the whole game. Legacy
     // concepts (no mode) keep rug rules on.
-    const rugRules = concept.mode ? GAME_MODE_MAP[concept.mode].rugRules : true;
+    const rugRules = concept.mode ? this.store.modeDef(concept.mode).rugRules : true;
     config.rugRules = rugRules;
     // The Fair Open cap is fixed per mode (published at launch), sized so the
     // swarm can't saturate it and real players always have room to fill. Legacy
     // concepts (no mode) keep the tier default.
-    if (concept.mode) config.auctionMaxRaise = GAME_MODE_MAP[concept.mode].pullUpCap;
+    if (concept.mode) config.auctionMaxRaise = this.store.modeDef(concept.mode).pullUpCap;
     // 1-minute Blitz: rug-and-dodge mode. The dev can sell the instant it's
     // live (no sell lock). Rug-rules-off modes also drop the lock.
     const blitz = concept.matchMinutes === 1;
@@ -178,7 +177,7 @@ export class RoundEngine {
     // Thinner pools for shorter matches: Blitz is violent, Marathon has depth.
     const initialEth = duration === "blitz" ? 0.4 : duration === "marathon" ? 1.5 : 1.0;
     const config: RoundConfig = {
-      ...TIER_CONFIGS.degen,
+      ...this.store.tierConfig("degen"),
       tier: "degen",
       lobbySeconds: pit.lobbySeconds,
       queueSeconds: 0,
@@ -186,7 +185,7 @@ export class RoundEngine {
       initialEthLiquidity: initialEth,
       initialTokenLiquidity: 1_000_000,
       totalSupply: 2_000_000,
-      graduationMcap: BOND_TARGET_USD / this.store.ethUsd,
+      graduationMcap: this.store.bondTargetEth(),
       graduationMinHolders: 3,
       graduationMinVolume: minutes * 0.6,
       // The Pit never rugs a creator's bag and has no live position cap — the
@@ -829,8 +828,8 @@ export class RoundEngine {
     // (5·0.6^(n-1)) capped at TRADE_XP.roundCap, so spam can't be farmed.
     m.tradesThisRound += 1;
     const wantXp = Math.min(
-      tradeXpForIndex(m.tradesThisRound),
-      Math.max(0, TRADE_XP.roundCap - m.tradeXpEarned),
+      tradeXpOnCurve(m.tradesThisRound, this.store.settings.game.tradeXp),
+      Math.max(0, this.store.settings.game.tradeXp.roundCap - m.tradeXpEarned),
     );
     if (wantXp > 0) m.tradeXpEarned += this.store.awardTradeXp(user.address, wantXp, now);
     this.afterTrade(round, now);
@@ -1496,8 +1495,8 @@ export class RoundEngine {
     this.store.trackActivity(user.address, "trades", 1, now);
     m.tradesThisRound += 1;
     const wantXp = Math.min(
-      tradeXpForIndex(m.tradesThisRound),
-      Math.max(0, TRADE_XP.roundCap - m.tradeXpEarned),
+      tradeXpOnCurve(m.tradesThisRound, this.store.settings.game.tradeXp),
+      Math.max(0, this.store.settings.game.tradeXp.roundCap - m.tradeXpEarned),
     );
     if (wantXp > 0) m.tradeXpEarned += this.store.awardTradeXp(user.address, wantXp, now);
 

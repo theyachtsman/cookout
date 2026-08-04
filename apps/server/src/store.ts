@@ -61,6 +61,17 @@ import {
   type GoonSettings,
   type GoonMoment,
   type AuditEntry,
+  type GameModeDef,
+  type GameSettings,
+  type MissionDef,
+  type RoundConfig,
+  type XpEventKind,
+  GAME_MODE_MAP,
+  TIER_CONFIGS,
+  XP_AWARDS,
+  freshGameSettings,
+  mergeGameSettings,
+  resolveMission,
   flagEnabled,
   resolveFlags,
   PIT_DEFAULTS,
@@ -272,6 +283,7 @@ export class Store {
     burger: freshBurgerSettings(),
     // The Flame Goon Squad AI — personalities + behavior, all live-editable.
     goons: freshGoonSettings(),
+    game: freshGameSettings(),
   };
   /** Live ETH/USD, refreshed by the price feed; used to peg the $40k bond. */
   ethUsd = DEFAULT_ETH_USD;
@@ -771,13 +783,18 @@ export class Store {
   ) => void = () => {};
 
   grantAchievement(address: Address, id: string): boolean {
+    const cfg = this.settings.game.achievements[id];
+    // Switched off in the Command Center: it stops being awarded, and existing
+    // holders keep theirs — revoking something already earned would be worse.
+    if (cfg?.enabled === false) return false;
     const u = this.getOrCreateUser(address);
     if (u.achievements.includes(id)) return false;
     u.achievements.push(id);
     const def = ACHIEVEMENTS.find((a) => a.id === id);
-    if (def) this.pushActivity(u.address, "achievement", `unlocked ${def.name} (${def.rarity})`);
+    const rarity = cfg?.rarity ?? def?.rarity;
+    if (def) this.pushActivity(u.address, "achievement", `unlocked ${def.name} (${rarity})`);
     // One-time XP by rarity — turns the badge wall into a progression track.
-    const xp = achievementXp(id);
+    const xp = rarity ? this.settings.game.achievementXp[rarity] : achievementXp(id);
     if (xp > 0) this.addXp(address, xp, "ceiling", "achievements");
     return true;
   }
@@ -794,7 +811,8 @@ export class Store {
       u.tradeXpDayKey = dk;
       u.tradeXpToday = 0;
     }
-    const give = Math.min(amount, Math.max(0, TRADE_XP.dailyCap - (u.tradeXpToday ?? 0)));
+    const dailyCap = this.settings.game.tradeXp.dailyCap;
+    const give = Math.min(amount, Math.max(0, dailyCap - (u.tradeXpToday ?? 0)));
     if (give > 0) {
       u.tradeXpToday = (u.tradeXpToday ?? 0) + give;
       this.addXp(address, give, "floor", "trading");
@@ -828,6 +846,52 @@ export class Store {
   recordAudit(entry: AuditEntry): void {
     this.auditLog.push(entry);
     if (this.auditLog.length > 5000) this.auditLog.splice(0, this.auditLog.length - 5000);
+  }
+
+  // ---- gameplay configuration resolvers ----
+  // Everything gameplay-tunable is read through these, never from the compiled
+  // constants, so a Command Center edit takes effect on the next round without
+  // a deploy. Each falls back to the default when nothing is stored.
+
+  /** Round economics for a risk tier. Returns a copy — callers mutate it. */
+  tierConfig(tier: RiskTier): RoundConfig {
+    return { ...(this.settings.game.tiers[tier] ?? TIER_CONFIGS[tier]) };
+  }
+
+  /** The tunable half of a game mode, merged over its compiled definition. */
+  modeDef(mode: GameMode): GameModeDef {
+    const base = GAME_MODE_MAP[mode];
+    const o = this.settings.game.modes[mode];
+    return o ? { ...base, ...o, disabled: o.disabled } : base;
+  }
+
+  /** Is this mode launchable right now? */
+  modeEnabled(mode: GameMode): boolean {
+    return !this.modeDef(mode).disabled;
+  }
+
+  /** XP paid for an event. */
+  xpFor(kind: XpEventKind): number {
+    return this.settings.game.xp[kind] ?? XP_AWARDS[kind];
+  }
+
+  /** The bonding target in pETH market cap, at the live ETH price. */
+  bondTargetEth(): number {
+    return this.settings.game.bondTargetUsd / this.ethUsd;
+  }
+
+  /** Quest definitions with the stored target/XP overrides applied, disabled
+   *  ones dropped. `period` narrows to dailies (today's rotation) or weeklies. */
+  missionDefs(period: "daily" | "weekly", now = Date.now()): MissionDef[] {
+    const g = this.settings.game;
+    const pool =
+      period === "daily" ? activeDailyMissions(now, g.dailyActiveCount) : WEEKLY_MISSIONS;
+    return pool.filter((m) => g.missions[m.id]?.enabled !== false).map((m) => resolveMission(m, g));
+  }
+
+  /** Every quest live right now, dailies first. */
+  liveMissions(now = Date.now()): MissionDef[] {
+    return [...this.missionDefs("daily", now), ...this.missionDefs("weekly", now)];
   }
 
   /** Every feature flag resolved against its registry default. */
@@ -866,9 +930,10 @@ export class Store {
       for (const k of keys.sort().slice(0, keys.length - 12)) delete u.activity[k];
     }
 
-    // Only today's rotating daily set (plus all weeklies) can be completed.
-    const activeDaily = activeDailyMissions(now);
-    const relevant = [...activeDaily, ...WEEKLY_MISSIONS];
+    // Only today's rotating daily set (plus all weeklies) can be completed, and
+    // only the quests still switched on, at their configured target and payout.
+    const activeDaily = this.missionDefs("daily", now);
+    const relevant = [...activeDaily, ...this.missionDefs("weekly", now)];
     for (const m of relevant) {
       if (m.metric !== metric) continue;
       const pk = m.period === "daily" ? dk : wk;
@@ -902,15 +967,15 @@ export class Store {
       activeDaily.every((m) => u.missionsDone[`${dk}:${m.id}`])
     ) {
       u.missionsDone[dailyBonusKey] = true;
-      this.addXp(address, DAILY_SET_BONUS_XP, "floor", "quests");
+      this.addXp(address, this.settings.game.dailySetBonusXp, "floor", "quests");
     }
     const weeklyBonusKey = `${wk}:__weekly_set__`;
     if (
       !u.missionsDone[weeklyBonusKey] &&
-      WEEKLY_MISSIONS.every((m) => u.missionsDone[`${wk}:${m.id}`])
+      this.missionDefs("weekly", now).every((m) => u.missionsDone[`${wk}:${m.id}`])
     ) {
       u.missionsDone[weeklyBonusKey] = true;
-      this.addXp(address, WEEKLY_SET_BONUS_XP, "ceiling", "challenges");
+      this.addXp(address, this.settings.game.weeklySetBonusXp, "ceiling", "challenges");
       this.bumpWeeklyStreak(address, now);
     }
   }
@@ -992,8 +1057,9 @@ export class Store {
     const u = this.getOrCreateUser(address);
     const dk = dayKey(now);
     const wk = weekKey(now);
-    // Today's rotating daily set + all weekly challenges.
-    return [...activeDailyMissions(now), ...WEEKLY_MISSIONS].map((m) => {
+    // Today's rotating daily set + all weekly challenges, at their configured
+    // targets and payouts (disabled quests never appear).
+    return this.liveMissions(now).map((m) => {
       const pk = m.period === "daily" ? dk : wk;
       return {
         ...m,
@@ -1135,7 +1201,13 @@ export class Store {
     for (const [addr, until] of snap.muted ?? []) {
       if (until > Date.now()) this.muted.set(addr, until);
     }
-    if (snap.settings) this.settings = { ...this.settings, ...snap.settings };
+    if (snap.settings) {
+      this.settings = { ...this.settings, ...snap.settings };
+      // Merge rather than replace: a snapshot written before a new game mode,
+      // quest or achievement shipped has no row for it, and the new content
+      // should appear at its default instead of vanishing.
+      this.settings.game = mergeGameSettings(snap.settings.game);
+    }
     this.adminLog = snap.adminLog;
     for (const a of snap.staff ?? []) this.staff.set(a.id, a);
     this.auditLog = snap.auditLog ?? [];
@@ -1226,6 +1298,9 @@ export interface OpsSettings {
   burger: BurgerSettings;
   /** The Flame Goon Squad AI — personalities, dialogue pools, behavior. */
   goons: GoonSettings;
+  /** Gameplay configuration: tiers, modes, XP, quests, achievements. Seeded
+   *  from the compiled constants and edited from the Command Center. */
+  game: GameSettings;
 }
 
 /** Deep-copied default Goon Squad settings (roster + behavior). */

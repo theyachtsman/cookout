@@ -116,7 +116,7 @@ const STARTER_DAILY_IDS = new Set(["d_play_2", "d_trade_10", "d_auction_1", "d_p
 /** The daily missions live for the given day — a stable, date-seeded subset of
  *  the pool so the board rotates without ever depending on a player, but always
  *  including at least one starter quest. */
-export function activeDailyMissions(now = Date.now()): MissionDef[] {
+export function activeDailyMissions(now = Date.now(), activeCount = DAILY_ACTIVE_COUNT): MissionDef[] {
   const day = dayKey(now);
   const dailies = MISSIONS.filter((m) => m.period === "daily");
   const rank = (m: MissionDef) => hashStr(day + ":" + m.id);
@@ -125,7 +125,7 @@ export function activeDailyMissions(now = Date.now()): MissionDef[] {
   const rest = dailies
     .filter((m) => m.id !== starter?.id)
     .sort(byRank)
-    .slice(0, DAILY_ACTIVE_COUNT - (starter ? 1 : 0));
+    .slice(0, Math.max(0, activeCount - (starter ? 1 : 0)));
   return (starter ? [starter, ...rest] : rest).sort(byRank);
 }
 

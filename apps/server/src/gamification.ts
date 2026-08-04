@@ -1,8 +1,7 @@
 import {
   CREATOR_FEE_SHARE,
-  PODIUM_XP,
   REFERRAL_FEE_SHARE,
-  XP_AWARDS,
+  type XpEventKind,
   isEnduranceMode,
   type Address,
   type Round,
@@ -94,12 +93,12 @@ export function evaluateRoundEnd(ctx: {
     }
 
     // Per-player XP + achievements.
-    const award = (kind: keyof typeof XP_AWARDS) => store.addXp(addr, XP_AWARDS[kind]);
+    const award = (kind: XpEventKind) => store.addXp(addr, store.xpFor(kind));
     const grant = (id: string) => store.grantAchievement(addr, id);
 
     // Participation & first-buy are "floor" XP (attendance) — weekly-capped.
-    store.addXp(addr, XP_AWARDS.participation, "floor");
-    if (m?.firstBuyAt) store.addXp(addr, XP_AWARDS.first_buy, "floor");
+    store.addXp(addr, store.xpFor("participation"), "floor");
+    if (m?.firstBuyAt) store.addXp(addr, store.xpFor("first_buy"), "floor");
     user.stats.roundsPlayed++;
     store.trackActivity(addr, "rounds_played", 1, now);
     store.bumpPlayStreak(addr, now); // daily play streak (idempotent per day)
@@ -228,8 +227,9 @@ export function evaluateRoundEnd(ctx: {
 
   // Round podium — top 3 by PnL. Zero-sum XP (farm-proof) + a quest metric.
   const ranked = podium.filter((p) => p.pnl > 0).sort((a, b) => b.pnl - a.pnl);
-  ranked.slice(0, PODIUM_XP.length).forEach((p, i) => {
-    store.addXp(p.address, PODIUM_XP[i]!);
+  const podiumXp = store.settings.game.podiumXp;
+  ranked.slice(0, podiumXp.length).forEach((p, i) => {
+    store.addXp(p.address, podiumXp[i] ?? 0);
     store.trackActivity(p.address, "podium_finishes", 1, now);
   });
 
@@ -263,7 +263,7 @@ export function evaluateRoundEnd(ctx: {
       u.stats.predictionsMade++;
       if (outcome && p.call === outcome) {
         u.stats.predictionsCorrect++;
-        store.addXp(p.userAddress, XP_AWARDS.prediction_correct);
+        store.addXp(p.userAddress, store.xpFor("prediction_correct"));
         store.trackActivity(p.userAddress, "correct_predictions", 1, now);
         if (u.stats.predictionsCorrect >= 10) store.grantAchievement(p.userAddress, "oracle");
       }
@@ -288,7 +288,7 @@ export function evaluateRoundEnd(ctx: {
       store.recordLedger(creator.address, "creator_fee", creatorCut, { symbol: round.token.symbol, roundId: round.id });
     creator.creatorReputation += round.graduated ? 2 : 1;
     if (round.graduated) {
-      store.addXp(round.creatorAddress, XP_AWARDS.launched_graduate);
+      store.addXp(round.creatorAddress, store.xpFor("launched_graduate"));
       store.grantAchievement(round.creatorAddress, "graduate_launcher");
       // Taking a coin all the way to the bond with no clock forcing the issue
       // is the hardest thing a creator can do here — its own legendary.

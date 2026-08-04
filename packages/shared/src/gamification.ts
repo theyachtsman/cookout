@@ -45,8 +45,18 @@ export const ACHIEVEMENT_XP: Record<AchievementDef["rarity"], number> = {
  * the store) 60 XP/day. A thousand wash trades earn what six real ones do.
  */
 export const TRADE_XP = { base: 5, decay: 0.6, roundCap: 12, dailyCap: 60 } as const;
+
+/** Trade `n`'s XP on an explicit curve — the server passes the database-backed
+ *  values so the curve is retunable without a deploy. */
+export function tradeXpOnCurve(n: number, curve: { base: number; decay: number }): number {
+  return Math.round(curve.base * Math.pow(curve.decay, n - 1));
+}
+
+/** Trade `n`'s XP on the compiled default curve. Deliberately single-argument:
+ *  it gets passed straight to `.map()`, where a second parameter would silently
+ *  receive the array index. */
 export function tradeXpForIndex(n: number): number {
-  return Math.round(TRADE_XP.base * Math.pow(TRADE_XP.decay, n - 1));
+  return tradeXpOnCurve(n, TRADE_XP);
 }
 
 // ---- Phase 2: streaks (retention) ----

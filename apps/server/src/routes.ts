@@ -1424,8 +1424,8 @@ export function createApp(
       let tier: RiskTier = "rookie";
       let matchMinutes: number | undefined;
       if (rawMode !== undefined) {
-        const def = GAME_MODE_MAP[rawMode as GameMode];
-        if (!def) throw new Err(400, "unknown game mode");
+        if (!GAME_MODE_MAP[rawMode as GameMode]) throw new Err(400, "unknown game mode");
+        const def = store.modeDef(rawMode as GameMode);
         if (def.disabled) throw new Err(403, `${def.name} isn't available yet — it unlocks later`);
         if (creator.level < def.unlockLevel)
           throw new Err(
@@ -1768,8 +1768,8 @@ export function createApp(
       // reflect the new settings.
       const rawMode = (req.body as { mode?: string }).mode;
       if (rawMode !== undefined) {
-        const def = GAME_MODE_MAP[rawMode as GameMode];
-        if (!def) throw new Err(400, "unknown game mode");
+        if (!GAME_MODE_MAP[rawMode as GameMode]) throw new Err(400, "unknown game mode");
+        const def = store.modeDef(rawMode as GameMode);
         if (def.disabled) throw new Err(403, `${def.name} isn't available yet — it unlocks later`);
         if (creator.level < def.unlockLevel)
           throw new Err(

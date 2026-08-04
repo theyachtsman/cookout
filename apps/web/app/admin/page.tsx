@@ -13,6 +13,7 @@ import {
   FlagsModule,
   TeamModule,
 } from "../../components/cc/CcModules";
+import { GameConfigModule } from "../../components/cc/GameConfig";
 import { LegacyOps } from "./LegacyOps";
 
 /**
@@ -224,11 +225,12 @@ function ModuleBody({
       return <AccountModule session={session} onChanged={onSessionChanged} />;
     case "backups":
       return <BackupsModule />;
+    case "game":
+      return <GameConfigModule />;
     // These run on the established ops surface — the panels that already
     // manage them are mounted here rather than rewritten.
     case "users":
     case "moderation":
-    case "game":
     case "economy":
     case "telegram":
     case "goons":

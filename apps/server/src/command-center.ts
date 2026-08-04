@@ -8,8 +8,13 @@
  */
 import type { Express, Response } from "express";
 import {
+  ACHIEVEMENTS,
   ALL_PERMISSIONS,
   FEATURE_FLAGS,
+  GAME_MODES,
+  MISSIONS,
+  freshGameSettings,
+  gameSettingProblem,
   PERMISSIONS,
   ROLES,
   ROLE_MAP,
@@ -447,6 +452,100 @@ export function mountCommandCenter(app: Express, store: Store, adminKey: string)
     }),
   );
 
+  // ------------------------------------------------------- game configuration
+
+  /** The live gameplay configuration, plus the compiled defaults so the editor
+   *  can show what each value started as and offer a reset. */
+  app.get(
+    "/api/cc/game",
+    gate("game.config"),
+    wrap((_req, res) => {
+      res.json({
+        settings: store.settings.game,
+        defaults: freshGameSettings(),
+        // Labels and descriptions stay in code — only the numbers are tunable.
+        catalog: {
+          modes: GAME_MODES.map((m) => ({ key: m.key, name: m.name, tagline: m.tagline })),
+          missions: MISSIONS.map((m) => ({
+            id: m.id,
+            name: m.name,
+            description: m.description,
+            period: m.period,
+            metric: m.metric,
+          })),
+          achievements: ACHIEVEMENTS.map((a) => ({
+            id: a.id,
+            name: a.name,
+            description: a.description,
+          })),
+          xpEvents: Object.keys(freshGameSettings().xp),
+        },
+      });
+    }),
+  );
+
+  /**
+   * Patch gameplay configuration by dotted path, e.g.
+   * `{ "tiers.standard.tradeFeeBps": 120, "modes.blitz.pullUpCap": 1.2 }`.
+   *
+   * Paths are validated against the existing shape, so a typo can't invent a
+   * setting the engine will never read, and each value passes the guardrails
+   * before anything is written. The whole patch is applied or none of it is.
+   */
+  app.patch(
+    "/api/cc/game",
+    gate("game.config"),
+    wrap((req, res) => {
+      const patch = req.body as Record<string, unknown>;
+      if (!patch || typeof patch !== "object") throw new CcError(400, "expected a patch object");
+      const before: Record<string, unknown> = {};
+      const after: Record<string, unknown> = {};
+
+      // Validate everything first — a half-applied config is worse than none.
+      for (const [path, value] of Object.entries(patch)) {
+        const current = readPath(store.settings.game, path);
+        if (current === undefined)
+          throw new CcError(400, `"${path}" isn't a game setting`);
+        if (typeof value !== typeof current && !(current === null || value === null))
+          throw new CcError(400, `"${path}" expects a ${typeof current}`);
+        const problem = gameSettingProblem(path, value);
+        if (problem) throw new CcError(400, `${path}: ${problem}`);
+        before[path] = current;
+      }
+      for (const [path, value] of Object.entries(patch)) {
+        writePath(store.settings.game, path, value);
+        after[path] = value;
+      }
+
+      audit(store, req, {
+        module: "game",
+        action: "game.config_update",
+        target: Object.keys(patch).join(", "),
+        before,
+        after,
+      });
+      res.json({ settings: store.settings.game });
+    }),
+  );
+
+  /** Reset the whole gameplay configuration back to the compiled defaults. */
+  app.post(
+    "/api/cc/game/reset",
+    gate("game.config"),
+    wrap((req, res) => {
+      const before = structuredClone(store.settings.game);
+      store.settings.game = freshGameSettings();
+      audit(store, req, {
+        module: "game",
+        action: "game.config_reset",
+        before,
+        after: store.settings.game,
+        note: "reset to compiled defaults",
+      });
+      res.json({ settings: store.settings.game });
+    }),
+  );
+
   // ------------------------------------------------------------ feature flags
 
   app.get(
@@ -755,4 +854,23 @@ function settingPaths(obj: unknown, prefix = "", depth = 0): string[] {
     out.push(...settingPaths(v, path, depth + 1));
   }
   return out;
+}
+
+/** Read a dotted path out of an object, or undefined when it doesn't exist. */
+function readPath(obj: unknown, path: string): unknown {
+  let cur: unknown = obj;
+  for (const key of path.split(".")) {
+    if (cur === null || typeof cur !== "object") return undefined;
+    cur = (cur as Record<string, unknown>)[key];
+  }
+  return cur;
+}
+
+/** Write a dotted path. Only ever called after readPath proved it exists. */
+function writePath(obj: unknown, path: string, value: unknown): void {
+  const keys = path.split(".");
+  const last = keys.pop()!;
+  let cur: unknown = obj;
+  for (const key of keys) cur = (cur as Record<string, unknown>)[key];
+  (cur as Record<string, unknown>)[last] = value;
 }
