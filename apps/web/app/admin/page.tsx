@@ -15,6 +15,7 @@ import {
 } from "../../components/cc/CcModules";
 import { GameConfigModule } from "../../components/cc/GameConfig";
 import { CopyEditorModule } from "../../components/cc/CopyEditor";
+import { AnalyticsModule } from "../../components/cc/Analytics";
 import { TelegramModule } from "../../components/cc/Telegram";
 import { MediaModule } from "../../components/cc/MediaLibrary";
 import { AudioModule, BrandingModule, ThemesModule } from "../../components/cc/Presentation";
@@ -235,6 +236,8 @@ function ModuleBody({
       return <CopyEditorModule />;
     case "telegram":
       return <TelegramModule />;
+    case "analytics":
+      return <AnalyticsModule />;
     case "media":
       return <MediaModule />;
     case "branding":
@@ -257,13 +260,6 @@ function ModuleBody({
           </div>
           <LegacyOps />
         </div>
-      );
-    case "analytics":
-      return (
-        <ComingSoon
-          title="Analytics"
-          note="Dashboards for retention, trading, the Pit, XP, BURGERS and revenue. The dashboard module already reports live platform and infrastructure numbers; the deeper cohort and funnel views are the next module to land."
-        />
       );
     case "nft":
       return (

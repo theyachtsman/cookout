@@ -39,6 +39,7 @@ import {
   type SearchHit,
   type StaffRole,
 } from "@cookout/shared";
+import { buildAnalytics } from "./analytics.js";
 import { MediaService } from "./media.js";
 import { rateLimit } from "./ratelimit.js";
 import {
@@ -1232,6 +1233,17 @@ export function mountCommandCenter(
           `${e.target ?? ""} ${e.source ?? ""} ${e.text ?? ""} ${e.error ?? ""}`.toLowerCase().includes(q),
         );
       res.json({ entries: rows.slice(0, 300), total: store.telegramLog.length });
+    }),
+  );
+
+  // ---------------------------------------------------------------- analytics
+
+  app.get(
+    "/api/cc/analytics",
+    gate("analytics.view"),
+    wrap((req, res) => {
+      const days = Math.min(180, Math.max(1, Number(req.query.days ?? 30)));
+      res.json(buildAnalytics(store, { days }));
     }),
   );
 
