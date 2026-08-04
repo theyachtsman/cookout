@@ -70,6 +70,8 @@ import {
   type ThemeSettings,
   type TelegramLogEntry,
   type TelegramSettings,
+  type CollectionSettings,
+  type PlayerCollection,
   freshTelegramSettings,
   mergeTelegramSettings,
   freshAudioSettings,
@@ -94,6 +96,7 @@ import {
   GOON_ROSTER,
 } from "@cookout/shared";
 import { awardBurger, awardBurgerOneTime, awardBurgerXpMilestones } from "./burger.js";
+import { freshCollectionSettings, mergeCollectionSettings } from "./collection.js";
 import type { StaffSession, StoredStaff } from "./staff.js";
 
 /** The bot's command list, duplicated as plain data so the store can seed its
@@ -231,6 +234,8 @@ export interface StoredUser extends UserProfile {
   burgerPurchased?: number;
   /** Lifetime Burgers spent (future spending sinks). */
   burgerSpent?: number;
+  /** Flame Goon Squad Collection: owned dossiers, claimed sets, crates opened. */
+  collection?: PlayerCollection;
 }
 
 /**
@@ -320,6 +325,7 @@ export class Store {
     audio: freshAudioSettings(),
     copy: {},
     telegram: freshTelegramSettings(TELEGRAM_COMMAND_DEFS),
+    collection: freshCollectionSettings(),
   };
   /** Live ETH/USD, refreshed by the price feed; used to peg the $40k bond. */
   ethUsd = DEFAULT_ETH_USD;
@@ -1298,6 +1304,7 @@ export class Store {
         snap.settings.telegram,
         TELEGRAM_COMMAND_DEFS,
       );
+      this.settings.collection = mergeCollectionSettings(snap.settings.collection);
     }
     this.adminLog = snap.adminLog;
     for (const a of snap.staff ?? []) this.staff.set(a.id, a);
@@ -1406,6 +1413,8 @@ export interface OpsSettings {
   /** Telegram operations: connection overrides, automation, schedules,
    *  commands and moderation. Env remains the fallback for the connection. */
   telegram: TelegramSettings;
+  /** The Flame Goon Squad Collection: catalogue, sets, drop table and packs. */
+  collection: CollectionSettings;
 }
 
 /** Deep-copied default Goon Squad settings (roster + behavior). */

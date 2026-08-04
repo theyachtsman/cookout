@@ -18,6 +18,7 @@ import {
 import { api } from "../lib/api";
 import { useUnit } from "../lib/chainOnly";
 import { FeesEarned } from "./FeesEarned";
+import { CollectionView } from "./collection/CollectionView";
 import { PitProfile } from "./PitProfile";
 import { ReputationPanel } from "./Reputation";
 import { RunItBackButton } from "./RunItBack";
@@ -91,7 +92,7 @@ const STATUS_STYLE: Record<string, string> = {
   rejected: "bg-red-500/15 text-red-300/80",
 };
 
-type Tab = "overview" | "pit" | "creator";
+type Tab = "overview" | "collection" | "pit" | "creator";
 
 /**
  * The public profile — player identity and creator record on one page, split
@@ -156,13 +157,20 @@ export function PublicProfile({
   const hasPit = (profile.pitStats?.matchesPlayed ?? 0) > 0;
   const tabs: [Tab, string][] = [
     ["overview", "Overview"],
+    ["collection", "Collection"],
     ...((hasPit ? [["pit", "The Pit"]] : []) as [Tab, string][]),
     ...((isCreator ? [["creator", "Creator"]] : []) as [Tab, string][]),
   ];
   // Deep-linked or clicked tab must still be valid for this profile; otherwise
   // fall back to Overview.
   const activeTab: Tab =
-    tab === "creator" && isCreator ? "creator" : tab === "pit" && hasPit ? "pit" : "overview";
+    tab === "creator" && isCreator
+      ? "creator"
+      : tab === "pit" && hasPit
+        ? "pit"
+        : tab === "collection"
+          ? "collection"
+          : "overview";
   const a = creator?.aggregates;
   const gradRate =
     a && a.roundsLaunched > 0 ? Math.round((a.graduations / a.roundsLaunched) * 100) : 0;
@@ -230,6 +238,9 @@ export function PublicProfile({
       )}
 
       {tabs.length > 1 && <TabBar tabs={tabs} value={activeTab} onChange={setTab} />}
+
+      {activeTab === "collection" && <CollectionView address={address} />}
+
 
       {activeTab === "pit" && <PitProfile address={address} pitStats={profile.pitStats} />}
 

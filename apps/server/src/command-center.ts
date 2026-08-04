@@ -10,6 +10,9 @@ import type { Express, Response } from "express";
 import {
   ACHIEVEMENTS,
   ALL_PERMISSIONS,
+  CARD_RARITIES,
+  type CollectionCard,
+  type CollectionSet,
   COPY_ENTRIES,
   COPY_MAP,
   copyGroups,
@@ -1531,6 +1534,169 @@ export function mountCommandCenter(
             mcap: r.pool ? marketCap(r.pool) : 0,
           })),
       });
+    }),
+  );
+
+  // --------------------------------------------------------------- collection
+
+  app.get(
+    "/api/cc/collection",
+    gate("content.manage"),
+    wrap((_req, res) => {
+      const c = store.settings.collection;
+      const cards = Object.values(c.cards);
+      // A rarity with cards but no drop weight can never be pulled. That's a
+      // legitimate configuration, but it's almost always a mistake, so it's
+      // surfaced rather than left for someone to discover months later.
+      const unreachable = CARD_RARITIES.filter(
+        (r) =>
+          cards.some((card) => card.enabled && card.rarity === r.key) &&
+          !c.dropTable.some((d) => d.rarity === r.key && d.weight > 0),
+      ).map((r) => r.key);
+      res.json({
+        settings: c,
+        rarities: CARD_RARITIES,
+        counts: Object.fromEntries(
+          CARD_RARITIES.map((r) => [r.key, cards.filter((x) => x.enabled && x.rarity === r.key).length]),
+        ),
+        totalCards: cards.length,
+        unreachableRarities: unreachable,
+      });
+    }),
+  );
+
+  /** Create or replace a card. Ids are stable, so editing keeps collections intact. */
+  app.post(
+    "/api/cc/collection/cards",
+    gate("content.manage"),
+    wrap((req, res) => {
+      const b = req.body as Partial<CollectionCard> & { id?: string };
+      if (!b.name?.trim()) throw new CcError(400, "a card needs a name");
+      const id = b.id || `card_custom_${store.id()}`;
+      const existing = store.settings.collection.cards[id];
+      const before = existing ? structuredClone(existing) : null;
+      const card: CollectionCard = {
+        id,
+        cardNumber: b.cardNumber || existing?.cardNumber || id,
+        name: String(b.name).slice(0, 60),
+        callsign: String(b.callsign ?? existing?.callsign ?? "").slice(0, 40),
+        rarity: (b.rarity ?? existing?.rarity ?? "common") as CollectionCard["rarity"],
+        species: String(b.species ?? existing?.species ?? "").slice(0, 40),
+        division: String(b.division ?? existing?.division ?? "").slice(0, 60),
+        role: String(b.role ?? existing?.role ?? "").slice(0, 40),
+        equipment: (b.equipment ?? existing?.equipment ?? []).slice(0, 10),
+        traits: (b.traits ?? existing?.traits ?? []).slice(0, 10),
+        biography: String(b.biography ?? existing?.biography ?? "").slice(0, 2000),
+        lore: String(b.lore ?? existing?.lore ?? "").slice(0, 2000),
+        description: String(b.description ?? existing?.description ?? "").slice(0, 500),
+        portraitAssetId: b.portraitAssetId ?? existing?.portraitAssetId,
+        dossierAssetId: b.dossierAssetId ?? existing?.dossierAssetId,
+        sets: b.sets ?? existing?.sets ?? [],
+        releaseSeason: b.releaseSeason ?? existing?.releaseSeason ?? store.settings.collection.season,
+        enabled: b.enabled ?? existing?.enabled ?? true,
+        aiHandle: b.aiHandle ?? existing?.aiHandle,
+        aiAddress: b.aiAddress ?? existing?.aiAddress,
+        chain: { ...(existing?.chain ?? { mintStatus: "unminted", transferable: false }), ...(b.chain ?? {}) },
+      };
+      for (const assetId of [card.portraitAssetId, card.dossierAssetId])
+        if (assetId && !media.get(assetId)) throw new CcError(400, `no media asset ${assetId}`);
+      store.settings.collection.cards[id] = card;
+      audit(store, req, {
+        module: "nft",
+        action: before ? "card.update" : "card.create",
+        target: `${card.cardNumber} ${card.name}`,
+        before,
+        after: card,
+      });
+      res.json({ card });
+    }),
+  );
+
+  app.delete(
+    "/api/cc/collection/cards/:id",
+    gate("content.manage"),
+    wrap((req, res) => {
+      const card = store.settings.collection.cards[req.params.id!];
+      if (!card) throw new CcError(404, "no such card");
+      // Deleting a card players own would silently shrink their collection and
+      // break their percentage. Disabling keeps the record honest.
+      const owners = [...store.users.values()].filter((u) => u.collection?.owned[card.id]).length;
+      if (owners > 0)
+        throw new CcError(
+          409,
+          `${owners} player(s) own this card — disable it instead of deleting, or their collections would silently change`,
+        );
+      delete store.settings.collection.cards[card.id];
+      audit(store, req, { module: "nft", action: "card.delete", target: card.name, before: card });
+      res.json({ ok: true });
+    }),
+  );
+
+  app.patch(
+    "/api/cc/collection",
+    gate("content.manage"),
+    wrap((req, res) => {
+      const b = req.body as Partial<typeof store.settings.collection>;
+      const c = store.settings.collection;
+      const before = { enabled: c.enabled, dropTable: [...c.dropTable], packs: [...c.packs], season: c.season };
+      if (b.enabled !== undefined) c.enabled = !!b.enabled;
+      if (b.season !== undefined) c.season = String(b.season).slice(0, 20);
+      if (b.dropTable) {
+        for (const entry of b.dropTable) {
+          if (!CARD_RARITIES.some((r) => r.key === entry.rarity))
+            throw new CcError(400, `unknown rarity "${entry.rarity}"`);
+          if (!(entry.weight >= 0)) throw new CcError(400, "a drop weight can't be negative");
+        }
+        if (!b.dropTable.some((e) => e.weight > 0))
+          throw new CcError(400, "at least one rarity needs a weight, or nothing can ever drop");
+        c.dropTable = b.dropTable;
+      }
+      if (b.packs) {
+        for (const p of b.packs) {
+          if (!(p.crates >= 1)) throw new CcError(400, "a pack needs at least one crate");
+          if (!(p.cost >= 0)) throw new CcError(400, "a pack can't cost less than nothing");
+        }
+        c.packs = b.packs;
+      }
+      if (b.pools) c.pools = { ...c.pools, ...b.pools };
+      audit(store, req, { module: "nft", action: "collection.update", before, after: { enabled: c.enabled, dropTable: c.dropTable, packs: c.packs, season: c.season } });
+      res.json({ settings: c });
+    }),
+  );
+
+  /** Create or update a collection set and its rewards. */
+  app.post(
+    "/api/cc/collection/sets",
+    gate("content.manage"),
+    wrap((req, res) => {
+      const b = req.body as Partial<CollectionSet> & { id?: string };
+      if (!b.name?.trim()) throw new CcError(400, "a set needs a name");
+      const id = b.id || `set_custom_${store.id()}`;
+      const existing = store.settings.collection.sets[id];
+      const set: CollectionSet = {
+        id,
+        name: String(b.name).slice(0, 60),
+        description: String(b.description ?? existing?.description ?? "").slice(0, 400),
+        cardIds: b.cardIds ?? existing?.cardIds,
+        matchRarity: b.matchRarity ?? existing?.matchRarity,
+        matchSpecies: b.matchSpecies ?? existing?.matchSpecies,
+        matchDivision: b.matchDivision ?? existing?.matchDivision,
+        matchRole: b.matchRole ?? existing?.matchRole,
+        xpReward: Math.max(0, Number(b.xpReward ?? existing?.xpReward ?? 0)),
+        burgerReward: Math.max(0, Number(b.burgerReward ?? existing?.burgerReward ?? 0)),
+        repeatable: b.repeatable ?? existing?.repeatable ?? false,
+        season: b.season ?? existing?.season ?? store.settings.collection.season,
+        enabled: b.enabled ?? existing?.enabled ?? true,
+      };
+      store.settings.collection.sets[id] = set;
+      audit(store, req, {
+        module: "nft",
+        action: existing ? "set.update" : "set.create",
+        target: set.name,
+        before: existing ?? null,
+        after: set,
+      });
+      res.json({ set });
     }),
   );
 

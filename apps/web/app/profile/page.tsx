@@ -16,6 +16,7 @@ import { Progress } from "../../components/Progress";
 import { ReputationPanel } from "../../components/Reputation";
 import { RunItBackButton } from "../../components/RunItBack";
 import { RunItBack as PitRunItBack } from "../../components/PitResults";
+import { CollectionView } from "../../components/collection/CollectionView";
 import { PitProfile } from "../../components/PitProfile";
 import { XpBreakdown } from "../../components/XpBreakdown";
 import {
@@ -29,10 +30,11 @@ import {
   TabBar,
 } from "../../components/ProfileUI";
 
-type Tab = "overview" | "runitback" | "pit" | "quests" | "progression" | "achievements" | "rewards";
+type Tab = "overview" | "collection" | "runitback" | "pit" | "quests" | "progression" | "achievements" | "rewards";
 
 const TABS = [
   ["overview", "Overview"],
+  ["collection", "Squad Collection"],
   ["runitback", "Run It Back"],
   ["pit", "The Pit"],
   ["quests", "Quests"],
@@ -395,6 +397,8 @@ export default function ProfilePage() {
           />
         </div>
       )}
+
+      {tab === "collection" && <CollectionView />}
 
       {tab === "pit" && <PitProfile address={profile.address} />}
 

@@ -6,6 +6,7 @@ export * from "./auction.js";
 export * from "./gamification.js";
 export * from "./constants.js";
 export * from "./game-settings.js";
+export * from "./collection.js";
 export * from "./copy.js";
 export * from "./media.js";
 export * from "./telegram-settings.js";

@@ -814,11 +814,3 @@ export function BackupsModule() {
   );
 }
 
-/** Placeholder for modules whose backend is still the legacy admin surface. */
-export function ComingSoon({ title, note }: { title: string; note: string }) {
-  return (
-    <Panel title={title}>
-      <div className="rounded-xl bg-zinc-950/50 p-4 text-sm text-zinc-400">{note}</div>
-    </Panel>
-  );
-}

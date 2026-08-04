@@ -34,6 +34,7 @@ import {
   type TokenConcept,
 } from "@cookout/shared";
 import { mountCommandCenter } from "./command-center.js";
+import { CollectionError, CollectionService } from "./collection.js";
 import { MediaService, readAsset } from "./media.js";
 import { StaffService, requireStaff } from "./staff.js";
 import { enterPit, pitEntryCost, withdrawPit } from "./pit-pools.js";
@@ -2468,6 +2469,77 @@ export function createApp(
       broadcast(req.params.roundId!, { type: "chat_update", message: msg });
       store.logAdmin("chat_censor", `${msg.userAddress}: "${original.slice(0, 60)}"`);
       res.json({ ok: true });
+    }),
+  );
+
+  // ---- The Flame Goon Squad Collection ----
+  const collection = new CollectionService(store);
+
+  /** The catalogue plus, when signed in, what the caller owns. Missing cards
+   *  are still listed — silhouettes are the point, so a player always knows
+   *  something exists without knowing what it is. */
+  app.get(
+    "/api/collection",
+    wrap((req, res) => {
+      const address = req.userAddress;
+      const owned = address ? collection.collectionOf(address).owned : {};
+      res.json({
+        enabled: store.settings.collection.enabled,
+        cards: collection.catalogue().map((c) => {
+          const own = owned[c.id];
+          // An uncollected card reveals its number, rarity and set membership
+          // and nothing else. That's the silhouette.
+          if (!own)
+            return {
+              id: c.id,
+              cardNumber: c.cardNumber,
+              rarity: c.rarity,
+              sets: c.sets,
+              releaseSeason: c.releaseSeason,
+              owned: false,
+            };
+          return { ...c, owned: true, quantity: own.quantity, acquiredAt: own.firstAcquiredAt };
+        }),
+        packs: store.settings.collection.packs,
+        progress: address ? collection.progress(address) : null,
+        sets: address ? collection.setProgress(address) : collection.sets().map((set) => ({ set })),
+        burgerBalance: address ? (store.getOrCreateUser(address).burgerBalance ?? 0) : 0,
+      });
+    }),
+  );
+
+  /** Another player's collection, for the public profile's Collection tab. */
+  app.get(
+    "/api/collection/:address",
+    wrap((req, res) => {
+      const address = req.params.address!.toLowerCase();
+      if (!store.users.has(address)) throw new Err(404, "player not found");
+      const owned = collection.collectionOf(address).owned;
+      res.json({
+        progress: collection.progress(address),
+        sets: collection.setProgress(address),
+        cards: collection
+          .catalogue()
+          .filter((c) => owned[c.id])
+          .map((c) => ({ ...c, quantity: owned[c.id]!.quantity, acquiredAt: owned[c.id]!.firstAcquiredAt }))
+          .sort((a, b) => b.acquiredAt - a.acquiredAt),
+      });
+    }),
+  );
+
+  /** Buy and open a Recruit Crate pack. The server decides every pull. */
+  app.post(
+    "/api/collection/open",
+    auth,
+    rateLimit("crate_open", 30, 60_000),
+    wrap((req, res) => {
+      const { pack } = req.body as { pack?: string };
+      try {
+        res.json(collection.openPack(req.userAddress!, String(pack ?? "x1")));
+      } catch (e) {
+        if (e instanceof CollectionError) throw new Err(e.status, e.message);
+        throw e;
+      }
     }),
   );
 

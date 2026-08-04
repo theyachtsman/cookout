@@ -8,7 +8,6 @@ import {
   AccountModule,
   AuditModule,
   BackupsModule,
-  ComingSoon,
   DashboardModule,
   FlagsModule,
   TeamModule,
@@ -16,6 +15,7 @@ import {
 import { GameConfigModule } from "../../components/cc/GameConfig";
 import { CopyEditorModule } from "../../components/cc/CopyEditor";
 import { AnalyticsModule } from "../../components/cc/Analytics";
+import { CollectionManagerModule } from "../../components/cc/CollectionManager";
 import { EconomyModule } from "../../components/cc/Economy";
 import { GoonsModule } from "../../components/cc/Goons";
 import { ModerationModule } from "../../components/cc/Moderation";
@@ -57,7 +57,7 @@ const MODULES: ModuleDef[] = [
   { key: "themes", label: "Theme Studio", icon: "🎭", permission: "themes.manage", group: "Content" },
   { key: "media", label: "Media Library", icon: "🖼️", permission: "assets.manage", group: "Content" },
   { key: "audio", label: "Audio Manager", icon: "🔊", permission: "assets.manage", group: "Content" },
-  { key: "nft", label: "NFTs", icon: "🃏", permission: "content.manage", group: "Content" },
+  { key: "nft", label: "Squad Collection", icon: "🃏", permission: "content.manage", group: "Content" },
   { key: "analytics", label: "Analytics", icon: "📈", permission: "analytics.view", group: "Platform" },
   { key: "flags", label: "Feature Flags", icon: "🚩", permission: "flags.manage", group: "Platform" },
   { key: "audit", label: "Audit Log", icon: "📋", permission: "audit.view", group: "Platform" },
@@ -249,6 +249,8 @@ function ModuleBody({
       return <EconomyModule session={session} />;
     case "goons":
       return <GoonsModule />;
+    case "nft":
+      return <CollectionManagerModule />;
     case "media":
       return <MediaModule />;
     case "branding":
@@ -257,13 +259,6 @@ function ModuleBody({
       return <ThemesModule />;
     case "audio":
       return <AudioModule />;
-    case "nft":
-      return (
-        <ComingSoon
-          title="NFTs"
-          note="There is no player-facing NFT or Recruit Cooler system yet — only reward hooks (BURGER sources 'nft' and 'loot_box', both disabled). Both are behind feature flags; this module lands with the gameplay it manages."
-        />
-      );
     default:
       return null;
   }
