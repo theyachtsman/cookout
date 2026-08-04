@@ -635,14 +635,8 @@ export default function PitPage() {
             Powered by {PIT_AI_NAME}
           </div>
           <h1 className="mt-1 text-3xl font-black text-zinc-50 sm:text-4xl">{t("pit.title")}</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-300">
-            This is where you prove it. Step into the <span className="font-bold text-sky-300">Prediction Market</span>{" "}
-            and call it — Graduate, Rug, or Timer — then stack the House Special and Double Down for the big score.
-            Think you can out-trade the machine? <span className="font-bold text-lime-300">Battle the Flame Goon Squad</span>{" "}
-            head to head and take the whole pool. Or go it alone in the{" "}
-            <span className="font-bold text-orange-300">Flame Trial</span>: one player, one stake, one PnL target —
-            clear the bar and walk away with your stake plus XP, titles, and badges. Read the market. Beat the Goons.
-            Own The Pit.
+          <p className="mt-2 max-w-2xl whitespace-pre-line text-sm leading-relaxed text-zinc-300">
+            {t("pit.intro")}
           </p>
         </div>
 

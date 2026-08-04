@@ -8,6 +8,7 @@ import { BrandLogo } from "./BrandLogo";
 import { JackpotPill } from "./JackpotPill";
 import { WalletButton } from "./WalletButton";
 import { useChainOnly } from "../lib/chainOnly";
+import { useCopy } from "../lib/copy";
 import { useSession } from "../lib/session";
 
 /**
@@ -25,17 +26,20 @@ interface NavLink {
   accent?: boolean;
 }
 
-const LINKS: NavLink[] = [
-  { href: "/submissions", label: "Launch a Coin", auth: true },
-  { href: "/vote", label: "Vote", auth: true },
-  { href: "/matches", label: "Cook Out", auth: true },
-  { href: "/pit", label: "The Pit", auth: true },
-  { href: "/leaderboard", label: "Boards", auth: true },
-  { href: "/jackpot", label: "Jackpot", auth: true, accent: true },
-  { href: "/docs", label: "Docs" },
+/** Labels come from editable site copy (nav.* keys), so the nav can be
+ *  reworded from the Command Center like everything else. */
+const LINKS: (Omit<NavLink, "label"> & { copyKey: string })[] = [
+  { href: "/submissions", copyKey: "nav.launch", auth: true },
+  { href: "/vote", copyKey: "nav.vote", auth: true },
+  { href: "/matches", copyKey: "nav.matches", auth: true },
+  { href: "/pit", copyKey: "nav.pit", auth: true },
+  { href: "/leaderboard", copyKey: "nav.leaderboard", auth: true },
+  { href: "/jackpot", copyKey: "nav.jackpot", auth: true, accent: true },
+  { href: "/docs", copyKey: "nav.docs" },
 ];
 
 export function TopNav() {
+  const { t } = useCopy();
   const { profile } = useSession();
   const chainOnly = useChainOnly();
   const [open, setOpen] = useState(false);
@@ -99,7 +103,7 @@ export function TopNav() {
                       : "text-zinc-400"
                 }`}
               >
-                {l.label}
+                {t(l.copyKey)}
               </Link>
             );
           })}
@@ -162,7 +166,7 @@ export function TopNav() {
                       l.accent ? "text-amber-300" : "text-zinc-200"
                     }`}
                   >
-                    {l.label}
+                    {t(l.copyKey)}
                   </Link>
                 ))}
               </div>
