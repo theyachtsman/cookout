@@ -221,7 +221,16 @@ export class RoundEngine {
       houseAllocationBps: pit.houseAllocationBps,
       doubleDownBonus: pit.doubleDownBonus,
       doubleDownType: pit.doubleDownType,
-      houseSpecial: modes.prediction && houseKind ? HOUSE_SPECIAL_MAP[houseKind] : undefined,
+      // Names and blurbs are editable copy, resolved at launch and frozen onto
+      // the match so a mid-match edit can't rewrite what players were shown.
+      houseSpecial:
+        modes.prediction && houseKind
+          ? {
+              ...HOUSE_SPECIAL_MAP[houseKind],
+              name: this.store.text(`houseSpecial.${houseKind}.name`),
+              blurb: this.store.text(`houseSpecial.${houseKind}.blurb`),
+            }
+          : undefined,
       tradingFee: pit.tradingFee,
       pitFeeBps: pit.pitFeeBps,
       feeSplit: { ...pit.feeSplit },

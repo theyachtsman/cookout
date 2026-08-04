@@ -21,6 +21,7 @@ import {
   dayKey,
   levelForXp,
   titleForLevel,
+  LEVEL_TITLES,
   weekKey,
   type EquippedCosmetics,
   type MissionMetric,
@@ -714,7 +715,7 @@ export class Store {
         address: key,
         xp: 0,
         level: 1,
-        title: titleForLevel(1),
+        title: this.titleFor(1),
         paperBalance: STARTING_PAPER_BALANCE,
         // Nothing is playable until you move it into the arena.
         arenaBalance: 0,
@@ -791,7 +792,7 @@ export class Store {
     const beforeLevel = u.level;
     u.xp += give;
     u.level = levelForXp(u.xp);
-    u.title = titleForLevel(u.level);
+    u.title = this.titleFor(u.level);
     if (u.level > beforeLevel) {
       this.pushActivity(u.address, "level_up", `reached Level ${u.level} · ${u.title}`);
       // Burger economy: pay any newly-crossed XP-level milestones.
@@ -959,6 +960,18 @@ export class Store {
   /** One site string. Used where the server renders player-facing text. */
   text(key: string): string {
     return copyText(this.copyMap(), key);
+  }
+
+  /**
+   * The display title for a level, honouring the editable copy. Level titles
+   * are stamped onto the user record when they level up, so this is where an
+   * edit has to be applied — a title already stamped keeps its old wording
+   * until the player next levels, which is the honest behaviour: we don't
+   * rewrite history on a copy change.
+   */
+  titleFor(level: number): string {
+    const bracket = LEVEL_TITLES.find((t) => level >= t.minLevel);
+    return bracket ? copyText(this.copyMap(), `levelTitle.${bracket.minLevel}`) : titleForLevel(level);
   }
 
   /** Every feature flag resolved against its registry default. */

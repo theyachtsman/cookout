@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { readFileSync, readdirSync } from "node:fs";
+import { join } from "node:path";
 import {
   ACHIEVEMENTS,
   COPY_DEFAULTS,
@@ -102,5 +104,63 @@ test("copy overrides survive a snapshot round-trip", () => {
     restored.text("landing.fair.title"),
     COPY_DEFAULTS["landing.fair.title"],
     "untouched strings still come from the defaults",
+  );
+});
+
+/**
+ * Every registered copy key must actually be read by something.
+ *
+ * This guards the failure mode that produced it: a key was declared, so it
+ * appeared in the Command Center's copy editor and could be edited and saved —
+ * but no component ever read it, so the site never changed. From the operator's
+ * side that's indistinguishable from a broken save, and nothing else catches
+ * it. The scan is crude on purpose; a false positive here is a five-second fix,
+ * a false negative is an hour of confusion.
+ */
+test("no copy key is registered without something reading it", () => {
+  const root = new URL("../../../", import.meta.url).pathname;
+  const used = new Set<string>();
+
+  const scan = (dir: string, exts: string[], patterns: RegExp[]) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === "node_modules" || entry.name === ".next" || entry.name === "dist") continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) {
+        scan(full, exts, patterns);
+        continue;
+      }
+      if (!exts.some((e) => entry.name.endsWith(e))) continue;
+      const text = readFileSync(full, "utf8");
+      for (const re of patterns)
+        for (const m of text.matchAll(re)) {
+          // A template like `mode.${x}.name` becomes the pattern mode.*.name.
+          used.add(m[1]!.replace(/\$\{[^}]*\}/g, "*"));
+        }
+    }
+  };
+
+  // Client: t("…") / lines("…") / fmt("…") and their template forms, plus the
+  // `copyKey: "…"` indirection used where a table of links carries its own key.
+  scan(join(root, "apps/web"), [".tsx", ".ts"], [
+    /\b(?:t|lines|fmt)\(\s*[`"]([^`"]+)[`"]/g,
+    /\bcopyKey:\s*[`"]([^`"]+)[`"]/g,
+  ]);
+  // Server: store.text("…") and copyText(map, "…").
+  scan(join(root, "apps/server/src"), [".ts"], [
+    /\.text\(\s*[`"]([^`"]+)[`"]/g,
+    /copyText\([^,]+,\s*[`"]([^`"]+)[`"]/g,
+  ]);
+
+  const covered = (key: string) =>
+    used.has(key) ||
+    [...used].some(
+      (u) => u.includes("*") && new RegExp(`^${u.replace(/\./g, "\\.").replace(/\*/g, "[^.]+")}$`).test(key),
+    );
+
+  const dead = COPY_ENTRIES.map((e) => e.key).filter((k) => !covered(k));
+  assert.deepEqual(
+    dead,
+    [],
+    `these copy keys are editable in the Command Center but nothing renders them:\n  ${dead.join("\n  ")}`,
   );
 });
