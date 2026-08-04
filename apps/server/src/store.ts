@@ -60,12 +60,16 @@ import {
   type BurgerSettings,
   type GoonSettings,
   type GoonMoment,
+  type AuditEntry,
+  flagEnabled,
+  resolveFlags,
   PIT_DEFAULTS,
   BURGER_DEFAULTS,
   GOON_DEFAULTS,
   GOON_ROSTER,
 } from "@cookout/shared";
 import { awardBurger, awardBurgerOneTime, awardBurgerXpMilestones } from "./burger.js";
+import type { StaffSession, StoredStaff } from "./staff.js";
 
 /** Sessions outlive deploys but not this window (see snapshot comment). */
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -220,6 +224,16 @@ export class Store {
   /** Unclaimed prize pools carried into the next Pit match (durable). */
   pitCarry: { prediction: number; trading: number } = { prediction: 0, trading: 0 };
   adminLog: AdminLogEntry[] = [];
+  // ---- Command Center (internal ops platform) ----
+  /** Staff accounts, keyed by id. Entirely separate from player wallets. */
+  staff = new Map<string, StoredStaff>();
+  /** Live staff sessions, keyed by opaque bearer token. Not persisted: a
+   *  restart signs operators out, which is the safe default for an ops tool. */
+  staffSessions = new Map<string, StaffSession>();
+  /** The structured audit trail — every administrative action, newest last. */
+  auditLog: AuditEntry[] = [];
+  /** Feature-flag overrides. Sparse: anything absent uses the registry default. */
+  featureFlags: Record<string, boolean> = {};
   /** Platform fee revenue collected per round (paper ETH). */
   feesByRound = new Map<string, number>();
   /** Chat mutes/bans: address → muted-until epoch ms (persisted; a ban is a
@@ -806,6 +820,26 @@ export class Store {
     this.adminLog.push({ id: this.id(), at: Date.now(), action, detail });
   }
 
+  /**
+   * Append a structured Command Center audit entry. This is the record the ops
+   * team reads back — actor, module, before and after — so it is kept longer
+   * and trimmed less aggressively than the free-text admin log.
+   */
+  recordAudit(entry: AuditEntry): void {
+    this.auditLog.push(entry);
+    if (this.auditLog.length > 5000) this.auditLog.splice(0, this.auditLog.length - 5000);
+  }
+
+  /** Every feature flag resolved against its registry default. */
+  flags(): Record<string, boolean> {
+    return resolveFlags(this.featureFlags);
+  }
+
+  /** Is a single feature switched on right now? */
+  flag(key: string): boolean {
+    return flagEnabled(this.featureFlags, key);
+  }
+
   /** Record an @-mention ping for a player (newest first, keep the last 50). */
   addPing(target: Address, entry: PingEntry): void {
     const list = this.pings.get(target) ?? [];
@@ -1029,6 +1063,12 @@ export class Store {
       auctionResults: [...this.auctionResults.values()],
       summaries: [...this.summaries.values()],
       adminLog: this.adminLog.slice(-1000),
+      // Command Center: accounts, the audit trail and flag overrides are
+      // durable. Live staff sessions deliberately are not — a restart signs
+      // operators out rather than resurrecting tokens from disk.
+      staff: [...this.staff.values()],
+      auditLog: this.auditLog.slice(-5000),
+      featureFlags: { ...this.featureFlags },
       betaSignups: [...this.betaSignups.values()],
       // Sessions persist so a deploy/restart never signs the beta out.
       sessions: [...this.sessions.entries()]
@@ -1097,6 +1137,9 @@ export class Store {
     }
     if (snap.settings) this.settings = { ...this.settings, ...snap.settings };
     this.adminLog = snap.adminLog;
+    for (const a of snap.staff ?? []) this.staff.set(a.id, a);
+    this.auditLog = snap.auditLog ?? [];
+    this.featureFlags = snap.featureFlags ?? {};
     for (const b of snap.betaSignups ?? []) this.betaSignups.set(b.address, b);
     this.jackpotPool = snap.jackpotPool ?? 0;
     this.jackpotWeekKey = snap.jackpotWeekKey ?? weekKey();
@@ -1323,6 +1366,11 @@ export interface Snapshot {
   auctionResults: AuctionResult[];
   summaries: RoundSummary[];
   adminLog: AdminLogEntry[];
+  /** Command Center staff accounts (password hashes included — this snapshot
+   *  is server-side only and never served to a client). */
+  staff?: StoredStaff[];
+  auditLog?: AuditEntry[];
+  featureFlags?: Record<string, boolean>;
   betaSignups?: BetaSignup[];
   sessions?: Array<[string, Address | SessionRecord]>;
   feedback?: FeedbackEntry[];

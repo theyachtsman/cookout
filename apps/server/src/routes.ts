@@ -31,6 +31,8 @@ import {
   type RiskTier,
   type TokenConcept,
 } from "@cookout/shared";
+import { mountCommandCenter } from "./command-center.js";
+import { StaffService, requireStaff } from "./staff.js";
 import { enterPit, pitEntryCost, withdrawPit } from "./pit-pools.js";
 import { awardBurger, awardBurgerOneTime, purchaseBurgers, adminAdjustBurgers, burgerAnalytics } from "./burger.js";
 import { linkDeepLink } from "./telegram/index.js";
@@ -38,7 +40,6 @@ import {
   createSessionForAddress,
   isDevWallet,
   issueNonce,
-  requireAdmin,
   requireAuth,
   verifyAndCreateSession,
   type AuthedRequest,
@@ -123,7 +124,12 @@ export function createApp(
   });
 
   const auth = requireAuth(store);
-  const admin = requireAdmin(adminKey);
+  // The legacy admin surface now accepts EITHER a Command Center staff session
+  // or the shared admin key, so an operator signed into the Command Center can
+  // drive the existing ops routes without also holding the raw key. The key
+  // itself keeps working as break-glass.
+  const ccStaff = new StaffService(store);
+  const admin = requireStaff(ccStaff, adminKey);
 
   // Baseline abuse protection (per IP; Cloudflare-aware). Reads are generous,
   // identity and writes are tight.
@@ -2456,6 +2462,14 @@ export function createApp(
   );
 
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
+
+  /** Feature flags, resolved. Public and unauthenticated on purpose: the player
+   *  client needs them on every load to know which modes are switched on. */
+  app.get("/api/flags", (_req, res) => res.json({ flags: store.flags() }));
+
+  // The Command Center — the internal ops platform. Mounted last so its
+  // /api/cc/* namespace can't shadow any player route.
+  mountCommandCenter(app, store, adminKey);
 
   return app;
 }

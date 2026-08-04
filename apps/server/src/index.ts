@@ -9,6 +9,7 @@ import { settleWeeklyJackpot } from "./jackpot.js";
 import { FilePersistence, PgPersistence, type Persistence } from "./persistence.js";
 import { createApp } from "./routes.js";
 import { autoScheduler, evaluateVoting, seedDemo } from "./seed.js";
+import { StaffService } from "./staff.js";
 import { Store } from "./store.js";
 import { createPitBoss } from "./telegram/index.js";
 import { Hub } from "./ws.js";
@@ -40,6 +41,10 @@ const chain = new ChainService(store, engine);
 // so a deployment that hasn't opted in is entirely unaffected.
 const pitBoss = createPitBoss(store);
 const app = createApp(store, engine, ADMIN_KEY, hub.broadcast, chain, hub.presence, undefined, pitBoss);
+// Expires idle Command Center sessions from the tick loop. StaffService holds
+// no state of its own — everything lives on the store — so this instance and
+// the one inside the mounted routes act on exactly the same session map.
+const staffService = new StaffService(store);
 // The paper bot swarm: a crowd to trade against on the paper beta. Hard-off
 // on chain-only deployments and via BOTS=0; otherwise the admin Live Ops
 // toggle (store.settings.bots) turns it on and off at runtime.
@@ -110,6 +115,8 @@ setInterval(() => {
     // The Goon Squad: ambient Pit chatter + final-minute beats (Pit-only).
     goons.tick(Date.now());
     evaluateVoting(store, engine);
+    // Expire idle Command Center sessions on the same beat as everything else.
+    staffService.sweep(Date.now());
     // Chain-only deployments never auto-spawn paper rounds, regardless of
     // the Live Ops toggle — real rounds cost the operator real gas/liquidity,
     // so they stay deliberate (admin schedule-chain).
