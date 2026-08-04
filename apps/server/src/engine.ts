@@ -22,6 +22,7 @@ import {
   TRADE_XP,
   WHALE_TRADE_FRACTION,
   buy,
+  isEnduranceMode,
   marketCap,
   sell,
   settleAuction,
@@ -122,6 +123,14 @@ export class RoundEngine {
     if (blitz || !rugRules) config.devSellLockSeconds = 0;
     // Over Time modifier: near the end a still-hot coin earns a bonus minute.
     config.overtime = !!concept.modifiers?.overtime;
+    // Endurance is the launchpad track: no clock at all. The only endings are
+    // the bonding curve, a rug, or an admin call — so the timer, the mcap
+    // target, the low-volume cutoff, and Over Time are all disabled here.
+    if (isEnduranceMode(concept.mode)) {
+      config.mcapTarget = 0;
+      config.lowVolumeThreshold = 0;
+      config.overtime = false;
+    }
     if (concept.totalSupply) {
       // Creator tokenomics: keep the tier's pool-share ratio at the new supply.
       const poolShare = config.initialTokenLiquidity / config.totalSupply;
@@ -142,7 +151,7 @@ export class RoundEngine {
       creatorAddress: concept.creatorAddress,
       tier,
       mode: concept.mode,
-      modifiers: concept.modifiers,
+      modifiers: isEnduranceMode(concept.mode) ? undefined : concept.modifiers,
       matchMinutes: concept.matchMinutes,
       blitz,
       state: "scheduled",
@@ -620,7 +629,9 @@ export class RoundEngine {
     round.clearingPrice = result.clearingPrice;
     round.state = "live";
     round.liveAt = now;
-    round.endsAt = now + cfg.maxDurationSeconds * 1000;
+    // Endurance has no clock: endsAt stays unset and every countdown in the UI
+    // renders as "no timer" instead of a deadline.
+    if (!isEnduranceMode(round.mode)) round.endsAt = now + cfg.maxDurationSeconds * 1000;
     const s = this.liveState(round.id);
     s.peakPrice = result.clearingPrice;
     s.peakMcap = marketCap(round.pool);
@@ -981,6 +992,11 @@ export class RoundEngine {
       this.endRound(round, "graduated", now);
       return;
     }
+
+    // Endurance never ends on a clock or on quiet: it runs until it bonds (or
+    // gets rugged / pulled by an admin). Everything past this point is timer
+    // machinery, so bail here.
+    if (isEnduranceMode(round.mode)) return;
 
     // Over Time: as the clock hits the checkpoint, a coin that's still cooking
     // (hot recent volume, or close to bonding) earns a bonus minute — so a

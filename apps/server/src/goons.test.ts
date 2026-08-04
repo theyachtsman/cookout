@@ -4,17 +4,16 @@ import { PIT_ROOM, isGoon } from "@cookout/shared";
 import { Store } from "./store.js";
 import { GoonSwarm } from "./goons.js";
 
-/** Collect chat + overlays a swarm broadcasts, for assertions. */
+/** Collect everything a swarm broadcasts, for assertions. */
 function harness() {
   const store = new Store();
   const chat: { room: string; text: string; from: string }[] = [];
-  const overlays: { room: string; text: string }[] = [];
+  const events: string[] = [];
   const broadcast = (room: string, ev: { type: string; [k: string]: unknown }) => {
+    events.push(ev.type);
     if (ev.type === "chat") {
       const m = ev.message as { text: string; userAddress: string };
       chat.push({ room, text: m.text, from: m.userAddress });
-    } else if (ev.type === "goon_overlay") {
-      overlays.push({ room, text: (ev.overlay as { text: string }).text });
     }
   };
   // Make the Squad talkative + instant so the probabilistic engine reliably fires.
@@ -24,7 +23,7 @@ function harness() {
   g.namedChancePerEvent = 1;
   g.henchmanChancePerEvent = 1;
   g.humanQuietSec = 20;
-  return { store, chat, overlays, swarm };
+  return { store, chat, events, swarm };
 }
 
 test("Goon registration: every persona is a real, handle-indexed account", () => {
@@ -45,6 +44,18 @@ test("Goon reactions come from Goon accounts and land in the Pit room", () => {
   assert.ok(chat.length > 0, "the Squad reacted");
   assert.ok(chat.every((c) => isGoon(c.from)), "only Goon accounts speak");
   assert.ok(chat.every((c) => c.room === PIT_ROOM));
+});
+
+test("Goon reactions are chat only — no hero overlay banner", () => {
+  const { events, swarm } = harness();
+  for (let i = 0; i < 30; i++) {
+    swarm.onMoment({ kind: "whale", roomId: PIT_ROOM, player: "Whale", now: Date.now() + i });
+  }
+  assert.ok(events.length > 0, "the Squad reacted");
+  assert.ok(
+    events.every((t) => t === "chat"),
+    "the Squad only broadcasts chat, never a screen-covering overlay",
+  );
 });
 
 test("Goon Pit-only guard: never speaks in a non-Pit room", () => {

@@ -85,7 +85,7 @@ export const MATCH_MINUTE_OPTIONS = [10, 7, 5, 1] as const;
  *  - Pressure —  7m, standard rules. A tighter clock for max tension.
  *  - Blitz    —  5m, rug rules OFF. Thin, violent, high-energy.
  *  - Reflex   —  1m, rug rules OFF. Pure dopamine chaos.
- *  - Endurance — no timer. Listed but disabled until a later unlock.
+ *  - Endurance — no timer. The plain launchpad: it runs until the coin bonds.
  */
 export interface GameModeDef {
   key: GameMode;
@@ -163,12 +163,28 @@ export const GAME_MODES: GameModeDef[] = [
     rugRules: true,
     tier: "standard",
     pullUpCap: 2.0,
-    unlockLevel: 999,
-    tagline: "No timer · coming soon",
-    blurb: "A marathon with no clock that runs until the market decides. Reserved for a later unlock.",
-    disabled: true,
+    unlockLevel: 1,
+    tagline: "No timer · runs until it bonds",
+    blurb:
+      "The plain launchpad. No clock, no bots, no modifiers — pure PvP that keeps trading until the coin " +
+      "completes its bonding curve. Endurance launches run on their own track, so any number can be live at " +
+      "once alongside the timed matches.",
   },
 ];
+
+/**
+ * Endurance is the launchpad track, not a timed match. It differs from every
+ * other mode in ways that shared systems have to branch on, so the rule lives
+ * here once instead of being re-derived from `minutes === null` everywhere:
+ *
+ *  - no timer: the round only ends on the bonding curve (or a rug / admin);
+ *  - no bot swarm: strictly PvP;
+ *  - no modifiers (Over Time is meaningless without a clock);
+ *  - it never occupies a match-calendar slot, so any number can run at once.
+ */
+export function isEnduranceMode(mode?: GameMode | null): boolean {
+  return mode === "endurance";
+}
 
 export const GAME_MODE_MAP: Record<GameMode, GameModeDef> = Object.fromEntries(
   GAME_MODES.map((m) => [m.key, m]),

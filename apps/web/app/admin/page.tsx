@@ -622,7 +622,6 @@ function GoonOpsPanel({
         {num("Max / event", "maxPerEvent")}
         {num("Human quiet (s)", "humanQuietSec")}
         {num("Ambient every (s)", "ambientEverySec", "5")}
-        {num("Overlay chance", "overlayChance", "0.05")}
         {num("Memory (hrs)", "memoryHours")}
       </div>
 

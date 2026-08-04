@@ -9,6 +9,7 @@ import {
   NOTIFY_CATEGORIES,
   TIER_UNLOCK_LEVEL,
   resolveNotifyPrefs,
+  isEnduranceMode,
   unlockedCosmetics,
   dayKey,
   weekKey,
@@ -51,6 +52,18 @@ import { GLOBAL_ROOM, spotPrice } from "@cookout/shared";
 
 const PAUSE_LIMIT = 3;
 const PAUSE_WINDOW_MS = 60 * 60 * 1000;
+
+/** Pit round states that still occupy the coin: it can't be relaunched yet.
+ *  Deliberately an allow-list — "cancelled" and "results" are done, and a
+ *  deny-list of just "results" is what used to strand timed-out matches. */
+export const PIT_PENDING_STATES = new Set<import("@cookout/shared").RoundState>([
+  "scheduled",
+  "lobby",
+  "queue_open",
+  "settling",
+  "live",
+  "ended",
+]);
 
 export function createApp(
   store: Store,
@@ -578,13 +591,21 @@ export function createApp(
       const concepts = [...store.concepts.values()]
         .filter((c) => c.creatorAddress === address)
         .sort((a, b) => b.createdAt - a.createdAt);
-      const rounds = [...store.rounds.values()]
-        .filter((r) => r.creatorAddress === address && (r.state === "results" || r.state === "live"))
-        .sort((a, b) => b.scheduledAt - a.scheduledAt)
+      const mine = [...store.rounds.values()]
+        .filter((r) => r.creatorAddress === address)
+        .sort((a, b) => b.scheduledAt - a.scheduledAt);
+      const rounds = mine
+        .filter((r) => r.state === "results" || r.state === "live")
         .map((r) => ({
           round: r,
           summary: store.summaries.get(r.id) ?? null,
         }));
+      // Pit matches whose queue timed out. They never traded, so they aren't
+      // part of the public launch record — but the creator can run them back,
+      // so they're surfaced separately rather than dropped.
+      const cancelled = mine
+        .filter((r) => r.state === "cancelled")
+        .map((r) => ({ round: r, summary: null }));
       const launched = rounds.filter((r) => r.round.state === "results");
       const totalVotes = concepts.reduce((s, c) => s + c.votes, 0);
       res.json({
@@ -600,6 +621,7 @@ export function createApp(
         feesEarned: u.feesEarned,
         concepts,
         rounds,
+        cancelled,
         aggregates: {
           submissions: concepts.length,
           roundsLaunched: launched.length,
@@ -653,8 +675,12 @@ export function createApp(
         .filter((r) => r.state === "lobby" && now >= (r.queueOpensAt ?? 0))
         .sort((a, b) => (a.queueOpensAt ?? 0) - (b.queueOpensAt ?? 0))
         .map(pitView);
+      // Finished matches, including the ones cancelled by a queue timeout — a
+      // cancelled match still belongs on the board so its creator can see what
+      // happened and run it back, instead of it vanishing while still blocking
+      // the coin.
       const results = all
-        .filter((r) => r.state === "results")
+        .filter((r) => r.state === "results" || r.state === "cancelled")
         .sort((a, b) => (b.endedAt ?? 0) - (a.endedAt ?? 0))
         .slice(0, 12)
         .map(pitView);
@@ -767,7 +793,11 @@ export function createApp(
     wrap((req, res) => {
       const round = store.rounds.get(req.params.id!);
       if (!round || round.matchType !== "pit") throw new Err(404, "pit match not found");
-      if (round.state !== "results") throw new Err(400, "this match hasn't finished yet");
+      // A match that timed out in the queue is finished too — it's cancelled and
+      // every deposit was refunded. Not letting the creator run that one back was
+      // the whole reason a timed-out coin felt permanently stuck.
+      if (round.state !== "results" && round.state !== "cancelled")
+        throw new Err(400, "this match hasn't finished yet");
       if (round.creatorAddress.toLowerCase() !== req.userAddress!.toLowerCase())
         throw new Err(403, "only this match's creator can run it back");
       const creator = store.getOrCreateUser(req.userAddress!);
@@ -789,8 +819,15 @@ export function createApp(
         throw new Err(400, "Flame Trial is single-player and can't run with Battle the Goon Squad");
       const concept = store.concepts.get(round.conceptId);
       if (!concept) throw new Err(404, "the original concept is gone");
+      // "Pending" means genuinely still in play. Cancelled and finished matches
+      // stay in the store forever, so testing `state !== "results"` counted every
+      // queue-timeout as a live match and blocked the coin from ever running
+      // again ("this coin already has a pending Pit match").
       const pending = [...store.rounds.values()].some(
-        (r) => r.conceptId === round.conceptId && r.matchType === "pit" && r.state !== "results",
+        (r) =>
+          r.conceptId === round.conceptId &&
+          r.matchType === "pit" &&
+          PIT_PENDING_STATES.has(r.state),
       );
       if (pending) throw new Err(409, "this coin already has a pending Pit match");
       concept.pitDuration = duration;
@@ -1116,7 +1153,6 @@ export function createApp(
         if (goons.maxPerEvent !== undefined) g.maxPerEvent = Math.round(num(goons.maxPerEvent, 1, 5, g.maxPerEvent));
         if (goons.humanQuietSec !== undefined) g.humanQuietSec = num(goons.humanQuietSec, 0, 600, g.humanQuietSec);
         if (goons.ambientEverySec !== undefined) g.ambientEverySec = num(goons.ambientEverySec, 10, 3600, g.ambientEverySec);
-        if (goons.overlayChance !== undefined) g.overlayChance = unit(goons.overlayChance, g.overlayChance);
         if (goons.memoryHours !== undefined) g.memoryHours = num(goons.memoryHours, 0, 8760, g.memoryHours);
         if (Array.isArray(goons.personas)) {
           const schedules = ["always", "random", "weekend", "tournament", "manual"];
@@ -1431,7 +1467,10 @@ export function createApp(
         theme: String(theme).slice(0, 140),
         pitch: pitch ? String(pitch).slice(0, 1000) : undefined,
         socials: sanitizeSocials((req.body as { socials?: unknown }).socials),
-        modifiers: sanitizeModifiers((req.body as { modifiers?: unknown }).modifiers),
+        // Endurance takes no modifiers — Over Time is meaningless with no clock.
+        modifiers: isEnduranceMode(mode)
+          ? undefined
+          : sanitizeModifiers((req.body as { modifiers?: unknown }).modifiers),
         artworkUrl: artworkUrl ? sanitizeImageUrl(artworkUrl) : undefined,
         bannerUrl: bannerUrl ? sanitizeImageUrl(bannerUrl) : undefined,
         totalSupply,
@@ -1738,6 +1777,8 @@ export function createApp(
       // The dev can also flip modifiers (e.g. Over Time) on the re-run.
       if ("modifiers" in (req.body as object))
         concept.modifiers = sanitizeModifiers((req.body as { modifiers?: unknown }).modifiers);
+      // …but never on Endurance, which has no clock for a modifier to act on.
+      if (isEnduranceMode(concept.mode)) concept.modifiers = undefined;
       // Instead of jumping straight onto the calendar, a run-back sends the coin
       // back through the community vote: reset it to a fresh submission and let
       // the crowd decide if it cooks again. The chosen mode rides on the concept.

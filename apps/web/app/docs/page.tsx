@@ -329,10 +329,20 @@ export default function Docs() {
             extra minutes. A quiet, dying coin gets nothing and no overlay. It can save a coin and
             turn it into a winner at the last moment.
           </p>
+          <p>
+            <b className="text-lime-300">🕛 Endurance:</b> the plain launchpad, for when you just
+            want to launch a coin instead of playing a timed round. There is{" "}
+            <b>no clock</b> — it opens with the same Fair Open and then keeps trading until the coin
+            completes its bonding curve and serves up (or the dev rugs it). It&apos;s{" "}
+            <b>strictly PvP</b>: no bot swarm ever trades an Endurance coin, and no modifiers can be
+            added. Endurance runs on its own track, so any number can be live at once alongside the
+            timed matches — but it still has to clear the community vote to start. Active Endurance
+            launches get their own queue on the Cook Out page; when one serves up it lands in Past
+            Results under Endurance.
+          </p>
           <p className="rounded-xl border border-lime-400/30 bg-lime-400/[0.05] p-3 text-sm text-zinc-300">
             <b className="text-lime-300">Beta:</b> every mode is open to everyone from level 1, so
-            you can try them all. <b>Endurance</b> (no timer) is on the menu but locked for now, and
-            unlocks later.
+            you can try them all.
           </p>
         </Section>
 

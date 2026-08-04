@@ -11,6 +11,7 @@ import {
   GAME_MODE_MAP,
   MODIFIERS,
   TIER_CONFIGS,
+  isEnduranceMode,
   type GameMode,
   type TokenConcept,
 } from "@cookout/shared";
@@ -84,6 +85,8 @@ export default function Submissions() {
           artworkUrl: form.artworkUrl || undefined,
           bannerUrl: form.bannerUrl || undefined,
           totalSupply: form.totalSupply ? Number(form.totalSupply) : undefined,
+          // Endurance takes no modifiers (the server enforces this too).
+          modifiers: isEnduranceMode(form.mode) ? {} : form.modifiers,
         },
       });
       setPreviewing(false);
@@ -309,11 +312,18 @@ export default function Submissions() {
                 </div>
               )}
             </div>
-            {/* Modifiers — optional tweaks layered on the mode. */}
+            {/* Modifiers — optional tweaks layered on the mode. Endurance takes
+                none: every modifier acts on the clock, and it has no clock. */}
             <div className="md:col-span-2">
               <div className="mb-1.5 text-xs text-zinc-500">
                 Modifiers · optional tweaks on top of your mode
               </div>
+              {isEnduranceMode(form.mode) ? (
+                <div className="rounded-xl bg-zinc-900/40 p-3 text-[11px] leading-snug text-zinc-500">
+                  <b className="text-zinc-300">Endurance takes no modifiers.</b> There&apos;s no clock
+                  for one to act on — the coin trades until it completes its bonding curve.
+                </div>
+              ) : (
               <div className="grid gap-2 sm:grid-cols-2">
                 {MODIFIERS.map((mod) => {
                   const on = !!form.modifiers[mod.key];
@@ -354,6 +364,7 @@ export default function Submissions() {
                   );
                 })}
               </div>
+              )}
             </div>
             <button
               onClick={openPreview}
@@ -440,7 +451,7 @@ export default function Submissions() {
                   mode: form.mode,
                   tier: GAME_MODE_MAP[form.mode].tier,
                   matchMinutes: GAME_MODE_MAP[form.mode].minutes ?? undefined,
-                  modifiers: form.modifiers,
+                  modifiers: isEnduranceMode(form.mode) ? undefined : form.modifiers,
                 }}
               />
               {error && <p className="mt-3 text-center text-sm text-red-400">{error}</p>}

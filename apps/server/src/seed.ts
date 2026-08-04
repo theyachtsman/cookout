@@ -1,4 +1,4 @@
-import { VOTE_THRESHOLD, VOTING_WINDOW_MS } from "@cookout/shared";
+import { VOTE_THRESHOLD, VOTING_WINDOW_MS, isEnduranceMode } from "@cookout/shared";
 import type { RoundEngine } from "./engine.js";
 import type { Store } from "./store.js";
 
@@ -15,6 +15,9 @@ export function nextFreeSlot(store: Store, leadMs: number, now: number): number 
   let latest = now;
   for (const r of store.rounds.values()) {
     if (r.state === "results") continue;
+    // Endurance runs on its own track — it never occupies a calendar slot, and
+    // (having no endsAt) it would otherwise push every timed match out forever.
+    if (isEnduranceMode(r.mode)) continue;
     const end =
       r.endsAt ??
       r.scheduledAt +
@@ -31,8 +34,13 @@ export function evaluateVoting(store: Store, engine: RoundEngine, now = Date.now
       // Vote complete → straight onto the calendar at the creator's chosen
       // tier. No shortlist limbo: the slot lands after whatever is already
       // queued or running, so matches never overlap.
+      //
+      // Endurance is the exception: it isn't a scheduled match, it's a launch.
+      // It opens as soon as the vote clears (just the ops lead time) and any
+      // number can be running at once, so it never waits on the calendar.
       const tier = c.tier ?? store.settings.tier;
-      const at = nextFreeSlot(store, store.settings.leadSeconds * 1000, now);
+      const lead = store.settings.leadSeconds * 1000;
+      const at = isEnduranceMode(c.mode) ? now + lead : nextFreeSlot(store, lead, now);
       const round = engine.scheduleRound(c, tier, at);
       c.status = "scheduled";
       // Community feed: hitting the vote bar is its own beat, and it books the
@@ -89,11 +97,19 @@ export function seedDemo(store: Store, engine: RoundEngine): void {
  */
 export function autoScheduler(store: Store, engine: RoundEngine): void {
   if (!store.settings.autoSchedule) return;
-  const active = [...store.rounds.values()].some((r) =>
-    ["scheduled", "lobby", "queue_open", "settling", "live", "ended"].includes(r.state),
+  // Endurance launches don't count as "the calendar is busy" — they run beside
+  // the timed matches, so an Endurance coin cooking away must not stop the
+  // scheduler from booking the next timed round.
+  const active = [...store.rounds.values()].some(
+    (r) =>
+      !isEnduranceMode(r.mode) &&
+      ["scheduled", "lobby", "queue_open", "settling", "live", "ended"].includes(r.state),
   );
   if (active) return;
   const next = [...store.concepts.values()]
+    // Endurance always earns its start at the ballot box — the demo scheduler
+    // never shortcuts a launch onto the grill.
+    .filter((c) => !isEnduranceMode(c.mode))
     .filter((c) => c.status === "submitted" || c.status === "shortlisted")
     .sort((a, b) => b.votes - a.votes)[0];
   if (!next) return;

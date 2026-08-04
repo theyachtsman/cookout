@@ -1,5 +1,4 @@
 /** Shared domain types for The Cookout (Phase 1: paper money). */
-import type { GoonOverlayEvent } from "./goons.js";
 
 export type Address = string;
 
@@ -1124,7 +1123,6 @@ export type ServerEvent =
   | { type: "burger"; amount: number; balance: number; source: BurgerSource; label: string }
   /** A cinematic Flame Goon Squad moment ("GHOST ENTERED THE PIT"), broadcast to
    *  a Pit room. Drives the overlay banners on the Pit pages. */
-  | { type: "goon_overlay"; overlay: GoonOverlayEvent }
   | { type: "error"; message: string };
 
 /** An @-mention of a player in chat, shown in their Pings feed. */

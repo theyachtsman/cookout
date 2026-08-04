@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ACHIEVEMENTS, COSMETICS, xpForLevel, type Round, type RoundHistoryEntry } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { DEFAULT_CHAIN_ID, arenaBalance, hasArenaWallet } from "../../lib/arenaWallet";
@@ -15,6 +15,7 @@ import { Missions } from "../../components/Missions";
 import { Progress } from "../../components/Progress";
 import { ReputationPanel } from "../../components/Reputation";
 import { RunItBackButton } from "../../components/RunItBack";
+import { RunItBack as PitRunItBack } from "../../components/PitResults";
 import { PitProfile } from "../../components/PitProfile";
 import { XpBreakdown } from "../../components/XpBreakdown";
 import {
@@ -43,6 +44,39 @@ const TABS = [
 const isRugRound = (r: Round) =>
   r.endReason === "rug_detected" || r.endReason === "liquidity_removed";
 
+/**
+ * One coin's Run It Back entry: the most recent attempt, plus how many times
+ * it's been run. A dev who has run $SAME five times should see one card, not
+ * five identical ones — so rounds are folded by coin identity (ticker + name).
+ */
+interface RunnableCoin {
+  /** The latest non-graduating round for this coin — what the button acts on. */
+  latest: Round;
+  /** How many of this dev's rounds for this coin are eligible. */
+  attempts: number;
+}
+
+/** Fold a dev's rounds into one entry per coin, newest attempt first. */
+function foldRunnable(rounds: Round[]): RunnableCoin[] {
+  const byCoin = new Map<string, RunnableCoin>();
+  for (const r of rounds) {
+    // Same ticker AND same name = the same coin, however many times it ran.
+    const key = `${r.token.symbol.toUpperCase()}|${r.token.name.trim().toLowerCase()}`;
+    const seen = byCoin.get(key);
+    if (!seen) {
+      byCoin.set(key, { latest: r, attempts: 1 });
+      continue;
+    }
+    seen.attempts++;
+    const at = (x: Round) => x.endedAt ?? x.scheduledAt;
+    if (at(r) > at(seen.latest)) seen.latest = r;
+  }
+  return [...byCoin.values()].sort(
+    (a, b) =>
+      (b.latest.endedAt ?? b.latest.scheduledAt) - (a.latest.endedAt ?? a.latest.scheduledAt),
+  );
+}
+
 export default function ProfilePage() {
   const { profile, signIn, refresh } = useSession();
   const [tab, setTab] = useState<Tab>("overview");
@@ -59,12 +93,38 @@ export default function ProfilePage() {
     api<RoundHistoryEntry[]>(`/api/profile/${profile.address}/history`)
       .then(setHistory)
       .catch(() => {});
-    // Own launches, for the Run It Back tab.
-    api<{ rounds: Array<{ round: Round }> }>(`/api/creator/${profile.address}`)
-      // Cook Out Run It Back only — Pit matches run back from the Pit results.
-      .then((d) => setMyRounds(d.rounds.map((r) => r.round).filter((r) => r.matchType !== "pit")))
+    // Own launches, for the Run It Back tab. `cancelled` covers Pit matches
+    // whose queue timed out — those never traded but can still be run back.
+    api<{ rounds: Array<{ round: Round }>; cancelled?: Array<{ round: Round }> }>(
+      `/api/creator/${profile.address}`,
+    )
+      .then((d) =>
+        setMyRounds([...d.rounds, ...(d.cancelled ?? [])].map((r) => r.round)),
+      )
       .catch(() => setMyRounds([]));
   }, [profile?.address]);
+
+  // Run It Back only ever offers coins that DIDN'T graduate — a served-up coin
+  // has nothing to run back. Cook Out rounds go back through the vote; Pit
+  // matches (including ones cancelled by a queue timeout) relaunch directly.
+  const cookoutRunnable = useMemo(
+    () =>
+      foldRunnable(
+        myRounds.filter((r) => r.matchType !== "pit" && r.state === "results" && !r.graduated),
+      ),
+    [myRounds],
+  );
+  const pitRunnable = useMemo(
+    () =>
+      foldRunnable(
+        myRounds.filter(
+          (r) =>
+            r.matchType === "pit" &&
+            (r.state === "cancelled" || (r.state === "results" && !r.graduated)),
+        ),
+      ),
+    [myRounds],
+  );
 
   // Chain-only site: the headline balance is the arena wallet, not paper.
   const [arenaBal, setArenaBal] = useState<number | null>(null);
@@ -280,57 +340,26 @@ export default function ProfilePage() {
             title="Run It Back"
             action={
               <span className="font-mono text-xs text-zinc-500">
-                {myRounds.filter((r) => r.state === "results" && !r.graduated).length} eligible
+                {cookoutRunnable.length + pitRunnable.length} eligible
               </span>
             }
           />
-          {(() => {
-            const runnable = myRounds.filter((r) => r.state === "results" && !r.graduated);
-            if (runnable.length === 0)
-              return (
-                <div className="rounded-2xl bg-zinc-900/40 p-8 text-center text-sm text-zinc-500">
-                  Nothing to run back right now. Any of your coins that finish without graduating
-                  land here, so you can send them straight back to the vote in a fresh mode.
-                </div>
-              );
-            return (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {runnable.map((r) => {
-                  const rug = isRugRound(r);
-                  return (
-                    <CoinCard
-                      key={r.id}
-                      coin={{
-                        ...r.token,
-                        tier: r.tier,
-                        id: r.conceptId,
-                        creatorAddress: r.creatorAddress,
-                        mode: r.mode,
-                        modifiers: r.modifiers,
-                      }}
-                      borderClass="border-transparent"
-                      corner={
-                        <span
-                          className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-bold ${
-                            rug ? "bg-red-500/20 text-red-300" : "bg-zinc-800/90 text-zinc-400"
-                          }`}
-                        >
-                          {rug ? "🔥 burnt" : "closed"}
-                        </span>
-                      }
-                    >
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-[11px] text-zinc-500">
-                          {rug ? "rugged" : `ended: ${r.endReason?.replace(/_/g, " ")}`}
-                        </span>
-                        <RunItBackButton round={r} />
-                      </div>
-                    </CoinCard>
-                  );
-                })}
-              </div>
-            );
-          })()}
+          <p className="-mt-3 text-xs text-zinc-500">
+            Only coins that didn&apos;t graduate. A coin you&apos;ve run several times shows once,
+            with its attempts counted.
+          </p>
+          <RunItBackSection
+            title="🍳 Cook Out"
+            blurb="Send it back to the community vote in a fresh mode."
+            empty="No Cook Out coins to run back. Any of your matches that finish without graduating land here."
+            coins={cookoutRunnable}
+          />
+          <RunItBackSection
+            title="🕳️ The Pit"
+            blurb="Relaunch straight into a fresh Pit lobby — no vote needed."
+            empty="No Pit coins to run back. Matches that end or time out in the queue land here."
+            coins={pitRunnable}
+          />
         </div>
       )}
 
@@ -410,6 +439,94 @@ export default function ProfilePage() {
         </div>
       )}
     </div>
+  );
+}
+
+/**
+ * One half of the Run It Back tab — Cook Out or The Pit. Each coin appears
+ * once, with a badge when it has been run more than once, and the relaunch
+ * button that belongs to its game type.
+ */
+function RunItBackSection({
+  title,
+  blurb,
+  empty,
+  coins,
+}: {
+  title: string;
+  blurb: string;
+  empty: string;
+  coins: RunnableCoin[];
+}) {
+  return (
+    <section>
+      <div className="mb-2 flex flex-wrap items-baseline gap-2">
+        <h3 className="text-sm font-black uppercase tracking-wide text-zinc-300">{title}</h3>
+        <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-bold text-zinc-400">
+          {coins.length}
+        </span>
+        <span className="text-xs text-zinc-500">{blurb}</span>
+      </div>
+      {coins.length === 0 ? (
+        <div className="rounded-2xl bg-zinc-900/40 p-6 text-center text-sm text-zinc-500">
+          {empty}
+        </div>
+      ) : (
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {coins.map(({ latest: r, attempts }) => {
+            const rug = isRugRound(r);
+            const cancelled = r.state === "cancelled";
+            return (
+              <CoinCard
+                key={r.id}
+                coin={{
+                  ...r.token,
+                  tier: r.tier,
+                  id: r.conceptId,
+                  creatorAddress: r.creatorAddress,
+                  mode: r.mode,
+                  modifiers: r.modifiers,
+                }}
+                borderClass="border-transparent"
+                corner={
+                  <span
+                    className={`shrink-0 rounded px-2 py-0.5 text-[11px] font-bold ${
+                      cancelled
+                        ? "bg-amber-500/20 text-amber-300"
+                        : rug
+                          ? "bg-red-500/20 text-red-300"
+                          : "bg-zinc-800/90 text-zinc-400"
+                    }`}
+                  >
+                    {cancelled ? "🚫 cancelled" : rug ? "🔥 burnt" : "closed"}
+                  </span>
+                }
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[11px] text-zinc-500">
+                    {cancelled
+                      ? "queue timed out · deposits refunded"
+                      : rug
+                        ? "rugged"
+                        : `ended: ${r.endReason?.replace(/_/g, " ")}`}
+                    {attempts > 1 && (
+                      <span className="ml-1.5 rounded bg-zinc-800/90 px-1.5 py-0.5 font-bold text-zinc-400">
+                        ×{attempts} runs
+                      </span>
+                    )}
+                  </span>
+                  {r.matchType === "pit" ? (
+                    <PitRunItBack round={r} compact />
+                  ) : (
+                    <RunItBackButton round={r} />
+                  )}
+                </div>
+              </CoinCard>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 

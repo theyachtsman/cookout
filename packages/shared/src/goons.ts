@@ -94,19 +94,6 @@ export interface GoonMoment {
   now: number;
 }
 
-/** A cinematic entrance/moment banner pushed to the Pit overlay. */
-export interface GoonOverlayEvent {
-  id: string;
-  handle: string;
-  name: string;
-  rarity: GoonRarity;
-  /** e.g. "GHOST ENTERED THE PIT". */
-  text: string;
-  at: number;
-  /** Room it belongs to (PIT_ROOM or a match roundId). */
-  roomId: string;
-}
-
 /** Admin-tunable swarm behavior (see GOON_DEFAULTS) + the full roster. */
 export interface GoonSettings {
   enabled: boolean;
@@ -122,8 +109,6 @@ export interface GoonSettings {
   humanQuietSec: number;
   /** Cadence for ambient PIT_ROOM chatter when the room is quiet. */
   ambientEverySec: number;
-  /** Chance (0..1) a legendary entrance / marquee moment fires a cinematic overlay. */
-  overlayChance: number;
   /** How long remembered events (winners, streaks, upsets) stay usable. */
   memoryHours: number;
   /** The roster — every persona, admin-editable. */
@@ -539,7 +524,6 @@ export const GOON_DEFAULTS: Omit<GoonSettings, "personas"> = {
   maxPerEvent: 2,
   humanQuietSec: 20,
   ambientEverySec: 75,
-  overlayChance: 0.5,
   memoryHours: 24,
 };
 
