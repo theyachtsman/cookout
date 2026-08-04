@@ -16,12 +16,13 @@ import {
 import { GameConfigModule } from "../../components/cc/GameConfig";
 import { CopyEditorModule } from "../../components/cc/CopyEditor";
 import { AnalyticsModule } from "../../components/cc/Analytics";
+import { EconomyModule } from "../../components/cc/Economy";
+import { GoonsModule } from "../../components/cc/Goons";
 import { ModerationModule } from "../../components/cc/Moderation";
 import { PlayersModule } from "../../components/cc/Players";
 import { TelegramModule } from "../../components/cc/Telegram";
 import { MediaModule } from "../../components/cc/MediaLibrary";
 import { AudioModule, BrandingModule, ThemesModule } from "../../components/cc/Presentation";
-import { LegacyOps } from "./LegacyOps";
 
 /**
  * The Cookout Command Center — the platform's internal operations hub.
@@ -244,6 +245,10 @@ function ModuleBody({
       return <PlayersModule session={session} />;
     case "moderation":
       return <ModerationModule session={session} />;
+    case "economy":
+      return <EconomyModule session={session} />;
+    case "goons":
+      return <GoonsModule />;
     case "media":
       return <MediaModule />;
     case "branding":
@@ -252,19 +257,6 @@ function ModuleBody({
       return <ThemesModule />;
     case "audio":
       return <AudioModule />;
-    // These run on the established ops surface — the panels that already
-    // manage them are mounted here rather than rewritten.
-    case "economy":
-    case "goons":
-      return (
-        <div className="space-y-4">
-          <div className="rounded-xl bg-zinc-900/40 p-3 text-[11px] text-zinc-500">
-            Live ops console. These controls run against the existing operations API and are
-            authenticated by your Command Center session.
-          </div>
-          <LegacyOps />
-        </div>
-      );
     case "nft":
       return (
         <ComingSoon

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { LedgerEntry, RoundHistoryEntry, UserProfile } from "@cookout/shared";
 import { cc, type CcSession } from "../../lib/cc";
 import { Panel } from "./CcModules";
+import { BetaAccessPanel } from "./LiveOps";
 
 /**
  * Player management.
@@ -181,6 +182,8 @@ export function PlayersModule({ session }: { session: CcSession }) {
           </div>
         )}
       </Panel>
+
+      <BetaAccessPanel />
 
       {selected && (
         <PlayerDetailModal
