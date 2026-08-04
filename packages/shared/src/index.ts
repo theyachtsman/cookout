@@ -1,4 +1,5 @@
 export * from "./types.js";
+export * from "./command-center.js";
 export * from "./goons.js";
 export * from "./amm.js";
 export * from "./auction.js";
