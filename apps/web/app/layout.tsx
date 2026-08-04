@@ -9,6 +9,7 @@ import { XpOverlay } from "../components/XpOverlay";
 import { BurgerOverlay } from "../components/BurgerOverlay";
 import { BetaGate } from "../components/BetaGate";
 import { FeedbackWidget } from "../components/FeedbackWidget";
+import { PresentationProvider } from "../components/Presentation";
 import { Providers } from "../components/Providers";
 import { SiteFooter } from "../components/SiteFooter";
 import { TopNav } from "../components/TopNav";
@@ -45,6 +46,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en">
       <body className="min-h-screen">
+        {/* Command Center branding + seasonal theme, applied as CSS vars. */}
+        <PresentationProvider />
         <DevBanner />
         {/* Privy wraps auth; SessionProvider bridges it to our session. */}
         <Providers>

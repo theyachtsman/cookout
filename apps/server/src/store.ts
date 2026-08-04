@@ -61,8 +61,15 @@ import {
   type GoonSettings,
   type GoonMoment,
   type AuditEntry,
+  type AudioSettings,
+  type BrandingSettings,
   type GameModeDef,
   type GameSettings,
+  type MediaAsset,
+  type ThemeSettings,
+  freshAudioSettings,
+  freshBrandingSettings,
+  freshThemeSettings,
   type MissionDef,
   type RoundConfig,
   type XpEventKind,
@@ -245,6 +252,8 @@ export class Store {
   auditLog: AuditEntry[] = [];
   /** Feature-flag overrides. Sparse: anything absent uses the registry default. */
   featureFlags: Record<string, boolean> = {};
+  /** Media Library metadata. The bytes live on disk (see MediaService). */
+  media = new Map<string, MediaAsset>();
   /** Platform fee revenue collected per round (paper ETH). */
   feesByRound = new Map<string, number>();
   /** Chat mutes/bans: address → muted-until epoch ms (persisted; a ban is a
@@ -284,6 +293,9 @@ export class Store {
     // The Flame Goon Squad AI — personalities + behavior, all live-editable.
     goons: freshGoonSettings(),
     game: freshGameSettings(),
+    branding: freshBrandingSettings(),
+    themes: freshThemeSettings(),
+    audio: freshAudioSettings(),
   };
   /** Live ETH/USD, refreshed by the price feed; used to peg the $40k bond. */
   ethUsd = DEFAULT_ETH_USD;
@@ -1135,6 +1147,7 @@ export class Store {
       staff: [...this.staff.values()],
       auditLog: this.auditLog.slice(-5000),
       featureFlags: { ...this.featureFlags },
+      media: [...this.media.values()],
       betaSignups: [...this.betaSignups.values()],
       // Sessions persist so a deploy/restart never signs the beta out.
       sessions: [...this.sessions.entries()]
@@ -1207,11 +1220,16 @@ export class Store {
       // quest or achievement shipped has no row for it, and the new content
       // should appear at its default instead of vanishing.
       this.settings.game = mergeGameSettings(snap.settings.game);
+      // Presentation settings shipped after some snapshots were written.
+      this.settings.branding ??= freshBrandingSettings();
+      this.settings.themes ??= freshThemeSettings();
+      this.settings.audio ??= freshAudioSettings();
     }
     this.adminLog = snap.adminLog;
     for (const a of snap.staff ?? []) this.staff.set(a.id, a);
     this.auditLog = snap.auditLog ?? [];
     this.featureFlags = snap.featureFlags ?? {};
+    for (const m of snap.media ?? []) this.media.set(m.id, m);
     for (const b of snap.betaSignups ?? []) this.betaSignups.set(b.address, b);
     this.jackpotPool = snap.jackpotPool ?? 0;
     this.jackpotWeekKey = snap.jackpotWeekKey ?? weekKey();
@@ -1301,6 +1319,12 @@ export interface OpsSettings {
   /** Gameplay configuration: tiers, modes, XP, quests, achievements. Seeded
    *  from the compiled constants and edited from the Command Center. */
   game: GameSettings;
+  /** Logos, icons, share images and brand colours. */
+  branding: BrandingSettings;
+  /** Seasonal themes and their schedule. */
+  themes: ThemeSettings;
+  /** Sound cue assignments and volumes. */
+  audio: AudioSettings;
 }
 
 /** Deep-copied default Goon Squad settings (roster + behavior). */
@@ -1446,6 +1470,7 @@ export interface Snapshot {
   staff?: StoredStaff[];
   auditLog?: AuditEntry[];
   featureFlags?: Record<string, boolean>;
+  media?: MediaAsset[];
   betaSignups?: BetaSignup[];
   sessions?: Array<[string, Address | SessionRecord]>;
   feedback?: FeedbackEntry[];

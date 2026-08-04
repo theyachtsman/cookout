@@ -14,6 +14,8 @@ import {
   TeamModule,
 } from "../../components/cc/CcModules";
 import { GameConfigModule } from "../../components/cc/GameConfig";
+import { MediaModule } from "../../components/cc/MediaLibrary";
+import { AudioModule, BrandingModule, ThemesModule } from "../../components/cc/Presentation";
 import { LegacyOps } from "./LegacyOps";
 
 /**
@@ -227,6 +229,14 @@ function ModuleBody({
       return <BackupsModule />;
     case "game":
       return <GameConfigModule />;
+    case "media":
+      return <MediaModule />;
+    case "branding":
+      return <BrandingModule />;
+    case "themes":
+      return <ThemesModule />;
+    case "audio":
+      return <AudioModule />;
     // These run on the established ops surface — the panels that already
     // manage them are mounted here rather than rewritten.
     case "users":
@@ -255,34 +265,6 @@ function ModuleBody({
         <ComingSoon
           title="Quests & Content"
           note="Quests, achievements and announcements are still defined in shared constants (packages/shared/src/missions.ts and gamification.ts). Moving them into database-backed records is the next step — announcements are editable today under Game Configuration."
-        />
-      );
-    case "branding":
-      return (
-        <ComingSoon
-          title="Branding"
-          note="Logos, icons, favicons, splash and Open Graph images. Waiting on the Media Library, which gives it somewhere to store uploads."
-        />
-      );
-    case "themes":
-      return (
-        <ComingSoon
-          title="Theme Studio"
-          note="Seasonal reskins with scheduled activation. Depends on the Media Library and a theme token layer over globals.css."
-        />
-      );
-    case "media":
-      return (
-        <ComingSoon
-          title="Media Library"
-          note="Central storage for images, audio and artwork. Needs a storage decision first: images are currently inlined as data URLs on the records that use them, which won't scale to a shared library."
-        />
-      );
-    case "audio":
-      return (
-        <ComingSoon
-          title="Audio Manager"
-          note="The sound system exists in apps/web/lib/sfx.ts and audio.ts with fixed cues. Making each cue reassignable needs the Media Library to hold the uploads."
         />
       );
     case "nft":

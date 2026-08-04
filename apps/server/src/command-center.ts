@@ -10,6 +10,12 @@ import type { Express, Response } from "express";
 import {
   ACHIEVEMENTS,
   ALL_PERMISSIONS,
+  BRANDING_SLOTS,
+  SOUND_CUES,
+  THEME_ASSET_SLOTS,
+  activeTheme,
+  freshTheme,
+  type ThemeAssetSlot,
   FEATURE_FLAGS,
   GAME_MODES,
   MISSIONS,
@@ -25,9 +31,11 @@ import {
   type SearchHit,
   type StaffRole,
 } from "@cookout/shared";
+import { MediaService } from "./media.js";
 import { rateLimit } from "./ratelimit.js";
 import {
   StaffService,
+  actorOf,
   audit,
   clientIp,
   generateTotpSecret,
@@ -67,7 +75,12 @@ const wrap =
  * Mount the Command Center. `adminKey` stays supported as break-glass access
  * (see requireStaff) so a broken team configuration can always be repaired.
  */
-export function mountCommandCenter(app: Express, store: Store, adminKey: string): StaffService {
+export function mountCommandCenter(
+  app: Express,
+  store: Store,
+  adminKey: string,
+  media: MediaService,
+): StaffService {
   const staffService = new StaffService(store);
   const gate = (permission?: Permission) => requireStaff(staffService, adminKey, permission);
 
@@ -580,6 +593,358 @@ export function mountCommandCenter(app: Express, store: Store, adminKey: string)
     }),
   );
 
+  // ------------------------------------------------------------ media library
+
+  app.get(
+    "/api/cc/media",
+    gate("assets.manage"),
+    wrap((req, res) => {
+      const q = String(req.query.q ?? "").toLowerCase();
+      const folder = String(req.query.folder ?? "");
+      const kind = String(req.query.kind ?? "");
+      let assets = media.list();
+      if (folder) assets = assets.filter((a) => a.folder === folder || a.folder.startsWith(`${folder}/`));
+      if (kind) assets = assets.filter((a) => a.kind === kind);
+      if (q)
+        assets = assets.filter((a) =>
+          `${a.originalName} ${a.folder} ${a.tags.join(" ")}`.toLowerCase().includes(q),
+        );
+      res.json({
+        assets,
+        folders: [...new Set(media.list().map((a) => a.folder))].sort(),
+        tags: [...new Set(media.list().flatMap((a) => a.tags))].sort(),
+        totalBytes: media.totalBytes(),
+        count: media.list().length,
+      });
+    }),
+  );
+
+  app.post(
+    "/api/cc/media",
+    gate("assets.manage"),
+    wrap((req, res) => {
+      const body = req.body as {
+        dataUrl?: string;
+        originalName?: string;
+        folder?: string;
+        tags?: string[];
+      };
+      if (!body.dataUrl) throw new CcError(400, "no file supplied");
+      const { asset, duplicate } = media.upload({
+        dataUrl: body.dataUrl,
+        originalName: body.originalName,
+        folder: body.folder,
+        tags: body.tags,
+        uploadedBy: actorOf(req).actorName,
+      });
+      if (!duplicate)
+        audit(store, req, {
+          module: "media",
+          action: "media.upload",
+          target: asset.originalName,
+          after: { id: asset.id, folder: asset.folder, size: asset.size, mime: asset.mime },
+        });
+      res.json({ asset, duplicate });
+    }),
+  );
+
+  app.patch(
+    "/api/cc/media/:id",
+    gate("assets.manage"),
+    wrap((req, res) => {
+      const body = req.body as { folder?: string; tags?: string[]; originalName?: string };
+      const before = { ...media.get(req.params.id!) };
+      const asset = media.update(req.params.id!, body);
+      audit(store, req, {
+        module: "media",
+        action: "media.update",
+        target: asset.originalName,
+        before: { folder: before.folder, tags: before.tags, originalName: before.originalName },
+        after: { folder: asset.folder, tags: asset.tags, originalName: asset.originalName },
+      });
+      res.json({ asset });
+    }),
+  );
+
+  /** Swap the bytes behind an asset, keeping its id so every reference follows. */
+  app.post(
+    "/api/cc/media/:id/replace",
+    gate("assets.manage"),
+    wrap((req, res) => {
+      const { dataUrl } = req.body as { dataUrl?: string };
+      if (!dataUrl) throw new CcError(400, "no file supplied");
+      const asset = media.replace(req.params.id!, dataUrl);
+      audit(store, req, {
+        module: "media",
+        action: "media.replace",
+        target: asset.originalName,
+        after: { id: asset.id, size: asset.size, mime: asset.mime },
+        note: `${media.referencesTo(asset.id).length} reference(s) follow the swap`,
+      });
+      res.json({ asset });
+    }),
+  );
+
+  app.delete(
+    "/api/cc/media/:id",
+    gate("assets.manage"),
+    wrap((req, res) => {
+      const { asset, references } = media.remove(req.params.id!);
+      audit(store, req, {
+        module: "media",
+        action: "media.delete",
+        target: asset.originalName,
+        before: { id: asset.id, folder: asset.folder, size: asset.size },
+        note: references.length ? `was still used by: ${references.join(", ")}` : undefined,
+      });
+      res.json({ ok: true, references });
+    }),
+  );
+
+  /** What currently points at an asset — checked before a delete. */
+  app.get(
+    "/api/cc/media/:id/references",
+    gate("assets.manage"),
+    wrap((req, res) => {
+      res.json({ references: media.referencesTo(req.params.id!) });
+    }),
+  );
+
+  // ---------------------------------------------------------------- branding
+
+  app.get(
+    "/api/cc/branding",
+    gate("assets.manage"),
+    wrap((_req, res) => {
+      res.json({ branding: store.settings.branding, slots: BRANDING_SLOTS });
+    }),
+  );
+
+  app.patch(
+    "/api/cc/branding",
+    gate("assets.manage"),
+    wrap((req, res) => {
+      const body = req.body as Partial<typeof store.settings.branding>;
+      const before = structuredClone(store.settings.branding);
+      const b = store.settings.branding;
+      if (body.assets) {
+        for (const [slot, id] of Object.entries(body.assets)) {
+          if (!BRANDING_SLOTS.some((s) => s.key === slot)) throw new CcError(400, `unknown slot "${slot}"`);
+          if (id && !media.get(id)) throw new CcError(400, `no media asset ${id}`);
+          b.assets[slot as keyof typeof b.assets] = id;
+        }
+      }
+      if (body.colors) {
+        for (const [key, value] of Object.entries(body.colors)) {
+          if (!(key in b.colors)) throw new CcError(400, `unknown colour "${key}"`);
+          const problem = colorProblem(value);
+          if (problem) throw new CcError(400, `${key}: ${problem}`);
+          b.colors[key as keyof typeof b.colors] = value;
+        }
+      }
+      if (body.siteName !== undefined) b.siteName = String(body.siteName).slice(0, 60);
+      if (body.tagline !== undefined) b.tagline = String(body.tagline).slice(0, 160);
+      audit(store, req, { module: "branding", action: "branding.update", before, after: structuredClone(b) });
+      res.json({ branding: b });
+    }),
+  );
+
+  // ------------------------------------------------------------- theme studio
+
+  app.get(
+    "/api/cc/themes",
+    gate("themes.manage"),
+    wrap((_req, res) => {
+      res.json({
+        settings: store.settings.themes,
+        active: activeTheme(store.settings.themes),
+        slots: THEME_ASSET_SLOTS,
+        cues: SOUND_CUES,
+      });
+    }),
+  );
+
+  app.post(
+    "/api/cc/themes",
+    gate("themes.manage"),
+    wrap((req, res) => {
+      const { name, duplicateOf } = req.body as { name?: string; duplicateOf?: string };
+      const label = String(name ?? "").trim();
+      if (!label) throw new CcError(400, "a theme needs a name");
+      const id = store.id();
+      const source = duplicateOf ? store.settings.themes.themes[duplicateOf] : undefined;
+      if (duplicateOf && !source) throw new CcError(404, "no such theme to duplicate");
+      const theme = source
+        ? {
+            ...structuredClone(source),
+            id,
+            name: label,
+            // A duplicate never inherits the original's schedule — two themes
+            // silently competing for the same window is a trap.
+            startsAt: undefined,
+            endsAt: undefined,
+            archived: false,
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          }
+        : freshTheme(id, label);
+      store.settings.themes.themes[id] = theme;
+      audit(store, req, {
+        module: "themes",
+        action: duplicateOf ? "theme.duplicate" : "theme.create",
+        target: label,
+        after: { id, duplicateOf },
+      });
+      res.json({ theme });
+    }),
+  );
+
+  app.patch(
+    "/api/cc/themes/:id",
+    gate("themes.manage"),
+    wrap((req, res) => {
+      const theme = store.settings.themes.themes[req.params.id!];
+      if (!theme) throw new CcError(404, "no such theme");
+      const body = req.body as Partial<typeof theme>;
+      const before = structuredClone(theme);
+
+      if (body.name !== undefined) theme.name = String(body.name).slice(0, 60);
+      if (body.description !== undefined) theme.description = String(body.description).slice(0, 300);
+      if (body.colors) {
+        for (const [key, value] of Object.entries(body.colors)) {
+          if (!(key in theme.colors)) throw new CcError(400, `unknown colour "${key}"`);
+          const problem = colorProblem(value);
+          if (problem) throw new CcError(400, `${key}: ${problem}`);
+          theme.colors[key as keyof typeof theme.colors] = value;
+        }
+      }
+      if (body.assets) {
+        for (const [slot, id] of Object.entries(body.assets)) {
+          if (!THEME_ASSET_SLOTS.some((s) => s.key === slot)) throw new CcError(400, `unknown slot "${slot}"`);
+          if (id && !media.get(id)) throw new CcError(400, `no media asset ${id}`);
+          if (id) theme.assets[slot as ThemeAssetSlot] = id;
+          else delete theme.assets[slot as ThemeAssetSlot];
+        }
+      }
+      if (body.audio) {
+        for (const [cue, id] of Object.entries(body.audio)) {
+          if (!SOUND_CUES.some((c) => c.key === cue)) throw new CcError(400, `unknown sound cue "${cue}"`);
+          if (id && !media.get(id)) throw new CcError(400, `no media asset ${id}`);
+          if (id) theme.audio[cue] = id;
+          else delete theme.audio[cue];
+        }
+      }
+      if (body.effects) theme.effects = { ...theme.effects, ...body.effects };
+      if ("startsAt" in body) theme.startsAt = body.startsAt ?? undefined;
+      if ("endsAt" in body) theme.endsAt = body.endsAt ?? undefined;
+      if (theme.startsAt !== undefined && theme.endsAt !== undefined && theme.endsAt <= theme.startsAt)
+        throw new CcError(400, "the end of the window has to come after its start");
+      if (body.archived !== undefined) {
+        theme.archived = !!body.archived;
+        // An archived theme can't stay pinned, or it would keep running.
+        if (theme.archived && store.settings.themes.activeThemeId === theme.id)
+          store.settings.themes.activeThemeId = "";
+      }
+      theme.updatedAt = Date.now();
+
+      audit(store, req, {
+        module: "themes",
+        action: "theme.update",
+        target: theme.name,
+        before,
+        after: structuredClone(theme),
+      });
+      res.json({ theme });
+    }),
+  );
+
+  app.delete(
+    "/api/cc/themes/:id",
+    gate("themes.manage"),
+    wrap((req, res) => {
+      const theme = store.settings.themes.themes[req.params.id!];
+      if (!theme) throw new CcError(404, "no such theme");
+      delete store.settings.themes.themes[theme.id];
+      if (store.settings.themes.activeThemeId === theme.id) store.settings.themes.activeThemeId = "";
+      audit(store, req, { module: "themes", action: "theme.delete", target: theme.name, before: theme });
+      res.json({ ok: true });
+    }),
+  );
+
+  /** Pin a theme live, or clear the pin so the schedule takes over again. */
+  app.post(
+    "/api/cc/themes/activate",
+    gate("themes.manage"),
+    wrap((req, res) => {
+      const { id, enabled } = req.body as { id?: string; enabled?: boolean };
+      const before = {
+        activeThemeId: store.settings.themes.activeThemeId,
+        enabled: store.settings.themes.enabled,
+      };
+      if (id !== undefined) {
+        if (id && !store.settings.themes.themes[id]) throw new CcError(404, "no such theme");
+        if (id && store.settings.themes.themes[id]!.archived)
+          throw new CcError(400, "that theme is archived — restore it first");
+        store.settings.themes.activeThemeId = id;
+      }
+      if (enabled !== undefined) {
+        store.settings.themes.enabled = !!enabled;
+        // Keep the feature flag and the module's own switch in step, so the
+        // two can't disagree about whether theming is on.
+        store.featureFlags.seasonal_theme = !!enabled;
+      }
+      audit(store, req, {
+        module: "themes",
+        action: "theme.activate",
+        target: store.settings.themes.activeThemeId || "(schedule)",
+        before,
+        after: {
+          activeThemeId: store.settings.themes.activeThemeId,
+          enabled: store.settings.themes.enabled,
+        },
+      });
+      res.json({ settings: store.settings.themes, active: activeTheme(store.settings.themes) });
+    }),
+  );
+
+  // ------------------------------------------------------------ audio manager
+
+  app.get(
+    "/api/cc/audio",
+    gate("assets.manage"),
+    wrap((_req, res) => {
+      res.json({ audio: store.settings.audio, cues: SOUND_CUES });
+    }),
+  );
+
+  app.patch(
+    "/api/cc/audio",
+    gate("assets.manage"),
+    wrap((req, res) => {
+      const body = req.body as {
+        cues?: Record<string, string>;
+        masterVolume?: number;
+        groupVolume?: Record<string, number>;
+      };
+      const before = structuredClone(store.settings.audio);
+      const a = store.settings.audio;
+      for (const [cue, id] of Object.entries(body.cues ?? {})) {
+        if (!SOUND_CUES.some((c) => c.key === cue)) throw new CcError(400, `unknown sound cue "${cue}"`);
+        if (id) {
+          const asset = media.get(id);
+          if (!asset) throw new CcError(400, `no media asset ${id}`);
+          if (asset.kind !== "audio") throw new CcError(400, `${asset.originalName} isn't an audio file`);
+          a.cues[cue] = id;
+        } else delete a.cues[cue];
+      }
+      if (body.masterVolume !== undefined) a.masterVolume = clamp01(body.masterVolume);
+      for (const [group, vol] of Object.entries(body.groupVolume ?? {}))
+        a.groupVolume[group] = clamp01(vol);
+      audit(store, req, { module: "audio", action: "audio.update", before, after: structuredClone(a) });
+      res.json({ audio: a });
+    }),
+  );
+
   // ---------------------------------------------------------------- audit log
 
   app.get(
@@ -873,4 +1238,21 @@ function writePath(obj: unknown, path: string, value: unknown): void {
   let cur: unknown = obj;
   for (const key of keys) cur = (cur as Record<string, unknown>)[key];
   (cur as Record<string, unknown>)[last] = value;
+}
+
+/** Accept a CSS colour the browser will actually understand. Deliberately
+ *  narrow: hex, rgb/rgba and hsl/hsla. A theme is styling, not a script. */
+function colorProblem(value: unknown): string | null {
+  const v = String(value ?? "").trim();
+  if (!v) return null; // empty = fall back to the built-in default
+  if (v.length > 40) return "too long to be a colour";
+  if (/^#[0-9a-fA-F]{3,8}$/.test(v)) return null;
+  if (/^(rgb|hsl)a?\([0-9.,\s%/-]+\)$/i.test(v)) return null;
+  return "expected a hex, rgb() or hsl() colour";
+}
+
+function clamp01(n: unknown): number {
+  const v = Number(n);
+  if (!Number.isFinite(v)) return 1;
+  return Math.min(1, Math.max(0, v));
 }

@@ -2,10 +2,43 @@
 
 :root {
   color-scheme: dark;
+
+  /* Command Center presentation. These are the defaults; the Branding module
+     and any live seasonal theme overwrite them at runtime (see
+     components/Presentation.tsx). Nothing here is required — if the values are
+     never written, the built-in Tailwind palette applies unchanged. */
+  --brand-accent: #a3e635;
+  --brand-accent-text: #09090b;
+  --brand-background: #09090b;
+  --brand-surface: #18181b;
+  --brand-positive: #34d399;
+  --brand-negative: #f87171;
+  --brand-warning: #fbbf24;
+  --theme-radius-scale: 1;
 }
 
 body {
   @apply bg-zinc-950 text-zinc-200;
+  background-color: var(--brand-background);
+}
+
+/* A theme's background art sits behind everything, dimmed so foreground text
+   keeps its contrast. Only rendered when a theme actually supplies one. */
+:root[data-theme-background="on"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image: var(--theme-background-image);
+  background-size: cover;
+  background-position: center;
+  opacity: 0.18;
+  pointer-events: none;
+}
+
+/* Seasonal glow on accented surfaces. Off unless a theme asks for it. */
+:root[data-theme-glow="on"] .bg-lime-400 {
+  box-shadow: 0 0 24px -4px var(--brand-accent);
 }
 
 /* One-shot phase-change flash on the featured Cook Out coin card. */
