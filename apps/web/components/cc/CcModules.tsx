@@ -13,6 +13,7 @@ import {
   type StaffRole,
 } from "@cookout/shared";
 import { cc, type CcSession } from "../../lib/cc";
+import { LiveOpsPanel } from "./LiveOps";
 
 /** Shared chrome so every Command Center module reads the same. */
 export function Panel({
@@ -119,6 +120,8 @@ export function DashboardModule({ onGo }: { onGo: (module: string) => void }) {
           />
         </div>
       </Panel>
+
+      <LiveOpsPanel />
 
       <Panel
         title="Recent activity"

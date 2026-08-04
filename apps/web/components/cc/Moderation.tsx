@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { ChatMessage } from "@cookout/shared";
 import { cc, type CcSession } from "../../lib/cc";
 import { Panel } from "./CcModules";
+import { FeedbackPanel } from "./LiveOps";
 
 /**
  * Moderation — chat review, active mutes and bans, and match control.
@@ -272,6 +273,8 @@ export function ModerationModule({ session }: { session: CcSession }) {
           )}
         </Panel>
       </div>
+
+      <FeedbackPanel />
 
       {canControl && (
         <Panel title="Live match control" subtitle={`${matches.length} scheduled or running`}>
