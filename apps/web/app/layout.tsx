@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/next";
 import { SessionProvider } from "../lib/session";
 import { SocialProvider } from "../lib/social";
 import { SocialDock } from "../components/SocialDock";
@@ -70,6 +71,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             </SocialProvider>
           </SessionProvider>
         </Providers>
+        <Analytics />
       </body>
     </html>
   );
