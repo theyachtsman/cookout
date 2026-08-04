@@ -15,6 +15,7 @@ import {
 } from "../../components/cc/CcModules";
 import { GameConfigModule } from "../../components/cc/GameConfig";
 import { CopyEditorModule } from "../../components/cc/CopyEditor";
+import { TelegramModule } from "../../components/cc/Telegram";
 import { MediaModule } from "../../components/cc/MediaLibrary";
 import { AudioModule, BrandingModule, ThemesModule } from "../../components/cc/Presentation";
 import { LegacyOps } from "./LegacyOps";
@@ -232,6 +233,8 @@ function ModuleBody({
       return <GameConfigModule />;
     case "content":
       return <CopyEditorModule />;
+    case "telegram":
+      return <TelegramModule />;
     case "media":
       return <MediaModule />;
     case "branding":
@@ -245,7 +248,6 @@ function ModuleBody({
     case "users":
     case "moderation":
     case "economy":
-    case "telegram":
     case "goons":
       return (
         <div className="space-y-4">

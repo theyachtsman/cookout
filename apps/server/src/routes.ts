@@ -2511,7 +2511,7 @@ export function createApp(
 
   // The Command Center — the internal ops platform. Mounted last so its
   // /api/cc/* namespace can't shadow any player route.
-  mountCommandCenter(app, store, adminKey, media);
+  mountCommandCenter(app, store, adminKey, media, pitBoss);
 
   return app;
 }

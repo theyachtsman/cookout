@@ -1,7 +1,7 @@
 import type { Store } from "../store.js";
 import { TelegramApi } from "./api.js";
 import { Commands, COMMANDS } from "./commands.js";
-import { normalizeTopics, type PitBossConfig } from "./config.js";
+import { normalizeTopics, type PitBossConfig, type TopicKey } from "./config.js";
 import { Notifier } from "./notify.js";
 import { pins, seedPrompt } from "./voice.js";
 
@@ -50,6 +50,37 @@ export class PitBoss {
     this.startSeeding();
     this.startAdminRefresh();
     void this.pollLoop();
+  }
+
+  /**
+   * Post arbitrary text to a topic. Used by the Command Center's scheduled
+   * posts and its "send a test message" button — both need the bot's routing
+   * without going through an event. Returns whether Telegram accepted it.
+   */
+  async postToTopic(text: string, topic: TopicKey, imageAssetId?: string): Promise<boolean> {
+    const tg = this.store.settings.telegram;
+    const chatId = tg.announcementChatId || tg.groupChatId || this.config.announcementChatId || this.config.groupChatId;
+    if (!chatId) return false;
+    const announcement = tg.announcementChatId || this.config.announcementChatId;
+    const topics = { ...this.config.topics, ...tg.topics };
+    const threadId = !announcement ? topics[topic] : undefined;
+    if (imageAssetId) {
+      const base = (tg.webBase || this.config.webBase).replace(/\/$/, "");
+      const sent = await this.api.sendPhoto({
+        chatId,
+        photo: `${base}/media/${imageAssetId}`,
+        caption: text,
+        messageThreadId: threadId,
+      });
+      if (sent) return true;
+      // An unreachable image must never swallow the message itself.
+    }
+    return !!(await this.api.sendMessage({ chatId, text, messageThreadId: threadId }));
+  }
+
+  /** Connection check for the Command Center: who the bot is, or null. */
+  async whoAmI(): Promise<{ id: number; username?: string } | null> {
+    return this.api.getMe();
   }
 
   stop(): void {

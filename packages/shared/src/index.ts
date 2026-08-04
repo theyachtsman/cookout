@@ -8,6 +8,7 @@ export * from "./constants.js";
 export * from "./game-settings.js";
 export * from "./copy.js";
 export * from "./media.js";
+export * from "./telegram-settings.js";
 export * from "./theme.js";
 export * from "./missions.js";
 export * from "./cosmetics.js";

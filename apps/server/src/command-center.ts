@@ -24,6 +24,11 @@ import {
   MISSIONS,
   freshGameSettings,
   gameSettingProblem,
+  TELEGRAM_EVENTS,
+  TELEGRAM_PLACEHOLDERS,
+  TELEGRAM_TOPICS,
+  type ScheduledPost,
+  type TopicKey,
   PERMISSIONS,
   ROLES,
   ROLE_MAP,
@@ -83,6 +88,7 @@ export function mountCommandCenter(
   store: Store,
   adminKey: string,
   media: MediaService,
+  pitBoss: import("./telegram/index.js").PitBoss | null = null,
 ): StaffService {
   const staffService = new StaffService(store);
   const gate = (permission?: Permission) => requireStaff(staffService, adminKey, permission);
@@ -1022,6 +1028,213 @@ export function mountCommandCenter(
     }),
   );
 
+  // ----------------------------------------------------------------- telegram
+
+  app.get(
+    "/api/cc/telegram",
+    gate("telegram.manage"),
+    wrap(async (_req, res) => {
+      const tg = store.settings.telegram;
+      // Env is the fallback layer; showing it makes "why is this blank?" answerable.
+      const env = {
+        tokenSet: !!process.env.TELEGRAM_BOT_TOKEN,
+        botUsername: process.env.TELEGRAM_BOT_USERNAME ?? "",
+        groupChatId: process.env.TELEGRAM_GROUP_CHAT_ID ?? "",
+        announcementChatId: process.env.TELEGRAM_ANNOUNCEMENT_CHAT_ID ?? "",
+        webBase: process.env.TELEGRAM_WEB_BASE ?? "",
+      };
+      const me = pitBoss ? await pitBoss.whoAmI() : null;
+      res.json({
+        settings: tg,
+        env,
+        connected: !!me,
+        botId: me?.id,
+        botUsername: me?.username,
+        events: TELEGRAM_EVENTS,
+        placeholders: TELEGRAM_PLACEHOLDERS,
+        topics: TELEGRAM_TOPICS,
+        logCount: store.telegramLog.length,
+      });
+    }),
+  );
+
+  app.patch(
+    "/api/cc/telegram",
+    gate("telegram.manage"),
+    wrap((req, res) => {
+      const body = req.body as Partial<typeof store.settings.telegram>;
+      const before = structuredClone(store.settings.telegram);
+      const tg = store.settings.telegram;
+
+      for (const key of ["botUsername", "webBase", "groupChatId", "announcementChatId", "groupInvite"] as const)
+        if (body[key] !== undefined) tg[key] = String(body[key]).trim().slice(0, 200);
+      if (body.enabled !== undefined) tg.enabled = !!body.enabled;
+      if (body.topics)
+        for (const [topic, id] of Object.entries(body.topics)) {
+          if (!TELEGRAM_TOPICS.some((t) => t.key === topic)) throw new CcError(400, `unknown topic "${topic}"`);
+          const n = Number(id);
+          if (id === null || id === undefined || !Number.isFinite(n)) delete tg.topics[topic as TopicKey];
+          else tg.topics[topic as TopicKey] = n;
+        }
+      if (body.events)
+        for (const [key, patch] of Object.entries(body.events)) {
+          if (!TELEGRAM_EVENTS.some((e) => e.key === key)) throw new CcError(400, `unknown event "${key}"`);
+          const cur = (tg.events[key] ??= { enabled: true, template: "" });
+          if (patch.enabled !== undefined) cur.enabled = !!patch.enabled;
+          if (patch.template !== undefined) cur.template = String(patch.template).slice(0, 4000);
+          if (patch.topic !== undefined) cur.topic = patch.topic;
+          if (patch.imageAssetId !== undefined) {
+            if (patch.imageAssetId && !media.get(patch.imageAssetId))
+              throw new CcError(400, `no media asset ${patch.imageAssetId}`);
+            cur.imageAssetId = patch.imageAssetId || undefined;
+          }
+        }
+      if (body.commands)
+        for (const [name, patch] of Object.entries(body.commands)) {
+          const cur = (tg.commands[name] ??= { enabled: true, description: "", response: "", adminOnly: false });
+          if (patch.enabled !== undefined) cur.enabled = !!patch.enabled;
+          if (patch.description !== undefined) cur.description = String(patch.description).slice(0, 120);
+          if (patch.response !== undefined) cur.response = String(patch.response).slice(0, 4000);
+          if (patch.adminOnly !== undefined) cur.adminOnly = !!patch.adminOnly;
+        }
+      if (body.moderation) {
+        const m = tg.moderation;
+        const p = body.moderation;
+        if (p.welcomeMessage !== undefined) m.welcomeMessage = String(p.welcomeMessage).slice(0, 2000);
+        if (p.captcha !== undefined) m.captcha = !!p.captcha;
+        if (p.spamFilter !== undefined) m.spamFilter = !!p.spamFilter;
+        if (p.goodbye !== undefined) m.goodbye = !!p.goodbye;
+        if (p.blocklist !== undefined)
+          m.blocklist = (Array.isArray(p.blocklist) ? p.blocklist : [])
+            .map((w) => String(w).toLowerCase().trim())
+            .filter(Boolean)
+            .slice(0, 200);
+        if (p.linkCooldownMinutes !== undefined)
+          m.linkCooldownMinutes = Math.max(0, Math.min(1440, Number(p.linkCooldownMinutes) || 0));
+        if (p.slowModeSeconds !== undefined)
+          m.slowModeSeconds = Math.max(0, Math.min(3600, Number(p.slowModeSeconds) || 0));
+      }
+
+      audit(store, req, {
+        module: "telegram",
+        action: "telegram.update",
+        before,
+        after: structuredClone(tg),
+      });
+      res.json({ settings: tg });
+    }),
+  );
+
+  /** Send a message to a topic right now — connection and routing check. */
+  app.post(
+    "/api/cc/telegram/test",
+    gate("telegram.manage"),
+    wrap(async (req, res) => {
+      if (!pitBoss) throw new CcError(400, "the bot isn't running (TELEGRAM_BOT_TOKEN unset)");
+      const { text, topic } = req.body as { text?: string; topic?: TopicKey };
+      const message = String(text ?? "").trim() || "🔧 Command Center test message.";
+      const target = (topic ?? "general") as TopicKey;
+      const ok = await pitBoss.postToTopic(message, target);
+      store.logTelegram({
+        kind: ok ? "sent" : "failed",
+        target,
+        source: "test",
+        text: message.slice(0, 300),
+        error: ok ? undefined : "Telegram rejected the message",
+      });
+      audit(store, req, { module: "telegram", action: "telegram.test", target, note: ok ? "delivered" : "failed" });
+      if (!ok) throw new CcError(502, "Telegram rejected the message — check the chat id and the bot's rights");
+      res.json({ ok: true });
+    }),
+  );
+
+  // ---- scheduled posts ----
+
+  app.post(
+    "/api/cc/telegram/scheduled",
+    gate("telegram.manage"),
+    wrap((req, res) => {
+      const b = req.body as Partial<ScheduledPost>;
+      if (!b.name?.trim()) throw new CcError(400, "a scheduled post needs a name");
+      if (!b.text?.trim()) throw new CcError(400, "a scheduled post needs some text");
+      const post: ScheduledPost = {
+        id: store.id(),
+        name: String(b.name).slice(0, 80),
+        text: String(b.text).slice(0, 4000),
+        topic: (b.topic ?? "announcements") as TopicKey,
+        cadence: b.cadence ?? "daily",
+        hourUtc: clampInt(b.hourUtc, 0, 23, 12),
+        minuteUtc: clampInt(b.minuteUtc, 0, 59, 0),
+        weekday: b.weekday === undefined ? undefined : clampInt(b.weekday, 0, 6, 1),
+        dayOfMonth: b.dayOfMonth === undefined ? undefined : clampInt(b.dayOfMonth, 1, 28, 1),
+        runAt: b.runAt,
+        imageAssetId: b.imageAssetId,
+        enabled: b.enabled ?? true,
+        createdAt: Date.now(),
+      };
+      if (post.cadence === "once" && !post.runAt)
+        throw new CcError(400, "a one-off post needs a date and time");
+      store.settings.telegram.scheduled.push(post);
+      audit(store, req, { module: "telegram", action: "telegram.schedule_create", target: post.name, after: post });
+      res.json({ post });
+    }),
+  );
+
+  app.patch(
+    "/api/cc/telegram/scheduled/:id",
+    gate("telegram.manage"),
+    wrap((req, res) => {
+      const post = store.settings.telegram.scheduled.find((p) => p.id === req.params.id);
+      if (!post) throw new CcError(404, "no such scheduled post");
+      const before = { ...post };
+      const b = req.body as Partial<ScheduledPost>;
+      if (b.name !== undefined) post.name = String(b.name).slice(0, 80);
+      if (b.text !== undefined) post.text = String(b.text).slice(0, 4000);
+      if (b.topic !== undefined) post.topic = b.topic;
+      if (b.cadence !== undefined) post.cadence = b.cadence;
+      if (b.hourUtc !== undefined) post.hourUtc = clampInt(b.hourUtc, 0, 23, post.hourUtc);
+      if (b.minuteUtc !== undefined) post.minuteUtc = clampInt(b.minuteUtc, 0, 59, post.minuteUtc);
+      if (b.weekday !== undefined) post.weekday = clampInt(b.weekday, 0, 6, 1);
+      if (b.dayOfMonth !== undefined) post.dayOfMonth = clampInt(b.dayOfMonth, 1, 28, 1);
+      if (b.runAt !== undefined) post.runAt = b.runAt ?? undefined;
+      if (b.enabled !== undefined) post.enabled = !!b.enabled;
+      if (b.imageAssetId !== undefined) post.imageAssetId = b.imageAssetId || undefined;
+      audit(store, req, { module: "telegram", action: "telegram.schedule_update", target: post.name, before, after: { ...post } });
+      res.json({ post });
+    }),
+  );
+
+  app.delete(
+    "/api/cc/telegram/scheduled/:id",
+    gate("telegram.manage"),
+    wrap((req, res) => {
+      const list = store.settings.telegram.scheduled;
+      const i = list.findIndex((p) => p.id === req.params.id);
+      if (i < 0) throw new CcError(404, "no such scheduled post");
+      const [removed] = list.splice(i, 1);
+      audit(store, req, { module: "telegram", action: "telegram.schedule_delete", target: removed!.name, before: removed });
+      res.json({ ok: true });
+    }),
+  );
+
+  // ---- delivery log ----
+
+  app.get(
+    "/api/cc/telegram/logs",
+    gate("telegram.manage"),
+    wrap((req, res) => {
+      const q = String(req.query.q ?? "").toLowerCase();
+      const kind = String(req.query.kind ?? "");
+      let rows = [...store.telegramLog].reverse();
+      if (kind) rows = rows.filter((e) => e.kind === kind);
+      if (q)
+        rows = rows.filter((e) =>
+          `${e.target ?? ""} ${e.source ?? ""} ${e.text ?? ""} ${e.error ?? ""}`.toLowerCase().includes(q),
+        );
+      res.json({ entries: rows.slice(0, 300), total: store.telegramLog.length });
+    }),
+  );
+
   // ---------------------------------------------------------------- audit log
 
   app.get(
@@ -1332,4 +1545,11 @@ function clamp01(n: unknown): number {
   const v = Number(n);
   if (!Number.isFinite(v)) return 1;
   return Math.min(1, Math.max(0, v));
+}
+
+/** Coerce to an integer inside a range, falling back when it isn't a number. */
+function clampInt(v: unknown, min: number, max: number, fallback: number): number {
+  const n = Math.round(Number(v));
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
 }

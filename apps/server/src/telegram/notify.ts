@@ -27,8 +27,32 @@ export class Notifier {
     private api: TelegramApi,
     private config: PitBossConfig,
   ) {
-    this.kb = makeKeyboards(config.webBase);
-    this.channelId = config.announcementChatId ?? config.groupChatId;
+    this.kb = makeKeyboards(this.effectiveConfig().webBase);
+    this.channelId = undefined; // resolved per-send, since settings can change
+  }
+
+  /**
+   * The effective config: Command Center settings layered over the env config
+   * the bot booted with. Resolved per call, so retargeting a channel or a topic
+   * takes effect on the next post rather than the next restart.
+   */
+  private effectiveConfig(): PitBossConfig {
+    const tg = this.store.settings.telegram;
+    return {
+      ...this.config,
+      botUsername: tg.botUsername || this.config.botUsername,
+      webBase: tg.webBase || this.config.webBase,
+      groupChatId: tg.groupChatId || this.config.groupChatId,
+      announcementChatId: tg.announcementChatId || this.config.announcementChatId,
+      groupInvite: tg.groupInvite || this.config.groupInvite,
+      topics: { ...this.config.topics, ...tg.topics },
+    };
+  }
+
+  /** Where community posts go right now. */
+  private channel(): string | undefined {
+    const c = this.effectiveConfig();
+    return c.announcementChatId ?? c.groupChatId;
   }
 
   private name(address: Address): string {
@@ -60,12 +84,24 @@ export class Notifier {
    * it lands in the right place; a separate announcement channel (no topics)
    * just gets the post. Unknown/unset topics fall back to General.
    */
-  toChannel(text: string, keyboard?: InlineKeyboard, topic?: TopicKey): void {
-    if (!this.channelId) return;
+  toChannel(text: string, keyboard?: InlineKeyboard, topic?: TopicKey, source?: string): void {
+    const chatId = this.channel();
+    if (!chatId) return;
+    // The master switch and the per-event toggle both gate community posts.
+    if (!this.store.settings.telegram.enabled) return;
+    if (source && !this.store.telegramEventEnabled(source)) return;
+    const c = this.effectiveConfig();
     // Threads only apply to the forum group, not a standalone channel.
-    const threadId =
-      !this.config.announcementChatId && topic ? this.config.topics?.[topic] : undefined;
-    void this.api.sendMessage({ chatId: this.channelId, text, keyboard, messageThreadId: threadId });
+    const threadId = !c.announcementChatId && topic ? c.topics?.[topic] : undefined;
+    void this.api.sendMessage({ chatId, text, keyboard, messageThreadId: threadId }).then((sent) =>
+      this.store.logTelegram({
+        kind: sent ? "sent" : "failed",
+        target: topic ?? "channel",
+        source,
+        text: text.slice(0, 300),
+        error: sent ? undefined : "Telegram rejected the message",
+      }),
+    );
   }
 
   /** The rendered coin-card image for a concept (the web's OG-image route). */
@@ -93,10 +129,15 @@ export class Notifier {
     caption: string,
     keyboard?: InlineKeyboard,
     topic?: TopicKey,
+    source?: string,
   ): void {
-    if (!this.channelId) return;
-    const threadId =
-      !this.config.announcementChatId && topic ? this.config.topics?.[topic] : undefined;
+    const channelId = this.channel();
+    if (!channelId) return;
+    if (!this.store.settings.telegram.enabled) return;
+    if (source && !this.store.telegramEventEnabled(source)) return;
+    const c = this.effectiveConfig();
+    const threadId = !c.announcementChatId && topic ? c.topics?.[topic] : undefined;
+    this.channelId = channelId;
     if (!conceptId) {
       void this.api.sendMessage({ chatId: this.channelId, text: caption, keyboard, messageThreadId: threadId });
       return;
@@ -125,7 +166,7 @@ export class Notifier {
         this.toOwner(e.address, "levelUps", say.levelUp(lvl, title), this.kb.openCookout());
         this.toFollowers(e.address, say.followed(who, `hit Level ${lvl}`));
         // Only milestone levels reach the channel, so the feed stays worth reading.
-        if (lvl >= 10 && lvl % 5 === 0) this.toChannel(feed.levelUp(who, lvl, title), undefined, "leaderboards");
+        if (lvl >= 10 && lvl % 5 === 0) this.toChannel(feed.levelUp(who, lvl, title), undefined, "leaderboards", "leaderboard");
         break;
       }
       case "achievement":
@@ -146,10 +187,10 @@ export class Notifier {
         break;
       case "jackpot":
         this.toOwner(e.address, "jackpot", `💰 ${esc(e.text)} Come collect.`, this.kb.jackpot());
-        this.toChannel(`💰 ${b(esc(who))} ${esc(e.text)}`, this.kb.jackpot(), "leaderboards");
+        this.toChannel(`💰 ${b(esc(who))} ${esc(e.text)}`, this.kb.jackpot(), "leaderboards", "jackpot");
         break;
       case "submitted":
-        this.toChannel(feed.submitted(sym ?? "?", "", who), this.kb.vote(), "launch");
+        this.toChannel(feed.submitted(sym ?? "?", "", who), this.kb.vote(), "launch", "submitted");
         break;
       case "pulled_up":
         this.toFollowers(e.address, say.followed(who, `pulled up${sym ? ` to $${esc(sym)}` : ""}`), sym && e.roundId ? this.kb.round(e.roundId, sym) : undefined);
@@ -219,6 +260,7 @@ export class Notifier {
       }),
       round ? this.kb.round(roundId, symbol) : this.kb.openCookout(),
       "leaderboards",
+      "results",
     );
   }
 
@@ -241,7 +283,7 @@ export class Notifier {
       ? feed.voteShillRerun(symbol, name, by, mode)
       : feed.voteShill(symbol, name, by, mode);
     // For "submitted", the event's roundId IS the concept id.
-    this.toChannelPhoto(conceptId, copy, this.kb.voteShill(conceptId, symbol, name), topic);
+    this.toChannelPhoto(conceptId, copy, this.kb.voteShill(conceptId, symbol, name), topic, "submitted");
   }
   votesHit(symbol: string, roundId: string, votes: number, mode?: string): void {
     // It's booked for the Cook Out now — the button enters the match, not the
@@ -252,6 +294,7 @@ export class Notifier {
       feed.votesHit(symbol, this.coinName(conceptId), votes, mode),
       this.kb.enterRound(roundId, symbol),
       "trading",
+      "votes_hit",
     );
   }
   scheduled(symbol: string, roundId: string, mode?: string): void {
@@ -261,6 +304,7 @@ export class Notifier {
       feed.scheduled(symbol, this.coinName(conceptId), mode),
       this.kb.round(roundId, symbol),
       "announcements",
+      "scheduled",
     );
   }
   fairOpen(symbol: string, roundId: string, mode?: string): void {
@@ -270,6 +314,7 @@ export class Notifier {
       feed.fairOpen(symbol, this.coinName(conceptId), mode),
       this.kb.round(roundId, symbol),
       "trading",
+      "fair_open",
     );
   }
   live(symbol: string, roundId: string, mode?: string): void {
@@ -279,6 +324,7 @@ export class Notifier {
       feed.live(symbol, this.coinName(conceptId), mode),
       this.kb.round(roundId, symbol),
       "trading",
+      "live",
     );
   }
   burnt(symbol: string, roundId?: string, mode?: string): void {
@@ -288,6 +334,7 @@ export class Notifier {
       feed.burnt(symbol, this.coinName(conceptId), mode),
       roundId ? this.kb.round(roundId, symbol) : this.kb.openCookout(),
       "leaderboards",
+      "burnt",
     );
   }
   runItBack(symbol: string, roundId: string, mode?: string): void {
@@ -297,10 +344,11 @@ export class Notifier {
       feed.runItBack(symbol, this.coinName(conceptId), mode),
       this.kb.runItBack(roundId),
       "launch",
+      "run_it_back",
     );
   }
   jackpotGrew(eth: number, usd?: number): void {
-    this.toChannel(feed.jackpot(eth, usd), this.kb.jackpot(), "announcements");
+    this.toChannel(feed.jackpot(eth, usd), this.kb.jackpot(), "announcements", "jackpot");
   }
   patchNotes(text: string): void {
     this.toChannel(feed.patchNotes(text), this.kb.openCookout(), "announcements");
