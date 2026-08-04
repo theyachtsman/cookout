@@ -92,6 +92,11 @@ function foldRunnable(rounds: Round[]): RunnableCoin[] {
 export default function ProfilePage() {
   const { profile, signIn, refresh } = useSession();
   const [tab, setTab] = useState<Tab>("overview");
+  // Deep links (the wallet slider's "View full roster") pick their tab.
+  useEffect(() => {
+    const t = new URLSearchParams(window.location.search).get("tab");
+    if (t && TABS.some(([k]) => k === t)) setTab(t as Tab);
+  }, []);
   const [name, setName] = useState("");
   const [editing, setEditing] = useState(false);
   const [copied, setCopied] = useState(false);

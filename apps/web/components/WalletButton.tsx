@@ -8,6 +8,7 @@ import { DEFAULT_CHAIN_ID, arenaBalance, hasArenaWallet } from "../lib/arenaWall
 import { useChainOnly } from "../lib/chainOnly";
 import { useSession } from "../lib/session";
 import { BurgerBalance } from "./BurgerBalance";
+import { RecruitPanel } from "./collection/RecruitPanel";
 
 export function WalletButton() {
   const { profile, signIn, signOut, busy, authError, clearAuthError, promptPlayNow } = useSession();
@@ -157,6 +158,10 @@ export function WalletButton() {
                     <BurgerBalance initial={profile.burgerBalance ?? 0} />
                   </div>
                 </div>
+
+                {/* Recruit NFT Goon — a doorway to /recruit, where crates are
+                    bought and opened. Sits by the Burgers that pay for them. */}
+                <RecruitPanel onNavigate={() => setOpen(false)} />
 
                 {/* actions */}
                 <div className="mt-1 flex flex-col gap-1 px-3">

@@ -1,14 +1,11 @@
 "use client";
 
-import dynamic from "next/dynamic";
 import { useCallback, useEffect, useState } from "react";
 import {
   CARD_RARITIES,
   RARITY_MAP,
   type CollectionProgress,
   type CollectionSet,
-  type CratePack,
-  type CrateResult,
 } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { CollectionBrowser, type BrowserCard } from "./CollectionBrowser";
@@ -16,17 +13,6 @@ import { CollectionBrowser, type BrowserCard } from "./CollectionBrowser";
 // opened. Loading it eagerly put it on every profile page, including other
 // people's. Split it out so the roster, the sets and the browser cost nothing
 // extra, and the 3D scene is fetched on the click that needs it.
-const CrateOpening = dynamic(() => import("./CrateOpening").then((m) => m.CrateOpening), {
-  ssr: false,
-  loading: () => (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black">
-      <div className="text-sm font-black uppercase tracking-[0.3em] text-lime-300">
-        Entering the bunker…
-      </div>
-    </div>
-  ),
-});
-
 /**
  * The Squad Collection: recruit crates, roster, sets and progress.
  *
@@ -45,7 +31,8 @@ interface SetProgress {
 interface CollectionData {
   enabled: boolean;
   cards: BrowserCard[];
-  packs: CratePack[];
+  /** Present on the signed-in feed; the roster view no longer sells them. */
+  packs?: unknown[];
   progress: CollectionProgress | null;
   sets: SetProgress[];
   burgerBalance: number;
@@ -55,10 +42,8 @@ const SKIP_KEY = "cookout_crate_skip";
 
 export function CollectionView({ address }: { address?: string }) {
   const [data, setData] = useState<CollectionData | null>(null);
-  const [opening, setOpening] = useState<CrateResult | null>(null);
-  const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
-  const [note, setNote] = useState("");
+  const [note] = useState("");
   const readOnly = !!address;
 
   const load = useCallback(() => {
@@ -68,20 +53,6 @@ export function CollectionView({ address }: { address?: string }) {
       .catch((e) => setError((e as Error).message));
   }, [address]);
   useEffect(load, [load]);
-
-  const openPack = async (pack: CratePack) => {
-    setBusy(pack.key);
-    setError("");
-    setNote("");
-    try {
-      const result = await api<CrateResult>("/api/collection/open", { body: { pack: pack.key } });
-      setOpening(result);
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy("");
-    }
-  };
 
   if (error && !data) return <div className="rounded-2xl bg-red-500/10 p-4 text-sm text-red-300">{error}</div>;
   if (!data) return <div className="py-12 text-center text-sm text-zinc-600">Loading the roster…</div>;
@@ -148,52 +119,28 @@ export function CollectionView({ address }: { address?: string }) {
         </section>
       )}
 
-      {!readOnly && data.enabled && data.packs.length > 0 && (
-        <section className="rounded-2xl bg-zinc-900/40 p-5 ring-1 ring-white/5">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h3 className="text-sm font-black uppercase tracking-wide text-zinc-200">Recruit Crates</h3>
-            <span className="text-xs text-zinc-500">
-              🍔 {Math.floor(data.burgerBalance).toLocaleString()} available
-            </span>
-          </div>
-          <p className="mt-1 text-xs text-zinc-500">
-            Bundles save Burgers. They never change the odds — every crate rolls the same table.
-          </p>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {data.packs.map((pack) => {
-              const affordable = data.burgerBalance >= pack.cost;
-              const perCrate = pack.cost / pack.crates;
-              const base = data.packs[0]!.cost;
-              const saving = Math.round((1 - perCrate / base) * 100);
-              return (
-                <button
-                  key={pack.key}
-                  disabled={!affordable || !!busy}
-                  onClick={() => void openPack(pack)}
-                  className={`rounded-2xl p-4 text-left ring-1 transition ${
-                    affordable
-                      ? "bg-zinc-950/60 ring-white/10 hover:-translate-y-0.5 hover:ring-lime-400/50"
-                      : "cursor-not-allowed bg-zinc-950/30 opacity-50 ring-white/5"
-                  }`}
-                >
-                  <div className="text-2xl">📦</div>
-                  <div className="mt-1 text-sm font-black text-zinc-100">{pack.label}</div>
-                  <div className="font-mono text-lg font-black text-orange-300">🍔 {pack.cost}</div>
-                  <div className="text-[10px] text-zinc-600">
-                    {perCrate.toFixed(0)} per crate{saving > 0 && ` · save ${saving}%`}
-                  </div>
-                  {busy === pack.key && <div className="mt-1 text-[10px] text-lime-300">Opening…</div>}
-                </button>
-              );
-            })}
+      {!readOnly && (
+        <section className="rounded-2xl bg-gradient-to-br from-amber-500/10 to-zinc-900/40 p-4 ring-1 ring-amber-400/20">
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-2xl">📦</span>
+            <div className="min-w-0 flex-1">
+              <div className="text-sm font-black text-zinc-100">
+                {data.enabled ? "Recruit from your wallet" : "Recruitment is closed"}
+              </div>
+              <div className="text-[11px] text-zinc-400">
+                {data.enabled
+                  ? "Crates are bought and opened on the Recruit page."
+                  : "Your roster is safe. Check back soon."}
+              </div>
+            </div>
+            <a
+              href="/recruit"
+              className="shrink-0 rounded-lg bg-amber-400 px-3 py-1.5 text-xs font-black text-zinc-950 hover:bg-amber-300"
+            >
+              Recruit →
+            </a>
           </div>
         </section>
-      )}
-
-      {!readOnly && !data.enabled && (
-        <div className="rounded-2xl bg-zinc-900/40 p-5 text-sm text-zinc-400">
-          The Collection is closed right now. Your roster is safe — check back soon.
-        </div>
       )}
 
       {data.sets.length > 0 && (
@@ -246,23 +193,6 @@ export function CollectionView({ address }: { address?: string }) {
         />
       </section>
 
-      {opening && (
-        <CrateOpening
-          pulls={opening.pulls}
-          skipDefault={typeof window !== "undefined" && localStorage.getItem(SKIP_KEY) === "1"}
-          onDone={() => {
-            const completed = opening.completedSets;
-            setOpening(null);
-            if (completed.length)
-              setNote(
-                completed
-                  .map((c) => `${c.set.name} complete · +${c.xp} XP · 🍔 +${c.burgers}`)
-                  .join("   "),
-              );
-            load();
-          }}
-        />
-      )}
     </div>
   );
 }
