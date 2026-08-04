@@ -2505,6 +2505,7 @@ export function createApp(
       branding: store.settings.branding,
       theme: activeTheme(store.settings.themes),
       audio: store.settings.audio,
+      copy: store.copyMap(),
     });
   });
 

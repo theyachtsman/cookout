@@ -5,6 +5,7 @@ import { CoinCard, ModeChip, OverTimeChip } from "../../components/CoinCard";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GAME_MODES, isEnduranceMode, marketCap, type GameMode, type Round } from "@cookout/shared";
 import { api } from "../../lib/api";
+import { useCopy } from "../../lib/copy";
 import { audio } from "../../lib/audio";
 import { Countdown } from "../../components/Countdown";
 import { RunItBackButton } from "../../components/RunItBack";
@@ -42,6 +43,7 @@ const MODE_ICON: Record<GameMode, string> = {
 };
 
 export default function Home() {
+  const { t } = useCopy();
   const [rounds, setRounds] = useState<Round[]>([]);
   const [filter, setFilter] = useState<ResultFilter>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("mode");
@@ -207,10 +209,9 @@ export default function Home() {
   return (
     <div className="space-y-10">
       <section>
-        <h1 className="mb-1 text-2xl font-black">The Cook Out</h1>
+        <h1 className="mb-1 text-2xl font-black">{t("cookout.title")}</h1>
         <p className="mb-5 text-sm text-zinc-400">
-          Live now, up next, and every past result. Each match is a real token launched through a
-          fair batch auction: one clearing price, pro-rata fills, auditable settlement.
+          {t("cookout.intro")}
         </p>
 
         {hero ? (
@@ -220,7 +221,7 @@ export default function Home() {
               <div className="mt-6">
                 <div className="mb-2 flex items-baseline gap-2">
                   <h2 className="text-sm font-black uppercase tracking-wide text-zinc-300">
-                    Up Next
+                    {t("cookout.upNext")}
                   </h2>
                   <span className="text-xs text-zinc-600">{queue.length} in the queue</span>
                 </div>
@@ -238,11 +239,10 @@ export default function Home() {
           <div className="rounded-2xl bg-lime-400/[0.06] p-8 text-center">
             <div className="text-3xl">🍳</div>
             <p className="mt-2 text-lg font-black text-zinc-100">
-              The grill is empty. Someone needs to launch a coin.
+              {t("cookout.empty.title")}
             </p>
             <p className="mx-auto mt-1 max-w-md text-sm text-zinc-400">
-              Every match starts with the community: launch a coin, the crowd votes it through, and
-              it lands right here at the Cook Out at your chosen tier.
+              {t("cookout.empty.body")}
             </p>
             <Link
               href="/submissions"
@@ -258,14 +258,13 @@ export default function Home() {
         <section>
           <div className="mb-2 flex flex-wrap items-baseline gap-2">
             <h2 className="text-sm font-black uppercase tracking-wide text-zinc-300">
-              🕛 Endurance
+              {t("cookout.endurance.title")}
             </h2>
             <span className="rounded-full bg-white/5 px-2 py-0.5 text-[11px] font-bold text-zinc-400">
               {enduranceQueue.length} active
             </span>
             <p className="text-xs text-zinc-500">
-              No timer. These run until the coin completes its bonding curve — pure PvP, no bots, no
-              modifiers.
+              {t("cookout.endurance.blurb")}
             </p>
           </div>
           <div className="no-scrollbar flex gap-4 overflow-x-auto py-2">
@@ -281,7 +280,7 @@ export default function Home() {
       {finished.length > 0 && (
         <section>
           <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-3">
-            <h2 className="text-lg font-bold text-zinc-300">Past Results</h2>
+            <h2 className="text-lg font-bold text-zinc-300">{t("cookout.pastResults")}</h2>
 
             {/* result filter (cross-cutting) */}
             <div className="flex flex-wrap gap-1 text-xs font-bold">

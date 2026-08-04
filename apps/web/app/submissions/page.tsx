@@ -16,6 +16,7 @@ import {
   type TokenConcept,
 } from "@cookout/shared";
 import { api } from "../../lib/api";
+import { useCopy } from "../../lib/copy";
 import { useUnit } from "../../lib/chainOnly";
 import { useSession } from "../../lib/session";
 import { CoinCard } from "../../components/CoinCard";
@@ -31,6 +32,7 @@ const SOCIAL_FIELDS = [
 ] as const;
 
 export default function Submissions() {
+  const { t } = useCopy();
   const unit = useUnit();
   const { profile, signIn } = useSession();
   const [concepts, setConcepts] = useState<TokenConcept[]>([]);
@@ -125,15 +127,13 @@ export default function Submissions() {
     <div className="space-y-8">
       <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-lime-400/[0.1] via-zinc-900/40 to-zinc-900/40 p-6">
         <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">
-          Launch a Coin
+          {t("launch.eyebrow")}
         </div>
         <h1 className="mt-2 text-3xl font-black tracking-tight md:text-4xl">
-          Put your coin on the grill.
+          {t("launch.title")}
         </h1>
         <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-          Supply the name, art, and story. Your token deploys from the platform-audited template, so
-          there are no mint, pause, or blacklist controls. Pick a game mode, rally the votes, and it
-          heads straight to the Cook Out.
+          {t("launch.intro")}
         </p>
         <Link
           href="/vote"
@@ -251,10 +251,10 @@ export default function Submissions() {
                       onClick={() => !locked && setForm({ ...form, mode: m.key })}
                       title={
                         m.disabled
-                          ? `${m.name} unlocks later`
+                          ? `${t(`mode.${m.key}.name`)} unlocks later`
                           : locked
-                            ? `Reach level ${m.unlockLevel} to launch ${m.name}`
-                            : m.blurb
+                            ? `Reach level ${m.unlockLevel} to launch ${t(`mode.${m.key}.name`)}`
+                            : t(`mode.${m.key}.blurb`)
                       }
                       className={`rounded-xl p-3 text-left transition ${
                         active
@@ -267,7 +267,7 @@ export default function Submissions() {
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-black">{m.name}</span>
+                        <span className="text-sm font-black">{t(`mode.${m.key}.name`)}</span>
                         {m.disabled ? (
                           <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] font-bold text-zinc-400">
                             🔒 Soon
@@ -295,9 +295,9 @@ export default function Submissions() {
                         )}
                       </div>
                       <div className="mt-0.5 text-[11px] font-bold uppercase tracking-wide text-zinc-500">
-                        {m.tagline} · {m.pullUpCap} {unit} pull-up cap
+                        {t(`mode.${m.key}.tagline`)} · {m.pullUpCap} {unit} pull-up cap
                       </div>
-                      <div className="mt-1 text-[11px] leading-snug text-zinc-500">{m.blurb}</div>
+                      <div className="mt-1 text-[11px] leading-snug text-zinc-500">{t(`mode.${m.key}.blurb`)}</div>
                     </button>
                   );
                 })}

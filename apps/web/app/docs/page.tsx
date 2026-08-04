@@ -31,42 +31,45 @@ import {
   WEEKLY_MISSIONS,
   xpForLevel,
 } from "@cookout/shared";
+import { useCopy } from "../../lib/copy";
 
 /** Product wiki: everything a new player needs, in the Cook Out's own voice. */
 
-const SECTIONS = [
-  ["what", "What is The Cookout?"],
-  ["account", "Getting In & Your Account"],
-  ["round", "Anatomy of a Round"],
-  ["auction", "The Fair Open"],
-  ["trading", "Live Trading"],
-  ["endings", "Rugs, Redemption & Graduation"],
-  ["modes", "Game Modes"],
-  ["pit", "The Pit (vs Swarm AI)"],
-  ["reputation", "Reputation & Rug Bans"],
-  ["tiers", "Risk Tiers (under the hood)"],
-  ["progression", "XP, Levels & Titles"],
-  ["jackpot", "The Weekly Jackpot"],
-  ["quests", "Quests & Earning XP"],
-  ["badges", "Badges & Achievements"],
-  ["grill", "The Grill (Chat)"],
-  ["creators", "Launching Your Own Coin"],
-  ["faq", "FAQ"],
+/** Section ids, in order. Every title is editable copy (docs.section.<id>). */
+const SECTION_IDS = [
+  "what",
+  "account",
+  "round",
+  "auction",
+  "trading",
+  "endings",
+  "modes",
+  "pit",
+  "reputation",
+  "tiers",
+  "progression",
+  "jackpot",
+  "quests",
+  "badges",
+  "grill",
+  "creators",
+  "faq",
 ] as const;
 
 export default function Docs() {
+  const { t } = useCopy();
   return (
     <div className="mx-auto flex max-w-6xl gap-10">
       <aside className="sticky top-20 hidden h-fit w-52 shrink-0 md:block">
-        <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">The Menu</div>
+        <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">{t("docs.title")}</div>
         <nav className="mt-3 space-y-1">
-          {SECTIONS.map(([id, label]) => (
+          {SECTION_IDS.map((id) => (
             <a
               key={id}
               href={`#${id}`}
               className="block rounded px-2 py-1 text-sm text-zinc-400 hover:bg-zinc-900 hover:text-lime-300"
             >
-              {label}
+              {t(`docs.section.${id}`)}
             </a>
           ))}
         </nav>
@@ -75,15 +78,12 @@ export default function Docs() {
       <div className="min-w-0 flex-1 space-y-14 pb-24">
         <header>
           <h1 className="text-4xl font-black">
-            The Cookout <span className="text-lime-400">Menu</span>
+            The Cookout <span className="text-lime-400">{t("docs.title")}</span>
           </h1>
-          <p className="mt-2 text-zinc-400">
-            Everything you need before you pull up. Five minutes to read; a lifetime to master the
-            exit.
-          </p>
+          <p className="mt-2 text-zinc-400">{t("docs.intro")}</p>
         </header>
 
-        <Section id="what" title="What is The Cookout?">
+        <Section id="what" title={t(`docs.section.what`)}>
           <p>
             The Cookout is a <b>live multiplayer trading game</b>. Every match at the Cook Out is a
             brand-new token created for that match by a community creator. It opens through a fair
@@ -102,7 +102,7 @@ export default function Docs() {
           </p>
         </Section>
 
-        <Section id="account" title="Getting In & Your Account">
+        <Section id="account" title={t(`docs.section.account`)}>
           <p>
             The Cookout is in <b>open beta</b>: no whitelist, no waves, no crypto knowledge
             required. Hit <b>Play Now</b> and sign in with an email, Google, X, or an existing
@@ -156,7 +156,7 @@ export default function Docs() {
           </p>
         </Section>
 
-        <Section id="round" title="Anatomy of a Round">
+        <Section id="round" title={t(`docs.section.round`)}>
           <ol className="list-decimal space-y-2 pl-5">
             <li>
               <b>Scheduled</b>: the match is booked at the Cook Out. You see the theme; the token stays a
@@ -184,7 +184,7 @@ export default function Docs() {
           </ol>
         </Section>
 
-        <Section id="auction" title="The Fair Open">
+        <Section id="auction" title={t(`docs.section.auction`)}>
           <p>
             On every other launchpad, the open is won by whoever has the fastest bot. Here,{" "}
             <b>speed buys nothing</b>:
@@ -210,7 +210,7 @@ export default function Docs() {
           </ul>
         </Section>
 
-        <Section id="trading" title="Live Trading">
+        <Section id="trading" title={t(`docs.section.trading`)}>
           <p>
             Once the auction settles, it&apos;s a real market: your buys push price up, sells push
             it down, 1-second candles, everything visible to the crowd. The chart shows{" "}
@@ -225,7 +225,7 @@ export default function Docs() {
           </p>
         </Section>
 
-        <Section id="endings" title="Rugs, Redemption & Graduation">
+        <Section id="endings" title={t(`docs.section.endings`)}>
           <p>A round ends the moment any of these fire:</p>
           <ul className="list-disc space-y-2 pl-5">
             <li>
@@ -258,7 +258,7 @@ export default function Docs() {
           </p>
         </Section>
 
-        <Section id="modes" title="Game Modes">
+        <Section id="modes" title={t(`docs.section.modes`)}>
           <p>
             Every coin launches in one of four curated <b>game modes</b>. A mode bundles two things:
             how long the match runs, and whether <b>rug rules</b> are on. The creator picks it at
@@ -362,7 +362,7 @@ export default function Docs() {
           </p>
         </Section>
 
-        <Section id="pit" title="The Pit (vs Swarm AI)">
+        <Section id="pit" title={t(`docs.section.pit`)}>
           <p>
             <b className="text-fuchsia-300">The Pit</b> is a bonus game mode that lives next to the
             Cook Out. Instead of trading against other players, you go up against{" "}
@@ -413,7 +413,7 @@ export default function Docs() {
           </p>
         </Section>
 
-        <Section id="reputation" title="Reputation & Rug Bans">
+        <Section id="reputation" title={t(`docs.section.reputation`)}>
           <p>
             Every creator carries a public <b>reputation score</b>: it&apos;s on your profile, your
             public profile, and your creator page for anyone to check before they vote your coin up.
@@ -465,7 +465,7 @@ export default function Docs() {
           </p>
         </Section>
 
-        <Section id="tiers" title="Risk Tiers (under the hood)">
+        <Section id="tiers" title={t(`docs.section.tiers`)}>
           <p>
             Under every <a href="#modes" className="text-lime-400 underline">game mode</a> sits an
             economics <b>tier</b> that sets the liquidity depth, position caps, and dev sell lock.
@@ -507,7 +507,7 @@ export default function Docs() {
           </p>
         </Section>
 
-        <Section id="progression" title="XP, Levels & Titles">
+        <Section id="progression" title={t(`docs.section.progression`)}>
           <p>
             You earn XP every round <b>regardless of profit</b>: participation, first buys,
             diamond hands, perfect exits, rug survival, and more. Every point counts toward your{" "}
@@ -567,7 +567,7 @@ export default function Docs() {
           </p>
         </Section>
 
-        <Section id="jackpot" title="The Weekly Jackpot">
+        <Section id="jackpot" title={t(`docs.section.jackpot`)}>
           <p>
             Every trade on The Cookout feeds a single, site-wide{" "}
             <b className="text-amber-300">Weekly Jackpot</b>: a shared prize pot that pays out to
@@ -613,7 +613,7 @@ export default function Docs() {
           </p>
         </Section>
 
-        <Section id="quests" title="Quests & Earning XP">
+        <Section id="quests" title={t(`docs.section.quests`)}>
           <p>
             XP is the whole game. It sets your level, unlocks tiers and cosmetics, and decides
             the <Link href="/jackpot" className="text-amber-400 underline">Weekly Jackpot</Link>.
@@ -871,7 +871,7 @@ export default function Docs() {
           </p>
         </Section>
 
-        <Section id="badges" title="Badges & Achievements">
+        <Section id="badges" title={t(`docs.section.badges`)}>
           <p>
             Badges are earned <b>once</b> and displayed on your profile forever. Each pays one-time
             XP scaled by rarity: <span className="font-mono text-zinc-400">common {ACHIEVEMENT_XP.common}</span> ·{" "}
@@ -905,7 +905,7 @@ export default function Docs() {
           })}
         </Section>
 
-        <Section id="grill" title="The Grill (Chat)">
+        <Section id="grill" title={t(`docs.section.grill`)}>
           <p>
             <b>The Grill</b> is the always-on chat that follows you across the whole site. It never
             logs out and never leaves the screen. It lives in the dock at the{" "}
@@ -988,7 +988,7 @@ export default function Docs() {
           </ul>
         </Section>
 
-        <Section id="creators" title="Launching Your Own Coin">
+        <Section id="creators" title={t(`docs.section.creators`)}>
           <ol className="list-decimal space-y-2 pl-5">
             <li>
               Submit a concept on the <Link href="/submissions" className="text-lime-400 underline">Launchpad</Link>:
@@ -1033,7 +1033,7 @@ export default function Docs() {
           </p>
         </Section>
 
-        <Section id="faq" title="FAQ">
+        <Section id="faq" title={t(`docs.section.faq`)}>
           <dl className="space-y-4">
             <Faq q="Is this real money?">
               Not in the paper beta. Everyone starts with 10 pETH of simulated balance. The

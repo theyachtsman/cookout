@@ -14,6 +14,7 @@ import {
   TeamModule,
 } from "../../components/cc/CcModules";
 import { GameConfigModule } from "../../components/cc/GameConfig";
+import { CopyEditorModule } from "../../components/cc/CopyEditor";
 import { MediaModule } from "../../components/cc/MediaLibrary";
 import { AudioModule, BrandingModule, ThemesModule } from "../../components/cc/Presentation";
 import { LegacyOps } from "./LegacyOps";
@@ -46,7 +47,7 @@ const MODULES: ModuleDef[] = [
   { key: "economy", label: "Economy & BURGERS", icon: "🍔", permission: "game.config", group: "Operations" },
   { key: "telegram", label: "Telegram", icon: "✈️", permission: "telegram.manage", group: "Operations" },
   { key: "goons", label: "Flame Goon Squad", icon: "🔥", permission: "content.manage", group: "Operations" },
-  { key: "content", label: "Quests & Content", icon: "📜", permission: "content.manage", group: "Content" },
+  { key: "content", label: "Site Copy", icon: "📜", permission: "content.manage", group: "Content" },
   { key: "branding", label: "Branding", icon: "🎨", permission: "assets.manage", group: "Content" },
   { key: "themes", label: "Theme Studio", icon: "🎭", permission: "themes.manage", group: "Content" },
   { key: "media", label: "Media Library", icon: "🖼️", permission: "assets.manage", group: "Content" },
@@ -229,6 +230,8 @@ function ModuleBody({
       return <BackupsModule />;
     case "game":
       return <GameConfigModule />;
+    case "content":
+      return <CopyEditorModule />;
     case "media":
       return <MediaModule />;
     case "branding":
@@ -258,13 +261,6 @@ function ModuleBody({
         <ComingSoon
           title="Analytics"
           note="Dashboards for retention, trading, the Pit, XP, BURGERS and revenue. The dashboard module already reports live platform and infrastructure numbers; the deeper cohort and funnel views are the next module to land."
-        />
-      );
-    case "content":
-      return (
-        <ComingSoon
-          title="Quests & Content"
-          note="Quests, achievements and announcements are still defined in shared constants (packages/shared/src/missions.ts and gamification.ts). Moving them into database-backed records is the next step — announcements are editable today under Game Configuration."
         />
       );
     case "nft":

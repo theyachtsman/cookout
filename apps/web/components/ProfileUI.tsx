@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState, type ReactNode } from "react";
+import { useCopy } from "../lib/copy";
 import type { AchievementDef, RoundHistoryEntry } from "@cookout/shared";
 import { repStanding } from "./Reputation";
 
@@ -350,6 +351,7 @@ export function AchievementCard({
   achievement: AchievementDef;
   unlocked: boolean;
 }) {
+  const { t } = useCopy();
   const r = RARITY[a.rarity] ?? RARITY.common;
   return (
     <div
@@ -367,7 +369,7 @@ export function AchievementCard({
       </div>
       <div className={`min-w-0 flex-1 ${unlocked ? "" : "opacity-55"}`}>
         <div className="flex items-center justify-between gap-2">
-          <span className="truncate font-black text-zinc-100">{a.name}</span>
+          <span className="truncate font-black text-zinc-100">{t(`achievement.${a.id}.name`)}</span>
           <span
             className={`shrink-0 rounded-full bg-zinc-950/40 px-2 py-0.5 text-[9px] font-black uppercase tracking-wide ${
               unlocked ? r.text : "text-zinc-600"
@@ -376,7 +378,7 @@ export function AchievementCard({
             {r.label}
           </span>
         </div>
-        <div className="mt-1 text-xs leading-snug text-zinc-400">{a.description}</div>
+        <div className="mt-1 text-xs leading-snug text-zinc-400">{t(`achievement.${a.id}.description`)}</div>
       </div>
     </div>
   );

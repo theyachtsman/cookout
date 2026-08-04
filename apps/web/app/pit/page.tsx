@@ -13,6 +13,7 @@ import {
   type PitDurationKey,
 } from "@cookout/shared";
 import { api } from "../../lib/api";
+import { useCopy } from "../../lib/copy";
 import { useSession } from "../../lib/session";
 import { useSocial } from "../../lib/social";
 import type { PitCard, PitFeed } from "../../lib/pit";
@@ -596,6 +597,7 @@ interface JackpotInfo {
 }
 
 export default function PitPage() {
+  const { t } = useCopy();
   const { profile, signIn } = useSession();
   const { setActiveRoom } = useSocial();
   const me = profile?.address?.toLowerCase();
@@ -632,7 +634,7 @@ export default function PitPage() {
           <div className="text-[11px] font-black uppercase tracking-[0.2em] text-lime-300">
             Powered by {PIT_AI_NAME}
           </div>
-          <h1 className="mt-1 text-3xl font-black text-zinc-50 sm:text-4xl">The Pit</h1>
+          <h1 className="mt-1 text-3xl font-black text-zinc-50 sm:text-4xl">{t("pit.title")}</h1>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-zinc-300">
             This is where you prove it. Step into the <span className="font-bold text-sky-300">Prediction Market</span>{" "}
             and call it — Graduate, Rug, or Timer — then stack the House Special and Double Down for the big score.
@@ -676,15 +678,15 @@ export default function PitPage() {
         </div>
       </div>
 
-      <Shelf title="Live Matches" cards={data?.live ?? []} empty="No live Pit matches right now. Launch one." me={me} fmt={fmt} />
+      <Shelf title={t("pit.live")} cards={data?.live ?? []} empty="No live Pit matches right now. Launch one." me={me} fmt={fmt} />
       <Shelf
-        title="Queue"
+        title={t("pit.queue")}
         cards={[...(data?.lobby ?? []), ...(data?.queue ?? [])]}
         empty="Nothing in the queue. Launch a match to open one."
         me={me}
         fmt={fmt}
       />
-      <Shelf title="Recent Results" cards={data?.results ?? []} empty="No finished Pit matches yet." me={me} fmt={fmt} />
+      <Shelf title={t("pit.results")} cards={data?.results ?? []} empty="No finished Pit matches yet." me={me} fmt={fmt} />
 
       {mounted && launching && <LaunchPitModal onClose={() => setLaunching(false)} />}
       {mounted && payoutOpen && <PayoutInfoModal onClose={() => setPayoutOpen(false)} />}
