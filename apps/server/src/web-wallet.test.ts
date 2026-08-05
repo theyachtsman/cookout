@@ -269,3 +269,12 @@ test("resolution is wired to the engine without a circular dependency", () => {
   const eng = readFileSync(join(import.meta.dirname, "engine.ts"), "utf8");
   assert.ok(eng.includes("onPitChainResolve"), "the engine must call it on Pit match end");
 });
+
+test("importing a round refuses to roll back one that is still running", async () => {
+  // The failure this guards: restoring a stale export over a round that kept
+  // trading, silently reverting real positions to an older state.
+  const src = readFileSync(join(import.meta.dirname, "command-center.ts"), "utf8");
+  const route = src.slice(src.indexOf('"/api/cc/rounds/import"'));
+  assert.match(route, /already \$\{existing\.state\} here/);
+  assert.ok(route.indexOf("existing.state !== \"results\"") < route.indexOf("store.rounds.set"));
+});

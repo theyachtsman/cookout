@@ -45,7 +45,7 @@ import {
 import { buildAnalytics, isRealPlayer } from "./analytics.js";
 import { adminAdjustBurgers } from "./burger.js";
 import { ComplianceService } from "./compliance.js";
-import type { ComplianceSettings } from "@cookout/shared";
+import type { ComplianceSettings, Round } from "@cookout/shared";
 import { MediaService } from "./media.js";
 import { rateLimit } from "./ratelimit.js";
 import {
@@ -574,6 +574,80 @@ export function mountCommandCenter(
         note: "reset to compiled defaults",
       });
       res.json({ settings: store.settings.game });
+    }),
+  );
+
+  // ------------------------------------------------------- live round rescue
+
+  /**
+   * Export an in-flight round, with everything needed to bring it back.
+   *
+   * In-flight rounds used to be dropped from the snapshot, so any restart
+   * destroyed them. That is fixed, but a round that was live under the old
+   * build is still only in memory — this is how it gets out before a deploy
+   * that would otherwise be its last.
+   */
+  app.get(
+    "/api/cc/rounds/:id/export",
+    gate("matches.control"),
+    wrap((req, res) => {
+      const round = store.rounds.get(req.params.id!);
+      if (!round) throw new CcError(404, "round not found");
+      res.json({
+        exportedAt: Date.now(),
+        round,
+        trades: store.trades.get(round.id) ?? [],
+        candles: store.candles.get(round.id) ?? [],
+        positions: [...(store.positions.get(round.id) ?? new Map()).entries()],
+        intents: store.intents.get(round.id) ?? [],
+      });
+    }),
+  );
+
+  /**
+   * Put an exported round back.
+   *
+   * Refuses to overwrite a round that is already in flight: the failure this
+   * guards against is restoring a stale copy over a round that has kept
+   * trading, which would silently roll back real positions.
+   */
+  app.post(
+    "/api/cc/rounds/import",
+    gate("matches.control"),
+    wrap((req, res) => {
+      const body = req.body as {
+        round?: Round;
+        trades?: unknown[];
+        candles?: unknown[];
+        positions?: Array<[string, unknown]>;
+        intents?: unknown[];
+      };
+      const round = body.round;
+      if (!round?.id) throw new CcError(400, "a round is required");
+
+      const existing = store.rounds.get(round.id);
+      if (existing && existing.state !== "results" && existing.state !== "ended")
+        throw new CcError(
+          409,
+          `round ${round.id} is already ${existing.state} here — importing would roll it back`,
+        );
+
+      store.rounds.set(round.id, round);
+      if (body.trades?.length) store.trades.set(round.id, body.trades as never);
+      if (body.candles?.length) store.candles.set(round.id, body.candles as never);
+      if (body.positions?.length)
+        store.positions.set(round.id, new Map(body.positions as never));
+      if (body.intents?.length) store.intents.set(round.id, body.intents as never);
+
+      audit(store, req, {
+        module: "game",
+        action: "round.import",
+        target: round.id,
+        note:
+          `restored ${round.token?.symbol ?? "?"} in state ${round.state} with ` +
+          `${body.trades?.length ?? 0} trades, ${body.positions?.length ?? 0} positions`,
+      });
+      res.json({ ok: true, id: round.id, state: round.state });
     }),
   );
 

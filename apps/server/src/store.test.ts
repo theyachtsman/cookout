@@ -210,3 +210,41 @@ test("snapshot → hydrate roundtrip via FilePersistence", async () => {
   // Weekly challenges are always live (dailies rotate), so check the trades one.
   assert.equal(status.find((m) => m.id === "w_trade_50")!.progress, 7, "activity survives restart");
 });
+
+test("a live round survives a restart", () => {
+  // In-flight rounds used to be dropped from the snapshot entirely, so every
+  // deploy destroyed whatever was running. For Endurance — no timer, runs for
+  // days — that could be a coin someone had been building since launch.
+  const store = new Store();
+  const round = {
+    id: "live-1",
+    state: "live",
+    matchType: "cookout",
+    token: { name: "Keeper", symbol: "KEEP" },
+    pool: { ethReserve: 12, tokenReserve: 900_000, totalSupply: 1_000_000 },
+  } as never;
+  store.rounds.set("live-1", round);
+  store.trades.set("live-1", [{ userAddress: "0xa", ethAmount: 1 }] as never);
+  store.positions.set("live-1", new Map([["0xa", { tokens: 500 }]] as never));
+
+  const restored = new Store();
+  restored.hydrate(JSON.parse(JSON.stringify(store.snapshot())));
+
+  const back = restored.rounds.get("live-1");
+  assert.ok(back, "the round itself came back");
+  assert.equal(back.state, "live");
+  // The pool rides inside the Round, which is what makes the coin tradeable
+  // again rather than merely visible.
+  assert.equal(back.pool?.ethReserve, 12);
+  assert.equal(restored.trades.get("live-1")?.length, 1);
+  assert.equal(restored.positions.get("live-1")?.get("0xa" as never)?.tokens, 500);
+});
+
+test("a finished round still round-trips, without duplicating", () => {
+  const store = new Store();
+  store.rounds.set("done-1", { id: "done-1", state: "results", token: { symbol: "OLD" } } as never);
+  const restored = new Store();
+  restored.hydrate(JSON.parse(JSON.stringify(store.snapshot())));
+  assert.equal(restored.rounds.size, 1);
+  assert.equal(restored.rounds.get("done-1")?.state, "results");
+});

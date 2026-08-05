@@ -1259,10 +1259,26 @@ export class Store {
       users: [...this.users.values()],
       concepts: [...this.concepts.values()],
       conceptVoters: [...this.conceptVoters.entries()].map(([id, set]) => [id, [...set]]),
-      archivedRounds: [...this.rounds.values()].filter((r) => r.state === "results"),
-      candles: [...this.candles.entries()].filter(
-        ([roundId]) => this.rounds.get(roundId)?.state === "results",
-      ),
+      // Every round, not just finished ones. In-flight rounds used to be
+      // dropped here, so a deploy silently destroyed whatever was live —
+      // which for Endurance, a mode with no timer, could be a coin someone
+      // had been running for days.
+      archivedRounds: [...this.rounds.values()],
+      candles: [...this.candles.entries()],
+      // The per-round state an in-flight round cannot resume without. Finished
+      // rounds keep theirs in the summary, so this is scoped to the live ones
+      // to keep the snapshot from growing without bound.
+      liveRounds: [...this.rounds.values()]
+        .filter((r) => r.state !== "results" && r.state !== "ended")
+        .map((r) => ({
+          roundId: r.id,
+          // round.pool rides along inside the Round itself.
+          trades: this.trades.get(r.id) ?? [],
+          positions: [...(this.positions.get(r.id) ?? new Map()).entries()],
+          intents: this.intents.get(r.id) ?? [],
+          pitStacks: [...(this.pitStacks.get(r.id) ?? new Map()).entries()],
+          pitEntries: [...(this.pitEntries.get(r.id) ?? new Map()).entries()],
+        })),
       auctionResults: [...this.auctionResults.values()],
       summaries: [...this.summaries.values()],
       adminLog: this.adminLog.slice(-1000),
@@ -1325,6 +1341,17 @@ export class Store {
     for (const c of snap.concepts) this.concepts.set(c.id, c);
     for (const [id, voters] of snap.conceptVoters) this.conceptVoters.set(id, new Set(voters));
     for (const r of snap.archivedRounds) this.rounds.set(r.id, r);
+    // Restore what a live round needs to keep running. Derived match stats
+    // (peak mcap, volume-by-second) are rebuilt lazily by the engine rather
+    // than stored: they are cheap to lose and awkward to keep correct, and
+    // losing them costs a few leaderboard numbers rather than the round.
+    for (const lr of snap.liveRounds ?? []) {
+      if (lr.trades?.length) this.trades.set(lr.roundId, lr.trades);
+      if (lr.positions?.length) this.positions.set(lr.roundId, new Map(lr.positions));
+      if (lr.intents?.length) this.intents.set(lr.roundId, lr.intents);
+      if (lr.pitStacks?.length) this.pitStacks.set(lr.roundId, new Map(lr.pitStacks));
+      if (lr.pitEntries?.length) this.pitEntries.set(lr.roundId, new Map(lr.pitEntries));
+    }
     for (const [roundId, candles] of snap.candles ?? []) this.candles.set(roundId, candles);
     for (const a of snap.auctionResults) this.auctionResults.set(a.roundId, a);
     for (const s of snap.summaries) this.summaries.set(s.roundId, s);
@@ -1603,8 +1630,18 @@ export interface Snapshot {
   users: StoredUser[];
   concepts: TokenConcept[];
   conceptVoters: Array<[string, Address[]]>;
+  /** Every round, in-flight included — see snapshot() for why. */
   archivedRounds: Round[];
   candles?: Array<[string, Candle[]]>;
+  /** Per-round state that only in-flight rounds need to resume. */
+  liveRounds?: Array<{
+    roundId: string;
+    trades?: Trade[];
+    positions?: Array<[Address, Position]>;
+    intents?: AuctionIntent[];
+    pitStacks?: Array<[Address, number]>;
+    pitEntries?: Array<[Address, PitEntry]>;
+  }>;
   auctionResults: AuctionResult[];
   summaries: RoundSummary[];
   adminLog: AdminLogEntry[];
