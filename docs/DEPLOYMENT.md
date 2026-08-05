@@ -172,3 +172,75 @@ The Command Center dashboard shows the operator's live balance and flags it
 below `OPERATOR_MIN_BALANCE_ETH` (0.05 ETH). Crossing that floor also writes
 one line to the audit log — the crossing, not the state, so a low balance
 doesn't spam it once a minute.
+
+## Mainnet (Robinhood Chain, 4663)
+
+```
+RPC       https://rpc.mainnet.chain.robinhood.com
+chainId   4663
+explorer  https://robinhoodchain.blockscout.com
+```
+
+Uniswap v4 is live there at the **same addresses as the testnet**, which is why
+everything tested on 46630 transfers directly:
+
+```
+PoolManager      0x8366a39cc670b4001a1121b8f6a443a643e40951
+PositionManager  0x58daec3116aae6d93017baaea7749052e8a04fa7
+Permit2          0x000000000022D473030F116dDEE9F6B43aC78BA3
+StateView        0xf3334192d15450cdd385c8b70e03f9a6bd9e673b
+```
+
+### Before you deploy
+
+Everything below is cheap now and impossible later. The factory is immutable
+once deployed, and a round created against a wrong PositionManager or a wrong
+fee wallet can only be abandoned, never corrected.
+
+1. **Generate a fresh operator key.** Not the testnet one — its private key is
+   public, and anyone holding it can drain gas and stop settlement. Generate it
+   somewhere the key never touches a shell history or a repo.
+2. **Fund it small.** It pays gas for `createRound`, `settle`, `resolve`, and
+   `migrate` — nothing else. A few weeks of gas. Anything more is theft surface.
+3. **Keep it away from revenue.** `PROTOCOL_FEE_WALLET` and round fee recipients
+   must be different addresses, so a compromised operator reaches no money.
+4. **Run preflight, and read every line:**
+   ```bash
+   DEPLOYER_KEY=0x… node scripts/hh.cjs run scripts/preflight.cjs --network robinhood
+   ```
+   It refuses to pass on a missing or public key, an underfunded deployer, an
+   absent v4 contract, a bad fee split, or an oversized factory.
+
+### Deploy
+
+```bash
+DEPLOYER_KEY=0x… \
+PROTOCOL_FEE_WALLET=0x… \
+PROTOCOL_FEE_BPS=3000 \
+node scripts/hh.cjs run scripts/deploy.cjs --network robinhood
+```
+
+Deploys PriceMath (linked library), LockerFactory, and RoundFactory, and writes
+`contracts/deployments/robinhood.json`.
+
+### Then, in order
+
+1. Set `CHAIN_RPC`, `CHAIN_ID=4663`, `CHAIN_FACTORY`, `CHAIN_OPERATOR_KEY` in
+   the API's env, and restart it.
+2. **Turn the compliance gate on** — it ships off, so on real funds it is off
+   until someone sets `enabled: true` in Command Center → Compliance. Set the
+   blocked regions and confirm the terms version before the first player
+   arrives, not after.
+3. Run one small round end to end before announcing anything:
+   ```bash
+   DEPLOYER_KEY=0x… node scripts/hh.cjs run scripts/lifecycle.cjs --network robinhood
+   ```
+   It creates, settles, trades, resolves, graduates, migrates, and verifies the
+   position is locked. On mainnet it costs real ETH — use the smallest seed the
+   tier config allows.
+
+### What does not carry over
+
+Rounds on the testnet factory, and rounds on the **old** testnet factory
+(`0xE52A…7E6E`, pre-migration), stay where they are. Nothing migrates between
+deployments, and the old factory's rounds can never migrate at all.

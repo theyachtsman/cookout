@@ -19,6 +19,7 @@ async function main() {
   // Uniswap v4, per chain. Robinhood mainnet (4663) and its testnet (46630)
   // share these addresses; anything else has to be added deliberately.
   const V4 = {
+    // Verified present on both chains at these addresses, 2026-08-05.
     4663: { positionManager: "0x58daec3116aae6d93017baaea7749052e8a04fa7" },
     46630: { positionManager: "0x58daec3116aae6d93017baaea7749052e8a04fa7" },
   }[Number(chainId)];

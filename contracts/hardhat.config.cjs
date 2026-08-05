@@ -33,6 +33,12 @@ module.exports = {
         ? { url: process.env.RH_TESTNET_RPC ?? "https://rpc.testnet.chain.robinhood.com" }
         : undefined,
     },
+    // Real money. Nothing deploys here without scripts/preflight.cjs passing.
+    robinhood: {
+      url: process.env.RH_RPC ?? "https://rpc.mainnet.chain.robinhood.com",
+      chainId: 4663,
+      accounts: process.env.DEPLOYER_KEY ? [process.env.DEPLOYER_KEY] : [],
+    },
     // The real target chain. Faucet: https://faucet.testnet.chain.robinhood.com
     robinhoodTestnet: {
       url: process.env.RH_TESTNET_RPC ?? "https://rpc.testnet.chain.robinhood.com",
