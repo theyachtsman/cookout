@@ -1088,6 +1088,47 @@ export interface LedgerEntry {
   roundId?: string;
 }
 
+/** What a Cookout Wallet entry represents. Chain rounds move real ETH, so this
+ *  is a different ledger from the paper one — same idea, on-chain amounts. */
+export type ChainLedgerKind =
+  | "deposit"
+  | "send"
+  | "pull_up"
+  | "cancel"
+  | "claim"
+  | "buy"
+  | "sell"
+  | "redeem"
+  | "approve";
+
+/**
+ * One Cookout Wallet movement, recorded server-side from mirrored chain events.
+ *
+ * Server-recorded entries are the authoritative ones: they survive a cleared
+ * browser and follow the player across devices, and they carry the round
+ * context (which coin, how many tokens) that a raw transaction can't show. The
+ * client merges its own local log on top for the handful of actions the mirror
+ * never sees — sends, and deposits made from outside the site.
+ */
+export interface ChainLedgerEntry {
+  id: string;
+  at: number;
+  kind: ChainLedgerKind;
+  /** Signed ETH change to the wallet: positive credits, negative debits. */
+  eth: number;
+  /** Tokens moved, for round-scoped entries. */
+  tokens?: number;
+  /** Coin symbol for round-scoped entries. */
+  symbol?: string;
+  /** Round id, so the row can link to that match. */
+  roundId?: string;
+  /** On-chain transaction hash, when known. */
+  txHash?: string;
+  /** Counterparty address, for sends and deposits. */
+  peer?: string;
+  chainId: number;
+}
+
 /** WebSocket messages: server → client. */
 export type ServerEvent =
   | { type: "round_state"; round: Round }

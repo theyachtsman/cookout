@@ -298,6 +298,16 @@ export class ChainService {
       const ev = this.tryParse(AUCTION_ABI, log);
       if (!ev) continue;
       if (ev.eventName === "IntentSubmitted") {
+        const a0 = ev.args as { who: HexAddress; amount: bigint };
+        this.store.recordChainLedger(this.store.resolveArenaOwner(a0.who), {
+          kind: "pull_up",
+          eth: -wad(a0.amount),
+          symbol: round.token.symbol,
+          roundId: round.id,
+          txHash: log.transactionHash ?? undefined,
+          chainId: c.chainId,
+          at: now,
+        });
         const a = ev.args as { id: bigint; who: HexAddress; amount: bigint; maxPriceWad: bigint };
         const intent: AuctionIntent = {
           id: String(a.id),
@@ -312,6 +322,16 @@ export class ChainService {
         this.store.trackActivity(intent.userAddress, "auctions_entered", 1, now);
         dirty = true;
       } else if (ev.eventName === "IntentCancelled") {
+        const a1 = ev.args as { who: HexAddress; amount: bigint };
+        this.store.recordChainLedger(this.store.resolveArenaOwner(a1.who), {
+          kind: "cancel",
+          eth: wad(a1.amount),
+          symbol: round.token.symbol,
+          roundId: round.id,
+          txHash: log.transactionHash ?? undefined,
+          chainId: c.chainId,
+          at: now,
+        });
         const a = ev.args as { id: bigint };
         const idx = intents.findIndex((i) => i.id === String(a.id));
         if (idx !== -1) intents.splice(idx, 1);
@@ -448,6 +468,16 @@ export class ChainService {
       if (!ev) continue;
       if (ev.eventName === "Bought") {
         const a = ev.args as { who: HexAddress; ethIn: bigint; tokensOut: bigint; fee: bigint };
+        this.store.recordChainLedger(this.store.resolveArenaOwner(a.who), {
+          kind: "buy",
+          eth: -wad(a.ethIn),
+          tokens: wad(a.tokensOut),
+          symbol: round.token.symbol,
+          roundId: round.id,
+          txHash: log.transactionHash ?? undefined,
+          chainId: c.chainId,
+          at: now,
+        });
         this.engine.applyChainTrade(
           round,
           this.store.resolveArenaOwner(a.who),
@@ -461,6 +491,16 @@ export class ChainService {
         sawTrade = true;
       } else if (ev.eventName === "Sold") {
         const a = ev.args as { who: HexAddress; tokensIn: bigint; ethOut: bigint; fee: bigint };
+        this.store.recordChainLedger(this.store.resolveArenaOwner(a.who), {
+          kind: "sell",
+          eth: wad(a.ethOut),
+          tokens: wad(a.tokensIn),
+          symbol: round.token.symbol,
+          roundId: round.id,
+          txHash: log.transactionHash ?? undefined,
+          chainId: c.chainId,
+          at: now,
+        });
         this.engine.applyChainTrade(
           round,
           this.store.resolveArenaOwner(a.who),

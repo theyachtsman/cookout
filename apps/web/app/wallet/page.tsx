@@ -13,7 +13,7 @@ import {
   walletHistory,
   type WalletTxEntry,
 } from "../../lib/cookoutWallet";
-import type { LedgerEntry, LedgerKind } from "@cookout/shared";
+import type { ChainLedgerEntry, ChainLedgerKind, LedgerEntry, LedgerKind } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useChainOnly } from "../../lib/chainOnly";
 import { fmtAmount, useDenomPref, useEthUsd } from "../../lib/ethUsd";
@@ -27,18 +27,69 @@ import { playDeposit } from "../../lib/sfx";
 const CHAIN_ID = 46630;
 const CHAIN_NAME = "Robinhood Chain Testnet";
 
-const KIND_META: Record<WalletTxEntry["kind"], { icon: string; label: string; cls: string }> = {
-  deposit: { icon: "⬇️", label: "Deposit", cls: "text-lime-300" },
-  withdraw: { icon: "⬆️", label: "Withdraw", cls: "text-zinc-300" },
-  send: { icon: "📤", label: "Sent out", cls: "text-zinc-300" },
-  "pull-up": { icon: "🚪", label: "Pull Up", cls: "text-lime-300" },
-  cancel: { icon: "↩️", label: "Cancel intent", cls: "text-zinc-400" },
-  claim: { icon: "🎁", label: "Claim fill", cls: "text-amber-300" },
-  buy: { icon: "🟢", label: "Buy", cls: "text-emerald-400" },
-  sell: { icon: "🔴", label: "Sell", cls: "text-red-400" },
-  redeem: { icon: "🏦", label: "Redeem", cls: "text-amber-300" },
-  approve: { icon: "✍️", label: "Approve", cls: "text-zinc-400" },
+/** Cookout Wallet entry types, for the on-chain History list. */
+const CHAIN_META: Record<ChainLedgerKind, { icon: string; label: string }> = {
+  deposit: { icon: "⬇️", label: "Deposit" },
+  send: { icon: "📤", label: "Sent out" },
+  pull_up: { icon: "🚪", label: "Pulled up to" },
+  cancel: { icon: "↩️", label: "Cancelled pull-up" },
+  claim: { icon: "🎁", label: "Claimed fill" },
+  buy: { icon: "🟢", label: "Bought" },
+  sell: { icon: "🔴", label: "Sold" },
+  redeem: { icon: "🏦", label: "Redeemed" },
+  approve: { icon: "✍️", label: "Approved" },
 };
+
+/**
+ * The local log records magnitudes; the ledger wants signed amounts. This is
+ * the direction each kind moves ETH, from the wallet's point of view.
+ */
+const LOCAL_KIND: Record<WalletTxEntry["kind"], { kind: ChainLedgerKind; sign: number }> = {
+  deposit: { kind: "deposit", sign: 1 },
+  withdraw: { kind: "send", sign: -1 },
+  send: { kind: "send", sign: -1 },
+  "pull-up": { kind: "pull_up", sign: -1 },
+  cancel: { kind: "cancel", sign: 1 },
+  claim: { kind: "claim", sign: 1 },
+  buy: { kind: "buy", sign: -1 },
+  sell: { kind: "sell", sign: 1 },
+  redeem: { kind: "redeem", sign: 1 },
+  approve: { kind: "approve", sign: 0 },
+};
+
+/**
+ * Merge the server's mirrored history with this browser's local log.
+ *
+ * Both sides see the trades, but only the server knows the coin and the token
+ * amounts, and only the browser sees sends and deposits made from outside the
+ * site. So the server entry wins on a collision — matched on transaction hash,
+ * which is the one identifier both sides agree on.
+ */
+function mergeHistory(
+  server: ChainLedgerEntry[],
+  local: WalletTxEntry[],
+  sort: "recent" | "type",
+): ChainLedgerEntry[] {
+  const seen = new Set(server.map((e) => `${e.txHash ?? e.id}:${e.kind}`));
+  const merged = [...server];
+  for (const t of local) {
+    const map = LOCAL_KIND[t.kind];
+    if (!map || seen.has(`${t.hash}:${map.kind}`)) continue;
+    seen.add(`${t.hash}:${map.kind}`);
+    merged.push({
+      id: `local:${t.hash}:${t.at}`,
+      at: t.at,
+      kind: map.kind,
+      eth: t.eth * map.sign,
+      chainId: t.chainId,
+      txHash: t.hash,
+      ...(t.to ? { peer: t.to } : {}),
+    });
+  }
+  return merged.sort((a, b) =>
+    sort === "type" ? a.kind.localeCompare(b.kind) || b.at - a.at : b.at - a.at,
+  );
+}
 
 /** Cook Out balance ledger entry types (paper), for the History list. */
 const LEDGER_META: Record<LedgerKind, { icon: string; label: string; credit: boolean }> = {
@@ -383,7 +434,9 @@ function ChainWalletPage() {
   // site (dev.*) had no way to reach a balance it was still awarding.
   const [tab, setTab] = useState<"cookout" | "burger">("cookout");
   const [bal, setBal] = useState<number | null>(null);
-  const [history, setHistory] = useState<WalletTxEntry[]>([]);
+  const [local, setLocal] = useState<WalletTxEntry[]>([]);
+  const [server, setServer] = useState<ChainLedgerEntry[]>([]);
+  const [sort, setSort] = useState<"recent" | "type">("recent");
   const [ready, setReady] = useState(signerReady());
   const [copied, setCopied] = useState(false);
 
@@ -392,7 +445,13 @@ function ChainWalletPage() {
   useEffect(() => onCookoutSigner(() => setReady(signerReady())), []);
 
   const refresh = useCallback(() => {
-    setHistory(walletHistory().slice().reverse());
+    setLocal(walletHistory());
+    // The mirror is the authoritative half of the history — it survives a
+    // cleared browser, follows the player across devices, and knows which coin
+    // a trade was in. Failure is non-fatal: the local log still renders.
+    api<{ ledger: ChainLedgerEntry[] }>("/api/me/chain-ledger")
+      .then((d) => setServer(d.ledger))
+      .catch(() => {});
     if (signerReady()) cookoutBalance(CHAIN_ID).then(setBal).catch(() => {});
     else setBal(null);
   }, []);
@@ -404,6 +463,7 @@ function ChainWalletPage() {
   }, [refresh, ready]);
 
   const address = cookoutAddress() ?? profile?.address ?? "";
+  const history = useMemo(() => mergeHistory(server, local, sort), [server, local, sort]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
@@ -475,56 +535,115 @@ function ChainWalletPage() {
 
               <LegacyArenaSweep to={address} onSwept={refresh} />
 
-              <section>
-                <h2 className="mb-2 text-sm font-bold text-zinc-300">Transaction history</h2>
-                <div className="overflow-hidden rounded-2xl bg-zinc-900/40">
-                  {history.length === 0 ? (
-                    <div className="p-4 text-sm text-zinc-600">
-                      No transactions yet. Deposit and pull up to a round.
-                    </div>
-                  ) : (
-                    <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[30rem] text-sm">
-                      <tbody>
-                        {history.map((h) => {
-                          const m = KIND_META[h.kind];
-                          return (
-                            <tr key={h.hash + h.at} className="transition hover:bg-zinc-800/30">
-                              <td className="px-3 py-2">
-                                <span className="mr-1.5">{m.icon}</span>
-                                <span className={`font-bold ${m.cls}`}>{m.label}</span>
-                                {h.to && (
-                                  <span className="ml-1.5 font-mono text-[11px] text-zinc-600">
-                                    → {h.to.slice(0, 6)}…{h.to.slice(-4)}
-                                  </span>
-                                )}
-                              </td>
-                              <td className="px-3 py-2 text-right font-mono">
-                                {h.eth > 0 ? `${h.eth.toFixed(4)} ETH` : "—"}
-                              </td>
-                              <td className="hidden px-3 py-2 text-right text-xs text-zinc-500 sm:table-cell">
-                                {h.via === "wallet" ? "🔏 external" : "⚡ instant"}
-                              </td>
-                              <td className="px-3 py-2 text-right text-xs text-zinc-500">
-                                {new Date(h.at).toLocaleTimeString()}
-                              </td>
-                              <td className="hidden px-3 py-2 text-right md:table-cell">
-                                <button
-                                  onClick={() => void navigator.clipboard.writeText(h.hash)}
-                                  className="font-mono text-xs text-zinc-600 hover:text-zinc-300"
-                                  title={`copy tx hash ${h.hash}`}
-                                >
-                                  {h.hash.slice(0, 10)}…
-                                </button>
-                              </td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table></div>
-                  )}
+              <section className="rounded-2xl bg-zinc-900/40 p-5">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <h2 className="text-sm font-black text-zinc-200">Cookout Wallet History</h2>
+                  <div className="flex items-center gap-1 text-xs">
+                    <span className="mr-1 text-zinc-600">Sort</span>
+                    {(["recent", "type"] as const).map((k) => (
+                      <button
+                        key={k}
+                        onClick={() => setSort(k)}
+                        className={`rounded px-2 py-1 font-bold transition ${
+                          sort === k
+                            ? "bg-lime-400 text-zinc-950"
+                            : "bg-zinc-800/60 text-zinc-400 hover:bg-zinc-700"
+                        }`}
+                      >
+                        {k === "recent" ? "Recent" : "Type"}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <p className="mt-2 text-[11px] text-zinc-600">
-                  History is recorded by this browser as you play. Tap a hash to copy it.
+                {history.length === 0 ? (
+                  <p className="text-sm text-zinc-600">
+                    No moves yet. Deposits, pull-ups, buys, sells, claims, and sends all show up
+                    here.
+                  </p>
+                ) : (
+                  <ExpandableRows
+                    items={history}
+                    cap={25}
+                    maxHeight="max-h-[36rem]"
+                    render={(e) => {
+                      const meta = CHAIN_META[e.kind];
+                      const credit = e.eth > 0;
+                      const zero = e.eth === 0;
+                      return (
+                        <div
+                          key={e.id}
+                          className="flex items-center gap-3 rounded-xl bg-zinc-950/40 px-3 py-2.5 text-sm"
+                        >
+                          <span className="text-lg">{meta.icon}</span>
+                          <div className="min-w-0 flex-1">
+                            <div
+                              className={`font-bold ${
+                                zero ? "text-zinc-300" : credit ? "text-lime-300" : "text-red-400"
+                              }`}
+                            >
+                              {meta.label}
+                              {e.symbol &&
+                                (e.roundId ? (
+                                  <Link
+                                    href={`/round/${e.roundId}`}
+                                    className="ml-1 text-zinc-400 hover:text-zinc-200 hover:underline"
+                                  >
+                                    ${e.symbol}
+                                  </Link>
+                                ) : (
+                                  <span className="ml-1 text-zinc-500">${e.symbol}</span>
+                                ))}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-x-2 text-[11px] text-zinc-600">
+                              <span>{when(e.at)}</span>
+                              {e.peer && (
+                                <span className="font-mono">
+                                  → {e.peer.slice(0, 6)}…{e.peer.slice(-4)}
+                                </span>
+                              )}
+                              {e.txHash && (
+                                <button
+                                  onClick={() => void navigator.clipboard.writeText(e.txHash!)}
+                                  className="font-mono hover:text-zinc-300"
+                                  title={`copy tx hash ${e.txHash}`}
+                                >
+                                  {e.txHash.slice(0, 10)}… ⧉
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <div
+                              className={`font-mono font-bold ${
+                                zero ? "text-zinc-500" : credit ? "text-lime-300" : "text-red-400"
+                              }`}
+                            >
+                              {zero ? (
+                                "—"
+                              ) : (
+                                <>
+                                  {credit ? "+" : "−"}
+                                  {usd
+                                    ? fmtAmount(Math.abs(e.eth), true, peg, "ETH", 4)
+                                    : `${Math.abs(e.eth).toFixed(4)} ETH`}
+                                </>
+                              )}
+                            </div>
+                            {e.tokens !== undefined && e.tokens > 0 && (
+                              <div className="font-mono text-[11px] text-zinc-600">
+                                {e.tokens.toLocaleString(undefined, { maximumFractionDigits: 0 })}{" "}
+                                {e.symbol ?? "tokens"}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    }}
+                  />
+                )}
+                <p className="mt-3 text-[11px] text-zinc-600">
+                  Trades are recorded by the Cook Out as they settle on-chain, so they follow you
+                  between devices. Sends and outside deposits are logged by this browser.
                 </p>
               </section>
             </>

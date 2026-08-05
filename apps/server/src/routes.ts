@@ -425,6 +425,18 @@ export function createApp(
     }),
   );
 
+  /** The caller's Cookout Wallet history (newest first), recorded from mirrored
+   *  chain events: pull-ups, cancels, buys and sells, with the coin and token
+   *  amounts a raw transaction hash can't tell you. The client merges its own
+   *  local log on top for sends and outside deposits. */
+  app.get(
+    "/api/me/chain-ledger",
+    auth,
+    wrap((req, res) => {
+      res.json({ ledger: store.chainLedgerOf(req.userAddress!) });
+    }),
+  );
+
   // ---- Burger economy ($BURG) ----
   /** The caller's Burger balance, lifetime stats, purchase rate, and recent
    *  transactions (newest first). Drives the Burger balance UI + shop. */

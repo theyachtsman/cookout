@@ -30,6 +30,7 @@ import {
   type ActivityKind,
   type Address,
   type GameMode,
+  type ChainLedgerEntry,
   type LedgerEntry,
   type LedgerKind,
   type AuctionIntent,
@@ -210,6 +211,9 @@ export interface StoredUser extends UserProfile {
   /** Cook Out balance movements (stakes, redemptions, creator fees), newest
    *  last. The wallet's history ledger. */
   ledger?: LedgerEntry[];
+  /** Cookout Wallet (on-chain) movements, newest last. Separate from `ledger`
+   *  because it's real ETH rather than the paper Cook Out balance. */
+  chainLedger?: ChainLedgerEntry[];
   /** Activity counters keyed by period ("2026-07-14" and "2026-W29"). */
   activity: Record<string, Partial<Record<MissionMetric, number>>>;
   /** Completed missions keyed "<periodKey>:<missionId>". */
@@ -523,6 +527,30 @@ export class Store {
       ...(opts.roundId ? { roundId: opts.roundId } : {}),
     });
     if (list.length > 250) list.splice(0, list.length - 250);
+  }
+
+  /**
+   * Record a Cookout Wallet movement mirrored from the chain.
+   *
+   * Deduped on transaction hash + kind: the mirror re-scans a block range after
+   * a restart, and a player should not see the same buy twice. There's no
+   * running balance here on purpose — the wallet's balance is whatever the
+   * chain says, and inventing one from partial history would be a lie.
+   */
+  recordChainLedger(
+    address: Address,
+    entry: Omit<ChainLedgerEntry, "id" | "at"> & { at?: number },
+  ): void {
+    const u = this.getOrCreateUser(address);
+    const list = (u.chainLedger ??= []);
+    if (entry.txHash && list.some((e) => e.txHash === entry.txHash && e.kind === entry.kind)) return;
+    list.push({ id: this.id(), at: entry.at ?? Date.now(), ...entry });
+    if (list.length > 250) list.splice(0, list.length - 250);
+  }
+
+  /** Newest-first Cookout Wallet history for a player. */
+  chainLedgerOf(address: Address): ChainLedgerEntry[] {
+    return [...(this.users.get(address.toLowerCase() as Address)?.chainLedger ?? [])].reverse();
   }
 
   // ---- The Pit helpers ----
