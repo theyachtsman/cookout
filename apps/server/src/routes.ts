@@ -23,7 +23,9 @@ import {
   type CoinModifiers,
   type CoinSocials,
   type CosmeticType,
+  BATTLE_TIERS,
   type Address,
+  type BattleTier,
   type GameMode,
   type HouseSpecialKind,
   type MyFill,
@@ -817,6 +819,21 @@ export function createApp(
           maxBet: s.maxBet,
           quickChips: s.quickChips,
           durations: PIT_DURATIONS.filter((d) => s.durations.includes(d.key)),
+          // Battle the Goon Squad is a fixed price per difficulty. Both the USD
+          // figure and its current pETH/ETH equivalent go out, so the lobby can
+          // show what it costs without re-deriving the conversion itself.
+          battleTiers: BATTLE_TIERS.filter((k) => store.settings.game.battleTiers[k]?.enabled).map(
+            (key) => {
+              const t = store.settings.game.battleTiers[key];
+              return {
+                key,
+                label: t.label,
+                entryUsd: t.entryUsd,
+                entryEth: t.entryUsd / (store.ethUsd || 1),
+                feeBps: t.feeBps,
+              };
+            },
+          ),
         },
       });
     }),
@@ -1010,11 +1027,18 @@ export function createApp(
       if (body.trading) {
         if (!store.flag("pit_trading")) throw closed("Battle the Goon Squad");
         if (!pit.tradingMode) throw new Err(400, "this match has no trading pool");
+        // The entry is the tier's price, not a number the player sends. Taking
+        // an amount from the request would reintroduce exactly what the fixed
+        // ladder exists to prevent: entering for less than everyone else and
+        // still winning the whole pot.
+        const tierKey = String((req.body as { battleTier?: string }).battleTier ?? "easy");
+        if (!BATTLE_TIERS.includes(tierKey as BattleTier))
+          throw new Err(400, `battleTier must be one of: ${BATTLE_TIERS.join(", ")}`);
+        const tier = store.settings.game.battleTiers[tierKey as BattleTier];
+        if (!tier?.enabled) throw closed(`The ${tierKey} tier`);
         entry.trading = true;
-        entry.tradingStake =
-          body.tradingStake === undefined || body.tradingStake === null
-            ? pit.tradingFee
-            : resolveStake(body.tradingStake, "trading buy-in");
+        entry.battleTier = tierKey as BattleTier;
+        entry.tradingStake = tier.entryUsd / (store.ethUsd || 1);
       }
       if (body.trial) {
         if (!store.flag("flame_trial")) throw closed("The Flame Trial");

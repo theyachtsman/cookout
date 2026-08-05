@@ -12,6 +12,7 @@
  * The constants remain exported so the defaults, and the "reset to default"
  * button, have something to point at.
  */
+import type { BattleTier } from "./types.js";
 import {
   ACHIEVEMENTS,
   ACHIEVEMENT_XP,
@@ -83,8 +84,6 @@ export interface GameSettings {
   battleTiers: Record<BattleTier, BattleTierSettings>;
 }
 
-/** The three Battle the Goon Squad difficulty tiers. */
-export type BattleTier = "easy" | "medium" | "hard";
 export const BATTLE_TIERS: BattleTier[] = ["easy", "medium", "hard"];
 
 export interface BattleTierSettings {

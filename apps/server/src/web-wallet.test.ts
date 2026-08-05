@@ -278,3 +278,22 @@ test("importing a round refuses to roll back one that is still running", async (
   assert.match(route, /already \$\{existing\.state\} here/);
   assert.ok(route.indexOf("existing.state !== \"results\"") < route.indexOf("store.rounds.set"));
 });
+
+test("the battle entry is priced by the server, never by the request", () => {
+  // The whole point of a fixed ladder: if the client could send an amount,
+  // entering for less than everyone else and still winning the pot comes back.
+  const src = readFileSync(join(import.meta.dirname, "routes.ts"), "utf8");
+  const enter = src.slice(src.indexOf('"/api/pit/:id/enter"'), src.indexOf('"/api/pit/:id/enter"') + 6000);
+  const branch = enter.slice(enter.indexOf("if (body.trading)"));
+  assert.ok(branch.includes("tier.entryUsd"), "the stake comes from the tier");
+  assert.ok(
+    !branch.includes("resolveStake(body.tradingStake"),
+    "a client-sent buy-in must not price the entry",
+  );
+  assert.ok(branch.includes("BATTLE_TIERS.includes"), "and the tier must be a real one");
+});
+
+test("the lobby is offered only the tiers an operator left enabled", () => {
+  const src = readFileSync(join(import.meta.dirname, "routes.ts"), "utf8");
+  assert.match(src, /BATTLE_TIERS\.filter\(\(k\) => store\.settings\.game\.battleTiers\[k\]\?\.enabled\)/);
+});

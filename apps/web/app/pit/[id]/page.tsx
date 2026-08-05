@@ -8,6 +8,7 @@ import {
   trialTierFor,
   marketCap,
   spotPrice,
+  type BattleTier,
   type Candle,
   type KillFeedEvent,
   type PitCall,
@@ -89,6 +90,9 @@ export default function PitMatchPage() {
     liquidity?: number;
   } | null>(null);
   const [entry, setEntry] = useState<PitEntry | null>(null);
+  // The difficulty ladder and its prices live on the server, so an operator's
+  // edit in Command Center reaches the lobby without a deploy.
+  const [battleTiers, setBattleTiers] = useState<BattleTierView[]>([]);
   const [stack, setStack] = useState(0);
   const [usd, setUsd] = useState(true);
   // The end-of-match win/lose modal, shown once when a match the player was in ends.
@@ -150,6 +154,12 @@ export default function PitMatchPage() {
       })
       .catch(() => {});
   }, [id]);
+
+  useEffect(() => {
+    api<{ config?: { battleTiers?: BattleTierView[] } }>("/api/pit")
+      .then((d) => setBattleTiers(d.config?.battleTiers ?? []))
+      .catch(() => {});
+  }, []);
 
   const loadMe = useCallback(() => {
     if (!profile) return;
@@ -310,6 +320,7 @@ export default function PitMatchPage() {
           me={me}
           signedIn={!!profile}
           onSignIn={signIn}
+          battleTiers={battleTiers}
           onEntered={() => {
             loadMe();
             loadRound();
@@ -509,6 +520,7 @@ function LobbyView({
   signedIn,
   onSignIn,
   onEntered,
+  battleTiers,
 }: {
   round: Round;
   entry: PitEntry | null;
@@ -519,6 +531,8 @@ function LobbyView({
   signedIn: boolean;
   onSignIn: () => void;
   onEntered: () => void;
+  /** Difficulty ladder from the server; it owns the prices. */
+  battleTiers?: BattleTierView[];
 }) {
   const pit = round.pit!;
   const predMode = pit.predictionMode;
@@ -539,7 +553,10 @@ function LobbyView({
   const [house, setHouse] = useState(false);
   const [houseBet, setHouseBet] = useState<string>("5"); // USD
   const [trading, setTrading] = useState(false);
-  const [tradeBet, setTradeBet] = useState<string>("5"); // USD
+  // Battle the Goon Squad is a fixed price per difficulty rather than an
+  // amount the player picks: with a free buy-in, entering for a fraction of
+  // what everyone else risked still won the whole pot.
+  const [battleTier, setBattleTier] = useState<BattleTier>("easy");
   const [trial, setTrial] = useState(false);
   const [trialUsd, setTrialUsd] = useState<string>(String(pit.trialMinUsd ?? 5));
   const [busy, setBusy] = useState(false);
@@ -555,7 +572,17 @@ function LobbyView({
   const usdToEth = (usd: string) => (Number(usd) || 0) / peg;
   const mainStake = call ? usdToEth(mainBet) : 0; // pETH
   const houseStake = house ? usdToEth(houseBet) : 0;
-  const tradeStake = trading ? usdToEth(tradeBet) : 0;
+  const tierDefs: BattleTierView[] = battleTiers?.length
+    ? battleTiers
+    : [
+        // Only used if the config request has not landed yet — the server is
+        // the source of truth and these are its shipped defaults.
+        { key: "easy", label: "Easy", entryUsd: 5, entryEth: 5 / peg, feeBps: 500 },
+        { key: "medium", label: "Medium", entryUsd: 25, entryEth: 25 / peg, feeBps: 500 },
+        { key: "hard", label: "Hard", entryUsd: 100, entryEth: 100 / peg, feeBps: 500 },
+      ];
+  const chosenTier = tierDefs.find((t) => t.key === battleTier) ?? tierDefs[0]!;
+  const tradeStake = trading ? chosenTier.entryUsd / peg : 0;
   const trialUsdNum = trial ? Number(trialUsd) || 0 : 0;
   const trialStakeEth = trialUsdNum / peg;
   const trialTier = trialTierFor(Number(trialUsd) || 0, pit.trialTiers ?? []);
@@ -570,7 +597,7 @@ function LobbyView({
     setHouse(!!entry.houseSpecial);
     setHouseBet(entry.houseSpecialStake ? ethToUsd(entry.houseSpecialStake) : "5");
     setTrading(!!entry.trading);
-    setTradeBet(entry.tradingStake ? ethToUsd(entry.tradingStake) : "5");
+    if (entry.battleTier) setBattleTier(entry.battleTier);
     setTrial(!!entry.trial);
     setTrialUsd(entry.trialStake ? ((entry.trialStake * peg).toFixed(0)) : String(pit.trialMinUsd ?? 5));
     setEditing(true);
@@ -585,7 +612,7 @@ function LobbyView({
     for (const [on, usd, label] of [
       [call, Number(mainBet) || 0, "Prediction bet"],
       [house, Number(houseBet) || 0, "House Special bet"],
-      [trading, Number(tradeBet) || 0, "Goon Squad buy-in"],
+      [trading, chosenTier.entryUsd, "Goon Squad buy-in"],
     ] as [unknown, number, string][]) {
       if (on) {
         const e = clampUsd(usd, label);
@@ -608,7 +635,9 @@ function LobbyView({
           houseSpecial: house || undefined,
           houseSpecialStake: house ? houseStake : undefined,
           trading: trading || undefined,
-          tradingStake: trading ? tradeStake : undefined,
+          // The server prices this from the tier; sending an amount would be
+          // ignored, and sending one that disagreed would be misleading.
+          battleTier: trading ? battleTier : undefined,
           trial: trial || undefined,
           trialStake: trial ? trialStakeEth : undefined,
         },
@@ -707,7 +736,13 @@ function LobbyView({
             )}
             {entry.trading && (
               <div className="flex items-center justify-between">
-                <span className="text-zinc-300">⚔️ Goon Squad · stack <b className="font-mono text-zinc-100">{fmt(stack)}</b></span>
+                <span className="text-zinc-300">
+                  ⚔️ Goon Squad
+                  {entry.battleTier && (
+                    <b className="ml-1 uppercase text-lime-300">{entry.battleTier}</b>
+                  )}{" "}
+                  · stack <b className="font-mono text-zinc-100">{fmt(stack)}</b>
+                </span>
                 <b className="font-mono text-zinc-200">{fmt(entry.tradingStake ?? 0)}</b>
               </div>
             )}
@@ -786,9 +821,16 @@ function LobbyView({
           {/* Trading */}
           {tradeMode && (
             <BetCard accent="lime" icon="⚔️" title="Battle the Goon Squad" active={trading}
-              subtitle={`Trade a ${fmt(pit.startingStack)} paper stack vs the AI. Highest PnL wins the pool.`}
+              subtitle={`Trade a ${fmt(pit.startingStack)} paper stack vs the AI. Highest PnL takes the pot — everyone in a tier pays the same to enter.`}
               onToggle={() => setTrading((t) => !t)} toggled={trading}>
-              {trading && <BetInput value={tradeBet} onChange={setTradeBet} peg={peg} accent="lime" minUsd={BET_MIN_USD} />}
+              {trading && (
+                <BattleTierPicker
+                  tiers={tierDefs}
+                  chosen={battleTier}
+                  onChoose={setBattleTier}
+                  peg={peg}
+                />
+              )}
             </BetCard>
           )}
 
@@ -859,6 +901,66 @@ function LobbyView({
  * and an on/off state) over the mode's controls. Gives all three Pit modes the
  * same clear, game-like frame.
  */
+/** One difficulty tier as the server describes it. */
+interface BattleTierView {
+  key: BattleTier;
+  label: string;
+  entryUsd: number;
+  entryEth: number;
+  feeBps: number;
+}
+
+/**
+ * Pick a difficulty, which is the same thing as picking a price.
+ *
+ * Deliberately not an amount box. Everyone in a tier pays the same, so winning
+ * the pot is the same bet for all of them — the thing a free buy-in quietly
+ * broke, since a small entrant took the whole pot on a win.
+ */
+function BattleTierPicker({
+  tiers,
+  chosen,
+  onChoose,
+  peg,
+}: {
+  tiers: BattleTierView[];
+  chosen: BattleTier;
+  onChoose: (t: BattleTier) => void;
+  peg: number;
+}) {
+  return (
+    <div>
+      <div className="grid grid-cols-3 gap-2">
+        {tiers.map((t) => {
+          const active = t.key === chosen;
+          return (
+            <button
+              key={t.key}
+              type="button"
+              onClick={() => onChoose(t.key)}
+              className={`rounded-xl px-2 py-3 text-center transition ring-1 ${
+                active
+                  ? "bg-lime-400 text-zinc-950 ring-lime-300"
+                  : "bg-zinc-900/70 text-zinc-300 ring-white/10 hover:bg-zinc-800"
+              }`}
+            >
+              <div className="text-xs font-black uppercase tracking-wide">{t.label}</div>
+              <div className="mt-0.5 font-mono text-lg font-black">${t.entryUsd}</div>
+              <div className={`text-[10px] ${active ? "text-zinc-800" : "text-zinc-500"}`}>
+                {(t.entryUsd / peg).toFixed(4)} pETH
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-[11px] leading-snug text-zinc-500">
+        Fixed entry — everyone in this tier pays the same, so the pot is simply the number of
+        players times the buy-in. Highest PnL takes it.
+      </p>
+    </div>
+  );
+}
+
 function BetCard({
   accent,
   icon,

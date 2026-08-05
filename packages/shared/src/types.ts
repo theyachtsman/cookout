@@ -173,6 +173,11 @@ export interface PitConfig {
 }
 
 /** A player's Pit lobby entry. Editable/withdrawable until the round goes live. */
+/** The three Battle the Goon Squad difficulty tiers. Defined here rather than
+ *  in game-settings because PitEntry needs it and game-settings imports this
+ *  file — the settings module owns the *values*, this owns the shape. */
+export type BattleTier = "easy" | "medium" | "hard";
+
 export interface PitEntry {
   /** Main prediction call. */
   prediction?: PitCall;
@@ -184,6 +189,9 @@ export interface PitEntry {
   houseSpecialStake?: number;
   /** Whether they bought into the Trading Pool. */
   trading?: boolean;
+  /** Which difficulty tier they bought into. The entry is that tier's fixed
+   *  price, not a number the player picks — see PitBattlePool for why. */
+  battleTier?: BattleTier;
   /** Custom trading buy-in (pETH). Everyone trades the same paper stack; the
    *  highest PnL wins the pool. */
   tradingStake?: number;
