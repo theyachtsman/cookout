@@ -143,28 +143,7 @@ function PaperWalletPage() {
         </p>
       </header>
 
-      {/* Two currencies, two tabs: the Cook Out balance (what rounds spend) and
-          $BURG (earned progression power). */}
-      <div className="flex gap-1 rounded-xl bg-zinc-900/60 p-1">
-        {([
-          { key: "cookout", label: "⚡ Cook Out Balance" },
-          { key: "burger", label: "🍔 Burger Balance" },
-        ] as const).map((t) => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`flex-1 rounded-lg px-4 py-2 text-sm font-black transition ${
-              tab === t.key
-                ? t.key === "burger"
-                  ? "bg-amber-400 text-zinc-950"
-                  : "bg-lime-400 text-zinc-950"
-                : "text-zinc-400 hover:text-zinc-200"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      <WalletTabs tab={tab} onTab={setTab} />
 
       {tab === "burger" ? (
         <BurgerWallet />
@@ -393,6 +372,10 @@ function ChainWalletPage() {
   const { profile, signIn } = useSession();
   const peg = useEthUsd();
   const [usd, setUsd] = useDenomPref();
+  // Burgers are off-chain progression and exist in both modes, so this page
+  // carries the same two tabs as the paper one. Without them the chain-only
+  // site (dev.*) had no way to reach a balance it was still awarding.
+  const [tab, setTab] = useState<"cookout" | "burger">("cookout");
   const [bal, setBal] = useState<number | null>(null);
   const [history, setHistory] = useState<ArenaTxEntry[]>([]);
   const [amount, setAmount] = useState("0.005");
@@ -458,7 +441,15 @@ function ChainWalletPage() {
         </button>
       ) : (
         <>
+          <WalletTabs tab={tab} onTab={setTab} />
+
+          {tab === "burger" ? (
+            <BurgerWallet />
+          ) : (
+            <>
           <PrivyWalletCard address={profile.address} />
+
+          <BurgerSummary onOpenFull={() => setTab("burger")} />
 
           <section className="rounded-2xl bg-zinc-900/40 p-5">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -581,8 +572,46 @@ function ChainWalletPage() {
               History is kept in this browser (the wallet lives here too). Tap a hash to copy it.
             </p>
           </section>
+            </>
+          )}
         </>
       )}
+    </div>
+  );
+}
+
+/**
+ * Two currencies, two tabs: the Cook Out balance (what rounds spend) and $BURG
+ * (earned progression power). Shared so the paper and chain-only pages can
+ * never drift apart again.
+ */
+function WalletTabs({
+  tab,
+  onTab,
+}: {
+  tab: "cookout" | "burger";
+  onTab: (t: "cookout" | "burger") => void;
+}) {
+  return (
+    <div className="flex gap-1 rounded-xl bg-zinc-900/60 p-1">
+      {([
+        { key: "cookout", label: "⚡ Cook Out Balance" },
+        { key: "burger", label: "🍔 Burger Balance" },
+      ] as const).map((t) => (
+        <button
+          key={t.key}
+          onClick={() => onTab(t.key)}
+          className={`flex-1 rounded-lg px-4 py-2 text-sm font-black transition ${
+            tab === t.key
+              ? t.key === "burger"
+                ? "bg-amber-400 text-zinc-950"
+                : "bg-lime-400 text-zinc-950"
+              : "text-zinc-400 hover:text-zinc-200"
+          }`}
+        >
+          {t.label}
+        </button>
+      ))}
     </div>
   );
 }

@@ -164,3 +164,25 @@ test("no copy key is registered without something reading it", () => {
     `these copy keys are editable in the Command Center but nothing renders them:\n  ${dead.join("\n  ")}`,
   );
 });
+
+/**
+ * The wallet page renders one of two components depending on whether the site
+ * is chain-only (dev.*) or paper (www). $BURG is off-chain and exists in both,
+ * but only the paper variant ever offered a way to reach it — so on dev the
+ * Burger balance and its ledger were simply unreachable. Both variants now go
+ * through the shared tab strip; this keeps it that way.
+ */
+test("both wallet variants expose the Burger balance", () => {
+  const src = readFileSync(
+    join(import.meta.dirname, "../../../apps/web/app/wallet/page.tsx"),
+    "utf8",
+  );
+  for (const variant of ["PaperWalletPage", "ChainWalletPage"]) {
+    const start = src.indexOf(`function ${variant}(`);
+    assert.ok(start > 0, `${variant} not found`);
+    const next = src.indexOf("\nfunction ", start + 1);
+    const body = src.slice(start, next === -1 ? undefined : next);
+    assert.ok(body.includes("<WalletTabs"), `${variant} is missing the Burger tab`);
+    assert.ok(body.includes("<BurgerWallet />"), `${variant} never renders the Burger wallet`);
+  }
+});
