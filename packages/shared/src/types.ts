@@ -308,6 +308,14 @@ export interface TokenConcept {
   totalSupply?: number;
   /** Wide promo banner (data URL), shown behind the trading header. */
   bannerUrl?: string;
+  /**
+   * Where this coin's share of post-graduation LP fees is paid.
+   *
+   * Collected at launch, not at graduation, because it is burned into an
+   * immutable FeeSplitter when the coin graduates and can never be changed
+   * afterwards. Unset means the creator's own wallet (their login address).
+   */
+  feeDestination?: Address;
   /** Creator-chosen risk tier (level-gated); legacy concepts default rookie.
    *  When `mode` is set it derives the tier — this stays populated for display
    *  and the economics engine. */

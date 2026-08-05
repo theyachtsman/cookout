@@ -499,6 +499,20 @@ export const MCAP_MILESTONES = [5, 10, 15, 21, 30];
 /** Creator revenue share of round trading fees (capped — spec §5.3). */
 export const CREATOR_FEE_SHARE = 0.3;
 
+/**
+ * Post-graduation LP fees.
+ *
+ * Once a coin graduates, its liquidity is locked forever and the only money
+ * still moving is the pool's trading fees. Those are split between the coin's
+ * creator and the protocol by an immutable on-chain FeeSplitter, deployed per
+ * coin at graduation. Both the destination and the split are fixed at deploy
+ * time and can never be changed — see contracts/src/FeeSplitter.sol.
+ */
+export const PROTOCOL_FEE_WALLET = "0x75f14607218dc771FcAC61a01Ae86507b9d8fdf1";
+/** Protocol's share of graduated-pool fees; the creator takes the remainder.
+ *  Placeholder pending a business call — change here, it's read everywhere. */
+export const GRADUATED_PROTOCOL_FEE_BPS = 3_000;
+
 /** Referral revenue share — single tier only, no downlines (spec §11/§12). */
 export const REFERRAL_FEE_SHARE = 0.1;
 

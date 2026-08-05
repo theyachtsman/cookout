@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { FeeDestination } from "../../components/FeeDestination";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
@@ -44,6 +45,7 @@ export default function Submissions() {
     artworkUrl: "",
     bannerUrl: "",
     totalSupply: "",
+    feeDestination: "",
     mode: DEFAULT_GAME_MODE as GameMode,
     socials: { x: "", telegram: "", youtube: "", instagram: "", website: "" },
     modifiers: { overtime: false },
@@ -87,6 +89,8 @@ export default function Submissions() {
           artworkUrl: form.artworkUrl || undefined,
           bannerUrl: form.bannerUrl || undefined,
           totalSupply: form.totalSupply ? Number(form.totalSupply) : undefined,
+          // Empty means "my own wallet"; resolved at graduation.
+          feeDestination: form.feeDestination || undefined,
           // Endurance takes no modifiers (the server enforces this too).
           modifiers: isEnduranceMode(form.mode) ? {} : form.modifiers,
         },
@@ -101,6 +105,7 @@ export default function Submissions() {
         artworkUrl: "",
         bannerUrl: "",
         totalSupply: "",
+        feeDestination: "",
         mode: DEFAULT_GAME_MODE,
         socials: { x: "", telegram: "", youtube: "", instagram: "", website: "" },
         modifiers: { overtime: false },
@@ -233,6 +238,15 @@ export default function Submissions() {
                   className="w-44 rounded bg-zinc-950/60 outline-none focus:ring-2 focus:ring-lime-400/30 px-3 py-2 font-mono text-sm"
                 />
               </label>
+            </div>
+            {/* Where post-graduation LP fees are paid. Asked here because the
+                address is immutable once the coin graduates. */}
+            <div className="md:col-span-2">
+              <FeeDestination
+                value={form.feeDestination}
+                onChange={(feeDestination) => setForm({ ...form, feeDestination })}
+                walletAddress={profile.address}
+              />
             </div>
             {/* Game mode — the single curated choice: bundles length + rules. */}
             <div className="md:col-span-2">

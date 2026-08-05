@@ -23,6 +23,7 @@ import {
   type CoinModifiers,
   type CoinSocials,
   type CosmeticType,
+  type Address,
   type GameMode,
   type HouseSpecialKind,
   type MyFill,
@@ -1504,6 +1505,7 @@ export function createApp(
           : sanitizeModifiers((req.body as { modifiers?: unknown }).modifiers),
         artworkUrl: artworkUrl ? sanitizeImageUrl(artworkUrl) : undefined,
         bannerUrl: bannerUrl ? sanitizeImageUrl(bannerUrl) : undefined,
+        feeDestination: feeDestinationOf((req.body as { feeDestination?: unknown }).feeDestination),
         totalSupply,
         tier,
         mode,
@@ -2632,6 +2634,22 @@ function sanitizeImageUrl(value: unknown): string | undefined {
 /** Coin socials: keep the raw handle or URL the creator entered (the client
  *  normalizes each to a full link), trimmed and length-capped, with any embedded
  *  markup stripped. Returns undefined when nothing usable was provided. */
+/**
+ * The creator's post-graduation fee destination.
+ *
+ * Validated hard on the way in, because this address is burned into an
+ * immutable FeeSplitter at graduation: nobody — not the creator, not an
+ * admin — can correct it afterwards, and fees sent to a wrong address are
+ * gone permanently. Absent means "my own wallet", resolved at graduation.
+ */
+export function feeDestinationOf(value: unknown): Address | undefined {
+  if (value === undefined || value === null || value === "") return undefined;
+  const raw = String(value).trim();
+  if (!/^0x[0-9a-fA-F]{40}$/.test(raw)) throw new Err(400, "fee destination must be a 0x address");
+  if (/^0x0{40}$/i.test(raw)) throw new Err(400, "fee destination can't be the zero address");
+  return raw.toLowerCase() as Address;
+}
+
 function sanitizeSocials(value: unknown): CoinSocials | undefined {
   if (!value || typeof value !== "object") return undefined;
   const src = value as Record<string, unknown>;

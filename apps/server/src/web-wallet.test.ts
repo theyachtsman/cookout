@@ -112,3 +112,45 @@ test("contract reads do not need an injected wallet", () => {
   assert.ok(body.includes("ethCall("), "reads should go over the public RPC");
   assert.ok(!body.includes("eth().request"), "reads must not touch the injected wallet");
 });
+
+/**
+ * Post-graduation fee routing. The destination is collected at launch because
+ * it gets burned into an immutable FeeSplitter at graduation — a bad address
+ * accepted here is unrecoverable, by anyone, forever.
+ */
+test("the fee destination is validated before it can be stored", async () => {
+  const { feeDestinationOf } = await import("./routes.js");
+
+  // Absent means "pay my own wallet", resolved at graduation.
+  assert.equal(feeDestinationOf(undefined), undefined);
+  assert.equal(feeDestinationOf(""), undefined);
+
+  assert.equal(
+    feeDestinationOf("0x75f14607218dc771FcAC61a01Ae86507b9d8fdf1"),
+    "0x75f14607218dc771fcac61a01ae86507b9d8fdf1",
+    "stored lowercased so it compares equal to every other address we hold",
+  );
+  assert.equal(feeDestinationOf("  0x75f14607218dc771FcAC61a01Ae86507b9d8fdf1  "), 
+    "0x75f14607218dc771fcac61a01ae86507b9d8fdf1", "pasted addresses carry whitespace");
+
+  // Each of these is unrecoverable once burned into the splitter.
+  for (const bad of [
+    "0x123",                                        // truncated
+    "75f14607218dc771FcAC61a01Ae86507b9d8fdf1",     // missing 0x
+    "0x75f14607218dc771FcAC61a01Ae86507b9d8fdfZZ",  // not hex
+    "0x0000000000000000000000000000000000000000",   // burns the fees
+  ])
+    assert.throws(() => feeDestinationOf(bad), /fee destination/, `accepted ${bad}`);
+});
+
+test("the protocol fee wallet is the one the operator set", async () => {
+  const { PROTOCOL_FEE_WALLET, GRADUATED_PROTOCOL_FEE_BPS } = await import("@cookout/shared");
+  assert.equal(PROTOCOL_FEE_WALLET, "0x75f14607218dc771FcAC61a01Ae86507b9d8fdf1");
+  assert.ok(GRADUATED_PROTOCOL_FEE_BPS > 0 && GRADUATED_PROTOCOL_FEE_BPS < 10_000);
+});
+
+test("the launch form asks for the destination and says it is permanent", () => {
+  const ui = web("components/FeeDestination.tsx");
+  assert.ok(ui.includes("permanent"), "the consequence must be stated, not implied");
+  assert.ok(web("app/submissions/page.tsx").includes("<FeeDestination"));
+});

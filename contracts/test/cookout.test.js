@@ -416,3 +416,107 @@ describe("Differential: TS trade quotes match the pool exactly", () => {
     await expect(pool.connect(trader).buy(out, { value })).to.not.be.reverted;
   });
 });
+
+describe("FeeSplitter — graduated-pool fee routing", () => {
+  const PROTOCOL = "0x75f14607218dc771FcAC61a01Ae86507b9d8fdf1";
+
+  async function deploySplitter(protocolBps = 3_000) {
+    const [, creator] = await ethers.getSigners();
+    const splitter = await (await ethers.getContractFactory("FeeSplitter")).deploy(
+      creator.address, PROTOCOL, protocolBps,
+    );
+    return { splitter, creator };
+  }
+
+  it("splits ETH by the immutable bps and pays each side once", async () => {
+    const [payer, creator] = await ethers.getSigners();
+    const { splitter } = await deploySplitter(3_000);
+    await payer.sendTransaction({ to: await splitter.getAddress(), value: E(10) });
+
+    expect(await splitter.pendingEth(PROTOCOL)).to.equal(E(3));
+    expect(await splitter.pendingEth(creator.address)).to.equal(E(7));
+
+    await expect(splitter.releaseEth(PROTOCOL)).to.changeEtherBalance(PROTOCOL, E(3));
+    expect(await splitter.pendingEth(PROTOCOL)).to.equal(0n);
+    // Draining twice is the classic splitter bug; the second call has nothing owed.
+    await expect(splitter.releaseEth(PROTOCOL)).to.be.revertedWithCustomError(
+      splitter, "NothingOwed",
+    );
+  });
+
+  it("keeps accounting straight when fees arrive in several waves", async () => {
+    const [payer, creator] = await ethers.getSigners();
+    const { splitter } = await deploySplitter(3_000);
+    const addr = await splitter.getAddress();
+
+    await payer.sendTransaction({ to: addr, value: E(10) });
+    await splitter.releaseEth(creator.address); // takes 7
+    await payer.sendTransaction({ to: addr, value: E(10) });
+
+    // Lifetime-based accounting: 20 total, creator owed 14, already took 7.
+    expect(await splitter.pendingEth(creator.address)).to.equal(E(7));
+    expect(await splitter.pendingEth(PROTOCOL)).to.equal(E(6));
+  });
+
+  it("pays nobody but the two named recipients", async () => {
+    const [, , stranger] = await ethers.getSigners();
+    const { splitter } = await deploySplitter();
+    await expect(splitter.pendingEth(stranger.address)).to.be.revertedWithCustomError(
+      splitter, "NotARecipient",
+    );
+  });
+
+  it("splits the round token too — fees arrive in both pool currencies", async () => {
+    const [deployer, creator] = await ethers.getSigners();
+    const { splitter } = await deploySplitter(3_000);
+    const token = await (await ethers.getContractFactory("ArenaToken")).deploy(
+      "Fee", "FEE", E(1_000), deployer.address,
+    );
+    await token.transfer(await splitter.getAddress(), E(1_000));
+
+    const t = await token.getAddress();
+    expect(await splitter.pendingToken(t, PROTOCOL)).to.equal(E(300));
+    await splitter.releaseToken(t, creator.address);
+    expect(await token.balanceOf(creator.address)).to.equal(E(700));
+  });
+
+  it("a creator address that rejects ETH cannot strand the protocol's fees", async () => {
+    // The creator address is arbitrary user input from the launch form. If a
+    // push-both design were used, a contract that reverts on receive would take
+    // the protocol's fees down with it.
+    const [payer] = await ethers.getSigners();
+    const rejector = await (await ethers.getContractFactory("RoundFactory")).deploy(); // no receive()
+    const splitter = await (await ethers.getContractFactory("FeeSplitter")).deploy(
+      await rejector.getAddress(), PROTOCOL, 3_000,
+    );
+    await payer.sendTransaction({ to: await splitter.getAddress(), value: E(10) });
+
+    await expect(splitter.releaseEth(await rejector.getAddress())).to.be.revertedWithCustomError(
+      splitter, "TransferFailed",
+    );
+    await expect(splitter.releaseEth(PROTOCOL)).to.changeEtherBalance(PROTOCOL, E(3));
+  });
+
+  it("refuses a configuration that would burn fees forever", async () => {
+    const [, creator] = await ethers.getSigners();
+    const F = await ethers.getContractFactory("FeeSplitter");
+    await expect(F.deploy(ethers.ZeroAddress, PROTOCOL, 3_000)).to.be.revertedWithCustomError(
+      F, "BadRecipient",
+    );
+    await expect(F.deploy(creator.address, ethers.ZeroAddress, 3_000)).to.be.revertedWithCustomError(
+      F, "BadRecipient",
+    );
+    await expect(F.deploy(creator.address, PROTOCOL, 10_001)).to.be.revertedWithCustomError(
+      F, "BadSplit",
+    );
+  });
+
+  it("has no owner, setter, or escape hatch", async () => {
+    const { splitter } = await deploySplitter();
+    const names = splitter.interface.fragments
+      .filter((f) => f.type === "function")
+      .map((f) => f.name);
+    for (const forbidden of ["owner", "setFeeRecipient", "transferOwnership", "withdraw", "execute"])
+      expect(names).to.not.include(forbidden);
+  });
+});
