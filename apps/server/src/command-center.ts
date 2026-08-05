@@ -44,6 +44,8 @@ import {
 } from "@cookout/shared";
 import { buildAnalytics, isRealPlayer } from "./analytics.js";
 import { adminAdjustBurgers } from "./burger.js";
+import { ComplianceService } from "./compliance.js";
+import type { ComplianceSettings } from "@cookout/shared";
 import { MediaService } from "./media.js";
 import { rateLimit } from "./ratelimit.js";
 import {
@@ -97,6 +99,7 @@ export function mountCommandCenter(
   broadcast: import("./engine.js").Broadcast = () => {},
 ): StaffService {
   const staffService = new StaffService(store);
+  const compliance = new ComplianceService(store);
   const gate = (permission?: Permission) => requireStaff(staffService, adminKey, permission);
 
   // ------------------------------------------------------------------ session
@@ -571,6 +574,88 @@ export function mountCommandCenter(
         note: "reset to compiled defaults",
       });
       res.json({ settings: store.settings.game });
+    }),
+  );
+
+  // ---------------------------------------------------------------- compliance
+
+  /**
+   * Phase 2 access controls. Under flags.manage rather than its own permission
+   * because the people who can flip the platform on and off are the same people
+   * who set who may use it.
+   */
+  app.get(
+    "/api/cc/compliance",
+    gate("flags.manage"),
+    wrap((_req, res) => {
+      res.json({
+        settings: compliance.settings(),
+        // Every refusal and acceptance, so the gate's behaviour is reviewable
+        // without reading the whole audit log.
+        recent: [...store.auditLog]
+          .reverse()
+          .filter((e) => e.module === "compliance")
+          .slice(0, 50),
+      });
+    }),
+  );
+
+  app.patch(
+    "/api/cc/compliance",
+    gate("flags.manage"),
+    wrap((req, res) => {
+      const body = req.body as Partial<ComplianceSettings>;
+      const codes = (list: unknown, label: string, pattern: RegExp): string[] | undefined => {
+        if (list === undefined) return undefined;
+        if (!Array.isArray(list)) throw new CcError(400, `${label} must be a list`);
+        return list.map((raw) => {
+          const code = String(raw).trim().toUpperCase();
+          if (!pattern.test(code)) throw new CcError(400, `"${code}" isn't a valid ${label} code`);
+          return code;
+        });
+      };
+      const next: Partial<ComplianceSettings> = {};
+      if (typeof body.enabled === "boolean") next.enabled = body.enabled;
+      if (typeof body.blockUnknownRegion === "boolean")
+        next.blockUnknownRegion = body.blockUnknownRegion;
+      if (typeof body.haltNewLaunches === "boolean") next.haltNewLaunches = body.haltNewLaunches;
+      const countries = codes(body.blockedCountries, "country", /^[A-Z]{2}$/);
+      if (countries) next.blockedCountries = countries;
+      const regions = codes(body.blockedRegions, "region", /^[A-Z]{2}-[A-Z0-9]{1,3}$/);
+      if (regions) next.blockedRegions = regions;
+      if (body.deniedAddresses !== undefined) {
+        if (!Array.isArray(body.deniedAddresses)) throw new CcError(400, "deniedAddresses must be a list");
+        next.deniedAddresses = body.deniedAddresses.map((raw: unknown) => {
+          const a = String(raw).trim().toLowerCase();
+          if (!/^0x[0-9a-f]{40}$/.test(a)) throw new CcError(400, `"${raw}" isn't an address`);
+          return a;
+        });
+      }
+      if (body.termsVersion !== undefined) {
+        const v = clampInt(body.termsVersion, 1, 1_000, compliance.settings().termsVersion);
+        // Only ever forward: lowering it would silently un-accept nothing and
+        // quietly re-accept everyone who had already agreed to a later version.
+        if (v < compliance.settings().termsVersion)
+          throw new CcError(400, "the terms version can only go up");
+        next.termsVersion = v;
+      }
+      if (body.minimumAge !== undefined)
+        next.minimumAge = clampInt(body.minimumAge, 13, 99, compliance.settings().minimumAge);
+
+      const before = compliance.settings();
+      const saved = compliance.save(next);
+      audit(store, req, {
+        module: "compliance",
+        action: "settings.update",
+        note:
+          `enabled ${before.enabled}→${saved.enabled}, ` +
+          `${saved.blockedCountries.length} countries, ${saved.blockedRegions.length} regions, ` +
+          `${saved.deniedAddresses.length} denied addresses, terms v${saved.termsVersion}` +
+          (before.haltNewLaunches !== saved.haltNewLaunches
+            ? `, launches ${saved.haltNewLaunches ? "HALTED" : "resumed"}`
+            : ""),
+      });
+      res.json(saved);
     }),
   );
 

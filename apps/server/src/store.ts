@@ -31,6 +31,8 @@ import {
   type Address,
   type GameMode,
   type ChainLedgerEntry,
+  type ComplianceSettings,
+  type TermsAcceptance,
   type LedgerEntry,
   type LedgerKind,
   type AuctionIntent,
@@ -214,6 +216,10 @@ export interface StoredUser extends UserProfile {
   /** Cookout Wallet (on-chain) movements, newest last. Separate from `ledger`
    *  because it's real ETH rather than the paper Cook Out balance. */
   chainLedger?: ChainLedgerEntry[];
+  /** Terms acceptance on record — version, when, where, age attested. */
+  termsAccepted?: TermsAcceptance;
+  /** Self-exclusion expiry. Extendable, never shortened, never staff-liftable. */
+  excludedUntil?: number;
   /** Activity counters keyed by period ("2026-07-14" and "2026-W29"). */
   activity: Record<string, Partial<Record<MissionMetric, number>>>;
   /** Completed missions keyed "<periodKey>:<missionId>". */
@@ -1239,6 +1245,14 @@ export class Store {
     return s.address;
   }
 
+  /** Drop every live session for one account. Used by self-exclusion, where
+   *  leaving the current tab signed in would defeat the whole control. */
+  revokeSessionsFor(address: Address): void {
+    const target = address.toLowerCase();
+    for (const [token, s] of this.sessions)
+      if (s.address.toLowerCase() === target) this.sessions.delete(token);
+  }
+
   snapshot(): Snapshot {
     return {
       version: 1,
@@ -1409,6 +1423,8 @@ export interface FeedbackEntry {
 }
 
 export interface OpsSettings {
+  /** Phase 2 access controls: region, sanctions, terms, self-exclusion. */
+  compliance?: ComplianceSettings;
   /** Keep the match calendar auto-filling from top-voted submissions. */
   autoSchedule: boolean;
   tier: RiskTier;

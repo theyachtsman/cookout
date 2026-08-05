@@ -21,6 +21,24 @@ export function getToken(): string | null {
   return localStorage.getItem("cookout_token");
 }
 
+/**
+ * A failed request, with the response kept.
+ *
+ * Extends Error so every existing `(e as Error).message` still reads right,
+ * but carries the status and body too — the compliance gate answers 451 with
+ * a payload the caller has to act on, not just a sentence to display.
+ */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly data: Record<string, unknown>,
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
 export async function api<T = unknown>(
   path: string,
   opts: { method?: string; body?: unknown; admin?: string } = {},
@@ -35,6 +53,11 @@ export async function api<T = unknown>(
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
   const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error((data as { error?: string }).error ?? `HTTP ${res.status}`);
+  if (!res.ok)
+    throw new ApiError(
+      (data as { error?: string }).error ?? `HTTP ${res.status}`,
+      res.status,
+      data as Record<string, unknown>,
+    );
   return data as T;
 }

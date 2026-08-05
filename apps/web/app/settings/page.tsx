@@ -7,6 +7,7 @@ import { useSession } from "../../lib/session";
 import { useChainOnly } from "../../lib/chainOnly";
 import { AudioMixer } from "../../components/AudioSettings";
 import { TelegramConnect } from "../../components/TelegramConnect";
+import { SelfExclusion } from "../../components/SelfExclusion";
 
 /**
  * Settings — the one place to tune your account, The Pit Boss (Telegram)
@@ -126,6 +127,10 @@ export default function SettingsPage() {
 
       {/* Sound */}
       <AudioMixer />
+
+      {/* Responsible play. Last on the page on purpose — findable when wanted,
+          not in the way of everything else. */}
+      <SelfExclusion />
     </div>
   );
 }

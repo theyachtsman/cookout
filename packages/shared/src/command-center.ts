@@ -28,6 +28,7 @@ export type CcModule =
   | "moderation"
   | "analytics"
   | "flags"
+  | "compliance"
   | "team"
   | "audit"
   | "backups";

@@ -35,6 +35,7 @@ import {
   type TokenConcept,
 } from "@cookout/shared";
 import { mountCommandCenter } from "./command-center.js";
+import { ComplianceService, locationOf } from "./compliance.js";
 import { CollectionError, CollectionService } from "./collection.js";
 import { MediaService, readAsset } from "./media.js";
 import { StaffService, requireStaff } from "./staff.js";
@@ -86,6 +87,7 @@ export function createApp(
   pitBoss: import("./telegram/index.js").PitBoss | null = null,
 ): Express {
   const app = express();
+  const compliance = new ComplianceService(store);
   // Body limit covers client-downscaled data-URL images (coin art, avatars).
   app.use(express.json({ limit: "2mb" }));
   // Media Library uploads are base64 data URLs and are deliberately allowed to
@@ -201,6 +203,31 @@ export function createApp(
       const { token, referralCode } = req.body as { token?: string; referralCode?: string };
       if (!token) throw new Err(400, "token required");
       const { address, displayName } = await resolvePrivy(token);
+
+      // The compliance gate. Chain trades are non-custodial and permissionless,
+      // so this is the only point the platform can actually refuse someone —
+      // no session, no site. Terms are the one refusal a player can resolve
+      // themselves, so it returns the prompt instead of a flat rejection.
+      const decision = compliance.check(req, address);
+      if (!decision.allowed) {
+        if (decision.reason === "terms_not_accepted") {
+          res.status(451).json({
+            error: decision.message,
+            needsTerms: true,
+            termsVersion: compliance.settings().termsVersion,
+            minimumAge: compliance.settings().minimumAge,
+          });
+          return;
+        }
+        store.logAdmin(
+          "compliance",
+          `session refused for ${address}: ${decision.reason}${
+            locationOf(req).country ? ` (${locationOf(req).country})` : ""
+          }`,
+        );
+        throw new Err(451, decision.message ?? "unavailable in your region");
+      }
+
       const { token: sessionToken, isNew } = createSessionForAddress(store, address, referralCode);
       const u = store.getOrCreateUser(address);
       // Seed a friendly handle from their Privy login on first sign-in only.
@@ -423,6 +450,65 @@ export function createApp(
     wrap((req, res) => {
       const u = store.getOrCreateUser(req.userAddress!);
       res.json({ ledger: [...(u.ledger ?? [])].reverse() });
+    }),
+  );
+
+  // ---- Compliance: the two things a player can do themselves ----
+
+  /** What the gate currently requires, for the acceptance screen. */
+  app.get(
+    "/api/compliance",
+    wrap((req, res) => {
+      const s = compliance.settings();
+      res.json({
+        enabled: s.enabled,
+        termsVersion: s.termsVersion,
+        minimumAge: s.minimumAge,
+        selfExclusionDays: s.selfExclusionDays,
+        country: locationOf(req).country ?? null,
+      });
+    }),
+  );
+
+  /**
+   * Accept the terms. Unauthenticated on purpose: the session is refused until
+   * the terms are accepted, so requiring a session to accept them is a deadlock.
+   * The Privy token proves who is accepting.
+   */
+  app.post(
+    "/api/compliance/accept",
+    wrap(async (req, res) => {
+      const { token, age } = req.body as { token?: string; age?: number };
+      if (!token) throw new Err(400, "token required");
+      const attested = Number(age);
+      const minimum = compliance.settings().minimumAge;
+      if (!Number.isFinite(attested) || attested < minimum)
+        throw new Err(403, `you must be ${minimum} or older to use this site`);
+      const { address } = await resolvePrivy(token);
+      // Region and sanctions still apply — accepting terms is not a way past them.
+      const gate = compliance.check(req, address);
+      if (!gate.allowed && gate.reason !== "terms_not_accepted")
+        throw new Err(451, gate.message ?? "unavailable in your region");
+      res.json(compliance.acceptTerms(address, req, attested));
+    }),
+  );
+
+  /**
+   * Self-exclude. One-way: it can be extended, never shortened, and there is no
+   * staff route to lift it. That is the entire point of the control.
+   */
+  app.post(
+    "/api/me/self-exclude",
+    auth,
+    wrap((req, res) => {
+      const days = Number((req.body as { days?: number }).days);
+      try {
+        const until = compliance.selfExclude(req.userAddress!, days);
+        store.revokeSessionsFor(req.userAddress!);
+        res.json({ until });
+      } catch (e) {
+        throw new Err(400, (e as Error).message);
+      }
     }),
   );
 
@@ -1442,6 +1528,13 @@ export function createApp(
           );
       }
       const creator = store.getOrCreateUser(req.userAddress!);
+      // Launching is the other thing the platform actually signs (createRound
+      // runs on the operator key), so it is gated separately from the session:
+      // a halt has to stop new launches without evicting everyone mid-round.
+      if (compliance.settings().haltNewLaunches)
+        throw new Err(503, "new launches are paused right now — existing rounds are unaffected");
+      const launchCheck = compliance.check(req, creator.address);
+      if (!launchCheck.allowed) throw new Err(451, launchCheck.message ?? "unavailable");
       // The launchpad's single curated choice: a game mode bundles risk tier,
       // match length, and rug rules. Modes are level-gated (Endurance is
       // reserved). The legacy tier+matchMinutes path stays for back-compat.

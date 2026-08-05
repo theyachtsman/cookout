@@ -3,7 +3,8 @@
 import { useRouter } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { api } from "./api";
+import { api, type ApiError } from "./api";
+import { TermsGate } from "../components/TermsGate";
 import { audio } from "./audio";
 
 export interface Profile {
@@ -133,6 +134,11 @@ function PrivySession({ children }: { children: React.ReactNode }) {
   const { ready: privyReady, authenticated, login, logout, getAccessToken } = usePrivy();
   const { wallets } = useWallets();
   const exchanging = useRef(false);
+  const [termsPrompt, setTermsPrompt] = useState<{
+    token: string;
+    version: number;
+    minimumAge: number;
+  } | null>(null);
 
   // The embedded wallet is created asynchronously right after a fresh social /
   // email login (Privy shows a "creating wallet" step). It's the account's
@@ -173,7 +179,21 @@ function PrivySession({ children }: { children: React.ReactNode }) {
       // triggered from a specific page leaves them where they are.
       if (window.location.pathname === "/") router.push("/matches");
     } catch (e) {
-      setAuthError((e as Error).message || "Sign-in failed. Please try again.");
+      // The compliance gate answers 451. Terms are the one refusal the player
+      // can resolve, so it becomes a screen; everything else — region,
+      // sanctions, self-exclusion — is a flat message with no way onward.
+      const err = e as ApiError;
+      if (err.status === 451 && err.data?.needsTerms) {
+        const token = await getAccessToken().catch(() => null);
+        if (token)
+          setTermsPrompt({
+            token,
+            version: Number(err.data.termsVersion ?? 1),
+            minimumAge: Number(err.data.minimumAge ?? 18),
+          });
+      } else {
+        setAuthError((e as Error).message || "Sign-in failed. Please try again.");
+      }
     } finally {
       setBusy(false);
       exchanging.current = false;
@@ -232,6 +252,21 @@ function PrivySession({ children }: { children: React.ReactNode }) {
       }}
     >
       {children}
+      {termsPrompt && (
+        <TermsGate
+          termsVersion={termsPrompt.version}
+          minimumAge={termsPrompt.minimumAge}
+          privyToken={termsPrompt.token}
+          onAccepted={() => {
+            setTermsPrompt(null);
+            void exchangeSession();
+          }}
+          onCancel={() => {
+            setTermsPrompt(null);
+            void logout();
+          }}
+        />
+      )}
     </Ctx.Provider>
   );
 }
