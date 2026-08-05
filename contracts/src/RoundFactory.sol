@@ -3,7 +3,9 @@ pragma solidity ^0.8.24;
 
 import {ArenaToken} from "./ArenaToken.sol";
 import {BatchAuction} from "./BatchAuction.sol";
-import {RoundPool} from "./RoundPool.sol";
+import {RoundPool, IPositionManagerLike, IPermit2Like} from "./RoundPool.sol";
+import {IPositionManagerLike as ILockerPositionManager} from "./CookoutLpLocker.sol";
+import {LockerFactory} from "./LockerFactory.sol";
 
 /// @title RoundFactory — template-only round deployment (spec §5.2)
 /// @notice The single entry point for creating a round on-chain: token, pool,
@@ -24,6 +26,20 @@ contract RoundFactory {
     ///         from uint256 overflow at any plausible ETH reserve.
     uint256 public constant MIN_SUPPLY = 1e18;
     uint256 public constant MAX_SUPPLY = 1e33;
+    uint16 private constant BPS = 10_000;
+
+    /// @dev Custom errors rather than require strings. This contract embeds the
+    ///      creation bytecode of everything it deploys, which leaves very little
+    ///      room for anything else — and revert strings are stored verbatim.
+    error BadFeeWallet();
+    error BadFeeSplit();
+    error NoLiquidity();
+    error BadSupply();
+    error FeeTooHigh();
+    error BadFeeRecipient();
+    error QueueClosesInPast();
+    error EndsBeforeQueueCloses();
+    error SeedFailed();
 
     struct RoundAddresses {
         address token;
@@ -31,6 +47,38 @@ contract RoundFactory {
         address auction;
         address creator;
         uint64 createdAt;
+        /// @notice Holds the v4 position forever once the round graduates.
+        address locker;
+        /// @notice Splits that position's fees between creator and protocol.
+        address feeSplitter;
+    }
+
+    /// @notice Uniswap v4 plumbing every round inherits. Immutable, so no round
+    ///         can be pointed at a different PositionManager than any other.
+    IPositionManagerLike public immutable positionManager;
+    IPermit2Like public immutable permit2;
+    /// @notice Deploys each round's locker + splitter. Immutable; see
+    ///         LockerFactory for why it isn't inlined here.
+    LockerFactory public immutable lockerFactory;
+    /// @notice Where the protocol's share of post-graduation LP fees is paid.
+    address public immutable protocolFeeWallet;
+    /// @notice Protocol share of those fees; the creator takes the rest.
+    uint16 public immutable protocolFeeBps;
+
+    constructor(
+        IPositionManagerLike positionManager_,
+        IPermit2Like permit2_,
+        LockerFactory lockerFactory_,
+        address protocolFeeWallet_,
+        uint16 protocolFeeBps_
+    ) {
+        if (protocolFeeWallet_ == address(0)) revert BadFeeWallet();
+        if (protocolFeeBps_ > BPS) revert BadFeeSplit();
+        positionManager = positionManager_;
+        permit2 = permit2_;
+        lockerFactory = lockerFactory_;
+        protocolFeeWallet = protocolFeeWallet_;
+        protocolFeeBps = protocolFeeBps_;
     }
 
     RoundAddresses[] public rounds;
@@ -40,7 +88,9 @@ contract RoundFactory {
         address indexed creator,
         address token,
         address pool,
-        address auction
+        address auction,
+        address locker,
+        address feeSplitter
     );
 
     struct RoundParams {
@@ -58,6 +108,10 @@ contract RoundFactory {
         uint256 graduationMinHolders;
         address feeRecipient;
         address creator;
+        /// @notice Where the creator's share of post-graduation LP fees goes.
+        ///         Chosen at launch and immutable from here on. Zero means the
+        ///         creator's own address.
+        address feeDestination;
     }
 
     function roundCount() external view returns (uint256) {
@@ -70,13 +124,22 @@ contract RoundFactory {
         payable
         returns (address tokenAddr, address poolAddr, address auctionAddr)
     {
-        require(msg.value > 0, "liquidity");
-        require(p.totalSupply >= MIN_SUPPLY && p.totalSupply <= MAX_SUPPLY, "supply");
-        require(p.tradeFeeBps <= MAX_FEE_BPS && p.auctionFeeBps <= MAX_FEE_BPS, "fee too high");
-        require(p.feeRecipient != address(0), "fee recipient");
-        require(p.queueClosesAt > block.timestamp, "queue closes in past");
-        require(p.endTime > p.queueClosesAt, "ends before queue closes");
+        if (msg.value == 0) revert NoLiquidity();
+        if (p.totalSupply < MIN_SUPPLY || p.totalSupply > MAX_SUPPLY) revert BadSupply();
+        if (p.tradeFeeBps > MAX_FEE_BPS || p.auctionFeeBps > MAX_FEE_BPS) revert FeeTooHigh();
+        if (p.feeRecipient == address(0)) revert BadFeeRecipient();
+        if (p.queueClosesAt <= block.timestamp) revert QueueClosesInPast();
+        if (p.endTime <= p.queueClosesAt) revert EndsBeforeQueueCloses();
         ArenaToken token = new ArenaToken(p.name, p.symbol, p.totalSupply, address(this));
+        // Deployed up front, not at graduation: the pool needs an immutable
+        // destination for its liquidity, and "decided later" is exactly the
+        // discretion this design is supposed to not have.
+        (address locker, address splitter) = lockerFactory.deployFor(
+            ILockerPositionManager(address(positionManager)),
+            p.feeDestination == address(0) ? p.creator : p.feeDestination,
+            protocolFeeWallet,
+            protocolFeeBps
+        );
         RoundPool pool = new RoundPool(
             token,
             p.feeRecipient,
@@ -85,7 +148,10 @@ contract RoundFactory {
             p.mcapTargetWei,
             p.graduationMcapWei,
             p.graduationMinVolumeWei,
-            p.graduationMinHolders
+            p.graduationMinHolders,
+            positionManager,
+            permit2,
+            locker
         );
         BatchAuction auction = new BatchAuction(
             pool,
@@ -96,14 +162,30 @@ contract RoundFactory {
             p.feeRecipient
         );
         pool.initAuction(address(auction));
-        require(token.transfer(address(pool), p.totalSupply), "seed tokens");
+        if (!token.transfer(address(pool), p.totalSupply)) revert SeedFailed();
         pool.initialize{value: msg.value}();
 
         uint256 id = rounds.length;
         rounds.push(
-            RoundAddresses(address(token), address(pool), address(auction), p.creator, uint64(block.timestamp))
+            RoundAddresses(
+                address(token),
+                address(pool),
+                address(auction),
+                p.creator,
+                uint64(block.timestamp),
+                locker,
+                splitter
+            )
         );
-        emit RoundCreated(id, p.creator, address(token), address(pool), address(auction));
+        emit RoundCreated(
+            id,
+            p.creator,
+            address(token),
+            address(pool),
+            address(auction),
+            locker,
+            splitter
+        );
         return (address(token), address(pool), address(auction));
     }
 }

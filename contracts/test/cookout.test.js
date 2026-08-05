@@ -15,10 +15,36 @@ async function now() {
   return b.timestamp;
 }
 
+/** Real Uniswap v4 on Robinhood Chain — same addresses as its mainnet. */
+const V4 = {
+  positionManager: "0x58daec3116aae6d93017baaea7749052e8a04fa7",
+  permit2: "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+};
+const PROTOCOL_WALLET = "0x75f14607218dc771FcAC61a01Ae86507b9d8fdf1";
+
+/** PriceMath is an external library, so every consumer has to link it. */
+async function linkedFactories() {
+  const priceMath = await (await ethers.getContractFactory("PriceMath")).deploy();
+  const libraries = { PriceMath: await priceMath.getAddress() };
+  return {
+    RoundFactory: await ethers.getContractFactory("RoundFactory", { libraries }),
+    RoundPool: await ethers.getContractFactory("RoundPool", { libraries }),
+    PriceMathHarness: await ethers.getContractFactory("PriceMathHarness", { libraries }),
+  };
+}
+
 /** Deploy a full round via the factory. */
 async function createRound(overrides = {}) {
   const [deployer] = await ethers.getSigners();
-  const factory = await (await ethers.getContractFactory("RoundFactory")).deploy();
+  const lockerFactory = await (await ethers.getContractFactory("LockerFactory")).deploy();
+  const { RoundFactory } = await linkedFactories();
+  const factory = await RoundFactory.deploy(
+    overrides.positionManager ?? V4.positionManager,
+    V4.permit2,
+    await lockerFactory.getAddress(),
+    PROTOCOL_WALLET,
+    3_000,
+  );
   const t = await now();
   const params = {
     name: "Block Party",
@@ -35,8 +61,11 @@ async function createRound(overrides = {}) {
     graduationMinHolders: 10,
     feeRecipient: deployer.address,
     creator: deployer.address,
+    feeDestination: ethers.ZeroAddress, // defaults to the creator
     ...overrides,
   };
+  delete params.liquidity;
+  delete params.positionManager;
   await (await factory.createRound(params, { value: overrides.liquidity ?? E(100) })).wait();
   const r = await factory.rounds(0);
   return {
@@ -45,6 +74,8 @@ async function createRound(overrides = {}) {
     token: await ethers.getContractAt("ArenaToken", r.token),
     pool: await ethers.getContractAt("RoundPool", r.pool),
     auction: await ethers.getContractAt("BatchAuction", r.auction),
+    locker: await ethers.getContractAt("CookoutLpLocker", r.locker),
+    splitter: await ethers.getContractAt("FeeSplitter", r.feeSplitter),
   };
 }
 
@@ -82,7 +113,14 @@ describe("RoundFactory parameter bounds", () => {
   /** Expect createRound to revert with `reason` for the given overrides. */
   async function expectRejected(overrides, reason) {
     const [deployer] = await ethers.getSigners();
-    const factory = await (await ethers.getContractFactory("RoundFactory")).deploy();
+    const lockerFactory = await (await ethers.getContractFactory("LockerFactory")).deploy();
+    const factory = await (await linkedFactories()).RoundFactory.deploy(
+      V4.positionManager,
+      V4.permit2,
+      await lockerFactory.getAddress(),
+      PROTOCOL_WALLET,
+      3_000,
+    );
     const t = await now();
     const params = {
       name: "Honeypot",
@@ -99,25 +137,29 @@ describe("RoundFactory parameter bounds", () => {
       graduationMinHolders: 10,
       feeRecipient: deployer.address,
       creator: deployer.address,
+      feeDestination: ethers.ZeroAddress,
       ...overrides,
     };
-    await expect(factory.createRound(params, { value: E(100) })).to.be.revertedWith(reason);
+    await expect(factory.createRound(params, { value: E(100) })).to.be.revertedWithCustomError(
+      factory,
+      reason,
+    );
   }
 
   it("rejects honeypot trade fees above MAX_FEE_BPS", async () => {
-    await expectRejected({ tradeFeeBps: 501 }, "fee too high");
-    await expectRejected({ tradeFeeBps: 9999 }, "fee too high");
+    await expectRejected({ tradeFeeBps: 501 }, "FeeTooHigh");
+    await expectRejected({ tradeFeeBps: 9999 }, "FeeTooHigh");
   });
 
   it("rejects auction fees above MAX_FEE_BPS", async () => {
-    await expectRejected({ auctionFeeBps: 501 }, "fee too high");
+    await expectRejected({ auctionFeeBps: 501 }, "FeeTooHigh");
   });
 
   it("rejects out-of-bounds supply and zero fee recipient", async () => {
-    await expectRejected({ totalSupply: 0n }, "supply");
-    await expectRejected({ totalSupply: 10n ** 18n - 1n }, "supply"); // dust-reserve pathologies
-    await expectRejected({ totalSupply: 10n ** 33n + 1n }, "supply"); // k-overflow headroom
-    await expectRejected({ feeRecipient: ethers.ZeroAddress }, "fee recipient");
+    await expectRejected({ totalSupply: 0n }, "BadSupply");
+    await expectRejected({ totalSupply: 10n ** 18n - 1n }, "BadSupply"); // dust-reserve pathologies
+    await expectRejected({ totalSupply: 10n ** 33n + 1n }, "BadSupply"); // k-overflow headroom
+    await expectRejected({ feeRecipient: ethers.ZeroAddress }, "BadFeeRecipient");
   });
 
   it("accepts supply exactly at the bounds", async () => {
@@ -127,8 +169,8 @@ describe("RoundFactory parameter bounds", () => {
 
   it("rejects degenerate schedules", async () => {
     const t = await now();
-    await expectRejected({ queueClosesAt: t - 10 }, "queue closes in past");
-    await expectRejected({ queueClosesAt: t + 500, endTime: t + 400 }, "ends before queue closes");
+    await expectRejected({ queueClosesAt: t - 10 }, "QueueClosesInPast");
+    await expectRejected({ queueClosesAt: t + 500, endTime: t + 400 }, "EndsBeforeQueueCloses");
   });
 
   it("accepts fees exactly at MAX_FEE_BPS", async () => {
@@ -372,7 +414,7 @@ describe("Differential: TS trade quotes match the pool exactly", () => {
     const token = await (await ethers.getContractFactory("ArenaToken")).deploy(
       "Quote", "QTE", tokenReserve + extraTokensForSeller, deployer.address,
     );
-    const pool = await (await ethers.getContractFactory("RoundPool")).deploy(
+    const pool = await (await linkedFactories()).RoundPool.deploy(
       await token.getAddress(),
       deployer.address,
       feeBps,
@@ -381,6 +423,9 @@ describe("Differential: TS trade quotes match the pool exactly", () => {
       ethers.MaxUint256,       // graduation unreachable
       ethers.MaxUint256,
       ethers.MaxUint256,
+      V4.positionManager,
+      V4.permit2,
+      ethers.ZeroAddress, // no locker: these tests never migrate
     );
     await pool.initAuction(deployer.address); // the deployer stands in for the auction
     await token.transfer(await pool.getAddress(), tokenReserve);
@@ -485,7 +530,7 @@ describe("FeeSplitter — graduated-pool fee routing", () => {
     // push-both design were used, a contract that reverts on receive would take
     // the protocol's fees down with it.
     const [payer] = await ethers.getSigners();
-    const rejector = await (await ethers.getContractFactory("RoundFactory")).deploy(); // no receive()
+    const rejector = await (await ethers.getContractFactory("LockerFactory")).deploy(); // no receive()
     const splitter = await (await ethers.getContractFactory("FeeSplitter")).deploy(
       await rejector.getAddress(), PROTOCOL, 3_000,
     );
@@ -727,5 +772,97 @@ describe("ArenaToken holder counting", () => {
     expect(await t.minHolderBalance()).to.equal(1n);
     await t.transfer(a.address, 1n);
     expect(await t.holderCount()).to.equal(2n);
+  });
+});
+
+describe("PriceMath — the price a graduated coin opens at", () => {
+  let m;
+  const Q96 = 2n ** 96n;
+
+  let lib;
+  before(async () => {
+    const priceMath = await (await ethers.getContractFactory("PriceMath")).deploy();
+    lib = priceMath;
+    m = await (
+      await ethers.getContractFactory("PriceMathHarness", {
+        libraries: { PriceMath: await priceMath.getAddress() },
+      })
+    ).deploy();
+  });
+
+  /** Reference sqrtPriceX96, computed in JS at full precision. */
+  const expected = (r0, r1) => {
+    // sqrt(r1/r0) * 2^96, via integer sqrt of (r1 << 192) / r0.
+    const ratio = (r1 * (Q96 * Q96)) / r0;
+    let x = ratio, y = (x + 1n) / 2n;
+    while (y < x) { x = y; y = (ratio / y + y) / 2n; }
+    return x;
+  };
+
+  it("prices a 1:1 pool at exactly 2^96", async () => {
+    expect(await m.sqrtPriceX96FromReserves(E(1), E(1))).to.equal(Q96);
+  });
+
+  it("matches a full-precision reference across realistic reserves", async () => {
+    const cases = [
+      [E(100), E(1_000_000)],   // a typical seeded round
+      [E(1), E(1_000_000)],     // thin ETH side
+      [E(500), E(21_000_000)],  // large supply
+      [E(3), E(42)],            // small and awkward
+    ];
+    for (const [r0, r1] of cases) {
+      const got = await m.sqrtPriceX96FromReserves(r0, r1);
+      const want = expected(r0, r1);
+      // The 2^48 split costs about half a bit; assert it costs no more than
+      // that, since the error lands directly in the opening price.
+      const drift = got > want ? got - want : want - got;
+      expect(drift * 10n ** 12n / want, `${r0}/${r1}`).to.be.lessThan(10n);
+    }
+  });
+
+  it("price rises with the token side and falls with the ETH side", async () => {
+    const base = await m.sqrtPriceX96FromReserves(E(100), E(1_000_000));
+    expect(await m.sqrtPriceX96FromReserves(E(100), E(2_000_000))).to.be.greaterThan(base);
+    expect(await m.sqrtPriceX96FromReserves(E(200), E(1_000_000))).to.be.lessThan(base);
+  });
+
+  it("refuses a degenerate pool rather than opening one at a nonsense price", async () => {
+    await expect(m.sqrtPriceX96FromReserves(0, E(1))).to.be.revertedWithCustomError(lib, "ZeroReserve");
+    await expect(m.sqrtPriceX96FromReserves(E(1), 0)).to.be.revertedWithCustomError(lib, "ZeroReserve");
+    // Ratios v4 itself cannot represent. Both are far outside anything the
+    // factory's supply bounds allow — the guard exists so a malformed pool
+    // fails by name rather than deep inside the PoolManager.
+    await expect(m.sqrtPriceX96FromReserves(1n, 10n ** 40n))
+      .to.be.revertedWithCustomError(lib, "PriceOutOfRange");
+    await expect(m.sqrtPriceX96FromReserves(10n ** 30n, 1n))
+      .to.be.revertedWithCustomError(lib, "PriceOutOfRange");
+  });
+
+  it("mulDiv keeps full precision where a plain multiply would overflow", async () => {
+    const big = 2n ** 200n;
+    expect(await m.mulDiv(big, Q96, big)).to.equal(Q96);
+    expect(await m.mulDiv(ethers.MaxUint256, 1n, 2n)).to.equal(ethers.MaxUint256 / 2n);
+  });
+
+  it("liquidity is bounded by whichever side runs out first", async () => {
+    const p = await m.sqrtPriceX96FromReserves(E(100), E(1_000_000));
+    const balanced = await m.fullRangeLiquidity(p, E(100), E(1_000_000));
+    // The two sides agree on the value and differ in its last few wei: one
+    // divides by (sqrtB − p), the other by (p − sqrtA). Asserting exact
+    // equality anywhere here would be asserting a coincidence.
+    const close = (a, b) => {
+      const drift = a > b ? a - b : b - a;
+      expect(drift * 10n ** 12n / b).to.be.lessThan(10n);
+    };
+
+    // Surplus on either side cannot mint more liquidity — the short side is
+    // the binding constraint, and minting past it would need funds the pool
+    // doesn't hold.
+    close(await m.fullRangeLiquidity(p, E(100), E(10_000_000)), balanced);
+    close(await m.fullRangeLiquidity(p, E(200), E(1_000_000)), balanced);
+
+    // Doubling both sides does double it, which is the property that matters:
+    // liquidity tracks the size of the pool being migrated.
+    close(await m.fullRangeLiquidity(p, E(200), E(2_000_000)), balanced * 2n);
   });
 });

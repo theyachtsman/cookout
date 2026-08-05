@@ -6,13 +6,33 @@ module.exports = {
   solidity: {
     version: "0.8.24",
     settings: {
+      // Tuned for the hot path: pools and auctions are called constantly, so
+      // they optimise for runtime gas.
       optimizer: { enabled: true, runs: 200 },
+    },
+    overrides: {
+      // The factory embeds the bytecode of everything it deploys, which pushed
+      // it past the 24,576-byte contract limit. It runs once per round, so
+      // optimising it for size instead of speed costs nothing that matters —
+      // and doing it here rather than globally keeps trading gas where it was.
+      "RoundFactory.sol": {
+        version: "0.8.24",
+        settings: { optimizer: { enabled: true, runs: 1 } },
+      },
     },
   },
   paths: {
     sources: "./src",
   },
   networks: {
+    // Forked 46630, so migration can be tested against the REAL Uniswap v4
+    // PoolManager and PositionManager rather than a mock of them. A mock only
+    // proves we encoded what we intended; this proves Uniswap accepts it.
+    hardhat: {
+      forking: process.env.FORK
+        ? { url: process.env.RH_TESTNET_RPC ?? "https://rpc.testnet.chain.robinhood.com" }
+        : undefined,
+    },
     // The real target chain. Faucet: https://faucet.testnet.chain.robinhood.com
     robinhoodTestnet: {
       url: process.env.RH_TESTNET_RPC ?? "https://rpc.testnet.chain.robinhood.com",

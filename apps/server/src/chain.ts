@@ -44,8 +44,8 @@ import type { Store } from "./store.js";
 export const OPERATOR_MIN_BALANCE_ETH = 0.05;
 
 const FACTORY_ABI = parseAbi([
-  "function createRound((string name,string symbol,uint256 totalSupply,uint64 queueClosesAt,uint64 endTime,uint256 auctionMaxRaiseWei,uint16 auctionFeeBps,uint16 tradeFeeBps,uint256 mcapTargetWei,uint256 graduationMcapWei,uint256 graduationMinVolumeWei,uint256 graduationMinHolders,address feeRecipient,address creator) p) payable returns (address,address,address)",
-  "event RoundCreated(uint256 indexed id, address indexed creator, address token, address pool, address auction)",
+  "function createRound((string name,string symbol,uint256 totalSupply,uint64 queueClosesAt,uint64 endTime,uint256 auctionMaxRaiseWei,uint16 auctionFeeBps,uint16 tradeFeeBps,uint256 mcapTargetWei,uint256 graduationMcapWei,uint256 graduationMinVolumeWei,uint256 graduationMinHolders,address feeRecipient,address creator,address feeDestination) p) payable returns (address,address,address)",
+  "event RoundCreated(uint256 indexed id, address indexed creator, address token, address pool, address auction, address locker, address feeSplitter)",
 ]);
 
 const AUCTION_ABI = parseAbi([
@@ -61,12 +61,17 @@ const AUCTION_ABI = parseAbi([
   "function eligibleDemandWei() view returns (uint256)",
 ]);
 
+/** Means "pay the creator's own address" to the factory. */
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
 const POOL_ABI = parseAbi([
   "event Bought(address indexed who, uint256 ethIn, uint256 tokensOut, uint256 fee)",
   "event Sold(address indexed who, uint256 tokensIn, uint256 ethOut, uint256 fee)",
   "event Resolved(bool graduated, uint256 finalMcapWei, uint256 redemptionPriceWad)",
   "function resolve()",
+  "function migrate() returns (uint256)",
   "function phase() view returns (uint8)",
+  "function migrated() view returns (bool)",
   "function endTime() view returns (uint64)",
   "function getReserves() view returns (uint256, uint256)",
 ]);
@@ -214,6 +219,9 @@ export class ChainService {
           graduationMinVolumeWei: parseEther(String(config.graduationMinVolume)),
           graduationMinHolders: BigInt(config.graduationMinHolders),
           feeRecipient: this.account.address,
+          // Chosen by the creator at launch and immutable from here: it is
+          // burned into the FeeSplitter this call deploys.
+          feeDestination: (concept.feeDestination ?? ZERO_ADDRESS) as HexAddress,
           creator: (concept.creatorAddress || this.account.address) as HexAddress,
         },
       ],
@@ -575,6 +583,10 @@ export class ChainService {
 
     if (resolved) {
       this.engine.applyChainEnd(round, resolved.graduated, now);
+      // Graduated pools migrate to Uniswap v4 and lock their liquidity there.
+      // migrate() is permissionless, but permissionless only means anyone MAY
+      // fire it — nobody else has a reason to, exactly like settle and resolve.
+      if (resolved.graduated) void this.migrateRound(round);
       return;
     }
 
@@ -607,6 +619,49 @@ export class ChainService {
         // 2 = Graduated, 3 = Redeem — someone else resolved; next tick mirrors.
         if (phase < 2) throw e;
       }
+    }
+  }
+
+  /**
+   * Fire the one-way migration to Uniswap v4.
+   *
+   * Best-effort and self-guarded. A failure here is not a crisis: the pool
+   * keeps trading on its own curve exactly as it did before, and migrate() can
+   * be called again — by us on the next attempt, or by anyone at all.
+   */
+  private async migrateRound(round: Round): Promise<void> {
+    const c = round.chain!;
+    const key = `migrate:${round.id}`;
+    if (this.inflight.has(key)) return;
+    this.inflight.add(key);
+    try {
+      const alreadyDone = (await this.pub.readContract({
+        address: c.pool as HexAddress,
+        abi: POOL_ABI,
+        functionName: "migrated",
+      })) as boolean;
+      if (alreadyDone) return;
+      const hash = await this.wallet.writeContract({
+        chain: this.chain,
+        account: this.account,
+        address: c.pool as HexAddress,
+        abi: POOL_ABI,
+        functionName: "migrate",
+      });
+      await this.pub.waitForTransactionReceipt({ hash });
+      this.store.logAdmin(
+        "chain",
+        `${round.token.symbol} graduated and migrated to Uniswap v4 — liquidity locked (${hash})`,
+      );
+    } catch (e) {
+      // Worth an operator's attention: the coin graduated but its liquidity is
+      // still sitting in our pool rather than locked on Uniswap.
+      this.store.logAdmin(
+        "chain",
+        `migration failed for ${round.token.symbol}: ${(e as Error).message}. The pool keeps trading; migrate() can be retried by anyone.`,
+      );
+    } finally {
+      this.inflight.delete(key);
     }
   }
 
