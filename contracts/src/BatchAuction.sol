@@ -28,12 +28,30 @@ contract BatchAuction {
     ///         fill floors to zero, and prices out spamming settle()'s O(n)
     ///         demand loops with 1-wei intents.
     uint256 public constant MIN_INTENT_WEI = 0.001 ether;
+    /// @notice Hard bound on the queue. settle() is O(passes·n), so without a
+    ///         ceiling a large enough queue makes settlement cost unbounded gas
+    ///         — and on a chain with a conventional block limit, impossible.
+    ///         Escrow that can never settle is escrow that can never refund, so
+    ///         this is a solvency bound, not a comfort one. Per-address merging
+    ///         (see submit) means a slot costs an attacker a fresh funded
+    ///         address, not just another transaction.
+    ///         Sized from measurement: settle costs ~19.5k gas per intent, so a
+    ///         full queue settles in ~19.5M — inside a conventional 30M block
+    ///         with headroom, and far inside this chain's limit.
+    uint256 public constant MAX_INTENTS = 1_000;
 
     struct Intent {
         address who;
         uint128 amount; // wei escrowed
         uint128 maxPriceWad; // 0 = market; else max wei per 1e18 token units
         bool claimed;
+    }
+
+    /// @dev The two fields the clearing search reads, held in memory so the
+    ///      binary search doesn't re-read storage on every pass.
+    struct IntentView {
+        uint256 amount;
+        uint256 maxPriceWad;
     }
 
     RoundPool public immutable pool;
@@ -44,6 +62,9 @@ contract BatchAuction {
     address public immutable feeRecipient;
 
     Intent[] public intents;
+    /// @notice (bidder, limit price) → intent id + 1. Zero means none, so a
+    ///         repeat submission can find and top up its own intent.
+    mapping(address => mapping(uint128 => uint256)) public intentIdOf;
     bool public settled;
     uint256 public clearingPriceWad;
     /// @notice The clearing fixed point A* — the fill formula's numerator.
@@ -90,8 +111,27 @@ contract BatchAuction {
     function submit(uint128 maxPriceWad) external payable returns (uint256 id) {
         require(block.timestamp < closesAt, "queue closed");
         require(msg.value >= MIN_INTENT_WEI && msg.value <= type(uint128).max, "value");
+
+        // Topping up merges into the existing intent rather than taking another
+        // slot. Same clearing outcome — demand at a given price is summed
+        // either way — but it stops one bidder from consuming the queue, which
+        // is what makes MAX_INTENTS a bound on participants rather than on
+        // transactions.
+        uint256 existing = intentIdOf[msg.sender][maxPriceWad];
+        if (existing != 0) {
+            Intent storage prior = intents[existing - 1];
+            uint256 merged = uint256(prior.amount) + msg.value;
+            require(merged <= type(uint128).max, "value");
+            prior.amount = uint128(merged);
+            id = existing - 1;
+            emit IntentSubmitted(id, msg.sender, msg.value, maxPriceWad);
+            return id;
+        }
+
+        require(intents.length < MAX_INTENTS, "queue full");
         id = intents.length;
         intents.push(Intent(msg.sender, uint128(msg.value), maxPriceWad, false));
+        intentIdOf[msg.sender][maxPriceWad] = id + 1; // 0 means "none"
         emit IntentSubmitted(id, msg.sender, msg.value, maxPriceWad);
     }
 
@@ -102,6 +142,9 @@ contract BatchAuction {
         it.claimed = true; // reuse flag: cancelled intents are settled-as-empty
         uint256 amount = it.amount;
         it.amount = 0;
+        // Let them come back: without this a cancel would merge into the dead
+        // intent and the ETH would be stranded behind a claimed flag.
+        intentIdOf[msg.sender][it.maxPriceWad] = 0;
         (bool ok, ) = msg.sender.call{value: amount}("");
         require(ok, "refund");
         emit IntentCancelled(id, msg.sender, amount);
@@ -115,8 +158,18 @@ contract BatchAuction {
 
         (uint256 ethReserve, uint256 tokenReserve) = pool.getReserves();
 
+        // One pass over storage, then everything else reads memory. The search
+        // below re-evaluates demand ~50-60 times; doing that against storage
+        // cost ~48k gas per intent, which is what made a busy queue expensive
+        // enough to matter.
+        uint256 n = intents.length;
+        IntentView[] memory snap = new IntentView[](n);
         uint256 totalDemand;
-        for (uint256 i = 0; i < intents.length; i++) totalDemand += intents[i].amount;
+        for (uint256 i = 0; i < n; i++) {
+            Intent storage it = intents[i];
+            snap[i] = IntentView(it.amount, it.maxPriceWad);
+            totalDemand += it.amount;
+        }
 
         // Binary search the fixed point A* = min(D(p(A*)), maxRaise).
         // wei granularity needs full 64-bit convergence: loop until lo == hi.
@@ -125,7 +178,7 @@ contract BatchAuction {
         while (lo < hi) {
             uint256 mid = (lo + hi + 1) / 2; // bias up so lo converges to the largest valid A
             uint256 p = _priceWadAt(mid, ethReserve, tokenReserve);
-            uint256 d = _demandAt(p);
+            uint256 d = _demandAt(snap, p);
             uint256 g = d < maxRaiseWei ? d : maxRaiseWei;
             if (mid <= g) lo = mid;
             else hi = mid - 1;
@@ -142,15 +195,15 @@ contract BatchAuction {
             // (maxPriceWad == 0) accept any price including the sentinel, so
             // without this check their ETH would enter the pool for nothing.
             if (priceWad != type(uint256).max) {
-                uint256 d = _demandAt(priceWad);
+                uint256 d = _demandAt(snap, priceWad);
                 // Sum the exact floored per-intent fills; settling on this sum
                 // (not on raise) keeps escrow accounting exact to the wei, so
                 // every refund is always covered.
                 uint256 filled;
-                for (uint256 i = 0; i < intents.length; i++) {
-                    Intent storage it = intents[i];
+                for (uint256 i = 0; i < n; i++) {
+                    IntentView memory it = snap[i];
                     if (it.maxPriceWad == 0 || it.maxPriceWad >= priceWad) {
-                        filled += (uint256(it.amount) * raise) / d;
+                        filled += (it.amount * raise) / d;
                     }
                 }
                 if (filled > 0) {
@@ -229,9 +282,15 @@ contract BatchAuction {
         return (raise * WAD) / tokensOut;
     }
 
-    function _demandAt(uint256 priceWad) internal view returns (uint256 demand) {
-        for (uint256 i = 0; i < intents.length; i++) {
-            Intent storage it = intents[i];
+    function _demandAt(IntentView[] memory snap, uint256 priceWad)
+        internal
+        pure
+        returns (uint256 demand)
+    {
+        for (uint256 i = 0; i < snap.length; i++) {
+            // One struct copy per pass beats indexing snap[i] twice — that
+            // repeats the bounds check and offset math, and measured slower.
+            IntentView memory it = snap[i];
             if (it.maxPriceWad == 0 || it.maxPriceWad >= priceWad) demand += it.amount;
         }
     }

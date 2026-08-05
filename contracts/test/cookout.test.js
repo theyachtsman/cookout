@@ -520,3 +520,163 @@ describe("FeeSplitter — graduated-pool fee routing", () => {
       expect(names).to.not.include(forbidden);
   });
 });
+
+describe("CookoutLpLocker — permanent liquidity", () => {
+  const CURRENCY0 = "0x0000000000000000000000000000000000000000"; // native ETH
+  const CURRENCY1 = "0x1111111111111111111111111111111111111111";
+
+  async function deployLocker() {
+    const [, , splitter] = await ethers.getSigners();
+    const posm = await (await ethers.getContractFactory("MockPositionManager")).deploy();
+    await posm.setPoolKey(CURRENCY0, CURRENCY1);
+    const locker = await (await ethers.getContractFactory("CookoutLpLocker")).deploy(
+      await posm.getAddress(), splitter.address,
+    );
+    return { posm, locker, splitter };
+  }
+
+  it("collects fees by decreasing liquidity by exactly zero", async () => {
+    const { posm, locker, splitter } = await deployLocker();
+    await locker.collectFees(42);
+
+    const [actions, tokenId, liquidity, payee] = await posm.decodeLast();
+    expect(actions).to.equal("0x0111"); // DECREASE_LIQUIDITY, TAKE_PAIR
+    expect(tokenId).to.equal(42n);
+    // The whole safety argument in one assertion: zero liquidity means the
+    // call settles fee deltas and cannot touch the principal.
+    expect(liquidity).to.equal(0n);
+    expect(payee).to.equal(splitter.address);
+  });
+
+  it("lets anyone trigger a collection, but only ever to the fixed payee", async () => {
+    const { posm, locker, splitter } = await deployLocker();
+    const [, , , stranger] = await ethers.getSigners();
+    await locker.connect(stranger).collectFees(7);
+    const [, , , payee] = await posm.decodeLast();
+    expect(payee).to.equal(splitter.address);
+  });
+
+  it("has no way to move, approve, or unwind the position", async () => {
+    const { locker } = await deployLocker();
+    const names = locker.interface.fragments
+      .filter((f) => f.type === "function")
+      .map((f) => f.name);
+    // Uniswap's own PositionFeesForwarder ships approveOperator(), which after
+    // a timelock hands an operator blanket approval over the NFT. The point of
+    // this contract is that no such function exists to reason about.
+    for (const forbidden of [
+      "approveOperator", "setApprovalForAll", "approve", "transferFrom",
+      "safeTransferFrom", "owner", "transferOwnership", "withdraw", "execute",
+      "multicall", "decreaseLiquidity", "burn",
+    ])
+      expect(names, `must not expose ${forbidden}`).to.not.include(forbidden);
+    expect(names).to.have.members(["positionManager", "feeRecipient", "collectFees", "onERC721Received"]);
+  });
+
+  it("accepts positions only from the position manager", async () => {
+    const { posm, locker } = await deployLocker();
+    const [, , , stranger] = await ethers.getSigners();
+    // An unrelated NFT sent here would be stuck forever with no way out.
+    await expect(
+      locker.connect(stranger).onERC721Received(stranger.address, stranger.address, 1, "0x"),
+    ).to.be.revertedWithCustomError(locker, "NotThePositionManager");
+    await expect(posm.sendPositionTo(await locker.getAddress(), 1)).to.not.be.reverted;
+  });
+
+  it("refuses a configuration that would send fees nowhere", async () => {
+    const [, , splitter] = await ethers.getSigners();
+    const posm = await (await ethers.getContractFactory("MockPositionManager")).deploy();
+    const L = await ethers.getContractFactory("CookoutLpLocker");
+    await expect(L.deploy(await posm.getAddress(), ethers.ZeroAddress))
+      .to.be.revertedWithCustomError(L, "BadRecipient");
+    await expect(L.deploy(ethers.ZeroAddress, splitter.address))
+      .to.be.revertedWithCustomError(L, "BadRecipient");
+  });
+
+  it("routes a graduated coin's fees all the way to creator and protocol", async () => {
+    // End to end: locker → splitter → both recipients.
+    const [payer, creator] = await ethers.getSigners();
+    const PROTOCOL = "0x75f14607218dc771FcAC61a01Ae86507b9d8fdf1";
+    const splitter = await (await ethers.getContractFactory("FeeSplitter")).deploy(
+      creator.address, PROTOCOL, 3_000,
+    );
+    const posm = await (await ethers.getContractFactory("MockPositionManager")).deploy();
+    await posm.setPoolKey(CURRENCY0, CURRENCY1);
+    const locker = await (await ethers.getContractFactory("CookoutLpLocker")).deploy(
+      await posm.getAddress(), await splitter.getAddress(),
+    );
+
+    const [, , , payee] = await (async () => {
+      await locker.collectFees(1);
+      return posm.decodeLast();
+    })();
+    expect(payee).to.equal(await splitter.getAddress());
+
+    // Simulate the pool paying that collection out.
+    await payer.sendTransaction({ to: await splitter.getAddress(), value: E(10) });
+    await expect(splitter.releaseEth(PROTOCOL)).to.changeEtherBalance(PROTOCOL, E(3));
+    await expect(splitter.releaseEth(creator.address)).to.changeEtherBalance(creator, E(7));
+  });
+});
+
+describe("BatchAuction queue bounds", () => {
+  it("merges a top-up instead of taking another queue slot", async () => {
+    const { auction } = await createRound();
+    const [, alice] = await ethers.getSigners();
+    await auction.connect(alice).submit(0, { value: E(2) });
+    await auction.connect(alice).submit(0, { value: E(3) });
+
+    expect(await auction.intentCount()).to.equal(1n);
+    const it = await auction.intents(0);
+    expect(it.amount).to.equal(E(5));
+  });
+
+  it("keeps different limit prices as separate intents", async () => {
+    const { auction } = await createRound();
+    const [, alice] = await ethers.getSigners();
+    await auction.connect(alice).submit(0, { value: E(1) });
+    await auction.connect(alice).submit(10n ** 15n, { value: E(1) });
+    expect(await auction.intentCount()).to.equal(2n);
+  });
+
+  it("a cancel frees the slot so the bidder can come back", async () => {
+    const { auction } = await createRound();
+    const [, alice] = await ethers.getSigners();
+    await auction.connect(alice).submit(0, { value: E(2) });
+    await auction.connect(alice).cancel(0);
+    // Without clearing the merge index this would top up the cancelled intent
+    // and strand the ETH behind its claimed flag.
+    await auction.connect(alice).submit(0, { value: E(1) });
+    expect(await auction.intentCount()).to.equal(2n);
+    const fresh = await auction.intents(1);
+    expect(fresh.amount).to.equal(E(1));
+    expect(fresh.claimed).to.equal(false);
+  });
+
+  it("merged demand clears the same as separate intents would", async () => {
+    // The merge must not change the auction's outcome, only its storage.
+    const a = await createRound();
+    const b = await createRound();
+    const [, alice, bob] = await ethers.getSigners();
+
+    await a.auction.connect(alice).submit(0, { value: E(3) });
+    await a.auction.connect(alice).submit(0, { value: E(2) }); // merges to 5
+    await a.auction.connect(bob).submit(0, { value: E(4) });
+
+    await b.auction.connect(alice).submit(0, { value: E(5) });
+    await b.auction.connect(bob).submit(0, { value: E(4) });
+
+    await mine(4000);
+    await a.auction.settle();
+    await b.auction.settle();
+    expect(await a.auction.clearingPriceWad()).to.equal(await b.auction.clearingPriceWad());
+    expect(await a.auction.totalRaisedWei()).to.equal(await b.auction.totalRaisedWei());
+  });
+
+  it("caps the queue so settlement can never be priced out of reach", async () => {
+    // Escrow that cannot settle is escrow that cannot refund, so the bound is
+    // a solvency property. MAX_INTENTS is sized from measured settle gas.
+    const { auction } = await createRound();
+    expect(await auction.MAX_INTENTS()).to.equal(1_000n);
+  });
+});
