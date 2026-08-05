@@ -2,10 +2,19 @@
 pragma solidity ^0.8.24;
 
 /// @title PitBattlePool — winner-take-all buy-in pot for Battle the Goon Squad
-/// @notice Every real player buys in; whoever finishes with the highest PnL
-///         takes the pot. The match is simulated, so — exactly as with
-///         PitPool — the platform has to name the winner, and this contract's
-///         job is bounding what naming a winner can do.
+/// @notice Every real player pays the same fixed entry; whoever finishes with
+///         the highest PnL takes the pot. The match is simulated, so — exactly
+///         as with PitPool — the platform has to name the winner, and this
+///         contract's job is bounding what naming a winner can do.
+///
+///         The entry is a single immutable amount rather than a player-chosen
+///         buy-in, and that is a fairness rule, not a convenience. With free
+///         choice, someone entering for a tenth of what everyone else risked
+///         still takes the whole pot on a win — the small entrant gets the same
+///         upside for a fraction of the downside. A fixed entry per difficulty
+///         tier means everyone in a given battle risked exactly the same thing,
+///         so the pot is always entrants x entryFee and winning it is the same
+///         bet for all of them.
 ///
 ///         Bounds that hold:
 ///         - **The winner must have bought in.** The resolver cannot name an
@@ -38,6 +47,9 @@ contract PitBattlePool {
     address public immutable resolver;
     address public immutable feeRecipient;
     uint16 public immutable feeBps;
+    /// @notice What it costs to enter, exactly. Set from the match's difficulty
+    ///         tier at deployment and never negotiable — see the header.
+    uint256 public immutable entryFee;
     /// @notice Buy-ins close here; the winner cannot be named before it.
     uint64 public immutable closesAt;
     /// @notice After this, anyone may open refunds.
@@ -67,6 +79,8 @@ contract PitBattlePool {
     error NotTheWinner();
     error AlreadyPaid();
     error NotAnEntrant();
+    error WrongEntryFee();
+    error AlreadyEntered();
     error NothingToClaim();
     error TooEarly();
     error Refunding();
@@ -85,12 +99,15 @@ contract PitBattlePool {
         address resolver_,
         address feeRecipient_,
         uint16 feeBps_,
+        uint256 entryFee_,
         uint64 closesAt_,
         uint64 refundAfter_
     ) {
         if (resolver_ == address(0) || feeRecipient_ == address(0)) revert BadConfig();
         if (feeBps_ > MAX_FEE_BPS) revert BadConfig();
+        if (entryFee_ == 0) revert BadConfig();
         if (refundAfter_ <= closesAt_) revert BadConfig();
+        entryFee = entryFee_;
         resolver = resolver_;
         feeRecipient = feeRecipient_;
         feeBps = feeBps_;
@@ -98,14 +115,18 @@ contract PitBattlePool {
         refundAfter = refundAfter_;
     }
 
-    /// @notice Buy into the battle. Entering again tops up the same entry —
-    ///         it buys no extra claim on the pot, since the prize is decided by
-    ///         PnL rather than by stake.
+    /// @notice Enter the battle, for exactly the entry fee.
+    /// @dev Rejects both under- and overpayment rather than refunding change:
+    ///      an entry that quietly cost more than the tier advertised would
+    ///      break the very property the fixed fee exists to guarantee. One
+    ///      entry per address, since a second buys no extra claim on a prize
+    ///      decided by PnL — it would only be a donation to the winner.
     function enter() external payable {
         if (block.timestamp >= closesAt) revert Closed();
-        if (msg.value == 0) revert NothingToClaim();
-        if (buyIn[msg.sender] == 0) entrants += 1;
-        buyIn[msg.sender] += msg.value;
+        if (msg.value != entryFee) revert WrongEntryFee();
+        if (buyIn[msg.sender] != 0) revert AlreadyEntered();
+        buyIn[msg.sender] = msg.value;
+        entrants += 1;
         pot += msg.value;
         emit Entered(msg.sender, msg.value, pot);
     }

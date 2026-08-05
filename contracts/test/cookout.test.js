@@ -967,17 +967,17 @@ describe("PitPool — real money on a simulated match", () => {
 });
 
 describe("PitBattlePool — winner takes the pot", () => {
-  async function battle({ feeBps = 500, closeIn = 100, refundIn = 10_000 } = {}) {
+  async function battle({ feeBps = 500, closeIn = 100, refundIn = 10_000, entry = E(1) } = {}) {
     const [house, feeTo, a, b, c] = await ethers.getSigners();
     const t = await now();
     const p = await (await ethers.getContractFactory("PitBattlePool")).deploy(
-      house.address, feeTo.address, feeBps, t + closeIn, t + refundIn,
+      house.address, feeTo.address, feeBps, entry, t + closeIn, t + refundIn,
     );
     return { p, house, feeTo, a, b, c };
   }
 
   it("pays the whole pot to the named winner, minus the fee", async () => {
-    const { p, house, feeTo, a, b, c } = await battle({ feeBps: 500 });
+    const { p, house, feeTo, a, b, c } = await battle({ feeBps: 500, entry: E(1) });
     for (const w of [a, b, c]) await p.connect(w).enter({ value: E(1) });
     expect(await p.pot()).to.equal(E(3));
     expect(await p.entrants()).to.equal(3n);
@@ -1005,31 +1005,42 @@ describe("PitBattlePool — winner takes the pot", () => {
     await p.connect(house).resolve(a.address);
   });
 
-  it("topping up buys no extra claim — PnL decides, not stake", async () => {
-    const { p, house, a, b } = await battle({ feeBps: 0 });
+  it("everyone risks the same, which is the point of a fixed entry", async () => {
+    // With a chosen buy-in, entering for a tenth of what others risked still
+    // won the whole pot. A fixed entry per tier removes that outright.
+    const { p, a, b } = await battle({ feeBps: 0, entry: E(1) });
     await p.connect(a).enter({ value: E(1) });
-    await p.connect(a).enter({ value: E(4) }); // same entrant, bigger buy-in
+    await expect(p.connect(b).enter({ value: E(0.1) }))
+      .to.be.revertedWithCustomError(p, "WrongEntryFee");
+    await expect(p.connect(b).enter({ value: E(5) }))
+      .to.be.revertedWithCustomError(p, "WrongEntryFee");
+    // Overpaying is refused rather than refunded: an entry that quietly cost
+    // more than the tier advertised breaks the same guarantee.
     await p.connect(b).enter({ value: E(1) });
+    await expect(p.connect(b).enter({ value: E(1) }))
+      .to.be.revertedWithCustomError(p, "AlreadyEntered");
+    expect(await p.pot()).to.equal(E(2));
     expect(await p.entrants()).to.equal(2n);
-    expect(await p.pot()).to.equal(E(6));
+  });
 
-    await mine(200);
-    await p.connect(house).resolve(b.address);
-    // The small buy-in wins the lot because it won on PnL.
-    await expect(p.connect(b).claim()).to.changeEtherBalance(b, E(6));
+  it("the pot is always entrants x the entry fee", async () => {
+    const { p, a, b, c } = await battle({ entry: E(0.25) });
+    for (const w of [a, b, c]) await p.connect(w).enter({ value: E(0.25) });
+    expect(await p.pot()).to.equal(E(0.75));
+    expect(await p.entryFee()).to.equal(E(0.25));
   });
 
   it("returns every buy-in if the battle is never resolved", async () => {
-    const { p, a, b } = await battle({ closeIn: 100, refundIn: 1_000 });
+    const { p, a, b } = await battle({ closeIn: 100, refundIn: 1_000, entry: E(2) });
     await p.connect(a).enter({ value: E(2) });
-    await p.connect(b).enter({ value: E(3) });
+    await p.connect(b).enter({ value: E(2) });
     await mine(200);
     await expect(p.connect(a).openRefunds()).to.be.revertedWithCustomError(p, "TooEarly");
 
     await mine(1_000);
     await p.connect(b).openRefunds();
     await expect(p.connect(a).refund()).to.changeEtherBalance(a, E(2));
-    await expect(p.connect(b).refund()).to.changeEtherBalance(b, E(3));
+    await expect(p.connect(b).refund()).to.changeEtherBalance(b, E(2));
     await expect(p.connect(a).refund()).to.be.revertedWithCustomError(p, "AlreadyPaid");
     expect(await ethers.provider.getBalance(await p.getAddress())).to.equal(0n);
   });

@@ -79,6 +79,30 @@ export interface GameSettings {
   weeklySetBonusXp: number;
   /** Achievements, keyed by id. */
   achievements: Record<string, AchievementSettings>;
+  /** Battle the Goon Squad difficulty tiers and their fixed entry fees. */
+  battleTiers: Record<BattleTier, BattleTierSettings>;
+}
+
+/** The three Battle the Goon Squad difficulty tiers. */
+export type BattleTier = "easy" | "medium" | "hard";
+export const BATTLE_TIERS: BattleTier[] = ["easy", "medium", "hard"];
+
+export interface BattleTierSettings {
+  label: string;
+  /**
+   * Entry cost in USD, fixed for everyone in the battle.
+   *
+   * Priced in dollars rather than ETH so the ladder means the same thing as
+   * the ETH price moves: "the $25 tier" should stay the $25 tier. The chain
+   * needs a wei amount, so the server converts once at match creation and the
+   * pool contract holds that converted figure immutably — nobody's entry can
+   * be repriced after they have decided to play.
+   */
+  entryUsd: number;
+  /** House cut of the pot, in basis points. Capped at 10% by the contract. */
+  feeBps: number;
+  /** Hidden from the lobby without deleting its configuration. */
+  enabled: boolean;
 }
 
 /**
@@ -86,6 +110,15 @@ export interface GameSettings {
  * throughout, so an admin edit can never mutate the constants themselves —
  * the same pattern the Pit, Burger and Goon settings already use.
  */
+/** The default entry ladder: $5 / $25 / $100. */
+export function freshBattleTiers(): Record<BattleTier, BattleTierSettings> {
+  return {
+    easy: { label: "Easy", entryUsd: 5, feeBps: 500, enabled: true },
+    medium: { label: "Medium", entryUsd: 25, feeBps: 500, enabled: true },
+    hard: { label: "Hard", entryUsd: 100, feeBps: 500, enabled: true },
+  };
+}
+
 export function freshGameSettings(): GameSettings {
   return {
     tiers: {
@@ -120,6 +153,7 @@ export function freshGameSettings(): GameSettings {
     achievements: Object.fromEntries(
       ACHIEVEMENTS.map((a) => [a.id, { rarity: a.rarity, enabled: true } satisfies AchievementSettings]),
     ),
+    battleTiers: freshBattleTiers(),
   };
 }
 
@@ -147,7 +181,21 @@ export function mergeGameSettings(stored: Partial<GameSettings> | undefined): Ga
     dailySetBonusXp: stored.dailySetBonusXp ?? fresh.dailySetBonusXp,
     weeklySetBonusXp: stored.weeklySetBonusXp ?? fresh.weeklySetBonusXp,
     achievements: { ...fresh.achievements, ...(stored.achievements ?? {}) },
+    battleTiers: { ...fresh.battleTiers, ...(stored.battleTiers ?? {}) },
   };
+}
+
+/**
+ * What a Battle tier costs right now, in wei.
+ *
+ * The ladder is priced in USD so it keeps meaning the same thing as ETH moves;
+ * the contract needs wei. Converted at match creation and then immutable, so a
+ * price swing never reprices an entry someone has already committed to.
+ */
+export function battleEntryWei(entryUsd: number, ethUsd: number): bigint {
+  if (!(entryUsd > 0) || !(ethUsd > 0)) throw new Error("entry and ETH price must be positive");
+  const eth = entryUsd / ethUsd;
+  return BigInt(Math.round(eth * 1e18));
 }
 
 /** Apply the stored overrides to a mission definition. */
@@ -173,6 +221,20 @@ export function gameSettingProblem(path: string, value: unknown): string | null 
   if (path.endsWith(".totalSupply")) return positive("total supply");
   if (path.endsWith(".graduationMcap")) return positive("graduation market cap");
   if (path.endsWith("bondTargetUsd")) return positive("bond target");
+  if (path.startsWith("battleTiers.") && path.endsWith(".entryUsd")) {
+    if (!(n > 0)) return "an entry fee must be greater than zero";
+    // A ceiling because this is a fixed, non-negotiable cost: a mistyped zero
+    // turns the $100 tier into the $1,000 tier and every entrant pays it.
+    if (n > 10_000) return "an entry fee above $10,000 is almost certainly a typo";
+    return null;
+  }
+  if (path.startsWith("battleTiers.") && path.endsWith(".feeBps")) {
+    // PitBattlePool rejects anything above 10% at construction, so a higher
+    // value here would deploy nothing and fail at match creation instead.
+    if (!(n >= 0)) return "a fee can't be negative";
+    if (n > 1_000) return "the battle house cut is capped at 10% (1000 bps)";
+    return null;
+  }
   if (path.endsWith("Bps")) {
     if (!(n >= 0)) return "a fee can't be negative";
     if (n > 10_000) return "a fee can't exceed 100% (10000 bps)";
