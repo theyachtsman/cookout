@@ -6,6 +6,7 @@
     "build": "node scripts/hh.cjs compile",
     "test": "node scripts/gen-vectors.mjs && node scripts/hh.cjs test",
     "test:fork": "FORK=1 node scripts/hh.cjs test test/migrate.fork.test.js",
+    "test:scale": "FORK=1 node scripts/hh.cjs test test/scale.fork.test.js",
     "vectors": "node scripts/gen-vectors.mjs"
   },
   "devDependencies": {
