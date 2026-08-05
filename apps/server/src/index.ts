@@ -106,6 +106,14 @@ if (chain.enabled) {
     `chain service ON — operator ${chain.operatorAddress}, factory ${process.env.CHAIN_FACTORY}, ` +
       `chain ${process.env.CHAIN_ID}, scale ${chain.scale}`,
   );
+  // Say it out loud either way. Whether the Pit escrows real money is the
+  // difference between a match paying a prize and a match paying nothing, and
+  // silence would make "no pools configured" look identical to "working".
+  console.log(
+    process.env.CHAIN_PIT_FACTORY
+      ? `  Pit prize pools ON — factory ${process.env.CHAIN_PIT_FACTORY} (real money)`
+      : `  Pit prize pools OFF — no CHAIN_PIT_FACTORY, Pit matches run without a pot`,
+  );
   // Fire-and-forget: ChainService.tick self-guards against overlap. 1.5s keeps
   // the mirrored chart snappy; the guard absorbs slow RPC round-trips.
   setInterval(() => void chain.tick(Date.now()), 1500);

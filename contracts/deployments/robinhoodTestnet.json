@@ -12,5 +12,7 @@
   "txHash": "0x36ab3bdd3aeea8527d3c8ee6408235bffcb3b9b0fe9cf3298e63c4939e01366c",
   "block": 97356116,
   "gasUsed": "5574998",
-  "deployedAt": "2026-08-05T16:20:39.664Z"
+  "deployedAt": "2026-08-05T16:20:39.664Z",
+  "pitPoolFactory": "0x625C952Df4A434931a0EF7ab92094230EF9f4273",
+  "pitPoolFactoryBlock": 97423603
 }
