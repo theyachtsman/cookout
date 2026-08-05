@@ -866,3 +866,102 @@ describe("PriceMath — the price a graduated coin opens at", () => {
     close(await m.fullRangeLiquidity(p, E(200), E(2_000_000)), balanced * 2n);
   });
 });
+
+describe("PitPool — real money on a simulated match", () => {
+  const GRADUATE = 1, RUG = 2, TIMER = 3;
+
+  async function pool({ feeBps = 500, closeIn = 100, refundIn = 10_000 } = {}) {
+    const [house, feeTo, a, b, c] = await ethers.getSigners();
+    const t = await now();
+    const p = await (await ethers.getContractFactory("PitPool")).deploy(
+      house.address, feeTo.address, feeBps, t + closeIn, t + refundIn,
+    );
+    return { p, house, feeTo, a, b, c };
+  }
+
+  it("pays winners pro-rata and nobody else", async () => {
+    const { p, house, a, b, c } = await pool({ feeBps: 0 });
+    await p.connect(a).stake(GRADUATE, { value: E(3) });
+    await p.connect(b).stake(GRADUATE, { value: E(1) });
+    await p.connect(c).stake(RUG, { value: E(4) });
+
+    await mine(200);
+    await p.connect(house).resolve(GRADUATE);
+
+    // 8 ETH pot, split 3:1 between the two who called it right.
+    expect(await p.pending(a.address)).to.equal(E(6));
+    expect(await p.pending(b.address)).to.equal(E(2));
+    expect(await p.pending(c.address)).to.equal(0n);
+    await expect(p.connect(a).claim()).to.changeEtherBalance(a, E(6));
+    await expect(p.connect(c).claim()).to.be.revertedWithCustomError(p, "NothingToClaim");
+    await expect(p.connect(a).claim()).to.be.revertedWithCustomError(p, "AlreadyClaimed");
+  });
+
+  it("takes its fee once, capped, and only to the fixed recipient", async () => {
+    const { p, house, feeTo, a } = await pool({ feeBps: 500 });
+    await p.connect(a).stake(TIMER, { value: E(10) });
+    await mine(200);
+    await expect(p.connect(house).resolve(TIMER)).to.changeEtherBalance(feeTo, E(0.5));
+    expect(await p.pending(a.address)).to.equal(E(9.5));
+
+    const F = await ethers.getContractFactory("PitPool");
+    const t = await now();
+    await expect(F.deploy(house.address, feeTo.address, 1_001, t + 100, t + 200))
+      .to.be.revertedWithCustomError(F, "BadConfig");
+  });
+
+  it("refuses to let the operator keep the pot by never resolving", async () => {
+    // The whole point of the refund window: a silent operator can delay
+    // payment, never take it.
+    const { p, a, b } = await pool({ closeIn: 100, refundIn: 1_000 });
+    await p.connect(a).stake(RUG, { value: E(2) });
+    await p.connect(b).stake(GRADUATE, { value: E(1) });
+
+    await mine(200);
+    await expect(p.connect(a).openRefunds()).to.be.revertedWithCustomError(p, "TooEarly");
+
+    await mine(1_000);
+    // Permissionless: it does not depend on the operator being alive.
+    await p.connect(b).openRefunds();
+    await expect(p.connect(a).refund()).to.changeEtherBalance(a, E(2));
+    await expect(p.connect(b).refund()).to.changeEtherBalance(b, E(1));
+    expect(await ethers.provider.getBalance(await p.getAddress())).to.equal(0n);
+  });
+
+  it("refunds everyone, fee-free, when nobody backed the winner", async () => {
+    const { p, house, feeTo, a } = await pool({ feeBps: 500 });
+    await p.connect(a).stake(RUG, { value: E(5) });
+    await mine(200);
+    // The house does not get to keep a pot it did not win.
+    await expect(p.connect(house).resolve(GRADUATE)).to.changeEtherBalance(feeTo, 0n);
+    expect(await p.refunding()).to.equal(true);
+    await expect(p.connect(a).refund()).to.changeEtherBalance(a, E(5));
+  });
+
+  it("only the resolver resolves, once, and not before close", async () => {
+    const { p, house, a } = await pool();
+    await p.connect(a).stake(TIMER, { value: E(1) });
+    await expect(p.connect(house).resolve(TIMER)).to.be.revertedWithCustomError(p, "NotClosed");
+    await mine(200);
+    await expect(p.connect(a).resolve(TIMER)).to.be.revertedWithCustomError(p, "NotResolver");
+    await p.connect(house).resolve(TIMER);
+    // No re-resolving after seeing who claimed.
+    await expect(p.connect(house).resolve(RUG)).to.be.revertedWithCustomError(p, "AlreadyResolved");
+  });
+
+  it("closes staking on time and refuses an unresolved outcome", async () => {
+    const { p, house, a } = await pool();
+    await p.connect(a).stake(GRADUATE, { value: E(1) });
+    await mine(200);
+    await expect(p.connect(a).stake(GRADUATE, { value: E(1) }))
+      .to.be.revertedWithCustomError(p, "Closed");
+    await expect(p.connect(house).resolve(0)).to.be.revertedWithCustomError(p, "BadCall");
+  });
+
+  it("has no path from the pot to the operator", async () => {
+    const { p } = await pool();
+    const names = p.interface.fragments.filter((f) => f.type === "function").map((f) => f.name);
+    for (const forbidden of ["withdraw", "sweep", "rescue", "setResolver", "setFee", "execute", "owner"])
+      expect(names, `must not expose ${forbidden}`).to.not.include(forbidden);
+  });
+});
