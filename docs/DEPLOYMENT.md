@@ -191,6 +191,37 @@ Permit2          0x000000000022D473030F116dDEE9F6B43aC78BA3
 StateView        0xf3334192d15450cdd385c8b70e03f9a6bd9e673b
 ```
 
+### Rehearse it first — this costs nothing
+
+```bash
+npm run rehearse -w @cookout/contracts
+```
+
+Forks mainnet, deploys the real contracts against real Robinhood Chain state,
+runs a round to graduation, migrates into the real Uniswap v4, and locks the
+position — with funded-from-nothing accounts. It reports what the same run
+would have cost live, at the chain's actual gas price.
+
+It does not prove sequencer behaviour under load, or what addresses the real
+deployment lands on. Everything else is identical to going live.
+
+### What it actually costs
+
+Measured, not estimated, at the chain's real ~0.023 gwei:
+
+| | |
+| --- | --- |
+| Deploy the factory (once) | **0.00012 ETH** |
+| Gas for one full round | **0.00014 ETH** |
+| Seed liquidity per round | **0.015 ETH** — locked forever if it graduates |
+
+Gas is not the cost. The per-round seed is (`initialEthLiquidity` x
+`CHAIN_SCALE`, so 1.5 x 0.01 at rookie tier), and on graduation it stays in the
+locked v4 position permanently. Lower `CHAIN_SCALE` to open smaller.
+
+**0.02 ETH** covers deployment plus one real round end to end. Ongoing, budget
+~0.015 ETH per round you create.
+
 ### Before you deploy
 
 Everything below is cheap now and impossible later. The factory is immutable

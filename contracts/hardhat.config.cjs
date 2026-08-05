@@ -29,8 +29,18 @@ module.exports = {
     // PoolManager and PositionManager rather than a mock of them. A mock only
     // proves we encoded what we intended; this proves Uniswap accepts it.
     hardhat: {
+      // FORK=1 forks the testnet; FORK=mainnet forks 4663, which is how the
+      // mainnet deployment gets rehearsed against real state for free.
+      // Report the forked chain's id, not hardhat's 31337, so anything that
+      // branches on chainId behaves as it will live.
+      chainId: process.env.FORK === "mainnet" ? 4663 : process.env.FORK ? 46630 : 31337,
       forking: process.env.FORK
-        ? { url: process.env.RH_TESTNET_RPC ?? "https://rpc.testnet.chain.robinhood.com" }
+        ? {
+            url:
+              process.env.FORK === "mainnet"
+                ? (process.env.RH_RPC ?? "https://rpc.mainnet.chain.robinhood.com")
+                : (process.env.RH_TESTNET_RPC ?? "https://rpc.testnet.chain.robinhood.com"),
+          }
         : undefined,
     },
     // Real money. Nothing deploys here without scripts/preflight.cjs passing.

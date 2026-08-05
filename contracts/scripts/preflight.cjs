@@ -22,8 +22,18 @@ const KNOWN_V4 = {
 };
 const PERMIT2 = "0x000000000022D473030F116dDEE9F6B43aC78BA3";
 const TESTNET_OPERATOR = "0xb6ffa5587db5e5781134e23988bfca78f6dd27db";
-/** Enough to create rounds and, more importantly, keep settling them. */
-const MIN_OPERATOR_ETH = 0.05;
+/**
+ * Enough to deploy and run one full round, measured rather than guessed.
+ *
+ * At the chain's real gas price (~0.023 gwei) the whole factory deploys for
+ * 0.00012 ETH and a round's gas is 0.00014. Gas is not the cost here — the
+ * per-round seed liquidity is (0.015 ETH at rookie tier x CHAIN_SCALE 0.01),
+ * and on graduation that seed is locked in the v4 position forever.
+ *
+ * So this floor covers deploy + one round. Ongoing operation needs roughly
+ * 0.015 ETH per round created, which is a business cost, not a gas budget.
+ */
+const MIN_OPERATOR_ETH = 0.02;
 
 let problems = 0;
 const ok = (label, detail = "") => console.log(`  ok    ${label}${detail ? ` — ${detail}` : ""}`);
