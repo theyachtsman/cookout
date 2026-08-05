@@ -100,6 +100,12 @@ export class RoundEngine {
    */
   onPitChainResolve?: (round: Round, outcome: { call: 1 | 2 | 3; battleWinner?: string }) => void;
 
+  /**
+   * Deploy a Pit match's on-chain prize pools. Same late binding, same reason.
+   * Absent on the paper site, where matches have no pools.
+   */
+  onPitChainCreate?: (round: Round) => void;
+
   constructor(
     private store: Store,
     private broadcast: Broadcast,
@@ -296,6 +302,12 @@ export class RoundEngine {
     );
     // The Goon Squad may hype a fresh match in the general Pit room.
     this.store.onPitMoment({ kind: "match_created", roomId: PIT_ROOM, symbol: concept.symbol, now });
+    // Escrow has to exist before anyone can stake into it, so the pools are
+    // created with the match rather than when the first player enters.
+    // Fire-and-forget: a match with no pools is the paper shape, which every
+    // surface already handles, and blocking a launch on an RPC round-trip
+    // would be worse than launching without a pot.
+    this.onPitChainCreate?.(round);
     this.emitState(round);
     return round;
   }

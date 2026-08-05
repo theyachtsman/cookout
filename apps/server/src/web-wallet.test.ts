@@ -297,3 +297,27 @@ test("the lobby is offered only the tiers an operator left enabled", () => {
   const src = readFileSync(join(import.meta.dirname, "routes.ts"), "utf8");
   assert.match(src, /BATTLE_TIERS\.filter\(\(k\) => store\.settings\.game\.battleTiers\[k\]\?\.enabled\)/);
 });
+
+test("both Pit chain hooks are actually called, not just defined", () => {
+  // createPitPools existed for a whole commit without a single call site —
+  // it typechecked, shipped, and did nothing. Defining a method is not wiring
+  // it, so both directions get pinned: bound in index, invoked in the engine.
+  const idx = readFileSync(join(import.meta.dirname, "index.ts"), "utf8");
+  const eng = readFileSync(join(import.meta.dirname, "engine.ts"), "utf8");
+  for (const hook of ["onPitChainCreate", "onPitChainResolve"]) {
+    assert.match(idx, new RegExp(`engine\\.${hook}\\s*=`), `${hook} must be bound`);
+    // Either call style — the point is that it is reached, not how.
+    assert.ok(
+      eng.includes(`this.${hook}?.(`) || eng.includes(`this.${hook}(`),
+      `${hook} must be invoked by the engine`,
+    );
+  }
+});
+
+test("the prediction pool fee is clamped to what the contract accepts", () => {
+  // PitPool rejects anything over 10% at construction, and the paper Pit's
+  // rake is configurable above it — unclamped, a legal setting would deploy
+  // nothing and the match would silently run without a pot.
+  const idx = readFileSync(join(import.meta.dirname, "index.ts"), "utf8");
+  assert.match(idx, /Math\.min\(round\.pit\?\.pitFeeBps \?\? 500, 1_000\)/);
+});

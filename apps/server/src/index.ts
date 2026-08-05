@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import { GLOBAL_ROOM } from "@cookout/shared";
+import { BATTLE_TIERS, battleEntryWei, GLOBAL_ROOM } from "@cookout/shared";
 import { BotSwarm } from "./bots.js";
 import { ChainService } from "./chain.js";
 import { RoundEngine } from "./engine.js";
@@ -40,6 +40,37 @@ const chain = new ChainService(store, engine);
 // Close the loop the constructors cannot: the chain service depends on the
 // engine, so the engine gets its chain hook after both exist.
 engine.onPitChainResolve = (round, outcome) => void chain.resolvePitPools(round, outcome);
+engine.onPitChainCreate = (round) => {
+  const tiers = store.settings.game.battleTiers;
+  // The lobby offers every enabled tier, but one match escrows one entry
+  // price, so the pool is deployed at the cheapest enabled one. A player
+  // choosing a dearer tier is choosing a different match.
+  const tier = BATTLE_TIERS.map((k) => tiers[k]).filter((t) => t?.enabled)[0];
+  if (!tier) return;
+  void chain
+    .createPitPools(round, {
+      battleEntryUsd: tier.entryUsd,
+      battleEntryWei: battleEntryWei(tier.entryUsd, store.ethUsd || 1),
+      // The pools cap their cut at 10%; the paper Pit's rake is configurable
+      // above that, so clamp rather than deploy something that reverts.
+      predictionFeeBps: Math.min(round.pit?.pitFeeBps ?? 500, 1_000),
+      battleFeeBps: tier.feeBps,
+    })
+    .then((pc) => {
+      if (!pc) return;
+      round.pitChain = pc;
+      store.logAdmin(
+        "chain",
+        `${round.token.symbol} Pit pools deployed — prediction ${pc.predictionPool}, battle ${pc.battlePool} ($${pc.battleEntryUsd} entry)`,
+      );
+    })
+    .catch((e) => {
+      store.logAdmin(
+        "chain",
+        `Pit pools NOT deployed for ${round.token.symbol}: ${(e as Error).message}. The match runs without a pot.`,
+      );
+    });
+};
 // The Telegram companion (The Pit Boss). Null unless TELEGRAM_BOT_TOKEN is set,
 // so a deployment that hasn't opted in is entirely unaffected.
 const pitBoss = createPitBoss(store);
