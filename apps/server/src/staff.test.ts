@@ -213,7 +213,7 @@ test("revoking sessions kicks every device for that account", () => {
 test("feature flags: registry defaults apply until overridden", () => {
   const { store } = setup();
   assert.equal(store.flag("pit"), true, "defaults come from the registry");
-  assert.equal(store.flag("loot_boxes"), false);
+  assert.equal(store.flag("seasonal_theme"), false, "a feature that ships off");
   store.featureFlags.pit = false;
   assert.equal(store.flag("pit"), false, "an override wins");
   assert.equal(store.flags().flame_trial, true, "untouched flags keep their default");

@@ -33,6 +33,9 @@ export function awardBurger(
   opts: { ref?: string; now?: number; amount?: number; label?: string } = {},
 ): number {
   if (isBot(address)) return 0;
+  // The economy has two switches on purpose: burger.enabled is the economy's
+  // own config, the flag is the operator's kill switch in Command Center.
+  if (!store.flag("burgers")) return 0;
   const cfg = store.settings.burger;
   if (!cfg.enabled) return 0;
   const rule = cfg.rules.find((r) => r.source === source);
@@ -64,6 +67,9 @@ export function awardBurger(
  */
 export function awardBurgerXpMilestones(store: Store, address: Address, level: number, now = Date.now()): number {
   if (isBot(address)) return 0;
+  // The economy has two switches on purpose: burger.enabled is the economy's
+  // own config, the flag is the operator's kill switch in Command Center.
+  if (!store.flag("burgers")) return 0;
   const cfg = store.settings.burger;
   if (!cfg.enabled) return 0;
   const u = store.getOrCreateUser(address);
@@ -86,6 +92,9 @@ export function awardBurgerXpMilestones(store: Store, address: Address, level: n
  */
 export function awardBurgerOneTime(store: Store, address: Address, id: string, now = Date.now()): number {
   if (isBot(address)) return 0;
+  // The economy has two switches on purpose: burger.enabled is the economy's
+  // own config, the flag is the operator's kill switch in Command Center.
+  if (!store.flag("burgers")) return 0;
   const cfg = store.settings.burger;
   if (!cfg.enabled) return 0;
   const m = cfg.oneTimeMilestones.find((x) => x.id === id);

@@ -183,3 +183,43 @@ test("the operator's gas balance is watched, since empty means stuck escrow", as
   // One audit line per crossing, not one a minute.
   assert.match(src, /previous \?\? Infinity\) >= OPERATOR_MIN_BALANCE_ETH/);
 });
+
+/**
+ * Feature flags have to actually gate something.
+ *
+ * Every flag was registered in the Command Center and read by nothing: an
+ * operator could switch "The Pit" off, watch the toggle move and the audit log
+ * record it, and the Pit would keep taking entries. A control panel that lies
+ * is worse than no control panel, and this is the same failure as the copy keys
+ * that were editable but never rendered — so it gets the same kind of guard.
+ */
+test("every registered feature flag is enforced somewhere", async () => {
+  const { FEATURE_FLAGS } = await import("@cookout/shared");
+  const sources = ["routes.ts", "engine.ts", "store.ts", "collection.ts", "burger.ts", "jackpot.ts"]
+    .map((f) => {
+      try {
+        return readFileSync(join(import.meta.dirname, f), "utf8");
+      } catch {
+        return "";
+      }
+    })
+    .join("\n");
+
+  // Flags whose enforcement is presentational or lives outside the server.
+  const elsewhere = new Set(["seasonal_theme", "maintenance", "telegram", "goons", "nfts"]);
+
+  const dead = FEATURE_FLAGS.filter((f) => !elsewhere.has(f.key))
+    .filter((f) => !sources.includes(`flag("${f.key}")`))
+    .map((f) => f.key);
+  assert.deepEqual(dead, [], `these flags gate nothing: ${dead.join(", ")}`);
+});
+
+test("a flag switched off actually closes the thing it names", async () => {
+  const { Store } = await import("./store.js");
+  const store = new Store();
+  assert.equal(store.flag("pit"), true, "on by default");
+  store.featureFlags.pit = false;
+  assert.equal(store.flag("pit"), false);
+  // Defaults still resolve for flags the operator never touched.
+  assert.equal(store.flag("pit_trading"), true);
+});

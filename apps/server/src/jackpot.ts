@@ -25,6 +25,9 @@ import type { Store, StoredUser } from "./store.js";
 
 /** Add a round's jackpot slice from its total trading fees. Returns the cut. */
 export function accrueJackpot(store: Store, roundFees: number): number {
+  // Switched off, fees simply stay with the house rather than accruing to a
+  // pool that will not pay out.
+  if (!store.flag("jackpot")) return 0;
   const cut = roundFees > 0 ? roundFees * JACKPOT_FEE_SHARE : 0;
   if (cut > 0) store.jackpotPool += cut;
   return cut;
@@ -70,6 +73,7 @@ function buildStandings(store: Store, week: string, pool: number, ethUsd: number
  * every tick.
  */
 export function settleWeeklyJackpot(store: Store, now = Date.now()): JackpotPayout | null {
+  if (!store.flag("jackpot")) return null;
   const current = weekKey(now);
   if (current === store.jackpotWeekKey) return null;
 

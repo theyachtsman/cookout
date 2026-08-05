@@ -842,6 +842,7 @@ export function createApp(
     "/api/pit/launch",
     auth,
     wrap((req, res) => {
+      if (!store.flag("pit")) throw new Err(503, "The Pit is closed right now");
       const body = req.body as {
         name?: string;
         symbol?: string;
@@ -964,9 +965,14 @@ export function createApp(
     wrap((req, res) => {
       const round = store.rounds.get(req.params.id!);
       if (!round || round.matchType !== "pit") throw new Err(404, "pit match not found");
+      if (!store.flag("pit")) throw new Err(503, "The Pit is closed right now");
       if (round.state !== "lobby") throw new Err(409, "the lobby for this match is closed");
       const addr = req.userAddress!;
       const pit = round.pit!;
+      // Each pool switches independently: a prediction pool can be closed —
+      // it is the piece with the most classification risk — without taking
+      // the trading pool or the Trial down with it.
+      const closed = (what: string) => new Err(503, `${what} is closed right now`);
       const body = req.body as {
         prediction?: string;
         predictionStake?: number;
@@ -988,6 +994,7 @@ export function createApp(
         return v;
       };
       if (body.prediction !== undefined && body.prediction !== null) {
+        if (!store.flag("pit_prediction")) throw closed("The prediction market");
         if (!pit.predictionMode) throw new Err(400, "this match has no prediction market");
         if (!["graduate", "rug", "timer"].includes(String(body.prediction)))
           throw new Err(400, "prediction must be graduate, rug, or timer");
@@ -995,11 +1002,13 @@ export function createApp(
         entry.predictionStake = resolveStake(body.predictionStake, "prediction bet");
       }
       if (body.houseSpecial) {
+        if (!store.flag("pit_prediction")) throw closed("The prediction market");
         if (!pit.predictionMode || !pit.houseSpecial) throw new Err(400, "this match has no House Special");
         entry.houseSpecial = true;
         entry.houseSpecialStake = resolveStake(body.houseSpecialStake, "house special bet");
       }
       if (body.trading) {
+        if (!store.flag("pit_trading")) throw closed("Battle the Goon Squad");
         if (!pit.tradingMode) throw new Err(400, "this match has no trading pool");
         entry.trading = true;
         entry.tradingStake =
@@ -1008,6 +1017,7 @@ export function createApp(
             : resolveStake(body.tradingStake, "trading buy-in");
       }
       if (body.trial) {
+        if (!store.flag("flame_trial")) throw closed("The Flame Trial");
         if (!pit.trialMode) throw new Err(400, "this match has no Flame Trial");
         if (round.creatorAddress.toLowerCase() !== addr.toLowerCase())
           throw new Err(403, "Flame Trial is single-player: only the match creator can play it");
@@ -1546,6 +1556,8 @@ export function createApp(
         if (!GAME_MODE_MAP[rawMode as GameMode]) throw new Err(400, "unknown game mode");
         const def = store.modeDef(rawMode as GameMode);
         if (def.disabled) throw new Err(403, `${def.name} isn't available yet — it unlocks later`);
+        if (isEnduranceMode(def.key) && !store.flag("endurance"))
+          throw new Err(503, "Endurance launches are paused right now");
         if (creator.level < def.unlockLevel)
           throw new Err(
             403,
@@ -1891,6 +1903,8 @@ export function createApp(
         if (!GAME_MODE_MAP[rawMode as GameMode]) throw new Err(400, "unknown game mode");
         const def = store.modeDef(rawMode as GameMode);
         if (def.disabled) throw new Err(403, `${def.name} isn't available yet — it unlocks later`);
+        if (isEnduranceMode(def.key) && !store.flag("endurance"))
+          throw new Err(503, "Endurance launches are paused right now");
         if (creator.level < def.unlockLevel)
           throw new Err(
             403,
@@ -2646,6 +2660,7 @@ export function createApp(
     auth,
     rateLimit("crate_open", 30, 60_000),
     wrap((req, res) => {
+      if (!store.flag("loot_boxes")) throw new Err(503, "Recruit Crates are closed right now");
       const { pack } = req.body as { pack?: string };
       try {
         res.json(collection.openPack(req.userAddress!, String(pack ?? "x1")));
