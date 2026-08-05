@@ -35,9 +35,10 @@ contract BatchAuction {
     ///         this is a solvency bound, not a comfort one. Per-address merging
     ///         (see submit) means a slot costs an attacker a fresh funded
     ///         address, not just another transaction.
-    ///         Sized from measurement: settle costs ~19.5k gas per intent, so a
-    ///         full queue settles in ~19.5M — inside a conventional 30M block
-    ///         with headroom, and far inside this chain's limit.
+    ///         Sized from measurement, then confirmed at the bound itself: a
+    ///         full 1,000-intent queue settles in 14.7M gas (14.7k per intent,
+    ///         measured on a fork of the live chain). That is under half a
+    ///         conventional 30M block, and far inside this chain's limit.
     uint256 public constant MAX_INTENTS = 1_000;
 
     struct Intent {
