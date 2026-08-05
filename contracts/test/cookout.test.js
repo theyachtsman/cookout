@@ -965,3 +965,92 @@ describe("PitPool — real money on a simulated match", () => {
       expect(names, `must not expose ${forbidden}`).to.not.include(forbidden);
   });
 });
+
+describe("PitBattlePool — winner takes the pot", () => {
+  async function battle({ feeBps = 500, closeIn = 100, refundIn = 10_000 } = {}) {
+    const [house, feeTo, a, b, c] = await ethers.getSigners();
+    const t = await now();
+    const p = await (await ethers.getContractFactory("PitBattlePool")).deploy(
+      house.address, feeTo.address, feeBps, t + closeIn, t + refundIn,
+    );
+    return { p, house, feeTo, a, b, c };
+  }
+
+  it("pays the whole pot to the named winner, minus the fee", async () => {
+    const { p, house, feeTo, a, b, c } = await battle({ feeBps: 500 });
+    for (const w of [a, b, c]) await p.connect(w).enter({ value: E(1) });
+    expect(await p.pot()).to.equal(E(3));
+    expect(await p.entrants()).to.equal(3n);
+
+    await mine(200);
+    await expect(p.connect(house).resolve(b.address)).to.changeEtherBalance(feeTo, E(0.15));
+    expect(await p.pending(b.address)).to.equal(E(2.85));
+    expect(await p.pending(a.address)).to.equal(0n);
+    await expect(p.connect(b).claim()).to.changeEtherBalance(b, E(2.85));
+    // Losing entrants get nothing — that is what winner-take-all means.
+    await expect(p.connect(a).claim()).to.be.revertedWithCustomError(p, "NotTheWinner");
+    await expect(p.connect(b).claim()).to.be.revertedWithCustomError(p, "AlreadyPaid");
+  });
+
+  it("cannot name a winner who never bought in", async () => {
+    // The bound that makes this a picker rather than a withdrawal function:
+    // without it, one call sends the pot anywhere the operator likes.
+    const { p, house, a, c } = await battle();
+    await p.connect(a).enter({ value: E(1) });
+    await mine(200);
+    await expect(p.connect(house).resolve(c.address))
+      .to.be.revertedWithCustomError(p, "NotAnEntrant");
+    await expect(p.connect(house).resolve(house.address))
+      .to.be.revertedWithCustomError(p, "NotAnEntrant");
+    await p.connect(house).resolve(a.address);
+  });
+
+  it("topping up buys no extra claim — PnL decides, not stake", async () => {
+    const { p, house, a, b } = await battle({ feeBps: 0 });
+    await p.connect(a).enter({ value: E(1) });
+    await p.connect(a).enter({ value: E(4) }); // same entrant, bigger buy-in
+    await p.connect(b).enter({ value: E(1) });
+    expect(await p.entrants()).to.equal(2n);
+    expect(await p.pot()).to.equal(E(6));
+
+    await mine(200);
+    await p.connect(house).resolve(b.address);
+    // The small buy-in wins the lot because it won on PnL.
+    await expect(p.connect(b).claim()).to.changeEtherBalance(b, E(6));
+  });
+
+  it("returns every buy-in if the battle is never resolved", async () => {
+    const { p, a, b } = await battle({ closeIn: 100, refundIn: 1_000 });
+    await p.connect(a).enter({ value: E(2) });
+    await p.connect(b).enter({ value: E(3) });
+    await mine(200);
+    await expect(p.connect(a).openRefunds()).to.be.revertedWithCustomError(p, "TooEarly");
+
+    await mine(1_000);
+    await p.connect(b).openRefunds();
+    await expect(p.connect(a).refund()).to.changeEtherBalance(a, E(2));
+    await expect(p.connect(b).refund()).to.changeEtherBalance(b, E(3));
+    await expect(p.connect(a).refund()).to.be.revertedWithCustomError(p, "AlreadyPaid");
+    expect(await ethers.provider.getBalance(await p.getAddress())).to.equal(0n);
+  });
+
+  it("only the resolver resolves, once, and not before close", async () => {
+    const { p, house, a, b } = await battle();
+    await p.connect(a).enter({ value: E(1) });
+    await p.connect(b).enter({ value: E(1) });
+    await expect(p.connect(house).resolve(a.address)).to.be.revertedWithCustomError(p, "NotClosed");
+    await mine(200);
+    await expect(p.connect(a).resolve(a.address)).to.be.revertedWithCustomError(p, "NotResolver");
+    await p.connect(house).resolve(a.address);
+    // No switching the winner after the fact.
+    await expect(p.connect(house).resolve(b.address))
+      .to.be.revertedWithCustomError(p, "AlreadyResolved");
+  });
+
+  it("has no path from the pot to the operator", async () => {
+    const { p } = await battle();
+    const names = p.interface.fragments.filter((f) => f.type === "function").map((f) => f.name);
+    for (const forbidden of ["withdraw", "sweep", "rescue", "setResolver", "setFee", "execute", "owner"])
+      expect(names, `must not expose ${forbidden}`).to.not.include(forbidden);
+  });
+});

@@ -55,7 +55,8 @@ something a default should quietly make for you.
 | --- | --- |
 | Issuer + market operator + game layer stacked on one entity | Unchanged and unresolved. Round liquidity is never platform-withdrawable; graduated liquidity is locked by a contract with no withdrawal path at all. |
 | Batch auction is wagering-adjacent despite "fair open" framing | Deterministic, auditable, no house edge beyond published fees. **Still the main classification risk.** |
-| "Moon or Rug" predictions = highest gambling-classification risk | XP-only payout, hard-coded. No financial reward path exists in the code — keep it that way. |
+| "Moon or Rug" predictions = highest gambling-classification risk | **Changed for Phase 2.** `PitPool` escrows real ETH and pays winners pro-rata, so a financial reward path now exists where the Phase 1 code deliberately had none. This is the single change most likely to attract a gambling classification, and it was made knowingly. |
+| Battle the Goon Squad pays a real cash prize | `PitBattlePool`: buy-in pot, winner-take-all on PnL. Skill-framed rather than chance-framed, which is the more defensible half — but it is still a cash prize decided by the operator. |
 | Creator revenue share raises issuer-of-record questions | **Now live for real funds.** Post-graduation LP fees split on-chain between the creator's chosen address and the protocol wallet, both immutable at deploy. |
 | Referral structure must avoid downline/MLM framing | Single-tier only: one `referredBy`, one fee-share hop, no recursion. |
 | Don't market paper mode as "practice for real trading" | UI copy says "paper money" plainly and nothing more. |
@@ -76,3 +77,11 @@ Listed so they are accepted knowingly rather than discovered later:
 - **Geo-gating is defeated by a VPN.** True of every IP-based gate.
 - **Self-attested age.** No verification, and none is planned.
 - **On-chain activity cannot be blocked**, only access to this interface.
+- **The Pit settles on an oracle.** Pit matches are simulated, so no contract
+  can verify who won: the platform posts the outcome. The pool contracts bound
+  that — capped fees to fixed addresses, payouts derived from stakes, a
+  permissionless refund window so refusing to resolve cannot keep the money,
+  and a winner who must have entered. What they cannot bound is a *dishonest*
+  outcome. Winner-take-all is the weaker of the two: a false pari-mutuel result
+  still pays whoever backed it, while naming one entrant hands them everything.
+  Publishing entries and results is the mitigation, not a fix.
