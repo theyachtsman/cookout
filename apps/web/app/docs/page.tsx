@@ -123,7 +123,7 @@ export default function Docs() {
           {chainOnly ? (
             <>
               <p>
-                Your money lives in your <b>🍔 Cookout Wallet</b> (in the profile menu):
+                Your money lives in your <b>⚡ Cookout Wallet</b> (in the profile menu):
               </p>
               <ul className="list-disc space-y-2 pl-5">
                 <li>

@@ -19,7 +19,6 @@ import { useChainOnly } from "../../lib/chainOnly";
 import { fmtAmount, useDenomPref, useEthUsd } from "../../lib/ethUsd";
 import { DenomToggle } from "../../components/DenomToggle";
 import { ExpandableRows } from "../../components/ProfileUI";
-import { BurgerSummary } from "../../components/BurgerSummary";
 import { BurgerWallet } from "../../components/BurgerWallet";
 import { useSession } from "../../lib/session";
 import { playDeposit } from "../../lib/sfx";
@@ -152,8 +151,6 @@ function PaperWalletPage() {
       ) : (
         <>
       <PrivyWalletCard address={profile.address} />
-
-      <BurgerSummary onOpenFull={() => setTab("burger")} />
 
       <div className="flex items-center justify-between">
         <span className="text-xs font-bold uppercase tracking-[0.2em] text-zinc-500">Balances</span>
@@ -411,7 +408,7 @@ function ChainWalletPage() {
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
-        <h1 className="text-2xl font-black">🍔 Cookout Wallet</h1>
+        <h1 className="text-2xl font-black">⚡ Cookout Wallet</h1>
         <p className="mt-1 max-w-xl text-sm text-zinc-500">
           Your wallet on the Cook Out. Deposit ETH into it from anywhere, and every pull-up, buy,
           and sell spends straight from this balance with no pop-ups. You hold the keys through
@@ -473,8 +470,6 @@ function ChainWalletPage() {
                   as soon as the transfer confirms.
                 </p>
               </section>
-
-              <BurgerSummary onOpenFull={() => setTab("burger")} />
 
               <SendEth ready={ready} balance={bal ?? 0} onSent={refresh} />
 
@@ -691,7 +686,7 @@ function WalletTabs({
   return (
     <div className="flex gap-1 rounded-xl bg-zinc-900/60 p-1">
       {([
-        { key: "cookout", label: chain ? "🍔 Cookout Wallet" : "⚡ Cook Out Balance" },
+        { key: "cookout", label: chain ? "⚡ Cookout Wallet" : "⚡ Cook Out Balance" },
         { key: "burger", label: "🍔 Burger Balance" },
       ] as const).map((t) => (
         <button

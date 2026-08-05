@@ -52,7 +52,7 @@ export function ArenaWalletPanel({ round }: { round: Round }) {
     <div className={`rounded-xl border p-4 ${hot ? "border-lime-400/50" : "border-zinc-800"}`}>
       <div className="mb-1 flex items-center justify-between">
         <h4 className="text-sm font-black text-zinc-200">
-          🍔 Cookout Wallet{" "}
+          ⚡ Cookout Wallet{" "}
           {hot && (
             <span className="ml-1 rounded bg-lime-400/15 px-1.5 py-0.5 text-[10px] font-bold text-lime-300">
               READY · instant trades

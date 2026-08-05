@@ -103,7 +103,7 @@ export default function SettingsPage() {
             href="/wallet"
             className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm font-bold text-zinc-300 transition hover:bg-zinc-700"
           >
-            {chainOnly ? "🍔 Cookout Wallet" : "⚡ Cook Out Balance"}
+            {chainOnly ? "⚡ Cookout Wallet" : "⚡ Cook Out Balance"}
           </Link>
           <Link
             href={`/profile/${profile.address}`}

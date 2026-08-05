@@ -130,7 +130,7 @@ export function WalletButton() {
                   </div>
                   {chainOnly ? (
                     <BalanceRow
-                      icon="🍔"
+                      icon="⚡"
                       label="Cookout Wallet"
                       accent="lime"
                       value={arenaBal !== null ? `${arenaBal.toFixed(4)} ETH` : "—"}
@@ -171,7 +171,7 @@ export function WalletButton() {
                   <PanelLink
                     href="/wallet"
                     onNavigate={() => setOpen(false)}
-                    icon={chainOnly ? "🍔" : "⚡"}
+                    icon="⚡"
                     label={chainOnly ? "Cookout Wallet" : "Cook Out Balance"}
                   />
                   <PanelLink href="/settings" onNavigate={() => setOpen(false)} icon="⚙️" label="Settings" />
