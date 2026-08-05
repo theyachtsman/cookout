@@ -168,6 +168,53 @@ export async function cookoutBalanceWei(chainId = DEFAULT_CHAIN_ID): Promise<big
   return publicClientFor(chainId).getBalance({ address: s.address });
 }
 
+// ---------------- the spend guard ----------------
+
+/**
+ * Silent signing is what makes a round playable — a confirmation sheet on every
+ * buy and sell is unusable. But it also means anything running on the page can
+ * move funds without the player seeing it, and this wallet is where real
+ * deposits land. So there is one threshold: below it, trades fire silently;
+ * above it, the player confirms.
+ *
+ * The confirmer is supplied by React (SpendGuard) the same way the signer is,
+ * because the check has to live at the chokepoint — every send goes through
+ * cookoutSend — rather than in whichever UI happens to call it.
+ */
+const SPEND_CAP_KEY = "cookout:spend-cap-eth";
+/** Default confirm threshold in ETH. Well above a normal trade, well below
+ *  the kind of amount someone would be upset to lose without being asked. */
+export const DEFAULT_SPEND_CAP_ETH = 0.25;
+
+export function spendCapEth(): number {
+  if (typeof window === "undefined") return DEFAULT_SPEND_CAP_ETH;
+  const raw = Number(localStorage.getItem(SPEND_CAP_KEY));
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_SPEND_CAP_ETH;
+}
+
+export function setSpendCapEth(eth: number): void {
+  localStorage.setItem(SPEND_CAP_KEY, String(eth));
+}
+
+type Confirmer = (eth: number, to: string) => Promise<boolean>;
+let confirmer: Confirmer | null = null;
+
+export function setSpendConfirmer(fn: Confirmer | null): void {
+  confirmer = fn;
+}
+
+/** Ask, if this send is over the threshold. Throws if the player declines. */
+async function guardSpend(valueWei: bigint, to: string): Promise<void> {
+  if (valueWei <= 0n) return;
+  const eth = Number(valueWei) / 1e18;
+  if (eth < spendCapEth()) return;
+  // No confirmer mounted means no way to ask. Failing closed on a large spend
+  // is the only safe default — silently signing it is the thing we're guarding
+  // against in the first place.
+  if (!confirmer) throw new Error("this spend needs confirmation, but the page isn't ready");
+  if (!(await confirmer(eth, to))) throw new Error("cancelled");
+}
+
 // ---------------- sending ----------------
 
 /**
@@ -185,6 +232,7 @@ export async function cookoutSend(
   gasLimit?: bigint,
 ): Promise<string> {
   const s = need();
+  await guardSpend(valueWei, to);
   const client = publicClientFor(chainId);
   const [gasPrice, gasEst] = await Promise.all([
     client.getGasPrice(),

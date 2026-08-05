@@ -13,8 +13,22 @@ contract ArenaToken {
     string public symbol;
     uint8 public constant decimals = 18;
     uint256 public immutable totalSupply;
-    /// @notice Number of nonzero-balance addresses (graduation criterion).
+    /// @notice Number of addresses holding at least `minHolderBalance`.
+    ///         A graduation criterion, so what counts as a holder matters:
+    ///         counting any nonzero balance made the threshold free to fake,
+    ///         since one address can spray dust to as many addresses as it
+    ///         likes for gas alone.
+    /// @dev This raises the floor; it does not make the count sybil-proof, and
+    ///      nothing on-chain can. Faking N holders now costs N ×
+    ///      minHolderBalance of real supply, bought on the curve. The gates
+    ///      that actually cost money are mcap and volume, which are ANDed with
+    ///      this one.
     uint256 public holderCount;
+
+    /// @notice Balance below which an address is dust and is not counted as a
+    ///         holder. One basis point of supply: small enough that a genuine
+    ///         buyer clears it, large enough that spraying is not free.
+    uint256 public immutable minHolderBalance;
 
     mapping(address => uint256) public balanceOf;
     mapping(address => mapping(address => uint256)) public allowance;
@@ -26,6 +40,9 @@ contract ArenaToken {
         name = name_;
         symbol = symbol_;
         totalSupply = supply_;
+        // At least 1, so a tiny-supply token can still have holders at all.
+        uint256 floor_ = supply_ / 10_000;
+        minHolderBalance = floor_ == 0 ? 1 : floor_;
         balanceOf[recipient] = supply_;
         holderCount = 1;
         emit Transfer(address(0), recipient, supply_);
@@ -60,8 +77,11 @@ contract ArenaToken {
         uint256 toBalBefore = balanceOf[to];
         balanceOf[to] = toBalBefore + value;
         if (value > 0 && from != to) {
-            if (balanceOf[from] == 0) holderCount--;
-            if (toBalBefore == 0) holderCount++;
+            uint256 floor_ = minHolderBalance;
+            // Count crossings of the threshold, not of zero. A sender that
+            // drops below it stops being a holder even with dust left over.
+            if (fromBal >= floor_ && balanceOf[from] < floor_) holderCount--;
+            if (toBalBefore < floor_ && balanceOf[to] >= floor_) holderCount++;
         }
         emit Transfer(from, to, value);
         return true;

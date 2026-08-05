@@ -39,6 +39,10 @@ import type { RoundEngine } from "./engine.js";
 import { Err } from "./engine.js";
 import type { Store } from "./store.js";
 
+/** Operator gas floor. Below this the Command Center warns: an empty operator
+ *  cannot settle or resolve, and unsettled escrow is stuck escrow. */
+export const OPERATOR_MIN_BALANCE_ETH = 0.05;
+
 const FACTORY_ABI = parseAbi([
   "function createRound((string name,string symbol,uint256 totalSupply,uint64 queueClosesAt,uint64 endTime,uint256 auctionMaxRaiseWei,uint16 auctionFeeBps,uint16 tradeFeeBps,uint256 mcapTargetWei,uint256 graduationMcapWei,uint256 graduationMinVolumeWei,uint256 graduationMinHolders,address feeRecipient,address creator) p) payable returns (address,address,address)",
   "event RoundCreated(uint256 indexed id, address indexed creator, address token, address pool, address auction)",
@@ -73,6 +77,7 @@ const POOL_ABI = parseAbi([
  *  typing sidesteps that while keeping every call site checked. */
 interface PubClient {
   getBlockNumber(): Promise<bigint>;
+  getBalance(args: { address: HexAddress }): Promise<bigint>;
   getLogs(args: { address: HexAddress; fromBlock: bigint; toBlock: bigint }): Promise<Log[]>;
   readContract(args: {
     address: HexAddress;
@@ -113,6 +118,8 @@ export class ChainService {
   private factory!: HexAddress;
   private chain!: ReturnType<typeof defineChain>;
   private busy = false;
+  /** Last operator gas-balance check, so the poll costs one RPC a minute. */
+  private lastBalanceCheck = 0;
   /** Per-round in-flight action guard (settle/resolve sent once). */
   private inflight = new Set<string>();
 
@@ -257,6 +264,7 @@ export class ChainService {
     if (!this.enabled || this.busy) return;
     this.busy = true;
     try {
+      await this.checkOperatorBalance(now);
       for (const round of this.store.rounds.values()) {
         if (!round.chain) continue;
         if (round.state === "results" || round.state === "ended") continue;
@@ -268,6 +276,42 @@ export class ChainService {
       }
     } finally {
       this.busy = false;
+    }
+  }
+
+  /**
+   * Watch the operator's gas balance.
+   *
+   * This key pays for createRound, settle and resolve. If it runs dry, rounds
+   * stop being created and — worse — stop being settled and resolved, which
+   * strands player escrow behind a transaction nobody else is going to send.
+   * So it is monitored like the piece of infrastructure it is, and surfaced on
+   * the Command Center dashboard rather than discovered when a round hangs.
+   */
+  private async checkOperatorBalance(now: number): Promise<void> {
+    if (now - this.lastBalanceCheck < 60_000) return;
+    this.lastBalanceCheck = now;
+    try {
+      const wei = await this.pub.getBalance({ address: this.account.address });
+      const balanceEth = Number(wei) / 1e18;
+      const previous = this.store.chainStatus?.balanceEth;
+      this.store.chainStatus = {
+        operator: this.account.address,
+        chainId: this.chain.id,
+        balanceEth,
+        low: balanceEth < OPERATOR_MIN_BALANCE_ETH,
+        checkedAt: now,
+      };
+      // Log the crossing, not the state, so the audit trail has one line per
+      // event instead of one a minute.
+      if (balanceEth < OPERATOR_MIN_BALANCE_ETH && (previous ?? Infinity) >= OPERATOR_MIN_BALANCE_ETH)
+        this.store.logAdmin(
+          "chain",
+          `operator ${this.account.address} is low on gas: ${balanceEth.toFixed(4)} ETH ` +
+            `(below ${OPERATOR_MIN_BALANCE_ETH}). Round creation, settlement and resolution stop when it empties.`,
+        );
+    } catch {
+      /* a failed balance read must never stop the mirror */
     }
   }
 

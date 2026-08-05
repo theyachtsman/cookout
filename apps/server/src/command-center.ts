@@ -1775,6 +1775,9 @@ export function mountCommandCenter(
           bots: store.settings.bots,
           autoSchedule: store.settings.autoSchedule,
           staffSessions: store.staffSessions.size,
+          // The operator key pays for settle/resolve. Empty means player escrow
+          // sits unsettled, so it belongs on the dashboard, not in a log.
+          chain: store.chainStatus ?? null,
         },
         flags: store.flags(),
         recentActivity: [...store.auditLog].reverse().slice(0, 15),

@@ -680,3 +680,52 @@ describe("BatchAuction queue bounds", () => {
     expect(await auction.MAX_INTENTS()).to.equal(1_000n);
   });
 });
+
+describe("ArenaToken holder counting", () => {
+  async function token(supply = E(10_000)) {
+    const [deployer] = await ethers.getSigners();
+    return (await ethers.getContractFactory("ArenaToken")).deploy("Hold", "HLD", supply, deployer.address);
+  }
+
+  it("ignores dust, so holders cannot be sprayed into existence", async () => {
+    const [deployer, a, b, c] = await ethers.getSigners();
+    const t = await token(E(10_000));
+    expect(await t.minHolderBalance()).to.equal(E(1)); // 1bp of supply
+    expect(await t.holderCount()).to.equal(1n);
+
+    // The old rule counted any nonzero balance: three transfers of 1 wei used
+    // to buy three holders for gas alone.
+    for (const who of [a, b, c]) await t.transfer(who.address, 1n);
+    expect(await t.holderCount()).to.equal(1n);
+
+    await t.transfer(a.address, E(1));
+    expect(await t.holderCount()).to.equal(2n);
+  });
+
+  it("stops counting an address once it drops below the floor", async () => {
+    const [deployer, a] = await ethers.getSigners();
+    const t = await token(E(10_000));
+    await t.transfer(a.address, E(5));
+    expect(await t.holderCount()).to.equal(2n);
+
+    // Leaves dust behind — a holder by the old rule, not by this one.
+    await t.connect(a).transfer(deployer.address, E(5) - 1n);
+    expect(await t.holderCount()).to.equal(1n);
+  });
+
+  it("never double-counts a holder topping up", async () => {
+    const [, a] = await ethers.getSigners();
+    const t = await token(E(10_000));
+    await t.transfer(a.address, E(2));
+    await t.transfer(a.address, E(2));
+    expect(await t.holderCount()).to.equal(2n);
+  });
+
+  it("keeps a floor of 1 wei for tiny-supply tokens", async () => {
+    const [, a] = await ethers.getSigners();
+    const t = await token(1_000n); // supply/10_000 would round to 0
+    expect(await t.minHolderBalance()).to.equal(1n);
+    await t.transfer(a.address, 1n);
+    expect(await t.holderCount()).to.equal(2n);
+  });
+});

@@ -443,6 +443,15 @@ export class Store {
 
   /** arena (burner) wallet address → owner profile address. */
   private arenaIndex = new Map<string, Address>();
+  /** Chain operator health, refreshed by the chain service. Undefined when the
+   *  chain service is off. */
+  chainStatus?: {
+    operator: string;
+    chainId: number;
+    balanceEth: number;
+    low: boolean;
+    checkedAt: number;
+  };
 
   /** Recent site-wide activity (newest last), capped. */
   activity: ActivityEvent[] = [];

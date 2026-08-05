@@ -154,3 +154,32 @@ test("the launch form asks for the destination and says it is permanent", () => 
   assert.ok(ui.includes("permanent"), "the consequence must be stated, not implied");
   assert.ok(web("app/submissions/page.tsx").includes("<FeeDestination"));
 });
+
+/**
+ * The spend guard. Silent signing is what keeps rounds playable, and the cost
+ * of it is that anything on the page can move funds unseen. The guard has to
+ * sit at the send chokepoint — put it in a UI component and the next caller
+ * bypasses it without noticing.
+ */
+test("large spends are checked where every send passes, not in the UI", () => {
+  const src = web("lib/cookoutWallet.ts");
+  const send = src.slice(src.indexOf("export async function cookoutSend"));
+  assert.ok(send.includes("await guardSpend("), "cookoutSend must run the guard");
+
+  const guard = src.slice(src.indexOf("async function guardSpend"));
+  // No confirmer mounted must fail closed: signing a large spend because the
+  // dialog was missing is the exact thing being guarded against.
+  assert.ok(
+    guard.indexOf("if (!confirmer) throw") < guard.indexOf("if (!(await confirmer("),
+    "a missing confirmer must reject, never fall through to signing",
+  );
+});
+
+test("the operator's gas balance is watched, since empty means stuck escrow", async () => {
+  const { OPERATOR_MIN_BALANCE_ETH } = await import("./chain.js");
+  assert.ok(OPERATOR_MIN_BALANCE_ETH > 0);
+  const src = readFileSync(join(import.meta.dirname, "chain.ts"), "utf8");
+  assert.ok(src.includes("checkOperatorBalance"), "the balance must be polled");
+  // One audit line per crossing, not one a minute.
+  assert.match(src, /previous \?\? Infinity\) >= OPERATOR_MIN_BALANCE_ETH/);
+});

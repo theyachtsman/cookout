@@ -2,6 +2,7 @@
 
 import { PrivyProvider } from "@privy-io/react-auth";
 import { CookoutWalletBridge } from "./CookoutWalletBridge";
+import { SpendGuard } from "./SpendGuard";
 import { chainOf, DEFAULT_CHAIN_ID } from "../lib/cookoutWallet";
 
 /**
@@ -58,6 +59,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
       }}
     >
       <CookoutWalletBridge />
+      <SpendGuard />
       {children}
     </PrivyProvider>
   );

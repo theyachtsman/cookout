@@ -142,3 +142,33 @@ node apps/server/scripts/bots.mjs https://api.yourdomain.com 50
 Run the swarm against the real domain before announcing — it exercises the
 tunnel, TLS, WS, and Postgres exactly like the crowd will. See
 [BETA-RUNBOOK.md](BETA-RUNBOOK.md) for the beta-day playbook.
+
+## The chain operator key
+
+`CHAIN_OPERATOR_KEY` pays gas for `createRound`, `settle`, and `resolve`. It is
+the only key the platform holds, and it never custodies player funds — money
+flows between players and the per-round contracts, never through us. But it is
+a hot key on a live server, and the failure that matters is not theft:
+
+**An empty operator cannot settle or resolve.** Settlement is permissionless,
+so anyone *can* fire it, but nobody else has a reason to. Escrow that isn't
+settled is escrow that can't be claimed or refunded, so an operator that runs
+dry strands player money until it is topped up.
+
+Policy for mainnet:
+
+- **Fund it small and top it up often.** It needs gas, not a treasury. Anything
+  beyond a few weeks of gas is just theft surface.
+- **It is not the fee recipient.** Round fees go to the configured
+  `feeRecipient`, and graduated-pool fees to a `FeeSplitter` — neither is the
+  operator. Compromise of this key must not reach revenue.
+- **Rotate on any suspicion, and on staff changes.** Rotation is a config
+  change plus a restart: rounds already deployed are unaffected, because the
+  factory grants no post-deploy rights over them.
+- **Never reuse the testnet key.** The Robinhood testnet deployer is
+  throwaway and its key is public.
+
+The Command Center dashboard shows the operator's live balance and flags it
+below `OPERATOR_MIN_BALANCE_ETH` (0.05 ETH). Crossing that floor also writes
+one line to the audit log — the crossing, not the state, so a low balance
+doesn't spam it once a minute.
