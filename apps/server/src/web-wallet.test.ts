@@ -71,3 +71,44 @@ test("a different action on one transaction is kept", () => {
   const src = readFileSync(join(import.meta.dirname, "store.ts"), "utf8");
   assert.match(src, /e\.txHash === entry\.txHash && e\.kind === entry\.kind/);
 });
+
+/**
+ * Slippage floors. Passing 0 as minTokensOut/minEthOut makes every trade
+ * sandwichable for its full size, which is what the chain client did until
+ * these landed. The exact quote math is proven against the deployed pool in
+ * contracts/test; this only guards the wiring, which is where it would rot.
+ */
+test("chain trades send a real minimum-out, never zero", () => {
+  const src = web("lib/chainTx.ts");
+
+  const buy = src.slice(src.indexOf("export async function chainBuy"));
+  assert.ok(buy.includes("SEL.buy + pad32(minOut)"), "buy must send a quoted floor");
+
+  const sell = src.slice(src.indexOf("export async function chainSell"));
+  assert.ok(
+    sell.includes("SEL.sell + pad32(tokensWei) + pad32(minOut)"),
+    "sell must send a quoted floor",
+  );
+
+  // Redemption is a fixed uniform price with no curve to move, so it is the one
+  // trade that legitimately passes no floor.
+  const redeem = src.slice(src.indexOf("export async function chainRedeem"));
+  assert.ok(redeem.includes("SEL.redeem + pad32(tokensWei)"));
+});
+
+test("the quote is taken after the approval, not before", () => {
+  // The approval is its own transaction; anything mined next to it moves the
+  // price that an earlier quote would still be promising.
+  const src = web("lib/chainTx.ts");
+  const sell = src.slice(src.indexOf("export async function chainSell"));
+  assert.ok(sell.indexOf("SEL.approve") < sell.indexOf("quoteSell"));
+});
+
+test("contract reads do not need an injected wallet", () => {
+  // Privy-only players have no window.ethereum. Routing reads through it meant
+  // selling threw "No wallet found" before it could even check an allowance.
+  const src = web("lib/chainTx.ts");
+  const body = src.slice(src.indexOf("async function call("), src.indexOf("// ---------------- quoting"));
+  assert.ok(body.includes("ethCall("), "reads should go over the public RPC");
+  assert.ok(!body.includes("eth().request"), "reads must not touch the injected wallet");
+});

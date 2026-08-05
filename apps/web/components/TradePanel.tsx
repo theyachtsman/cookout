@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import type { Round } from "@cookout/shared";
 import { api } from "../lib/api";
 import { chainBuy, chainSell, walletEthBalance, walletTokenBalanceWei } from "../lib/chainTx";
+import { SlippageControl } from "./SlippageControl";
 import { useSession } from "../lib/session";
 import { playBuy, playSell, setSfxMuted, sfxMuted } from "../lib/sfx";
 
@@ -303,6 +304,11 @@ export function TradePanel({
           </div>
         </div>
         {convertedHint && <div className="mt-1.5 font-mono text-[11px] text-zinc-400">{convertedHint}</div>}
+        {onChain && (
+          <div className="mt-1.5 flex justify-end">
+            <SlippageControl compact />
+          </div>
+        )}
         {error && <div className="mt-1.5 text-xs text-red-400">{error}</div>}
       </div>
     );
@@ -455,6 +461,11 @@ export function TradePanel({
               </button>
             ))}
       </div>
+      {onChain && (
+        <div className="mt-2 flex justify-end">
+          <SlippageControl />
+        </div>
+      )}
       {error && <div className="mt-2 text-sm text-red-400">{error}</div>}
     </div>
   );

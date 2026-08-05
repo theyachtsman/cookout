@@ -1,0 +1,79 @@
+[
+  {
+    "name": "buy, 1% fee",
+    "side": "buy",
+    "reserves": {
+      "eth": 100,
+      "token": 1000000
+    },
+    "feeBps": 100,
+    "amount": "1000000000000000000",
+    "expected": "9802950787206654124171"
+  },
+  {
+    "name": "buy, no fee",
+    "side": "buy",
+    "reserves": {
+      "eth": 100,
+      "token": 1000000
+    },
+    "feeBps": 0,
+    "amount": "2500000000000000000",
+    "expected": "24390243902439024390244"
+  },
+  {
+    "name": "buy, max fee",
+    "side": "buy",
+    "reserves": {
+      "eth": 40,
+      "token": 1000000
+    },
+    "feeBps": 500,
+    "amount": "250000000000000000",
+    "expected": "5902454178316247281765"
+  },
+  {
+    "name": "buy, large vs reserves",
+    "side": "buy",
+    "reserves": {
+      "eth": 10,
+      "token": 1000000
+    },
+    "feeBps": 100,
+    "amount": "5000000000000000000",
+    "expected": "331103678929765886287626"
+  },
+  {
+    "name": "sell, 1% fee",
+    "side": "sell",
+    "reserves": {
+      "eth": 100,
+      "token": 1000000
+    },
+    "feeBps": 100,
+    "amount": "1000000000000000000000",
+    "expected": "98901098901098902"
+  },
+  {
+    "name": "sell, no fee",
+    "side": "sell",
+    "reserves": {
+      "eth": 100,
+      "token": 1000000
+    },
+    "feeBps": 0,
+    "amount": "25000000000000000000000",
+    "expected": "2439024390243902440"
+  },
+  {
+    "name": "sell, max fee",
+    "side": "sell",
+    "reserves": {
+      "eth": 40,
+      "token": 1000000
+    },
+    "feeBps": 500,
+    "amount": "500000000000000000000",
+    "expected": "18990504747626188"
+  }
+]

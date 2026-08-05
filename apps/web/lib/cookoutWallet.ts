@@ -146,6 +146,22 @@ export async function cookoutBalance(chainId = DEFAULT_CHAIN_ID): Promise<number
   return balanceOf(chainId, s.address);
 }
 
+/**
+ * Read-only contract call over the public RPC.
+ *
+ * Deliberately not routed through a wallet: reads have no signer and must work
+ * for everyone. The old path went through window.ethereum, which meant a
+ * Privy-only player — now the common case — hit "No wallet found" just for
+ * reading an allowance or a token balance.
+ */
+export async function ethCall(chainId: number, to: string, data: string): Promise<string> {
+  const res = await publicClientFor(chainId).call({
+    to: to as `0x${string}`,
+    data: data as `0x${string}`,
+  });
+  return res.data ?? "0x";
+}
+
 export async function cookoutBalanceWei(chainId = DEFAULT_CHAIN_ID): Promise<bigint> {
   const s = signer;
   if (!s) return 0n;

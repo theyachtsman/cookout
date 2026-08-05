@@ -7,7 +7,7 @@
 import { writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { settleAuction } from "@cookout/shared";
+import { quoteBuyWei, quoteSellWei, settleAuction } from "@cookout/shared";
 
 const CASES = [
   {
@@ -77,6 +77,44 @@ const vectors = CASES.map((c) => {
   };
 });
 
-const out = join(dirname(fileURLToPath(import.meta.url)), "..", "test", "vectors.json");
-writeFileSync(out, JSON.stringify(vectors, null, 2));
-console.log(`wrote ${vectors.length} vectors to test/vectors.json`);
+/**
+ * Quote vectors, in wei and exact.
+ *
+ * The auction vectors above allow a float↔wei tolerance because the reference
+ * is float math. These must not: the client uses quoteBuyWei/quoteSellWei to
+ * compute the minimum-out it sends with every trade, so a quote that is even
+ * one wei off the contract either reverts honest trades or leaves the trade
+ * under-protected. Exact equality is the whole point.
+ */
+const E = (n) => BigInt(Math.round(n * 1e6)) * 10n ** 12n;
+const QUOTE_CASES = [
+  { name: "buy, 1% fee", reserves: { eth: 100, token: 1_000_000 }, feeBps: 100, buy: 1 },
+  { name: "buy, no fee", reserves: { eth: 100, token: 1_000_000 }, feeBps: 0, buy: 2.5 },
+  { name: "buy, max fee", reserves: { eth: 40, token: 1_000_000 }, feeBps: 500, buy: 0.25 },
+  { name: "buy, large vs reserves", reserves: { eth: 10, token: 1_000_000 }, feeBps: 100, buy: 5 },
+  { name: "sell, 1% fee", reserves: { eth: 100, token: 1_000_000 }, feeBps: 100, sell: 1_000 },
+  { name: "sell, no fee", reserves: { eth: 100, token: 1_000_000 }, feeBps: 0, sell: 25_000 },
+  { name: "sell, max fee", reserves: { eth: 40, token: 1_000_000 }, feeBps: 500, sell: 500 },
+];
+
+const quoteVectors = QUOTE_CASES.map((c) => {
+  const reserves = { ethReserve: E(c.reserves.eth), tokenReserve: E(c.reserves.token) };
+  const isBuy = c.buy !== undefined;
+  const amount = isBuy ? E(c.buy) : E(c.sell);
+  const expected = isBuy
+    ? quoteBuyWei(reserves, amount, c.feeBps)
+    : quoteSellWei(reserves, amount, c.feeBps);
+  return {
+    name: c.name,
+    side: isBuy ? "buy" : "sell",
+    reserves: c.reserves,
+    feeBps: c.feeBps,
+    amount: amount.toString(),
+    expected: expected.toString(),
+  };
+});
+
+const dir = dirname(fileURLToPath(import.meta.url));
+writeFileSync(join(dir, "..", "test", "vectors.json"), JSON.stringify(vectors, null, 2));
+writeFileSync(join(dir, "..", "test", "quote-vectors.json"), JSON.stringify(quoteVectors, null, 2));
+console.log(`wrote ${vectors.length} auction + ${quoteVectors.length} quote vectors`);

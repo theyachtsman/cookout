@@ -19,9 +19,11 @@
  */
 
 import type { Round } from "@cookout/shared";
+import { DEFAULT_SLIPPAGE_BPS, minOutWei, quoteBuyWei, quoteSellWei } from "@cookout/shared";
 import {
   DEFAULT_CHAIN_ID,
   cookoutAddress,
+  ethCall,
   cookoutBalance,
   cookoutSend,
   logWalletTx,
@@ -50,6 +52,8 @@ const SEL = {
   approve: "0x095ea7b3", // approve(address,uint256)
   balanceOf: "0x70a08231", // balanceOf(address)
   allowance: "0xdd62ed3e", // allowance(address,address)
+  getReserves: "0x0902f1ac", // getReserves()
+  tradeFeeBps: "0x5faad8c5", // tradeFeeBps()
 } as const;
 
 function eth(): Eth {
@@ -181,11 +185,63 @@ async function sendTx(to: string, data: string, valueWei = 0n, gas?: bigint): Pr
   throw new Error("transaction not confirmed after 90s — check your wallet activity");
 }
 
-async function call(to: string, data: string): Promise<string> {
-  return (await eth().request({
-    method: "eth_call",
-    params: [{ to, data }, "latest"],
-  })) as string;
+async function call(to: string, data: string, chainId = DEFAULT_CHAIN_ID): Promise<string> {
+  return ethCall(chainId, to, data);
+}
+
+// ---------------- quoting + slippage ----------------
+
+/** Where the player's slippage tolerance lives. Read at trade time, so a
+ *  change applies to the next trade without any plumbing. */
+const SLIPPAGE_KEY = "cookout:slippage-bps";
+
+export function slippageBps(): number {
+  if (typeof window === "undefined") return DEFAULT_SLIPPAGE_BPS;
+  const raw = Number(localStorage.getItem(SLIPPAGE_KEY));
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_SLIPPAGE_BPS;
+}
+
+export function setSlippageBps(bps: number): void {
+  localStorage.setItem(SLIPPAGE_KEY, String(bps));
+}
+
+/** The pool's live reserves and fee — everything a quote needs. */
+async function poolState(round: Round): Promise<{
+  ethReserve: bigint;
+  tokenReserve: bigint;
+  feeBps: number;
+}> {
+  const c = round.chain!;
+  const [reserves, fee] = await Promise.all([
+    call(c.pool, SEL.getReserves, c.chainId),
+    call(c.pool, SEL.tradeFeeBps, c.chainId),
+  ]);
+  const body = reserves.replace(/^0x/, "");
+  return {
+    ethReserve: BigInt("0x" + body.slice(0, 64)),
+    tokenReserve: BigInt("0x" + body.slice(64, 128)),
+    feeBps: Number(BigInt(fee)),
+  };
+}
+
+/** What a buy would return right now, and the floor we'll actually send. */
+export async function quoteBuy(
+  round: Round,
+  ethAmount: string,
+): Promise<{ tokensOut: bigint; minOut: bigint }> {
+  const p = await poolState(round);
+  const tokensOut = quoteBuyWei(p, toWei(ethAmount), p.feeBps);
+  return { tokensOut, minOut: minOutWei(tokensOut, slippageBps()) };
+}
+
+/** What a sell would return right now, and the floor we'll actually send. */
+export async function quoteSell(
+  round: Round,
+  tokensWei: bigint,
+): Promise<{ ethOut: bigint; minOut: bigint }> {
+  const p = await poolState(round);
+  const ethOut = quoteSellWei(p, tokensWei, p.feeBps);
+  return { ethOut, minOut: minOutWei(ethOut, slippageBps()) };
 }
 
 // ---------------- public per-round actions ----------------
@@ -213,11 +269,50 @@ export async function chainClaimFill(round: Round, intentId: string): Promise<st
   return sendVia(c.chainId, c.auction, SEL.claim + pad32(BigInt(intentId)), 0n, "claim");
 }
 
-/** Live trading: buy with real ETH. minTokensOut=0 — testnet convenience; a
- *  mainnet build must quote and pass a real slippage floor. */
+/**
+ * Turn a bare revert into something a player can act on.
+ *
+ * A failed trade only reports "reverted on-chain", which is useless when the
+ * cause is the floor we just added. So re-quote: if the pool now pays less than
+ * the minimum we sent, the price genuinely moved under the trade and we can say
+ * so — and say by how much — instead of guessing.
+ */
+async function explainRevert(e: unknown, minOut: bigint, requote: () => Promise<bigint>) {
+  const err = e as Error;
+  if (!/revert/i.test(err.message)) return err;
+  try {
+    const now = await requote();
+    if (now < minOut) {
+      const moved = Number(minOut - now) / Number(minOut === 0n ? 1n : minOut);
+      return new Error(
+        `the price moved ${(moved * 100).toFixed(2)}% against you before this landed, past your ` +
+          `${(slippageBps() / 100).toFixed(2)}% slippage tolerance — nothing was spent. Try again, ` +
+          `or raise the tolerance.`,
+      );
+    }
+  } catch {
+    /* the diagnosis is best-effort; fall through to the original error */
+  }
+  return err;
+}
+
+/**
+ * Live trading: buy with real ETH.
+ *
+ * The minimum-out is quoted from the pool's live reserves and cut by the
+ * player's tolerance. Sending 0 here — as this did until now — is an open
+ * invitation to sandwich: an attacker moves the price, your buy fills at
+ * whatever is left, and they sell into it. With a floor the trade reverts
+ * instead of filling at a price you never agreed to.
+ */
 export async function chainBuy(round: Round, ethAmount: string): Promise<string> {
   const c = round.chain!;
-  return sendVia(c.chainId, c.pool, SEL.buy + pad32(0n), toWei(ethAmount), "buy");
+  const { minOut } = await quoteBuy(round, ethAmount);
+  try {
+    return await sendVia(c.chainId, c.pool, SEL.buy + pad32(minOut), toWei(ethAmount), "buy");
+  } catch (e) {
+    throw await explainRevert(e, minOut, async () => (await quoteBuy(round, ethAmount)).tokensOut);
+  }
 }
 
 /** Live trading: sell tokens. Exact-amount approval to this round's pool,
@@ -226,12 +321,20 @@ export async function chainSell(round: Round, tokensWei: bigint): Promise<string
   const c = round.chain!;
   const me = await activeTradeAddress(c.chainId);
   const allowance = BigInt(
-    await call(c.token, SEL.allowance + pad32(me) + pad32(c.pool)),
+    await call(c.token, SEL.allowance + pad32(me) + pad32(c.pool), c.chainId),
   );
   if (allowance < tokensWei) {
     await sendVia(c.chainId, c.token, SEL.approve + pad32(c.pool) + pad32(tokensWei));
   }
-  return sendVia(c.chainId, c.pool, SEL.sell + pad32(tokensWei) + pad32(0n), 0n, "sell");
+  // Quoted after the approval lands: that approval is a transaction of its own,
+  // and anything mined alongside it moves the price a quote taken earlier would
+  // still be promising.
+  const { minOut } = await quoteSell(round, tokensWei);
+  try {
+    return await sendVia(c.chainId, c.pool, SEL.sell + pad32(tokensWei) + pad32(minOut), 0n, "sell");
+  } catch (e) {
+    throw await explainRevert(e, minOut, async () => (await quoteSell(round, tokensWei)).ethOut);
+  }
 }
 
 /** Non-graduated round over: redeem remaining tokens at the uniform price.
@@ -240,11 +343,13 @@ export async function chainRedeem(round: Round, tokensWei: bigint): Promise<stri
   const c = round.chain!;
   const me = await activeTradeAddress(c.chainId);
   const allowance = BigInt(
-    await call(c.token, SEL.allowance + pad32(me) + pad32(c.pool)),
+    await call(c.token, SEL.allowance + pad32(me) + pad32(c.pool), c.chainId),
   );
   if (allowance < tokensWei) {
     await sendVia(c.chainId, c.token, SEL.approve + pad32(c.pool) + pad32(tokensWei));
   }
+  // No slippage floor here on purpose: redemption is a fixed uniform price set
+  // once at resolution, identical for every holder. There is no curve to move.
   return sendVia(c.chainId, c.pool, SEL.redeem + pad32(tokensWei), 0n, "redeem");
 }
 
@@ -263,7 +368,7 @@ export async function walletEthBalance(chainId?: number): Promise<number> {
  *  read for whichever address is trading this round. */
 export async function walletTokenBalanceWei(round: Round): Promise<bigint> {
   const me = await activeTradeAddress(round.chain!.chainId);
-  return BigInt(await call(round.chain!.token, SEL.balanceOf + pad32(me)));
+  return BigInt(await call(round.chain!.token, SEL.balanceOf + pad32(me), round.chain!.chainId));
 }
 
 /**

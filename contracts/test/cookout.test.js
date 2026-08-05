@@ -353,3 +353,66 @@ describe("Differential: Solidity settlement matches the TS reference", () => {
     });
   }
 });
+
+/**
+ * The client sends a minimum-out with every trade, computed from
+ * quoteBuyWei/quoteSellWei in packages/shared. If those drift from the pool by
+ * even one wei, the floor either reverts honest trades or stops protecting
+ * them. So this asserts exact equality against the deployed contract — no
+ * tolerance, unlike the auction vectors above, whose reference is float math.
+ */
+describe("Differential: TS trade quotes match the pool exactly", () => {
+  const quoteVectors = require("./quote-vectors.json");
+  const toWei = (n) => (BigInt(Math.round(n * 1e6)) * 10n ** 12n);
+
+  /** A pool sitting at exactly the vector's reserves, open for trading. */
+  async function poolAt(reserves, feeBps, extraTokensForSeller = 0n) {
+    const [deployer, trader] = await ethers.getSigners();
+    const tokenReserve = toWei(reserves.token);
+    const token = await (await ethers.getContractFactory("ArenaToken")).deploy(
+      "Quote", "QTE", tokenReserve + extraTokensForSeller, deployer.address,
+    );
+    const pool = await (await ethers.getContractFactory("RoundPool")).deploy(
+      await token.getAddress(),
+      deployer.address,
+      feeBps,
+      (await now()) + 86_400,
+      0n,                      // no mcap target — nothing auto-resolves mid-test
+      ethers.MaxUint256,       // graduation unreachable
+      ethers.MaxUint256,
+      ethers.MaxUint256,
+    );
+    await pool.initAuction(deployer.address); // the deployer stands in for the auction
+    await token.transfer(await pool.getAddress(), tokenReserve);
+    await pool.initialize({ value: toWei(reserves.eth) });
+    await pool.auctionBuy({ value: 0 }); // zero-value open: reserves unchanged
+    if (extraTokensForSeller > 0n) await token.transfer(trader.address, extraTokensForSeller);
+    return { pool, token, trader };
+  }
+
+  for (const v of quoteVectors.filter((q) => q.side === "buy")) {
+    it(v.name, async () => {
+      const { pool, trader } = await poolAt(v.reserves, v.feeBps);
+      const out = await pool.connect(trader).buy.staticCall(0, { value: BigInt(v.amount) });
+      expect(out).to.equal(BigInt(v.expected));
+    });
+  }
+
+  for (const v of quoteVectors.filter((q) => q.side === "sell")) {
+    it(v.name, async () => {
+      const amount = BigInt(v.amount);
+      const { pool, token, trader } = await poolAt(v.reserves, v.feeBps, amount);
+      await token.connect(trader).approve(await pool.getAddress(), amount);
+      const out = await pool.connect(trader).sell.staticCall(amount, 0);
+      expect(out).to.equal(BigInt(v.expected));
+    });
+  }
+
+  it("a minimum-out one wei above the true output reverts", async () => {
+    const { pool, trader } = await poolAt({ eth: 100, token: 1_000_000 }, 100);
+    const value = ethers.parseEther("1");
+    const out = await pool.connect(trader).buy.staticCall(0, { value });
+    await expect(pool.connect(trader).buy(out + 1n, { value })).to.be.revertedWith("slippage");
+    await expect(pool.connect(trader).buy(out, { value })).to.not.be.reverted;
+  });
+});
