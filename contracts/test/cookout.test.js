@@ -1065,3 +1065,56 @@ describe("PitBattlePool — winner takes the pot", () => {
       expect(names, `must not expose ${forbidden}`).to.not.include(forbidden);
   });
 });
+
+describe("PitPoolFactory", () => {
+  const MATCH = ethers.id("pit-match-1");
+
+  async function factory() {
+    const [resolver, feeTo, stranger] = await ethers.getSigners();
+    const f = await (await ethers.getContractFactory("PitPoolFactory")).deploy(
+      resolver.address, feeTo.address,
+    );
+    return { f, resolver, feeTo, stranger };
+  }
+
+  it("creates both pools wired to the fixed resolver and fee recipient", async () => {
+    const { f, resolver, feeTo } = await factory();
+    const t = await now();
+    await f.createPools(MATCH, 500, 500, E(0.01), t + 100, t + 86_500);
+
+    const { prediction, battle } = await f.poolsFor(MATCH);
+    const p = await ethers.getContractAt("PitPool", prediction);
+    const b = await ethers.getContractAt("PitBattlePool", battle);
+    for (const c of [p, b]) {
+      expect(await c.resolver()).to.equal(resolver.address);
+      expect(await c.feeRecipient()).to.equal(feeTo.address);
+    }
+    expect(await b.entryFee()).to.equal(E(0.01));
+  });
+
+  it("only the resolver may create pools", async () => {
+    // Anyone else's pools would carry this resolver's name while escrowing
+    // money for a match that does not exist.
+    const { f, stranger } = await factory();
+    const t = await now();
+    await expect(f.connect(stranger).createPools(MATCH, 500, 500, E(0.01), t + 100, t + 86_500))
+      .to.be.revertedWithCustomError(f, "NotResolver");
+  });
+
+  it("will not create a second set for the same match", async () => {
+    const { f } = await factory();
+    const t = await now();
+    await f.createPools(MATCH, 500, 500, E(0.01), t + 100, t + 86_500);
+    await expect(f.createPools(MATCH, 500, 500, E(0.01), t + 100, t + 86_500))
+      .to.be.revertedWithCustomError(f, "AlreadyCreated");
+  });
+
+  it("passes the contracts' own guardrails through", async () => {
+    const { f } = await factory();
+    const t = await now();
+    // A fee above the pools' cap, and a refund window that never opens.
+    await expect(f.createPools(MATCH, 1_500, 500, E(0.01), t + 100, t + 86_500)).to.be.reverted;
+    await expect(f.createPools(MATCH, 500, 500, E(0.01), t + 100, t + 50)).to.be.reverted;
+    await expect(f.createPools(MATCH, 500, 500, 0, t + 100, t + 86_500)).to.be.reverted;
+  });
+});

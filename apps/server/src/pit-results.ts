@@ -76,6 +76,35 @@ export function houseSpecialHit(round: Round, ctx: PitResolveCtx, kind: HouseSpe
   }
 }
 
+/**
+ * The single player who takes an on-chain battle pot.
+ *
+ * The paper pool splits between everyone tied at the best PnL. A winner-take-all
+ * contract cannot split, so a tie has to be broken by something — and it has to
+ * be something a player can check for themselves rather than take on trust.
+ *
+ * Highest PnL first, then whoever traded most (they worked harder for the same
+ * number), then the lowest address. The last step is arbitrary, and it is meant
+ * to be: an arbitrary rule fixed in advance beats a judgement call made by the
+ * house after seeing who it would favour.
+ */
+export function battleWinnerOf(
+  store: Store,
+  round: Round,
+  pnlByTrader: Map<string, number>,
+): string | undefined {
+  if (pnlByTrader.size === 0) return undefined;
+  const trades = store.trades.get(round.id) ?? [];
+  const tradeCount = (addr: string) => trades.reduce((n, t) => (t.userAddress === addr ? n + 1 : n), 0);
+  return [...pnlByTrader.entries()]
+    .sort(([aAddr, aPnl], [bAddr, bPnl]) => {
+      if (Math.abs(aPnl - bPnl) > 1e-12) return bPnl - aPnl;
+      const byTrades = tradeCount(bAddr) - tradeCount(aAddr);
+      if (byTrades !== 0) return byTrades;
+      return aAddr.localeCompare(bAddr);
+    })[0]?.[0];
+}
+
 /** Skim + route the Pit fee (jackpot / creator / platform+treasury). */
 function routeFee(store: Store, round: Round, fee: number): void {
   if (fee <= 1e-12) return;
@@ -381,6 +410,8 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
       qualified: qualifiers.length,
       rewardEach: tradeReward,
       carried: tradeCarried,
+      // Who a winner-take-all on-chain pot pays. Undefined when nobody traded.
+      winner: battleWinnerOf(store, round, traderPnl),
     },
     trial: {
       participants: pit.trialParticipants,

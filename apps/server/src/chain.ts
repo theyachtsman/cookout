@@ -27,6 +27,8 @@ import {
   defineChain,
   formatEther,
   http,
+  keccak256,
+  toHex,
   parseAbi,
   parseEther,
   type Address as HexAddress,
@@ -34,7 +36,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import type { AuctionIntent, AuctionResult, Round, RiskTier, TokenConcept } from "@cookout/shared";
+import type { AuctionIntent, AuctionResult, PitChain, Round, RiskTier, TokenConcept } from "@cookout/shared";
 import type { RoundEngine } from "./engine.js";
 import { Err } from "./engine.js";
 import type { Store } from "./store.js";
@@ -64,6 +66,27 @@ const AUCTION_ABI = parseAbi([
 /** Means "pay the creator's own address" to the factory. */
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
+const PIT_FACTORY_ABI = parseAbi([
+  "function createPools(bytes32 matchId, uint16 predictionFeeBps, uint16 battleFeeBps, uint256 battleEntryFee, uint64 closesAt, uint64 refundAfter) returns (address,address)",
+  "function poolsFor(bytes32) view returns (address prediction, address battle, uint64 createdAt)",
+  "event PitPoolsCreated(bytes32 indexed matchId, address prediction, address battle, uint256 battleEntryFee, uint64 closesAt, uint64 refundAfter)",
+]);
+
+const PIT_POOL_ABI = parseAbi([
+  "function resolve(uint8 result)",
+  "function totalStaked() view returns (uint256)",
+  "function resolved() view returns (bool)",
+  "event Staked(address indexed who, uint8 indexed call, uint256 amount)",
+]);
+
+const PIT_BATTLE_ABI = parseAbi([
+  "function resolve(address winner)",
+  "function pot() view returns (uint256)",
+  "function entrants() view returns (uint256)",
+  "function resolved() view returns (bool)",
+  "event Entered(address indexed who, uint256 amount, uint256 pot)",
+]);
+
 const POOL_ABI = parseAbi([
   "event Bought(address indexed who, uint256 ethIn, uint256 tokensOut, uint256 fee)",
   "event Sold(address indexed who, uint256 tokensIn, uint256 ethOut, uint256 fee)",
@@ -88,6 +111,7 @@ interface PubClient {
     address: HexAddress;
     abi: unknown;
     functionName: string;
+    args?: readonly unknown[];
   }): Promise<unknown>;
   waitForTransactionReceipt(args: {
     hash: `0x${string}`;
@@ -117,6 +141,8 @@ const wad = (x: bigint): number => Number(formatEther(x));
 export class ChainService {
   readonly enabled: boolean;
   readonly scale: number;
+  /** Deployed PitPoolFactory, when CHAIN_PIT_FACTORY is configured. */
+  private pitFactory?: HexAddress;
   private pub!: PubClient;
   private wallet!: WalClient;
   private account!: ReturnType<typeof privateKeyToAccount>;
@@ -137,6 +163,8 @@ export class ChainService {
     const factory = process.env.CHAIN_FACTORY as HexAddress | undefined;
     const key = process.env.CHAIN_OPERATOR_KEY as `0x${string}` | undefined;
     this.scale = Number(process.env.CHAIN_SCALE ?? 0.01);
+    const pf = process.env.CHAIN_PIT_FACTORY;
+    if (pf && /^0x[0-9a-fA-F]{40}$/.test(pf)) this.pitFactory = pf as HexAddress;
     this.enabled = Boolean(rpc && id && factory && key);
     if (!this.enabled) return;
 
@@ -321,6 +349,123 @@ export class ChainService {
     } catch {
       /* a failed balance read must never stop the mirror */
     }
+  }
+
+  /**
+   * Deploy a Pit match's prize pools.
+   *
+   * Called when a chain-only Pit match opens its lobby. Failure is not fatal:
+   * without pools the match simply has no on-chain money, which the rest of
+   * the stack already handles because the paper site runs that way by design.
+   * Better a Pit match with no pot than one whose escrow half-exists.
+   */
+  async createPitPools(
+    round: Round,
+    opts: { battleEntryUsd: number; battleEntryWei: bigint; predictionFeeBps: number; battleFeeBps: number },
+  ): Promise<PitChain | null> {
+    if (!this.enabled || !this.pitFactory) return null;
+    const pit = round.pit;
+    if (!pit) return null;
+
+    // Staking closes when the lobby does; refunds open a day later, which is
+    // long enough for a stuck resolver to be noticed and fixed, and short
+    // enough that players are not waiting a week for their own money.
+    const closesAt = Math.floor((round.queueClosesAt ?? round.scheduledAt ?? Date.now()) / 1000);
+    const refundAfter = closesAt + 86_400;
+    const matchId = keccak256(toHex(round.id));
+
+    const hash = await this.wallet.writeContract({
+      chain: this.chain,
+      account: this.account,
+      address: this.pitFactory,
+      abi: PIT_FACTORY_ABI,
+      functionName: "createPools",
+      args: [
+        matchId,
+        opts.predictionFeeBps,
+        opts.battleFeeBps,
+        opts.battleEntryWei,
+        BigInt(closesAt),
+        BigInt(refundAfter),
+      ],
+    });
+    await this.pub.waitForTransactionReceipt({ hash });
+    const [prediction, battle] = (await this.pub.readContract({
+      address: this.pitFactory,
+      abi: PIT_FACTORY_ABI,
+      functionName: "poolsFor",
+      args: [matchId],
+    })) as [HexAddress, HexAddress, bigint];
+
+    return {
+      chainId: this.chain.id,
+      predictionPool: prediction,
+      battlePool: battle,
+      battleEntryWei: opts.battleEntryWei.toString(),
+      battleEntryUsd: opts.battleEntryUsd,
+      closesAt: closesAt * 1000,
+      refundAfter: refundAfter * 1000,
+    };
+  }
+
+  /**
+   * Post a finished Pit match's outcome to its pools.
+   *
+   * The one place the platform acts as an oracle. Both calls are idempotent
+   * against the chain — the pools refuse a second resolution — so a retry
+   * after a dropped receipt cannot pay twice.
+   */
+  async resolvePitPools(
+    round: Round,
+    outcome: { call: 1 | 2 | 3; battleWinner?: string },
+  ): Promise<void> {
+    const pc = round.pitChain;
+    if (!this.enabled || !pc) return;
+
+    const post = async (label: string, fn: () => Promise<HexAddress>) => {
+      try {
+        const hash = await fn();
+        await this.pub.waitForTransactionReceipt({ hash });
+        this.store.logAdmin("chain", `${label} for ${round.token.symbol} resolved on-chain (${hash})`);
+        return hash;
+      } catch (e) {
+        // Loud, because unresolved pools hold real money. The refund window
+        // means players are not trapped, but they should not need it.
+        this.store.logAdmin(
+          "chain",
+          `FAILED to resolve ${label} for ${round.token.symbol}: ${(e as Error).message}. ` +
+            `Retry before ${new Date(pc.refundAfter).toISOString()}, after which entrants can refund themselves.`,
+        );
+        return undefined;
+      }
+    };
+
+    const tx = await post("prediction pool", () =>
+      this.wallet.writeContract({
+        chain: this.chain,
+        account: this.account,
+        address: pc.predictionPool as HexAddress,
+        abi: PIT_POOL_ABI,
+        functionName: "resolve",
+        args: [outcome.call],
+      }),
+    );
+
+    // No entrants means no winner to name; the pool's own refund path covers
+    // it, and calling resolve with a zero address would revert anyway.
+    if (outcome.battleWinner) {
+      await post("battle pool", () =>
+        this.wallet.writeContract({
+          chain: this.chain,
+          account: this.account,
+          address: pc.battlePool as HexAddress,
+          abi: PIT_BATTLE_ABI,
+          functionName: "resolve",
+          args: [outcome.battleWinner as HexAddress],
+        }),
+      );
+    }
+    if (tx) pc.resolvedTx = tx;
   }
 
   private async tickRound(round: Round, now: number): Promise<void> {

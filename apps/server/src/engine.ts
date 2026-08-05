@@ -90,6 +90,16 @@ export type SystemChat = (roomId: string, kind: SystemChatKind, text: string) =>
 export class RoundEngine {
   private live = new Map<string, LiveRoundState>();
 
+  /**
+   * Post a finished Pit match's outcome to its on-chain pools.
+   *
+   * Set by index.ts after construction rather than injected: the chain service
+   * takes the engine as a dependency, so the engine cannot take the chain
+   * service back without a cycle. Absent on the paper site, where Pit matches
+   * have no pools to resolve.
+   */
+  onPitChainResolve?: (round: Round, outcome: { call: 1 | 2 | 3; battleWinner?: string }) => void;
+
   constructor(
     private store: Store,
     private broadcast: Broadcast,
@@ -1182,6 +1192,16 @@ export class RoundEngine {
         drawdown: new Map([...s.meta].map(([a, m]) => [a, m.minPnlFrac])),
       });
       this.store.summaries.set(round.id, summary);
+      // Post the outcome to the on-chain pools, when this match has them.
+      // Fire-and-forget: the pools hold the money and the paper summary is
+      // already correct, so a slow chain must not stall the match ending.
+      if (round.pitChain && this.onPitChainResolve) {
+        const call = summary.pit?.outcome;
+        this.onPitChainResolve(round, {
+          call: call === "graduate" ? 1 : call === "rug" ? 2 : 3,
+          battleWinner: summary.pit?.trading.winner,
+        });
+      }
       this.finishPitEnd(round, summary, now);
       return;
     }

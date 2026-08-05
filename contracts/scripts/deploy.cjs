@@ -49,12 +49,23 @@ async function main() {
   await factory.waitForDeployment();
   const receipt = await factory.deploymentTransaction().wait();
 
+  // The Pit's prize pools. Separate from the round factory because Pit matches
+  // are platform-created: only the resolver may make pools, and the resolver is
+  // the API's operator key.
+  const pitFactory = await (await ethers.getContractFactory("PitPoolFactory")).deploy(
+    deployer.address,
+    PROTOCOL_FEE_WALLET,
+  );
+  await pitFactory.waitForDeployment();
+  console.log(`PitPoolFactory deployed: ${await pitFactory.getAddress()}`);
+
   const record = {
     network: network.name,
     chainId: Number(chainId),
     roundFactory: await factory.getAddress(),
     priceMath: await priceMath.getAddress(),
     lockerFactory: await lockerFactory.getAddress(),
+    pitPoolFactory: await pitFactory.getAddress(),
     positionManager: V4.positionManager,
     permit2: PERMIT2,
     protocolFeeWallet: PROTOCOL_FEE_WALLET,

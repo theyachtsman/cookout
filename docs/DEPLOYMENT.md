@@ -275,3 +275,37 @@ Deploys PriceMath (linked library), LockerFactory, and RoundFactory, and writes
 Rounds on the testnet factory, and rounds on the **old** testnet factory
 (`0xE52A…7E6E`, pre-migration), stay where they are. Nothing migrates between
 deployments, and the old factory's rounds can never migrate at all.
+
+## The Pit's on-chain prize pools
+
+Chain-only. The paper site keeps running the Pit in pETH and is unaffected.
+
+`scripts/deploy.cjs` also deploys a **PitPoolFactory**, wired to the operator
+key as resolver and to `PROTOCOL_FEE_WALLET` for the house cut. Point the API
+at it:
+
+```
+CHAIN_PIT_FACTORY=0x…
+```
+
+Without it, chain-only Pit matches simply have no pools — which is the same
+shape the paper site runs in, so nothing breaks.
+
+**The operator is an oracle here, and that is a real difference** from the rest
+of the system. Pit matches are simulated, so no contract can check who won: the
+server posts the outcome. What the pools guarantee instead:
+
+- fees capped and paid to an address fixed at deploy
+- prediction payouts derived from stakes, so an outcome cannot direct money
+- a battle winner who must have entered
+- **a 24-hour refund window** — after it, anyone can open refunds and every
+  entrant reclaims their stake. Refusing to resolve cannot keep the money.
+
+What they cannot guarantee is an honest outcome. Publish entries and results.
+
+### If resolution fails
+
+The audit log says so loudly, naming the deadline. Retry before the refund
+window opens; after it, entrants can and will refund themselves, and the match
+pays nobody. Resolution is idempotent on-chain — the pools refuse a second
+resolve — so retrying after a dropped receipt cannot pay twice.

@@ -37,6 +37,9 @@ if (snapshot) {
 const hub = new Hub(store);
 const engine = new RoundEngine(store, hub.broadcast, hub.spectatorCount, hub.system);
 const chain = new ChainService(store, engine);
+// Close the loop the constructors cannot: the chain service depends on the
+// engine, so the engine gets its chain hook after both exist.
+engine.onPitChainResolve = (round, outcome) => void chain.resolvePitPools(round, outcome);
 // The Telegram companion (The Pit Boss). Null unless TELEGRAM_BOT_TOKEN is set,
 // so a deployment that hasn't opted in is entirely unaffected.
 const pitBoss = createPitBoss(store);

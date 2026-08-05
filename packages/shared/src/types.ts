@@ -241,8 +241,15 @@ export interface PitResult {
   house: { pot: number; winners: number; rewardEach: number; carried: boolean };
   /** Double Down Bonuses paid this match. */
   doubleDown: { bonus: number; count: number };
-  /** Trading bucket. */
-  trading: { pot: number; qualified: number; rewardEach: number; carried: boolean };
+  /** Trading bucket. On-chain this is winner-take-all, so `winner` is the one
+   *  address the battle pool pays; on paper the pot still splits among ties. */
+  trading: {
+    pot: number;
+    qualified: number;
+    rewardEach: number;
+    carried: boolean;
+    winner?: string;
+  };
   /** Flame Trial summary. */
   trial: { participants: number; passed: number; requiredPnlBps: number };
   /** Per-player breakdown (humans only), highest total reward first. */
@@ -412,6 +419,8 @@ export interface Round {
   matchType?: MatchType;
   /** Present only on Pit rounds: durations, fees, pool state, paper stack. */
   pit?: PitConfig;
+  /** On-chain prize pools, when this Pit match runs on real money. */
+  pitChain?: PitChain;
   /** The curated launch mode this round runs (Classic/Pressure/Blitz/Reflex). */
   mode?: GameMode;
   /** Mode modifiers chosen at launch (e.g. Over Time), for display + rules. */
@@ -1118,6 +1127,32 @@ export type ChainLedgerKind =
  * client merges its own local log on top for the handful of actions the mirror
  * never sees — sends, and deposits made from outside the site.
  */
+/**
+ * A Pit match's on-chain prize pools.
+ *
+ * Present only on the chain-only site. The paper beta keeps running the Pit in
+ * pETH through the server, which is why this is optional rather than required:
+ * the two money paths coexist, and `pitChain` being set is what tells every
+ * surface which one this match is on.
+ */
+export interface PitChain {
+  chainId: number;
+  /** Pari-mutuel pool for prediction calls. */
+  predictionPool: string;
+  /** Winner-take-all pot for Battle the Goon Squad. */
+  battlePool: string;
+  /** The battle's fixed entry, converted from its tier's USD price at creation. */
+  battleEntryWei: string;
+  /** The USD figure that produced it, for honest display. */
+  battleEntryUsd: number;
+  /** Staking closes; after this the resolver may post the outcome. */
+  closesAt: number;
+  /** After this anyone can open refunds — the bound on the oracle. */
+  refundAfter: number;
+  /** Set once resolution lands on-chain. */
+  resolvedTx?: string;
+}
+
 export interface ChainLedgerEntry {
   id: string;
   at: number;

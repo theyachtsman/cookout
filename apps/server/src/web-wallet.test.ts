@@ -223,3 +223,49 @@ test("a flag switched off actually closes the thing it names", async () => {
   // Defaults still resolve for flags the operator never touched.
   assert.equal(store.flag("pit_trading"), true);
 });
+
+/**
+ * On-chain Pit pools. The paper site keeps running the Pit in pETH; only the
+ * chain-only site escrows real money, which is why `pitChain` is optional and
+ * every path has to cope with it being absent.
+ */
+test("the battle winner is decided by a rule a player can check", async () => {
+  const { Store } = await import("./store.js");
+  const { battleWinnerOf } = await import("./pit-results.js");
+  const store = new Store();
+  const round = { id: "r1" } as never;
+
+  const A = "0xaaa0000000000000000000000000000000000001";
+  const B = "0xbbb0000000000000000000000000000000000002";
+  const C = "0xccc0000000000000000000000000000000000003";
+
+  // Highest PnL wins outright.
+  assert.equal(battleWinnerOf(store, round, new Map([[A, 5], [B, 9], [C, 1]])), B);
+
+  // A winner-take-all contract cannot split a tie, so one has to be picked —
+  // by a rule fixed in advance, not a judgement made after seeing who it helps.
+  store.trades.set("r1", [
+    { userAddress: A }, { userAddress: A }, { userAddress: B },
+  ] as never);
+  assert.equal(
+    battleWinnerOf(store, round, new Map([[A, 9], [B, 9]])),
+    A,
+    "tied on PnL, more trades wins",
+  );
+  // Tied on both: the address order is arbitrary and deterministic, which is
+  // the point — it cannot be steered.
+  store.trades.set("r1", []);
+  assert.equal(battleWinnerOf(store, round, new Map([[B, 9], [A, 9]])), A);
+
+  assert.equal(battleWinnerOf(store, round, new Map()), undefined, "nobody traded");
+});
+
+test("resolution is wired to the engine without a circular dependency", () => {
+  // The chain service takes the engine, so the engine gets its hook after both
+  // exist. If this is ever dropped, Pit pools silently never resolve and the
+  // only thing standing between players and a stuck pot is the refund window.
+  const idx = readFileSync(join(import.meta.dirname, "index.ts"), "utf8");
+  assert.match(idx, /engine\.onPitChainResolve\s*=/);
+  const eng = readFileSync(join(import.meta.dirname, "engine.ts"), "utf8");
+  assert.ok(eng.includes("onPitChainResolve"), "the engine must call it on Pit match end");
+});
