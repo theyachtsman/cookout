@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { ACHIEVEMENTS, COSMETICS, xpForLevel, type Round, type RoundHistoryEntry } from "@cookout/shared";
 import { api } from "../../lib/api";
-import { DEFAULT_CHAIN_ID, arenaBalance, hasArenaWallet } from "../../lib/arenaWallet";
+import { DEFAULT_CHAIN_ID, cookoutBalance, signerReady } from "../../lib/cookoutWallet";
 import { useChainOnly, useUnit } from "../../lib/chainOnly";
 import { useSession } from "../../lib/session";
 import { CoinCard } from "../../components/CoinCard";
@@ -146,8 +146,8 @@ export default function ProfilePage() {
   // Chain-only site: the headline balance is the arena wallet, not paper.
   const [arenaBal, setArenaBal] = useState<number | null>(null);
   useEffect(() => {
-    if (!chainOnly || !hasArenaWallet()) return;
-    const poll = () => arenaBalance(DEFAULT_CHAIN_ID).then(setArenaBal).catch(() => {});
+    if (!chainOnly || !signerReady()) return;
+    const poll = () => cookoutBalance(DEFAULT_CHAIN_ID).then(setArenaBal).catch(() => {});
     poll();
     const t = setInterval(poll, 10_000);
     return () => clearInterval(t);
@@ -224,7 +224,7 @@ export default function ProfilePage() {
               <div className="font-mono text-2xl font-black text-lime-400">
                 ⚡ {arenaBal !== null ? arenaBal.toFixed(4) : "—"}
               </div>
-              <div className="text-[11px] text-zinc-500">ETH · Cook Out Balance →</div>
+              <div className="text-[11px] text-zinc-500">ETH · Cookout Wallet →</div>
             </Link>
           ) : (
             <Link href="/wallet" className="block hover:opacity-80">

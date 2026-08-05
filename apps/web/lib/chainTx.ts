@@ -7,6 +7,10 @@
  * This module hand-encodes the handful of static-arg calls the round contracts
  * expose, so the web bundle needs no web3 library.
  *
+ * Signing goes through the Cookout Wallet (the player's Privy embedded wallet)
+ * whenever it's available, which is every logged-in player. An injected wallet
+ * is the fallback for sessions that never got an embedded one.
+ *
  * AUDIT POLICY (docs/COMPLIANCE + 2026-07 audit): token approvals are always
  * EXACT-AMOUNT and always target the specific per-round contract (the round's
  * own pool for sell, its own pool for redeem). Never a shared router, never a
@@ -16,13 +20,14 @@
 
 import type { Round } from "@cookout/shared";
 import {
-  arenaAddress,
-  arenaBalance,
-  arenaSend,
-  hasArenaWallet,
-  logArenaTx,
-  type ArenaTxEntry,
-} from "./arenaWallet";
+  DEFAULT_CHAIN_ID,
+  cookoutAddress,
+  cookoutBalance,
+  cookoutSend,
+  logWalletTx,
+  signerReady,
+  type WalletTxEntry,
+} from "./cookoutWallet";
 
 type Eth = { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> };
 
@@ -99,24 +104,18 @@ export async function ensureChain(chainId: number): Promise<void> {
   }
 }
 
-/** True when the arena wallet should carry this round's transactions: it
- *  exists and holds enough to cover the call (plus a little gas). Hot path =
- *  local signing, zero wallet prompts. */
-export async function arenaActive(chainId: number, needEth = 0): Promise<boolean> {
-  if (!hasArenaWallet()) return false;
-  try {
-    // Gas here is ~0.01 gwei, so a generous reserve is still microscopic —
-    // a fat buffer would stop small testnet balances from ever going hot.
-    return (await arenaBalance(chainId)) >= needEth + 0.00002;
-  } catch {
-    return false;
-  }
+/** True when the Cookout Wallet carries this round's transactions. Unlike the
+ *  burner it replaced, this does NOT depend on the balance: it's the player's
+ *  one wallet, so a short balance is an error to report, not a reason to
+ *  silently bill a different address. */
+export function cookoutWalletActive(): boolean {
+  return signerReady();
 }
 
-/** The address whose trades/holdings are "you" for this round — the arena
- *  wallet when active, else the injected wallet. */
-export async function activeTradeAddress(chainId: number): Promise<string> {
-  return (await arenaActive(chainId)) ? arenaAddress() : account();
+/** The address whose trades/holdings are "you" for this round — the Cookout
+ *  Wallet when present, else the injected wallet. */
+export async function activeTradeAddress(_chainId?: number): Promise<string> {
+  return cookoutAddress() ?? (await account());
 }
 
 async function sendVia(
@@ -124,20 +123,30 @@ async function sendVia(
   to: string,
   data: string,
   valueWei = 0n,
-  kind: ArenaTxEntry["kind"] = "approve",
+  kind: WalletTxEntry["kind"] = "approve",
   ethMoved = Number(valueWei) / 1e18,
 ): Promise<string> {
   let hash: string;
-  let via: ArenaTxEntry["via"];
-  if (await arenaActive(chainId, Number(valueWei) / 1e18)) {
-    via = "arena";
-    hash = await arenaSend(chainId, to as `0x${string}`, data as `0x${string}`, valueWei);
+  let via: WalletTxEntry["via"];
+  if (cookoutWalletActive()) {
+    via = "cookout";
+    // Check funds first: the RPC's "insufficient funds for gas * price + value"
+    // is useless to a player, and this is now the balance they actually top up.
+    const need = Number(valueWei) / 1e18;
+    if (need > 0) {
+      const have = await cookoutBalance(chainId);
+      if (have < need)
+        throw new Error(
+          `your Cookout Wallet holds ${have.toFixed(5)} ETH — deposit more to spend ${need} ETH`,
+        );
+    }
+    hash = await cookoutSend(chainId, to as `0x${string}`, data as `0x${string}`, valueWei);
   } else {
     via = "wallet";
     await ensureChain(chainId);
     hash = await sendTx(to, data, valueWei);
   }
-  logArenaTx({ hash, kind, eth: ethMoved, via, chainId, at: Date.now() });
+  logWalletTx({ hash, kind, eth: ethMoved, via, chainId, at: Date.now() });
   return hash;
 }
 
@@ -241,9 +250,9 @@ export async function chainRedeem(round: Round, tokensWei: bigint): Promise<stri
 
 // ---------------- balances ----------------
 
-/** Spendable balance for this round: arena wallet when hot, else injected. */
+/** Spendable balance for this round: the Cookout Wallet, else the injected one. */
 export async function walletEthBalance(chainId?: number): Promise<number> {
-  if (chainId && (await arenaActive(chainId))) return arenaBalance(chainId);
+  if (cookoutWalletActive()) return cookoutBalance(chainId ?? DEFAULT_CHAIN_ID);
   const me = await account();
   return fromWei(
     (await eth().request({ method: "eth_getBalance", params: [me, "latest"] })) as string,
@@ -257,9 +266,16 @@ export async function walletTokenBalanceWei(round: Round): Promise<bigint> {
   return BigInt(await call(round.chain!.token, SEL.balanceOf + pad32(me)));
 }
 
-/** One-time funding: a single injected-wallet confirmation moves ETH into the
- *  arena wallet; every trade after that signs locally with no prompts. */
-export async function fundArenaWallet(chainId: number, ethAmount: string): Promise<string> {
+/**
+ * Deposit into the Cookout Wallet from a connected external wallet.
+ *
+ * Entirely optional — the wallet has a plain address, so a deposit can just as
+ * well be a transfer from an exchange or any other wallet. This is the
+ * convenience path for players who already have MetaMask on this chain.
+ */
+export async function depositToCookoutWallet(chainId: number, ethAmount: string): Promise<string> {
+  const dest = cookoutAddress();
+  if (!dest) throw new Error("Cookout Wallet isn't ready yet — reload and sign in again");
   await ensureChain(chainId);
   const value = toWei(ethAmount);
   // Pre-check the payer so a short balance gives a useful message instead of
@@ -275,14 +291,7 @@ export async function fundArenaWallet(chainId: number, ethAmount: string): Promi
         `ETH on this chain — switch to a funded account or claim the faucet`,
     );
   }
-  const hash = await sendTx(arenaAddress(), "0x", value, 21_000n);
-  logArenaTx({
-    hash,
-    kind: "deposit",
-    eth: fromWei(value),
-    via: "wallet",
-    chainId,
-    at: Date.now(),
-  });
+  const hash = await sendTx(dest, "0x", value, 21_000n);
+  logWalletTx({ hash, kind: "deposit", eth: fromWei(value), via: "wallet", chainId, at: Date.now() });
   return hash;
 }

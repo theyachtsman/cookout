@@ -2,20 +2,20 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { arenaBalance, arenaWithdraw, hasArenaWallet } from "../../lib/arenaWallet";
 import {
-  arenaAddress,
-  arenaBalance,
-  arenaHistory,
-  arenaWithdraw,
   balanceOf,
-  hasArenaWallet,
-  registerArenaAddress,
-  type ArenaTxEntry,
-} from "../../lib/arenaWallet";
+  cookoutAddress,
+  cookoutBalance,
+  cookoutTransfer,
+  onCookoutSigner,
+  signerReady,
+  walletHistory,
+  type WalletTxEntry,
+} from "../../lib/cookoutWallet";
 import type { LedgerEntry, LedgerKind } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { useChainOnly } from "../../lib/chainOnly";
-import { fundArenaWallet } from "../../lib/chainTx";
 import { fmtAmount, useDenomPref, useEthUsd } from "../../lib/ethUsd";
 import { DenomToggle } from "../../components/DenomToggle";
 import { ExpandableRows } from "../../components/ProfileUI";
@@ -26,10 +26,12 @@ import { playDeposit } from "../../lib/sfx";
 
 /** Default chain for the site-wide wallet view (Robinhood Chain Testnet). */
 const CHAIN_ID = 46630;
+const CHAIN_NAME = "Robinhood Chain Testnet";
 
-const KIND_META: Record<ArenaTxEntry["kind"], { icon: string; label: string; cls: string }> = {
+const KIND_META: Record<WalletTxEntry["kind"], { icon: string; label: string; cls: string }> = {
   deposit: { icon: "⬇️", label: "Deposit", cls: "text-lime-300" },
   withdraw: { icon: "⬆️", label: "Withdraw", cls: "text-zinc-300" },
+  send: { icon: "📤", label: "Sent out", cls: "text-zinc-300" },
   "pull-up": { icon: "🚪", label: "Pull Up", cls: "text-lime-300" },
   cancel: { icon: "↩️", label: "Cancel intent", cls: "text-zinc-400" },
   claim: { icon: "🎁", label: "Claim fill", cls: "text-amber-300" },
@@ -368,6 +370,13 @@ function when(at: number): string {
   return new Date(at).toLocaleDateString();
 }
 
+/**
+ * The Cookout Wallet — the player's Privy embedded wallet, shown as what it is.
+ *
+ * One address, one balance. Deposit ETH into it from anywhere, spend it on
+ * every round, send it back out to any address. There is no second wallet to
+ * fund into and nothing left stranded when you stop playing.
+ */
 function ChainWalletPage() {
   const { profile, signIn } = useSession();
   const peg = useEthUsd();
@@ -377,58 +386,36 @@ function ChainWalletPage() {
   // site (dev.*) had no way to reach a balance it was still awarding.
   const [tab, setTab] = useState<"cookout" | "burger">("cookout");
   const [bal, setBal] = useState<number | null>(null);
-  const [history, setHistory] = useState<ArenaTxEntry[]>([]);
-  const [amount, setAmount] = useState("0.005");
-  const [busy, setBusy] = useState("");
-  const [error, setError] = useState("");
+  const [history, setHistory] = useState<WalletTxEntry[]>([]);
+  const [ready, setReady] = useState(signerReady());
   const [copied, setCopied] = useState(false);
 
+  // The embedded wallet resolves a beat after sign-in, so re-render when the
+  // bridge publishes it rather than showing an empty wallet forever.
+  useEffect(() => onCookoutSigner(() => setReady(signerReady())), []);
+
   const refresh = useCallback(() => {
-    setHistory(arenaHistory().slice().reverse());
-    if (hasArenaWallet()) arenaBalance(CHAIN_ID).then(setBal).catch(() => {});
-    else setBal(0);
+    setHistory(walletHistory().slice().reverse());
+    if (signerReady()) cookoutBalance(CHAIN_ID).then(setBal).catch(() => {});
+    else setBal(null);
   }, []);
 
   useEffect(() => {
     refresh();
     const t = setInterval(refresh, 8000);
     return () => clearInterval(t);
-  }, [refresh]);
+  }, [refresh, ready]);
 
-  useEffect(() => {
-    if (profile && hasArenaWallet()) void registerArenaAddress();
-  }, [profile]);
-
-  const run = async (key: string, fn: () => Promise<unknown>) => {
-    setError("");
-    setBusy(key);
-    try {
-      await fn();
-      refresh();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy("");
-    }
-  };
-
-  const hot = (bal ?? 0) > 0.0002;
+  const address = cookoutAddress() ?? profile?.address ?? "";
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <header>
-        <h1 className="text-2xl font-black">
-          ⚡ Cook Out Balance
-          {hot && (
-            <span className="ml-2 rounded bg-lime-400/15 px-2 py-0.5 text-xs font-bold text-lime-300">
-              HOT · instant trades
-            </span>
-          )}
-        </h1>
+        <h1 className="text-2xl font-black">🍔 Cookout Wallet</h1>
         <p className="mt-1 max-w-xl text-sm text-zinc-500">
-          Your hot balance for on-chain rounds. Deposit once from your main wallet, one
-          confirmation, and every pull-up, buy, and sell fires instantly with no pop-ups. The key
-          lives only in this browser, and you can withdraw back to your main wallet anytime.
+          Your wallet on the Cook Out. Deposit ETH into it from anywhere, and every pull-up, buy,
+          and sell spends straight from this balance with no pop-ups. You hold the keys through
+          your login, and you can send back out to any address whenever you want.
         </p>
       </header>
 
@@ -441,137 +428,110 @@ function ChainWalletPage() {
         </button>
       ) : (
         <>
-          <WalletTabs tab={tab} onTab={setTab} />
+          <WalletTabs tab={tab} onTab={setTab} chain />
 
           {tab === "burger" ? (
             <BurgerWallet />
           ) : (
             <>
-          <PrivyWalletCard address={profile.address} />
-
-          <BurgerSummary onOpenFull={() => setTab("burger")} />
-
-          <section className="rounded-2xl bg-zinc-900/40 p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
+              <section className="rounded-2xl bg-gradient-to-br from-lime-500/10 via-zinc-900/50 to-zinc-950 p-5 ring-1 ring-lime-400/20">
                 <div className="flex items-center gap-2 text-xs uppercase tracking-wide text-zinc-500">
-                  Hot balance
+                  Balance
                   <DenomToggle usd={usd} onChange={setUsd} native="ETH" />
                 </div>
-                <div className="font-mono text-3xl font-black text-zinc-100">
+                <div className="mt-1 font-mono text-4xl font-black text-lime-300">
                   {bal !== null ? (
                     usd ? (
                       fmtAmount(bal, true, peg, "ETH", 4)
                     ) : (
                       <>
-                        {bal.toFixed(4)} <span className="text-base font-bold text-zinc-500">ETH</span>
+                        {bal.toFixed(4)}{" "}
+                        <span className="text-lg font-bold text-zinc-500">ETH</span>
                       </>
                     )
-                  ) : (
+                  ) : ready ? (
                     "…"
+                  ) : (
+                    "—"
                   )}
                 </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className="w-24 rounded bg-zinc-950/60 px-2 py-2 font-mono text-sm"
-                />
                 <button
-                  disabled={busy !== ""}
-                  onClick={() =>
-                    void run("fund", async () => {
-                      await fundArenaWallet(CHAIN_ID, amount);
-                      playDeposit();
-                    })
-                  }
-                  className="rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300 disabled:opacity-50"
+                  onClick={() => {
+                    if (!address) return;
+                    void navigator.clipboard.writeText(address);
+                    setCopied(true);
+                    setTimeout(() => setCopied(false), 1500);
+                  }}
+                  className="mt-3 block break-all text-left font-mono text-xs text-zinc-500 hover:text-zinc-300"
+                  title="copy your wallet address"
                 >
-                  {busy === "fund" ? "Confirm in wallet…" : "Deposit"}
+                  {address} {copied ? "✓ copied" : "⧉"}
                 </button>
-                {hot && (
-                  <button
-                    disabled={busy !== ""}
-                    onClick={() =>
-                      void run("withdraw", () =>
-                        arenaWithdraw(CHAIN_ID, profile.address as `0x${string}`),
-                      )
-                    }
-                    className="rounded-lg bg-zinc-800 px-4 py-2 text-sm font-bold text-zinc-300 hover:bg-zinc-700 disabled:opacity-50"
-                  >
-                    {busy === "withdraw" ? "Sweeping…" : "Withdraw all"}
-                  </button>
-                )}
-              </div>
-            </div>
-            {hasArenaWallet() && (
-              <button
-                onClick={() => {
-                  void navigator.clipboard.writeText(arenaAddress());
-                  setCopied(true);
-                  setTimeout(() => setCopied(false), 1500);
-                }}
-                className="mt-3 font-mono text-xs text-zinc-500 hover:text-zinc-300"
-                title="copy address"
-              >
-                {arenaAddress()} {copied ? "✓ copied" : "⧉"}
-              </button>
-            )}
-            {error && <div className="mt-2 text-sm text-red-400">{error}</div>}
-            <p className="mt-3 pt-3 text-[11px] text-zinc-600">
-              Treat it like chips on the table: fund what you&apos;re actively playing with. XP,
-              positions, and quests earned by this wallet credit your profile automatically.
-            </p>
-          </section>
+                <p className="mt-3 text-[11px] leading-relaxed text-zinc-500">
+                  <b className="text-zinc-400">To deposit:</b> send ETH on {CHAIN_NAME} to the
+                  address above — from an exchange, MetaMask, or any other wallet. It shows up here
+                  as soon as the transfer confirms.
+                </p>
+              </section>
 
-          <section>
-            <h2 className="mb-2 text-sm font-bold text-zinc-300">Transaction history</h2>
-            <div className="overflow-hidden rounded-2xl bg-zinc-900/40">
-              {history.length === 0 ? (
-                <div className="p-4 text-sm text-zinc-600">
-                  No transactions yet. Deposit and pull up to an on-chain round.
+              <BurgerSummary onOpenFull={() => setTab("burger")} />
+
+              <SendEth ready={ready} balance={bal ?? 0} onSent={refresh} />
+
+              <LegacyArenaSweep to={address} onSwept={refresh} />
+
+              <section>
+                <h2 className="mb-2 text-sm font-bold text-zinc-300">Transaction history</h2>
+                <div className="overflow-hidden rounded-2xl bg-zinc-900/40">
+                  {history.length === 0 ? (
+                    <div className="p-4 text-sm text-zinc-600">
+                      No transactions yet. Deposit and pull up to a round.
+                    </div>
+                  ) : (
+                    <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[30rem] text-sm">
+                      <tbody>
+                        {history.map((h) => {
+                          const m = KIND_META[h.kind];
+                          return (
+                            <tr key={h.hash + h.at} className="transition hover:bg-zinc-800/30">
+                              <td className="px-3 py-2">
+                                <span className="mr-1.5">{m.icon}</span>
+                                <span className={`font-bold ${m.cls}`}>{m.label}</span>
+                                {h.to && (
+                                  <span className="ml-1.5 font-mono text-[11px] text-zinc-600">
+                                    → {h.to.slice(0, 6)}…{h.to.slice(-4)}
+                                  </span>
+                                )}
+                              </td>
+                              <td className="px-3 py-2 text-right font-mono">
+                                {h.eth > 0 ? `${h.eth.toFixed(4)} ETH` : "—"}
+                              </td>
+                              <td className="hidden px-3 py-2 text-right text-xs text-zinc-500 sm:table-cell">
+                                {h.via === "wallet" ? "🔏 external" : "⚡ instant"}
+                              </td>
+                              <td className="px-3 py-2 text-right text-xs text-zinc-500">
+                                {new Date(h.at).toLocaleTimeString()}
+                              </td>
+                              <td className="hidden px-3 py-2 text-right md:table-cell">
+                                <button
+                                  onClick={() => void navigator.clipboard.writeText(h.hash)}
+                                  className="font-mono text-xs text-zinc-600 hover:text-zinc-300"
+                                  title={`copy tx hash ${h.hash}`}
+                                >
+                                  {h.hash.slice(0, 10)}…
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table></div>
+                  )}
                 </div>
-              ) : (
-                <div className="-mx-1 overflow-x-auto px-1"><table className="w-full min-w-[30rem] text-sm">
-                  <tbody>
-                    {history.map((h) => {
-                      const m = KIND_META[h.kind];
-                      return (
-                        <tr key={h.hash + h.at} className="transition hover:bg-zinc-800/30">
-                          <td className="px-3 py-2">
-                            <span className="mr-1.5">{m.icon}</span>
-                            <span className={`font-bold ${m.cls}`}>{m.label}</span>
-                          </td>
-                          <td className="px-3 py-2 text-right font-mono">
-                            {h.eth > 0 ? `${h.eth.toFixed(4)} ETH` : "—"}
-                          </td>
-                          <td className="hidden px-3 py-2 text-right text-xs text-zinc-500 sm:table-cell">
-                            {h.via === "arena" ? "⚡ instant" : "🔏 wallet"}
-                          </td>
-                          <td className="px-3 py-2 text-right text-xs text-zinc-500">
-                            {new Date(h.at).toLocaleTimeString()}
-                          </td>
-                          <td className="hidden px-3 py-2 text-right md:table-cell">
-                            <button
-                              onClick={() => void navigator.clipboard.writeText(h.hash)}
-                              className="font-mono text-xs text-zinc-600 hover:text-zinc-300"
-                              title={`copy tx hash ${h.hash}`}
-                            >
-                              {h.hash.slice(0, 10)}…
-                            </button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table></div>
-              )}
-            </div>
-            <p className="mt-2 text-[11px] text-zinc-600">
-              History is kept in this browser (the wallet lives here too). Tap a hash to copy it.
-            </p>
-          </section>
+                <p className="mt-2 text-[11px] text-zinc-600">
+                  History is recorded by this browser as you play. Tap a hash to copy it.
+                </p>
+              </section>
             </>
           )}
         </>
@@ -581,21 +541,157 @@ function ChainWalletPage() {
 }
 
 /**
- * Two currencies, two tabs: the Cook Out balance (what rounds spend) and $BURG
- * (earned progression power). Shared so the paper and chain-only pages can
- * never drift apart again.
+ * Send ETH out of the Cookout Wallet to any address.
+ *
+ * "Max" is a real button rather than a hint because the fee comes out of the
+ * same balance: asking to send the full amount can only ever fail, and players
+ * who want the wallet empty shouldn't have to guess the gas.
+ */
+function SendEth({
+  ready,
+  balance,
+  onSent,
+}: {
+  ready: boolean;
+  balance: number;
+  onSent: () => void;
+}) {
+  const [to, setTo] = useState("");
+  const [amount, setAmount] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState("");
+
+  const send = (max: boolean) => {
+    setError("");
+    setDone("");
+    setBusy(true);
+    void cookoutTransfer(CHAIN_ID, to, amount, max)
+      .then((r) => {
+        setDone(`Sent ${r.sent.toFixed(5)} ETH · ${r.hash.slice(0, 10)}…`);
+        setAmount("");
+        onSent();
+      })
+      .catch((e) => setError((e as Error).message))
+      .finally(() => setBusy(false));
+  };
+
+  return (
+    <section className="rounded-2xl bg-zinc-900/40 p-5">
+      <h2 className="text-sm font-black text-zinc-200">Send ETH</h2>
+      <p className="mt-0.5 text-xs text-zinc-500">
+        Move funds out of your Cookout Wallet to any address on {CHAIN_NAME}.
+      </p>
+      <div className="mt-3 space-y-2">
+        <input
+          value={to}
+          onChange={(e) => setTo(e.target.value)}
+          placeholder="0x… recipient address"
+          spellCheck={false}
+          className="w-full rounded-lg bg-zinc-950/60 px-3 py-2.5 font-mono text-sm text-zinc-200 outline-none ring-1 ring-white/5 focus:ring-lime-400/40"
+        />
+        <div className="flex flex-wrap gap-2">
+          <input
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            placeholder="0.00"
+            inputMode="decimal"
+            className="w-32 rounded-lg bg-zinc-950/60 px-3 py-2.5 font-mono text-sm text-zinc-200 outline-none ring-1 ring-white/5 focus:ring-lime-400/40"
+          />
+          <button
+            disabled={busy || !ready || !to || !amount}
+            onClick={() => send(false)}
+            className="rounded-lg bg-lime-400 px-5 py-2.5 text-sm font-black text-zinc-950 hover:bg-lime-300 disabled:opacity-40"
+          >
+            {busy ? "Sending…" : "Send"}
+          </button>
+          <button
+            disabled={busy || !ready || !to || balance <= 0}
+            onClick={() => send(true)}
+            title="send everything, leaving just enough for gas"
+            className="rounded-lg bg-zinc-800 px-4 py-2.5 text-sm font-bold text-zinc-300 hover:bg-zinc-700 disabled:opacity-40"
+          >
+            Send max
+          </button>
+        </div>
+      </div>
+      {error && <div className="mt-2 text-sm text-red-400">{error}</div>}
+      {done && <div className="mt-2 text-sm text-lime-300">{done}</div>}
+      <p className="mt-3 text-[11px] text-zinc-600">
+        Double-check the address — a send is final and cannot be reversed by us or anyone else.
+      </p>
+    </section>
+  );
+}
+
+/**
+ * One-time migration: earlier builds played from a burner key in localStorage.
+ * Anyone who funded one still has ETH sitting in it, and it is no longer spent
+ * by anything, so offer to sweep it into the Cookout Wallet. The card only
+ * exists while there is something to move.
+ */
+function LegacyArenaSweep({ to, onSwept }: { to: string; onSwept: () => void }) {
+  const [bal, setBal] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!hasArenaWallet()) return;
+    arenaBalance(CHAIN_ID)
+      .then(setBal)
+      .catch(() => {});
+  }, []);
+
+  if (bal <= 0.00005 || !to) return null;
+
+  return (
+    <section className="rounded-2xl bg-amber-500/[0.07] p-4 ring-1 ring-amber-400/25">
+      <h2 className="text-sm font-black text-amber-200">Funds in your old session wallet</h2>
+      <p className="mt-0.5 text-xs text-zinc-400">
+        Earlier rounds played from a wallet stored in this browser. It holds{" "}
+        <b className="font-mono text-amber-200">{bal.toFixed(5)} ETH</b> and nothing spends from it
+        anymore — move it into your Cookout Wallet.
+      </p>
+      <button
+        disabled={busy}
+        onClick={() => {
+          setError("");
+          setBusy(true);
+          void arenaWithdraw(CHAIN_ID, to as `0x${string}`)
+            .then(() => {
+              setBal(0);
+              onSwept();
+            })
+            .catch((e) => setError((e as Error).message))
+            .finally(() => setBusy(false));
+        }}
+        className="mt-3 rounded-lg bg-amber-400 px-4 py-2 text-sm font-black text-zinc-950 hover:bg-amber-300 disabled:opacity-50"
+      >
+        {busy ? "Moving…" : "Move it over"}
+      </button>
+      {error && <div className="mt-2 text-sm text-red-400">{error}</div>}
+    </section>
+  );
+}
+
+/**
+ * Two currencies, two tabs: the money rounds spend and $BURG (earned
+ * progression power). Shared so the paper and chain-only pages can never drift
+ * apart again — the first tab is named for whichever wallet the site runs on.
  */
 function WalletTabs({
   tab,
   onTab,
+  chain,
 }: {
   tab: "cookout" | "burger";
   onTab: (t: "cookout" | "burger") => void;
+  chain?: boolean;
 }) {
   return (
     <div className="flex gap-1 rounded-xl bg-zinc-900/60 p-1">
       {([
-        { key: "cookout", label: "⚡ Cook Out Balance" },
+        { key: "cookout", label: chain ? "🍔 Cookout Wallet" : "⚡ Cook Out Balance" },
         { key: "burger", label: "🍔 Burger Balance" },
       ] as const).map((t) => (
         <button

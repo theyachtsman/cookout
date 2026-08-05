@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { DEFAULT_CHAIN_ID, arenaBalance, hasArenaWallet } from "../lib/arenaWallet";
+import { DEFAULT_CHAIN_ID, cookoutBalance, onCookoutSigner, signerReady } from "../lib/cookoutWallet";
 import { useChainOnly } from "../lib/chainOnly";
 import { useSession } from "../lib/session";
 import { BurgerBalance } from "./BurgerBalance";
@@ -30,19 +30,21 @@ export function WalletButton() {
     };
   }, [open]);
 
-  // Chain-only mode: the account panel shows the arena wallet's live balance
-  // instead of paper money.
+  // Chain-only mode: the account panel shows the Cookout Wallet's live on-chain
+  // balance instead of paper money.
   const [arenaBal, setArenaBal] = useState<number | null>(null);
+  const [signer, setSigner] = useState(signerReady());
+  useEffect(() => onCookoutSigner(() => setSigner(signerReady())), []);
   useEffect(() => {
     if (!chainOnly || !profile) return;
     const poll = () => {
-      if (hasArenaWallet()) arenaBalance(DEFAULT_CHAIN_ID).then(setArenaBal).catch(() => {});
+      if (signerReady()) cookoutBalance(DEFAULT_CHAIN_ID).then(setArenaBal).catch(() => {});
       else setArenaBal(null);
     };
     poll();
     const t = setInterval(poll, 10_000);
     return () => clearInterval(t);
-  }, [chainOnly, profile]);
+  }, [chainOnly, profile, signer]);
 
   if (profile) {
     const avatarUrl = (profile as unknown as { avatarUrl?: string }).avatarUrl;
@@ -128,8 +130,8 @@ export function WalletButton() {
                   </div>
                   {chainOnly ? (
                     <BalanceRow
-                      icon="⚡"
-                      label="Arena wallet"
+                      icon="🍔"
+                      label="Cookout Wallet"
                       accent="lime"
                       value={arenaBal !== null ? `${arenaBal.toFixed(4)} ETH` : "—"}
                     />
@@ -166,7 +168,12 @@ export function WalletButton() {
                 {/* actions */}
                 <div className="mt-1 flex flex-col gap-1 px-3">
                   <PanelLink href="/profile" onNavigate={() => setOpen(false)} icon="👤" label="Profile" />
-                  <PanelLink href="/wallet" onNavigate={() => setOpen(false)} icon="⚡" label="Cook Out Balance" />
+                  <PanelLink
+                    href="/wallet"
+                    onNavigate={() => setOpen(false)}
+                    icon={chainOnly ? "🍔" : "⚡"}
+                    label={chainOnly ? "Cookout Wallet" : "Cook Out Balance"}
+                  />
                   <PanelLink href="/settings" onNavigate={() => setOpen(false)} icon="⚙️" label="Settings" />
                 </div>
 

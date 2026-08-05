@@ -32,6 +32,7 @@ import {
   xpForLevel,
 } from "@cookout/shared";
 import { useCopy } from "../../lib/copy";
+import { useChainOnly } from "../../lib/chainOnly";
 
 /** Product wiki: everything a new player needs, in the Cook Out's own voice. */
 
@@ -58,6 +59,7 @@ const SECTION_IDS = [
 
 export default function Docs() {
   const { t } = useCopy();
+  const chainOnly = useChainOnly();
   return (
     <div className="mx-auto flex max-w-6xl gap-10">
       <aside className="sticky top-20 hidden h-fit w-52 shrink-0 md:block">
@@ -118,6 +120,28 @@ export default function Docs() {
             match history, and leaderboard runs all hang off it. You never sign transactions or
             manage keys to play; the blockchain stays in the background.
           </p>
+          {chainOnly ? (
+            <>
+              <p>
+                Your money lives in your <b>🍔 Cookout Wallet</b> (in the profile menu):
+              </p>
+              <ul className="list-disc space-y-2 pl-5">
+                <li>
+                  <b>One balance</b>: the wallet created with your login is the balance rounds
+                  spend. There is no second wallet to fund and nothing to move before you play.
+                </li>
+                <li>
+                  <b>Deposit</b>: send ETH to your wallet address from an exchange or any other
+                  wallet. It is spendable as soon as the transfer confirms.
+                </li>
+                <li>
+                  <b>Send</b>: move ETH back out to any address whenever you want. Your wallet page
+                  keeps a running history of every deposit, trade, claim, and send.
+                </li>
+              </ul>
+            </>
+          ) : (
+            <>
           <p>
             Your money lives in your <b>⚡ Cook Out Balance</b> (in the profile menu):
           </p>
@@ -136,6 +160,8 @@ export default function Docs() {
               mainnet; during the beta everything you play with is pETH.
             </li>
           </ul>
+            </>
+          )}
           <p className="text-zinc-400">
             During the beta, matches are kept busy by our <b>Swarm</b>: house traders that behave
             differently every round, so there&apos;s always a market to out-trade. As real players

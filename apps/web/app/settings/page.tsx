@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { api } from "../../lib/api";
 import { useSession } from "../../lib/session";
+import { useChainOnly } from "../../lib/chainOnly";
 import { AudioMixer } from "../../components/AudioSettings";
 import { TelegramConnect } from "../../components/TelegramConnect";
 
@@ -15,6 +16,7 @@ import { TelegramConnect } from "../../components/TelegramConnect";
  */
 export default function SettingsPage() {
   const { profile, signIn, signOut, refresh } = useSession();
+  const chainOnly = useChainOnly();
   const [name, setName] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -101,7 +103,7 @@ export default function SettingsPage() {
             href="/wallet"
             className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm font-bold text-zinc-300 transition hover:bg-zinc-700"
           >
-            ⚡ Cook Out Balance
+            {chainOnly ? "🍔 Cookout Wallet" : "⚡ Cook Out Balance"}
           </Link>
           <Link
             href={`/profile/${profile.address}`}
