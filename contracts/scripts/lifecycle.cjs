@@ -26,8 +26,11 @@ async function main() {
   );
 
   const now = (await ethers.provider.getBlock("latest")).timestamp;
+  // The anchor that sets the opening price. Not money, and not sent: nobody
+  // funds it, so the round costs the operator gas and nothing else.
   const LIQ = E(0.02);
-  log(`\n1. createRound (seed ${ethers.formatEther(LIQ)} ETH)`);
+  const before = await ethers.provider.getBalance(me.address);
+  log(`\n1. createRound (virtual anchor ${ethers.formatEther(LIQ)} ETH, 0 sent)`);
   const tx = await factory.createRound(
     {
       name: "Lifecycle Test", symbol: "LIFE", totalSupply: E(1_000_000),
@@ -35,13 +38,17 @@ async function main() {
       auctionMaxRaiseWei: E(1), auctionFeeBps: 0, tradeFeeBps: 100,
       mcapTargetWei: 0,
       graduationMcapWei: 0, graduationMinVolumeWei: 0, graduationMinHolders: 0,
+      virtualEthReserve: LIQ,
       feeRecipient: me.address, creator: me.address,
       feeDestination: ethers.ZeroAddress,
     },
-    { value: LIQ },
+    { value: 0 },
   );
   const rc = await tx.wait();
+  const spent = before - (await ethers.provider.getBalance(me.address));
   log(`   ok, gas ${rc.gasUsed}, tx ${rc.hash}`);
+  log(`   operator paid ${ethers.formatEther(spent)} ETH (gas only, not ${ethers.formatEther(LIQ)} seed)`);
+  if (spent >= LIQ) throw new Error("the house funded this round");
 
   const id = (await factory.roundCount()) - 1n;
   const r = await factory.rounds(id);
