@@ -28,10 +28,12 @@ interface NavLink {
 
 /** Labels come from editable site copy (nav.* keys), so the nav can be
  *  reworded from the Command Center like everything else. */
+// The Cook Out first, because it is what the site is for. Launching a coin
+// used to sit here too; it is a two-minute form rather than a destination, so
+// it opens as a modal from the Cook Out page instead.
 const LINKS: (Omit<NavLink, "label"> & { copyKey: string })[] = [
-  { href: "/submissions", copyKey: "nav.launch", auth: true },
-  { href: "/vote", copyKey: "nav.vote", auth: true },
   { href: "/matches", copyKey: "nav.matches", auth: true },
+  { href: "/vote", copyKey: "nav.vote", auth: true },
   { href: "/pit", copyKey: "nav.pit", auth: true },
   { href: "/leaderboard", copyKey: "nav.leaderboard", auth: true },
   { href: "/jackpot", copyKey: "nav.jackpot", auth: true, accent: true },

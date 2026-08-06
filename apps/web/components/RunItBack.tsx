@@ -256,7 +256,7 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
                   </p>
                   <div className="mt-4 flex items-center gap-3">
                     <a
-                      href="/submissions"
+                      href="/matches?launch=1"
                       className="rounded-lg bg-lime-400 px-4 py-2 text-sm font-black text-zinc-950 hover:bg-lime-300"
                     >
                       🔥 Launch a Coin

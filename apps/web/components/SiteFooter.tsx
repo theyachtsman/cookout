@@ -52,7 +52,7 @@ export function SiteFooter() {
           <Link href="/vote" className="hover:text-lime-300">
             Vote
           </Link>
-          <Link href="/submissions" className="hover:text-lime-300">
+          <Link href="/matches?launch=1" className="hover:text-lime-300">
             Launch a Coin
           </Link>
           <Link href="/leaderboard" className="hover:text-lime-300">

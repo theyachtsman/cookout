@@ -991,7 +991,7 @@ export default function Docs() {
         <Section id="creators" title={t(`docs.section.creators`)}>
           <ol className="list-decimal space-y-2 pl-5">
             <li>
-              Submit a concept on the <Link href="/submissions" className="text-lime-400 underline">Launchpad</Link>:
+              Submit a concept on the <Link href="/matches?launch=1" className="text-lime-400 underline">Launchpad</Link>:
               name, symbol, theme, art, your own total supply, and a{" "}
               <a href="#modes" className="text-lime-400 underline">game mode</a> (Classic, Pressure,
               Blitz, or Reflex). The mode sets the match length and whether rug rules apply. Tokens

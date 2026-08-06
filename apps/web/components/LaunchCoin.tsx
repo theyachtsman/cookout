@@ -1,5 +1,19 @@
 "use client";
 
+/**
+ * Launch a coin, in a modal.
+ *
+ * This used to be its own page reached from the main nav. A launch form is
+ * something you want in front of you for two minutes and then gone — not a
+ * seventh nav destination on a site whose point is the arena. So it opens over
+ * the Cook Out instead. The form itself is unchanged: same fields, same
+ * two-step confirm, same post-submit card.
+ *
+ * The shell is a flex column where only the middle scrolls. That is what makes
+ * it usable on a phone — the title and the submit button stay put while a long
+ * form moves under them, rather than the button ending up below the fold with
+ * nothing to scroll it into view.
+ */
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
@@ -15,12 +29,12 @@ import {
   type GameMode,
   type TokenConcept,
 } from "@cookout/shared";
-import { api } from "../../lib/api";
-import { useCopy } from "../../lib/copy";
-import { useUnit } from "../../lib/chainOnly";
-import { useSession } from "../../lib/session";
-import { CoinCard } from "../../components/CoinCard";
-import { ImagePicker } from "../../components/ImagePicker";
+import { api } from "../lib/api";
+import { useCopy } from "../lib/copy";
+import { useUnit } from "../lib/chainOnly";
+import { useSession } from "../lib/session";
+import { CoinCard } from "./CoinCard";
+import { ImagePicker } from "./ImagePicker";
 
 /** The coin's social inputs, in display order. Keys match CoinSocials. */
 const SOCIAL_FIELDS = [
@@ -31,7 +45,7 @@ const SOCIAL_FIELDS = [
   { key: "website", icon: "🌐", placeholder: "yourcoin.xyz" },
 ] as const;
 
-export default function Submissions() {
+function LaunchCoinBody({ onClose }: { onClose: () => void }) {
   const { t } = useCopy();
   const unit = useUnit();
   const { profile, signIn } = useSession();
@@ -124,25 +138,8 @@ export default function Submissions() {
   };
 
   return (
-    <div className="space-y-8">
-      <header className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-lime-400/[0.1] via-zinc-900/40 to-zinc-900/40 p-6">
-        <div className="text-xs font-bold uppercase tracking-[0.3em] text-lime-400">
-          {t("launch.eyebrow")}
-        </div>
-        <h1 className="mt-2 text-3xl font-black tracking-tight md:text-4xl">
-          {t("launch.title")}
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm text-zinc-400">
-          {t("launch.intro")}
-        </p>
-        <Link
-          href="/vote"
-          className="mt-4 inline-block rounded-lg bg-zinc-800 px-5 py-2 font-bold text-zinc-200 transition hover:bg-zinc-700 hover:text-lime-300"
-        >
-          See what&apos;s up for a vote →
-        </Link>
-      </header>
-
+    <>
+      <div className="space-y-6">
       <section className="rounded-2xl bg-zinc-900/40 p-5">
         <h2 className="mb-1 text-lg font-black">Your coin</h2>
         <p className="mb-4 text-xs text-zinc-500">
@@ -420,20 +417,7 @@ export default function Submissions() {
         </div>
       </section>
 
-      <section className="rounded-2xl bg-lime-400/[0.08] p-5 text-center">
-        <h2 className="text-lg font-black">Submitted? The crowd decides next.</h2>
-        <p className="mx-auto mt-1 max-w-lg text-sm text-zinc-400">
-          Voting lives on its own page now, alongside every submission ever made, including the
-          ones that didn&apos;t pass.
-        </p>
-        <Link
-          href="/vote"
-          className="mt-4 inline-block rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300"
-        >
-          Go to Community Vote →
-        </Link>
-      </section>
-
+      </div>
       {/* Pre-submit confirmation: look the card over before it's created. */}
       {mounted &&
         previewing &&
@@ -531,7 +515,68 @@ export default function Submissions() {
           </div>,
           document.body,
         )}
-    </div>
+    </>
   );
 }
 
+/**
+ * The modal shell. Rendered in a portal so it escapes whatever the page has
+ * done with overflow and stacking, which is the usual reason a modal ends up
+ * clipped or trapped behind something on mobile.
+ */
+export function LaunchCoinModal({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { t } = useCopy();
+  // Escape closes it, and the page behind must not scroll while it is up —
+  // otherwise a phone scrolls the page under the modal and the form appears
+  // to jump.
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener("keydown", onKey);
+    };
+  }, [open, onClose]);
+
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!open || !mounted) return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[120] flex items-end justify-center bg-black/80 sm:items-center sm:p-4"
+      onClick={onClose}
+    >
+      {/* Full height on a phone, a dialog on a laptop. */}
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="flex h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-t-2xl bg-zinc-950 ring-1 ring-white/10 sm:h-auto sm:max-h-[90vh] sm:rounded-2xl"
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-white/5 px-5 py-4">
+          <div>
+            <div className="text-[11px] font-bold uppercase tracking-[0.25em] text-lime-400">
+              {t("launch.eyebrow")}
+            </div>
+            <h2 className="text-xl font-black text-zinc-50">{t("launch.title")}</h2>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="rounded-lg bg-zinc-800 px-3 py-1.5 text-sm font-bold text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200"
+          >
+            Close
+          </button>
+        </div>
+        {/* The only scrolling region. */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
+          <p className="mb-4 text-sm text-zinc-400">{t("launch.intro")}</p>
+          <LaunchCoinBody onClose={onClose} />
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
