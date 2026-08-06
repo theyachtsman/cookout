@@ -16,7 +16,7 @@ import {
   type TokenConcept,
 } from "@cookout/shared";
 import { api } from "../lib/api";
-import { useUnit } from "../lib/chainOnly";
+import { useCollectionVisible, useUnit } from "../lib/chainOnly";
 import { FeesEarned } from "./FeesEarned";
 import { CollectionView } from "./collection/CollectionView";
 import { PitProfile } from "./PitProfile";
@@ -155,9 +155,12 @@ export function PublicProfile({
       creator.creatorReputation !== 0 ||
       (creator.rugBans?.length ?? 0) > 0);
   const hasPit = (profile.pitStats?.matchesPlayed ?? 0) > 0;
+  // Unannounced on the public beta — so not even another player's profile
+  // hints that a collection exists.
+  const collectionVisible = useCollectionVisible();
   const tabs: [Tab, string][] = [
     ["overview", "Overview"],
-    ["collection", "Collection"],
+    ...((collectionVisible ? [["collection", "Collection"]] : []) as [Tab, string][]),
     ...((hasPit ? [["pit", "The Pit"]] : []) as [Tab, string][]),
     ...((isCreator ? [["creator", "Creator"]] : []) as [Tab, string][]),
   ];
@@ -168,7 +171,7 @@ export function PublicProfile({
       ? "creator"
       : tab === "pit" && hasPit
         ? "pit"
-        : tab === "collection"
+        : tab === "collection" && collectionVisible
           ? "collection"
           : "overview";
   const a = creator?.aggregates;

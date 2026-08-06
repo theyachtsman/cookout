@@ -593,3 +593,35 @@ test("the launch shell does not dismiss itself out from under its own dialogs", 
   assert.match(src, /"Escape" && !nestedRef\.current/, "Escape defers when nested");
   assert.match(src, /onNested=\{setNested\}/, "the form reports its dialogs upward");
 });
+
+test("the collection stays dark on the paper beta, in the UI and on the wire", () => {
+  // Two independent gates, because either alone is a single point of failure.
+  // The UI gate is keyed to the host, not a database flag: a flag defaults on,
+  // so a fresh deploy or a restored backup would expose the whole collection.
+  const hook = web("lib/chainOnly.ts");
+  assert.match(hook, /export function useCollectionVisible\(\)/);
+  assert.match(hook, /return useChainOnly\(\);/);
+
+  for (const [file, needle] of [
+    ["app/recruit/page.tsx", /if \(!collectionVisible\)/],
+    ["components/WalletButton.tsx", /\{collectionVisible && <RecruitPanel/],
+    ["app/profile/page.tsx", /id !== "collection" \|\| collectionVisible/],
+    ["components/PublicProfile.tsx", /collectionVisible \? \[\["collection"/],
+  ] as const) {
+    assert.match(web(file), needle, `${file} gates the collection`);
+  }
+
+  // And the server refuses rather than trusting the client. The catalogue used
+  // to ship in full alongside `enabled: false` — every card, number, rarity
+  // and set — which is precisely the thing that must not leak early.
+  const routes = readFileSync(join(import.meta.dirname, "routes.ts"), "utf8");
+  assert.match(routes, /const collectionOff = \(\) =>\s*\n?\s*!store\.flag\("nfts"\) \|\| !store\.settings\.collection\.enabled;/);
+  const feed = routes.slice(routes.indexOf('"/api/collection",'), routes.indexOf('"/api/collection/:address"'));
+  assert.match(feed, /if \(collectionOff\(\)\) \{[\s\S]*cards: \[\]/, "the feed returns nothing when off");
+  // Every other collection surface is gated too.
+  for (const route of ['"/api/collection/:address"', '"/api/collection/open"', '"/api/collection/mint-voucher"']) {
+    const start = routes.indexOf(route);
+    assert.ok(start > 0, `${route} exists`);
+    assert.match(routes.slice(start, start + 900), /collectionOff\(\)/, `${route} is gated`);
+  }
+});

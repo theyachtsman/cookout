@@ -24,3 +24,19 @@ export function useChainOnly(): boolean {
 export function useUnit(): "ETH" | "pETH" {
   return useChainOnly() ? "ETH" : "pETH";
 }
+
+/**
+ * Is the Squad Collection — recruits, Recruit Crates, the whole NFT surface —
+ * visible on this site?
+ *
+ * Unannounced. It runs on dev while we build it and reveals itself on the
+ * public site the day that site goes on chain, which is the same day the
+ * collection becomes real. Deliberately keyed to the host rather than a
+ * feature flag: a flag lives in the database, defaults to on, and would
+ * expose the whole thing on a fresh deploy or a restored backup. This cannot.
+ *
+ * Separate from the Burger economy, which stays visible everywhere.
+ */
+export function useCollectionVisible(): boolean {
+  return useChainOnly();
+}

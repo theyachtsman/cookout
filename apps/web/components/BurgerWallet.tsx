@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { useSession } from "../lib/session";
 import { onBurger } from "../lib/burgerBus";
 import { BurgerBalance } from "./BurgerBalance";
+import { useCollectionVisible } from "../lib/chainOnly";
 import { ExpandableRows } from "./ProfileUI";
 
 interface BurgerState {
@@ -37,6 +38,7 @@ const CAT_CLASS: Record<BurgerTxn["category"], string> = {
  */
 export function BurgerWallet() {
   const { profile, refresh } = useSession();
+  const collectionVisible = useCollectionVisible();
   const [state, setState] = useState<BurgerState | null>(null);
   const [amount, setAmount] = useState("1");
   const [busy, setBusy] = useState(false);
@@ -78,7 +80,9 @@ export function BurgerWallet() {
         <div>
           <h2 className="text-sm font-black uppercase tracking-wide text-amber-300/90">Burger Balance</h2>
           <p className="mt-0.5 text-xs text-zinc-500">
-            $BURG is earned power — a permanent currency toward future Recruit Crates.
+            {collectionVisible
+              ? "$BURG is earned power — a permanent currency toward future Recruit Crates."
+              : "$BURG is earned power — a permanent currency that carries forward."}
           </p>
         </div>
         <BurgerBalance initial={state?.balance ?? profile.burgerBalance ?? 0} size="lg" />

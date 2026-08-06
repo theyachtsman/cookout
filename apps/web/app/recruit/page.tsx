@@ -13,6 +13,7 @@ import {
 import { api } from "../../lib/api";
 import { emitBurger } from "../../lib/burgerBus";
 import { useSession } from "../../lib/session";
+import { useCollectionVisible } from "../../lib/chainOnly";
 import { CollectionBrowser, type BrowserCard } from "../../components/collection/CollectionBrowser";
 
 /**
@@ -58,6 +59,9 @@ const SKIP_KEY = "cookout_crate_skip";
 
 export default function RecruitPage() {
   const { profile, signIn } = useSession();
+  // The route stays in the bundle but says nothing on the public beta: someone
+  // guessing /recruit should learn no more than someone who never guessed.
+  const collectionVisible = useCollectionVisible();
   const [feed, setFeed] = useState<Feed | null>(null);
   const [opening, setOpening] = useState<CrateResult | null>(null);
   const [busy, setBusy] = useState("");
@@ -94,6 +98,17 @@ export default function RecruitPage() {
       setBusy("");
     }
   };
+
+  if (!collectionVisible)
+    return (
+      <div className="py-24 text-center">
+        <div className="text-4xl">🚪</div>
+        <p className="mt-3 text-sm text-zinc-400">Nothing here.</p>
+        <Link href="/" className="mt-4 inline-block text-sm font-bold text-lime-300 hover:underline">
+          Back to the Cook Out
+        </Link>
+      </div>
+    );
 
   if (!profile)
     return (

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ACHIEVEMENTS, COSMETICS, xpForLevel, type Round, type RoundHistoryEntry } from "@cookout/shared";
 import { api } from "../../lib/api";
 import { DEFAULT_CHAIN_ID, cookoutBalance, signerReady } from "../../lib/cookoutWallet";
-import { useChainOnly, useUnit } from "../../lib/chainOnly";
+import { useChainOnly, useCollectionVisible, useUnit } from "../../lib/chainOnly";
 import { useSession } from "../../lib/session";
 import { CoinCard } from "../../components/CoinCard";
 import { CosmeticsLocker } from "../../components/CosmeticsLocker";
@@ -103,6 +103,10 @@ export default function ProfilePage() {
   const [history, setHistory] = useState<RoundHistoryEntry[]>([]);
   const [myRounds, setMyRounds] = useState<Round[]>([]);
   const chainOnly = useChainOnly();
+  const collectionVisible = useCollectionVisible();
+  // The collection is unannounced on the public beta, so its tab is not just
+  // empty there — it is absent, and a deep link to it lands on Overview.
+  const tabs = TABS.filter(([id]) => id !== "collection" || collectionVisible);
   const unit = useUnit();
 
   useEffect(() => {
@@ -316,7 +320,11 @@ export default function ProfilePage() {
         </div>
       </ProfileHero>
 
-      <TabBar tabs={TABS} value={tab} onChange={setTab} />
+      <TabBar
+        tabs={tabs}
+        value={tab === "collection" && !collectionVisible ? "overview" : tab}
+        onChange={setTab}
+      />
 
       {tab === "overview" && (
         <div className="space-y-6">
@@ -403,7 +411,7 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {tab === "collection" && <CollectionView />}
+      {tab === "collection" && collectionVisible && <CollectionView />}
 
       {tab === "pit" && <PitProfile address={profile.address} />}
 

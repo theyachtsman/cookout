@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { DEFAULT_CHAIN_ID, cookoutBalance, onCookoutSigner, signerReady } from "../lib/cookoutWallet";
-import { useChainOnly } from "../lib/chainOnly";
+import { useChainOnly, useCollectionVisible } from "../lib/chainOnly";
 import { useSession } from "../lib/session";
 import { BurgerBalance } from "./BurgerBalance";
 import { RecruitPanel } from "./collection/RecruitPanel";
@@ -16,6 +16,7 @@ export function WalletButton() {
   const [mounted, setMounted] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const chainOnly = useChainOnly();
+  const collectionVisible = useCollectionVisible();
   const pathname = usePathname();
 
   useEffect(() => setMounted(true), []);
@@ -162,8 +163,9 @@ export function WalletButton() {
                 </div>
 
                 {/* Recruit NFT Goon — a doorway to /recruit, where crates are
-                    bought and opened. Sits by the Burgers that pay for them. */}
-                <RecruitPanel onNavigate={() => setOpen(false)} />
+                    bought and opened. Sits by the Burgers that pay for them.
+                    Hidden while the collection is unannounced; Burgers stay. */}
+                {collectionVisible && <RecruitPanel onNavigate={() => setOpen(false)} />}
 
                 {/* actions */}
                 <div className="mt-1 flex flex-col gap-1 px-3">

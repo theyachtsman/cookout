@@ -457,11 +457,22 @@ export function createApp(
 
   /** Where the collection lives, so the client never hardcodes an address that
    *  a redeploy would silently turn into a dead contract. */
+  /**
+   * The collection is unannounced until we choose to announce it.
+   *
+   * `enabled: false` used to still ship the entire catalogue — every card,
+   * number, rarity and set — which is exactly the thing that must not leak.
+   * Off means the routes return nothing, not a flag the client is trusted to
+   * respect.
+   */
+  const collectionOff = () =>
+    !store.flag("nfts") || !store.settings.collection.enabled;
+
   app.get(
     "/api/collection/mint-config",
     wrap((_req, res) => {
       res.json({
-        contract: chain?.nftAddress ?? null,
+        contract: collectionOff() ? null : (chain?.nftAddress ?? null),
         chainId: chain?.nftAddress ? Number(process.env.CHAIN_ID ?? 0) : null,
       });
     }),
@@ -500,7 +511,8 @@ export function createApp(
     wrap(async (req, res) => {
       const { cardId, copy } = req.body as { cardId?: string; copy?: number };
       if (!cardId) throw new Err(400, "cardId required");
-      if (!chain?.nftAddress) throw new Err(503, "minting isn't switched on yet");
+      if (collectionOff() || !chain?.nftAddress)
+        throw new Err(503, "minting isn't switched on yet");
 
       const user = store.getOrCreateUser(req.userAddress!);
       const owned = user.collection?.owned[cardId];
@@ -2738,9 +2750,13 @@ export function createApp(
     maybeAuth,
     wrap((req, res) => {
       const address = req.userAddress;
+      if (collectionOff()) {
+        res.json({ enabled: false, cards: [], packs: [], progress: null, sets: [], burgerBalance: 0 });
+        return;
+      }
       const owned = address ? collection.collectionOf(address).owned : {};
       res.json({
-        enabled: store.settings.collection.enabled,
+        enabled: true,
         cards: collection.catalogue().map((c) => {
           const own = owned[c.id];
           // An uncollected card reveals its number, rarity and set membership
@@ -2768,6 +2784,7 @@ export function createApp(
   app.get(
     "/api/collection/:address",
     wrap((req, res) => {
+      if (collectionOff()) throw new Err(404, "not found");
       const address = req.params.address!.toLowerCase();
       if (!store.users.has(address)) throw new Err(404, "player not found");
       const owned = collection.collectionOf(address).owned;
@@ -2789,7 +2806,8 @@ export function createApp(
     auth,
     rateLimit("crate_open", 30, 60_000),
     wrap((req, res) => {
-      if (!store.flag("loot_boxes")) throw new Err(503, "Recruit Crates are closed right now");
+      if (collectionOff() || !store.flag("loot_boxes"))
+        throw new Err(503, "Recruit Crates are closed right now");
       const { pack } = req.body as { pack?: string };
       try {
         res.json(collection.openPack(req.userAddress!, String(pack ?? "x1")));
