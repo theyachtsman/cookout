@@ -1092,12 +1092,27 @@ export function createApp(
   app.post(
     "/api/pit/:id/withdraw",
     auth,
-    wrap((req, res) => {
+    wrap(async (req, res) => {
       const round = store.rounds.get(req.params.id!);
       if (!round || round.matchType !== "pit") throw new Err(404, "pit match not found");
       if (round.state !== "lobby") throw new Err(409, "the round has started — nothing to withdraw");
       const addr = req.userAddress!;
       if (!store.pitEntryOf(round.id, addr)) throw new Err(404, "you have no entry to withdraw");
+      if (round.pitChain) {
+        // Same rule as entry, in reverse: clear our record only once the money
+        // has actually left the pools. Clearing first is what let a player
+        // "withdraw" a stake the contract still held, and then be refused when
+        // they tried to enter again.
+        const staked = chain ? await chain.pitStakesOf(round, addr) : null;
+        if (!staked) throw new Err(503, "can't reach the prize pools right now — try again");
+        const stillIn =
+          staked.battle > 0n ||
+          staked.prediction[1] > 0n ||
+          staked.prediction[2] > 0n ||
+          staked.prediction[3] > 0n;
+        if (stillIn)
+          throw new Err(409, "take your stake out of the pool first — the entry clears from the chain");
+      }
       withdrawPit(store, round, addr);
       engine.emitLobbyPublic(round);
       res.json({ ok: true, ...pitPools(round) });

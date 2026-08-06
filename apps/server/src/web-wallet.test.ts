@@ -363,3 +363,26 @@ test("players can reach their own money without us", () => {
   const lib = web("lib/pitPool.ts");
   assert.ok(lib.includes("openRefunds"), "the escape hatch must be callable from the client");
 });
+
+test("withdrawing a chain entry checks the money actually left the pool", () => {
+  // The reported bug: withdraw cleared our record, the contract kept the
+  // stake, and re-entering was refused because the pool still had them down
+  // as entered. Both directions now verify against the chain.
+  const src = readFileSync(join(import.meta.dirname, "routes.ts"), "utf8");
+  const route = src.slice(src.indexOf('"/api/pit/:id/withdraw"'));
+  const guard = route.slice(route.indexOf("if (round.pitChain)"), route.indexOf("withdrawPit(store"));
+  assert.ok(guard.includes("chain.pitStakesOf"), "it must read the pools");
+  assert.match(guard, /stillIn/, "and refuse while the stake is still escrowed");
+});
+
+test("players can get out before the match starts", () => {
+  // A stake with no exit turns "withdraw" into a lie, and the paper Pit has
+  // always let a bet be pulled while the lobby is open.
+  const lib = web("lib/pitPool.ts");
+  assert.ok(lib.includes("leavePitPools"), "the client needs a way out");
+  assert.ok(lib.includes("unstake") && lib.includes("exit"), "for both pools");
+  assert.ok(
+    web("app/pit/[id]/page.tsx").includes("leavePitPools"),
+    "and the withdraw button must call it",
+  );
+});

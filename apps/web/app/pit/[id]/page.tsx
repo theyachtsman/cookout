@@ -18,7 +18,7 @@ import {
   type Trade,
 } from "@cookout/shared";
 import { PitPayout } from "../../../components/PitPayout";
-import { enterBattle, stakePrediction, stakeWei } from "../../../lib/pitPool";
+import { enterBattle, leavePitPools, stakePrediction, stakeWei } from "../../../lib/pitPool";
 import { api } from "../../../lib/api";
 import { useSession } from "../../../lib/session";
 import { useSocial } from "../../../lib/social";
@@ -684,6 +684,16 @@ function LobbyView({
     setBusy(true);
     setError("");
     try {
+      // Take the money out of the pools first. Clearing our own record while
+      // the contract still holds the stake is what made re-entry fail.
+      if (round.pitChain && entry) {
+        setStaking("withdrawal");
+        await leavePitPools(round.pitChain, {
+          prediction: !!entry.prediction || !!entry.houseSpecial,
+          battle: !!entry.trading,
+        });
+        setStaking("");
+      }
       await api(`/api/pit/${round.id}/withdraw`, { body: {} });
       onEntered();
     } catch (e) {

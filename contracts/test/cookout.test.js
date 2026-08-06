@@ -1175,3 +1175,73 @@ describe("Pit pools: staking closes when the match starts", () => {
     await expect(p.connect(a).refund()).to.changeEtherBalance(a, E(2));
   });
 });
+
+describe("Pit pools: leaving before the match starts", () => {
+  const GRADUATE = 1, RUG = 2;
+
+  async function pools() {
+    const [house, feeTo, a, b] = await ethers.getSigners();
+    const t = await now();
+    return {
+      p: await (await ethers.getContractFactory("PitPool")).deploy(
+        house.address, feeTo.address, 500, t + 10_000, t + 96_400),
+      bt: await (await ethers.getContractFactory("PitBattlePool")).deploy(
+        house.address, feeTo.address, 500, E(1), t + 10_000, t + 96_400),
+      house, a, b,
+    };
+  }
+
+  it("returns a prediction stake and lets them come back", async () => {
+    const { p, a } = await pools();
+    await p.connect(a).stake(GRADUATE, { value: E(2) });
+    await p.connect(a).stake(RUG, { value: E(1) });
+    expect(await p.totalStaked()).to.equal(E(3));
+
+    await expect(p.connect(a).unstake()).to.changeEtherBalance(a, E(3));
+    expect(await p.totalStaked()).to.equal(0n);
+    expect(await p.totalOn(GRADUATE)).to.equal(0n);
+    // Leaving must not lock them out — this is the bug it exists to fix.
+    await expect(p.connect(a).stake(GRADUATE, { value: E(1) })).to.not.be.reverted;
+  });
+
+  it("returns a battle entry and lets them re-enter", async () => {
+    const { bt, a } = await pools();
+    await bt.connect(a).enter({ value: E(1) });
+    expect(await bt.entrants()).to.equal(1n);
+
+    await expect(bt.connect(a).exit()).to.changeEtherBalance(a, E(1));
+    expect(await bt.entrants()).to.equal(0n);
+    expect(await bt.pot()).to.equal(0n);
+    // Previously this reverted AlreadyEntered while the pool still held the money.
+    await expect(bt.connect(a).enter({ value: E(1) })).to.not.be.reverted;
+    expect(await bt.entrants()).to.equal(1n);
+  });
+
+  it("cannot leave once the match has started", async () => {
+    const { p, bt, house, a } = await pools();
+    await p.connect(a).stake(GRADUATE, { value: E(1) });
+    await bt.connect(a).enter({ value: E(1) });
+    await p.connect(house).closeStaking();
+    await bt.connect(house).closeStaking();
+    // Pulling a bet after the outcome is being decided is the one thing this
+    // must never allow.
+    await expect(p.connect(a).unstake()).to.be.revertedWithCustomError(p, "Closed");
+    await expect(bt.connect(a).exit()).to.be.revertedWithCustomError(bt, "Closed");
+  });
+
+  it("takes nothing from someone who never staked", async () => {
+    const { p, bt, b } = await pools();
+    await expect(p.connect(b).unstake()).to.be.revertedWithCustomError(p, "NothingToClaim");
+    await expect(bt.connect(b).exit()).to.be.revertedWithCustomError(bt, "NotAnEntrant");
+  });
+
+  it("leaving does not disturb anyone else's stake", async () => {
+    const { p, a, b } = await pools();
+    await p.connect(a).stake(GRADUATE, { value: E(2) });
+    await p.connect(b).stake(GRADUATE, { value: E(5) });
+    await p.connect(a).unstake();
+    expect(await p.totalOn(GRADUATE)).to.equal(E(5));
+    expect(await p.totalStaked()).to.equal(E(5));
+    expect(await ethers.provider.getBalance(await p.getAddress())).to.equal(E(5));
+  });
+});

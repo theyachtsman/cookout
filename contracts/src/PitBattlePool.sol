@@ -76,6 +76,7 @@ contract PitBattlePool {
     event Entered(address indexed who, uint256 amount, uint256 pot);
     event Resolved(address indexed winner, uint256 prize, uint256 fee);
     event Claimed(address indexed winner, uint256 amount);
+    event Exited(address indexed who, uint256 amount);
     event RefundsOpened(uint64 at);
     event Refunded(address indexed who, uint256 amount);
 
@@ -172,6 +173,24 @@ contract PitBattlePool {
         uint256 amount = pot - (pot * feeBps) / BPS;
         _pay(msg.sender, amount);
         emit Claimed(msg.sender, amount);
+    }
+
+    /**
+     * @notice Leave before the match starts and take the entry back.
+     *
+     * Without this, "withdraw" in the UI cleared the entry while the contract
+     * kept the money — and the next attempt to enter reverted, because from
+     * the pool's point of view they had never left.
+     */
+    function exit() external nonReentrant {
+        if (stakingClosed || block.timestamp >= closesAt) revert Closed();
+        uint256 mine = buyIn[msg.sender];
+        if (mine == 0) revert NotAnEntrant();
+        buyIn[msg.sender] = 0;
+        entrants -= 1;
+        pot -= mine;
+        _pay(msg.sender, mine);
+        emit Exited(msg.sender, mine);
     }
 
     /// @notice Shut staking because the match has started. Resolver-only and

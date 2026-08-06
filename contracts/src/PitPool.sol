@@ -76,6 +76,7 @@ contract PitPool {
     event Staked(address indexed who, Call indexed call, uint256 amount);
     event Resolved(Call indexed outcome, uint256 payoutPot, uint256 winningStake, uint256 fee);
     event Claimed(address indexed who, uint256 amount);
+    event Unstaked(address indexed who, uint256 amount);
     event RefundsOpened(uint64 at);
     event Refunded(address indexed who, uint256 amount);
 
@@ -173,6 +174,31 @@ contract PitPool {
         uint256 amount = (payoutPot * mine) / winningStake;
         _pay(msg.sender, amount);
         emit Claimed(msg.sender, amount);
+    }
+
+    /**
+     * @notice Take a stake back before the match starts.
+     *
+     * The paper Pit lets a player pull a bet while the lobby is still open, so
+     * this one does too — otherwise the UI offers a withdrawal the chain
+     * silently refuses, the money stays escrowed, and re-entering fails
+     * because the contract still has their old stake. Safe by timing: nothing
+     * is known about the outcome yet, so leaving costs nobody anything.
+     */
+    function unstake() external nonReentrant {
+        if (stakingClosed || block.timestamp >= closesAt) revert Closed();
+        uint256 total;
+        for (uint8 c = 1; c <= 3; c++) {
+            uint256 mine = stakeOf[msg.sender][Call(c)];
+            if (mine == 0) continue;
+            stakeOf[msg.sender][Call(c)] = 0;
+            totalOn[Call(c)] -= mine;
+            total += mine;
+        }
+        if (total == 0) revert NothingToClaim();
+        totalStaked -= total;
+        _pay(msg.sender, total);
+        emit Unstaked(msg.sender, total);
     }
 
     /// @notice Shut staking because the match has started. Resolver-only and

@@ -22,6 +22,8 @@ const SEL = {
   claim: "0x4e71d92d", // claim()
   refund: "0x590e1ae3", // refund()
   openRefunds: "0x27d4ba7f", // openRefunds()
+  unstake: "0x2def6620", // unstake()  — PitPool
+  exit: "0xe9fad8ee", // exit()      — PitBattlePool
 } as const;
 
 const pad32 = (v: bigint | number): string => BigInt(v).toString(16).padStart(64, "0");
@@ -125,6 +127,39 @@ export async function refundPitPool(
   const hash = await cookoutSend(pit.chainId, pool, SEL.refund as `0x${string}`);
   logWalletTx({ hash, kind: "claim", eth: 0, via: "cookout", chainId: pit.chainId, at: Date.now() });
   return hash;
+}
+
+/**
+ * Pull a bet back out before the match starts.
+ *
+ * The paper Pit has always allowed this while the lobby is open, so the chain
+ * version must too — otherwise "withdraw" clears the entry on our side while
+ * the pool keeps the money, and the next attempt to enter is rejected because
+ * as far as the contract is concerned they never left.
+ *
+ * Each call is attempted independently: a player who only backed one of the
+ * two pools should not have their exit blocked by the other having nothing to
+ * return.
+ */
+export async function leavePitPools(
+  pit: PitChain,
+  opts: { prediction: boolean; battle: boolean },
+): Promise<void> {
+  ready();
+  const errors: string[] = [];
+  const attempt = async (label: string, pool: string, sel: string) => {
+    try {
+      const hash = await cookoutSend(pit.chainId, pool as `0x${string}`, sel as `0x${string}`);
+      logWalletTx({ hash, kind: "cancel", eth: 0, via: "cookout", chainId: pit.chainId, at: Date.now() });
+    } catch (e) {
+      errors.push(`${label}: ${(e as Error).message}`);
+    }
+  };
+  if (opts.prediction) await attempt("prediction", pit.predictionPool, SEL.unstake);
+  if (opts.battle) await attempt("battle", pit.battlePool, SEL.exit);
+  // Only a total failure is worth surfacing: one empty pool is normal.
+  if (errors.length === (opts.prediction ? 1 : 0) + (opts.battle ? 1 : 0) && errors.length > 0)
+    throw new Error(errors[0]!);
 }
 
 /** USD → wei at the current peg, for prediction stakes (the battle is fixed). */
