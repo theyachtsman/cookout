@@ -464,9 +464,17 @@ export function createApp(
    * number, rarity and set — which is exactly the thing that must not leak.
    * Off means the routes return nothing, not a flag the client is trusted to
    * respect.
+   *
+   * Darkness is the default, derived from whether this deployment has a chain
+   * at all rather than from a stored flag. A flag defaults to on, so a fresh
+   * database or a restored backup would publish the whole collection with
+   * nobody touching anything; no chain config cannot. The paper beta has no
+   * CHAIN_* env, so it is dark, and it lights up the day that site goes on
+   * chain — which is the day the collection becomes real. The operator flags
+   * still apply on top, so it can be switched off where it IS live.
    */
   const collectionOff = () =>
-    !store.flag("nfts") || !store.settings.collection.enabled;
+    !chain?.publicContracts || !store.flag("nfts") || !store.settings.collection.enabled;
 
   app.get(
     "/api/collection/mint-config",

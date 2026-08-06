@@ -615,7 +615,11 @@ test("the collection stays dark on the paper beta, in the UI and on the wire", (
   // to ship in full alongside `enabled: false` — every card, number, rarity
   // and set — which is precisely the thing that must not leak early.
   const routes = readFileSync(join(import.meta.dirname, "routes.ts"), "utf8");
-  assert.match(routes, /const collectionOff = \(\) =>\s*\n?\s*!store\.flag\("nfts"\) \|\| !store\.settings\.collection\.enabled;/);
+  // Darkness must be the DEFAULT, not a stored flag: a flag defaults to on, so
+  // a fresh database or a restored backup would publish the collection with
+  // nobody touching anything. Deriving it from chain config cannot do that.
+  assert.match(routes, /const collectionOff = \(\) =>\s*\n?\s*!chain\?\.publicContracts \|\|/);
+  assert.match(routes, /!store\.flag\("nfts"\) \|\| !store\.settings\.collection\.enabled;/);
   const feed = routes.slice(routes.indexOf('"/api/collection",'), routes.indexOf('"/api/collection/:address"'));
   assert.match(feed, /if \(collectionOff\(\)\) \{[\s\S]*cards: \[\]/, "the feed returns nothing when off");
   // Every other collection surface is gated too.
