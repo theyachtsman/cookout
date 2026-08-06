@@ -1,6 +1,7 @@
 "use client";
 
 import { Canvas, useFrame } from "@react-three/fiber";
+import { ContactShadows, Environment, Lightformer } from "@react-three/drei";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { RARITY_MAP, type CratePull } from "@cookout/shared";
@@ -73,41 +74,124 @@ function Embers({ intensity, color }: { intensity: number; color: string }) {
 }
 
 /** The bunker: concrete floor, steel prep table, industrial haze. */
+/**
+ * The bunker.
+ *
+ * The scene read flat and grey before, and the cause was physical rather than
+ * artistic: metal in a PBR renderer is almost entirely reflection, so metalness
+ * 0.85 with nothing in the environment to reflect resolves to near-black. Lights
+ * alone cannot fix that — they add highlights, not the surroundings a metal
+ * surface is supposed to mirror. The Environment below is built from emissive
+ * panels rather than a downloaded HDRI, so it costs no network request and
+ * still gives every metal something to catch.
+ *
+ * The other half is colour. Everything was lit from a single warmish direction,
+ * so the whole frame sat in one narrow grey band. It is now lit warm from the
+ * key side and cool from the fill side, which is what separates surfaces from
+ * each other and stops the image reading as monotone.
+ */
 function Bunker({ accent }: { accent: string }) {
   return (
     <group>
+      {/* Something for the metal to reflect. Without this the crate, the table
+          and the brackets are all black no matter how bright the lights are. */}
+      <Environment resolution={192} frames={1}>
+        <Lightformer form="rect" intensity={2.2} color="#ffb774" scale={[10, 5, 1]} position={[6, 5, 2]} target={[0, 0, 0]} />
+        <Lightformer form="rect" intensity={1.4} color="#5eead4" scale={[10, 5, 1]} position={[-7, 3, 1]} target={[0, 0, 0]} />
+        <Lightformer form="rect" intensity={1.1} color={accent} scale={[6, 3, 1]} position={[0, 1.5, -6]} target={[0, 0, 0]} />
+        <Lightformer form="ring" intensity={0.8} color="#a3e635" scale={4} position={[-2, -1.5, 3]} target={[0, 0, 0]} />
+      </Environment>
+
+      {/* concrete floor — rough, so it grounds rather than mirrors */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.75, 0]} receiveShadow>
         <planeGeometry args={[40, 40]} />
-        <meshStandardMaterial color="#111114" roughness={0.95} metalness={0.05} />
+        <meshStandardMaterial color="#0e0e11" roughness={0.92} metalness={0.08} />
       </mesh>
-      {/* prep table */}
-      <mesh position={[0, -0.4, 0]} receiveShadow castShadow>
-        <boxGeometry args={[4.2, 0.14, 2.4]} />
-        <meshStandardMaterial color="#3f3f46" roughness={0.35} metalness={0.85} />
+
+      {/* prep table: brushed steel, warmer and lighter than the crate so the
+          two never merge into one silhouette */}
+      <mesh position={[0, TABLE_Y, 0]} receiveShadow castShadow>
+        <boxGeometry args={[4.2, TABLE_THICKNESS, 2.4]} />
+        <meshStandardMaterial color="#6b6b76" roughness={0.28} metalness={0.92} envMapIntensity={1.5} />
       </mesh>
+      {/* a lit edge strip, which reads as a real object rather than a slab */}
+      <mesh position={[0, TABLE_Y - TABLE_THICKNESS / 2 - 0.012, 1.201]}>
+        <boxGeometry args={[4.2, 0.024, 0.01]} />
+        <meshBasicMaterial color={accent} />
+      </mesh>
+
       {[-1.8, 1.8].map((x) =>
         [-0.9, 0.9].map((z) => (
-          <mesh key={`${x}:${z}`} position={[x, -0.6, z]}>
+          <mesh key={`${x}:${z}`} position={[x, -0.6, z]} castShadow receiveShadow>
             <boxGeometry args={[0.12, 0.4, 0.12]} />
-            <meshStandardMaterial color="#27272a" roughness={0.5} metalness={0.8} />
+            <meshStandardMaterial color="#3a3a42" roughness={0.45} metalness={0.85} envMapIntensity={1.2} />
           </mesh>
         )),
       )}
+
+      {/* Contact shadow, because a rendered shadow map at this scale is too
+          soft to sell contact — this is what makes the crate look placed on
+          the table rather than hovering near it. */}
+      <ContactShadows
+        position={[0, TABLE_Y + TABLE_THICKNESS / 2 + 0.002, 0]}
+        scale={5}
+        blur={2.4}
+        opacity={0.75}
+        far={1.6}
+        resolution={512}
+        color="#000000"
+      />
+
       {/* back wall, so the space reads as enclosed */}
-      <mesh position={[0, 2, -5]}>
+      <mesh position={[0, 2, -5]} receiveShadow>
         <planeGeometry args={[24, 10]} />
-        <meshStandardMaterial color="#0c0c0f" roughness={1} />
+        <meshStandardMaterial color="#0b0b0e" roughness={1} />
       </mesh>
-      <ambientLight intensity={0.25} />
-      <directionalLight position={[4, 6, 3]} intensity={0.7} castShadow />
-      {/* the Squad's neon green, and a rarity-tinted key light */}
-      <pointLight position={[-4, 2.5, 2]} color="#a3e635" intensity={22} distance={14} />
-      <pointLight position={[0, 1.6, 1.5]} color={accent} intensity={26} distance={12} />
+
+      {/* Three-point rig, deliberately split warm/cool. */}
+      <ambientLight intensity={0.12} />
+      <directionalLight
+        position={[5, 7, 4]}
+        intensity={2.6}
+        color="#ffd7a8"
+        castShadow
+        shadow-mapSize={[1024, 1024]}
+        shadow-bias={-0.0005}
+      >
+        <orthographicCamera attach="shadow-camera" args={[-6, 6, 6, -6, 0.1, 24]} />
+      </directionalLight>
+      {/* cool fill from the opposite side — the contrast that kills the grey */}
+      <directionalLight position={[-6, 3, 2]} intensity={0.9} color="#7dd3fc" />
+      {/* rim from behind, so the crate has an edge against the dark wall */}
+      <spotLight
+        position={[0, 3.4, -3.2]}
+        angle={0.7}
+        penumbra={0.9}
+        intensity={40}
+        distance={14}
+        color={accent}
+      />
+      {/* practicals: the Squad's green off the floor, and a rarity kicker */}
+      <pointLight position={[-3.4, -0.2, 2.4]} color="#a3e635" intensity={14} distance={10} />
+      <pointLight position={[1.6, 0.9, 2.2]} color={accent} intensity={18} distance={9} />
     </group>
   );
 }
 
 /** The tactical crate. Shakes under pressure, then bursts. */
+/**
+ * Where the crate rests.
+ *
+ * The table's top face is at TABLE_Y + TABLE_THICKNESS/2, and the crate's
+ * origin is its centre, so it has to sit half its own height above that. It
+ * was hardcoded to -0.22 before, which put it a good 0.4 units through the
+ * table — the box appeared to be floating in front of it rather than on it.
+ */
+const TABLE_Y = -0.4;
+const TABLE_THICKNESS = 0.14;
+const CRATE_HEIGHT = 1.05;
+const REST_Y = TABLE_Y + TABLE_THICKNESS / 2 + CRATE_HEIGHT / 2;
+
 function Crate({
   phase,
   pressure,
@@ -130,14 +214,14 @@ function Crate({
       // Slam in from above and settle.
       const p = Math.min(1, t.current / 0.55);
       const eased = 1 - Math.pow(1 - p, 4);
-      g.position.y = 6 * (1 - eased) - 0.22;
+      g.position.y = 6 * (1 - eased) + REST_Y;
       if (p >= 1 && !landed.current) landed.current = true;
       g.rotation.y = 0.4 * (1 - eased);
     } else if (phase === "pressure") {
       // Rattle harder the closer it is to opening.
       const shake = pressure * 0.06;
       g.position.x = (Math.random() - 0.5) * shake;
-      g.position.y = -0.22 + (Math.random() - 0.5) * shake;
+      g.position.y = REST_Y + (Math.random() - 0.5) * shake;
       g.rotation.z = (Math.random() - 0.5) * shake * 0.4;
     } else {
       // Blown open: fall away out of frame.
@@ -148,31 +232,58 @@ function Crate({
 
   return (
     <group ref={group} position={[0, 6, 0]}>
-      <mesh castShadow>
-        <boxGeometry args={[1.6, 1.05, 1.1]} />
+      {/* Painted crate body: dark, but not black. Low metalness with a
+          gunmetal tint reads as coated steel and, crucially, still takes a
+          diffuse highlight — the old near-black high-metal mix had nothing to
+          catch and flattened into a silhouette. */}
+      <mesh castShadow receiveShadow>
+        <boxGeometry args={[1.6, CRATE_HEIGHT, 1.1]} />
         <meshStandardMaterial
-          color="#1c1c1f"
-          roughness={0.55}
-          metalness={0.7}
+          color="#2b2f36"
+          roughness={0.42}
+          metalness={0.45}
+          envMapIntensity={1.1}
           emissive={accent}
-          emissiveIntensity={pressure * 0.5}
+          emissiveIntensity={pressure * 0.6}
         />
+      </mesh>
+      {/* A recessed panel, so the face is not one unbroken rectangle. */}
+      <mesh position={[0, -0.12, 0.556]} castShadow>
+        <boxGeometry args={[1.15, 0.5, 0.02]} />
+        <meshStandardMaterial color="#22262c" roughness={0.6} metalness={0.35} />
       </mesh>
       {/* seam, glowing hotter as pressure builds */}
       <mesh position={[0, 0.14, 0]}>
         <boxGeometry args={[1.63, 0.05, 1.13]} />
         <meshBasicMaterial color={accent} transparent opacity={0.25 + pressure * 0.75} />
       </mesh>
-      {/* corner brackets */}
+      {/* Corner brackets: the brightest metal in frame, and the thing the
+          environment actually shows off. */}
       {[
         [-0.78, 0, 0],
         [0.78, 0, 0],
       ].map(([x]) => (
-        <mesh key={x} position={[x as number, 0, 0]}>
+        <mesh key={x} position={[x as number, 0, 0]} castShadow>
           <boxGeometry args={[0.08, 1.08, 1.14]} />
-          <meshStandardMaterial color="#52525b" roughness={0.4} metalness={0.9} />
+          <meshStandardMaterial
+            color="#9ca3af"
+            roughness={0.22}
+            metalness={1}
+            envMapIntensity={2}
+          />
         </mesh>
       ))}
+      {/* Rivets down each bracket — small, but they give the eye a scale
+          reference, which is most of why a prop reads as built rather than
+          drawn. */}
+      {[-0.78, 0.78].map((x) =>
+        [-0.34, 0, 0.34].map((y) => (
+          <mesh key={`${x}:${y}`} position={[x * 1.02, y, 0.5]} rotation={[Math.PI / 2, 0, 0]}>
+            <cylinderGeometry args={[0.028, 0.028, 0.06, 8]} />
+            <meshStandardMaterial color="#d4d4d8" roughness={0.2} metalness={1} envMapIntensity={2.2} />
+          </mesh>
+        )),
+      )}
     </group>
   );
 }
@@ -301,6 +412,15 @@ export function CrateOpening({
             dpr={[1, 1.75]}
             camera={{ position: [0, 1.1, 5.2], fov: 42 }}
             gl={{ antialias: true, powerPreference: "high-performance" }}
+            // Filmic tone mapping and a correct colour space. Without these,
+            // bright highlights clip to flat white and the midtones compress —
+            // which is the other half of why this looked washed out and grey.
+            onCreated={({ gl }) => {
+              gl.toneMapping = THREE.ACESFilmicToneMapping;
+              gl.toneMappingExposure = 1.15;
+              gl.outputColorSpace = THREE.SRGBColorSpace;
+              gl.shadowMap.type = THREE.PCFSoftShadowMap;
+            }}
           >
             <color attach="background" args={["#08080a"]} />
             <fog attach="fog" args={["#08080a", 6, 16]} />

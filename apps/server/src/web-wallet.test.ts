@@ -414,3 +414,23 @@ test("updating a bet does not stake twice", () => {
     "switching tier leaves the old pot first",
   );
 });
+
+test("the crate rests on the table rather than through it", () => {
+  // It was hardcoded to -0.22 while the table's top face sits at -0.33 and the
+  // crate is 1.05 tall — so it hung 0.4 units through the surface and read as
+  // floating. Deriving it from the table means moving the table cannot break
+  // it again.
+  const src = web("components/collection/CrateOpening.tsx");
+  assert.match(src, /const REST_Y = TABLE_Y \+ TABLE_THICKNESS \/ 2 \+ CRATE_HEIGHT \/ 2/);
+  assert.ok(!/position\.y = .*-0\.22/.test(src), "no hardcoded rest height");
+});
+
+test("the scene gives its metals something to reflect", () => {
+  // Metal in a PBR renderer is almost entirely reflection: metalness 0.9 with
+  // an empty environment renders near-black however bright the lights are,
+  // which is what made this look flat and monotone.
+  const src = web("components/collection/CrateOpening.tsx");
+  assert.ok(src.includes("<Environment"), "an environment is required for metal");
+  assert.ok(src.includes("Lightformer"), "built in-scene, so it needs no HDRI download");
+  assert.ok(src.includes("ACESFilmicToneMapping"), "and filmic tone mapping");
+});
