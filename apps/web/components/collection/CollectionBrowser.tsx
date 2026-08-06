@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { CARD_RARITIES, RARITY_MAP, type CardRarity, type CollectionCard } from "@cookout/shared";
 import { apiUrl } from "../../lib/api";
+import { MintRecruit } from "./MintRecruit";
 
 /**
  * The collection browser and dossier viewer.
@@ -301,6 +302,18 @@ export function DossierViewer({ card, onClose }: { card: BrowserCard; onClose: (
           <div className="mt-1 text-center text-[10px] text-zinc-700">
             {flipped ? "Click to return to the photo" : "Click to read the file"}
           </div>
+
+          {/* Only on a recruit they actually have — minting is the second step
+              after the pull, never a substitute for it. */}
+          {card.owned && (
+            <div className="mt-3">
+              <MintRecruit
+                cardId={card.id}
+                cardName={card.name ?? card.cardNumber}
+                quantity={card.quantity ?? 1}
+              />
+            </div>
+          )}
 
           <div className="mt-3 grid grid-cols-3 gap-2 text-[11px]">
             {[

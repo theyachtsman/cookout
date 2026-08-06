@@ -27,6 +27,7 @@ import {
   defineChain,
   formatEther,
   http,
+  encodeAbiParameters,
   keccak256,
   toHex,
   parseAbi,
@@ -146,6 +147,8 @@ export class ChainService {
   readonly scale: number;
   /** Deployed PitPoolFactory, when CHAIN_PIT_FACTORY is configured. */
   private pitFactory?: HexAddress;
+  /** Deployed GoonSquadNFT, when CHAIN_NFT is configured. */
+  private nftContract?: HexAddress;
   private pub!: PubClient;
   private wallet!: WalClient;
   private account!: ReturnType<typeof privateKeyToAccount>;
@@ -168,6 +171,8 @@ export class ChainService {
     this.scale = Number(process.env.CHAIN_SCALE ?? 0.01);
     const pf = process.env.CHAIN_PIT_FACTORY;
     if (pf && /^0x[0-9a-fA-F]{40}$/.test(pf)) this.pitFactory = pf as HexAddress;
+    const nft = process.env.CHAIN_NFT;
+    if (nft && /^0x[0-9a-fA-F]{40}$/.test(nft)) this.nftContract = nft as HexAddress;
     this.enabled = Boolean(rpc && id && factory && key);
     if (!this.enabled) return;
 
@@ -578,6 +583,39 @@ export class ChainService {
         tiers.map(([tier], i) => [tier, buyIns[i] ?? 0n]),
       ) as Record<BattleTier, bigint>,
     };
+  }
+
+  /**
+   * Sign a mint voucher for a recruit the player owns.
+   *
+   * The signature is the whole authorisation: the contract mints nothing
+   * without one. So this is the only place entitlement is checked, and it is
+   * checked against the database — the record of what the crate actually gave
+   * them — rather than anything the browser says.
+   *
+   * Bound to the player's address, the card, this chain and this contract, so
+   * a leaked signature cannot be used by anyone else, for anything else, or
+   * anywhere else. The contract spends it once.
+   */
+  async signMintVoucher(
+    to: string,
+    cardId: string,
+    nonce: bigint,
+  ): Promise<{ signature: string; contract: string; chainId: number } | null> {
+    if (!this.enabled || !this.nftContract) return null;
+    const digest = keccak256(
+      encodeAbiParameters(
+        [{ type: "uint256" }, { type: "address" }, { type: "address" }, { type: "string" }, { type: "uint256" }],
+        [BigInt(this.chain.id), this.nftContract, to as HexAddress, cardId, nonce],
+      ),
+    );
+    const signature = await this.account.signMessage({ message: { raw: digest } });
+    return { signature, contract: this.nftContract, chainId: this.chain.id };
+  }
+
+  /** The collection contract, when one is configured. */
+  get nftAddress(): string | undefined {
+    return this.nftContract;
   }
 
   private async tickRound(round: Round, now: number): Promise<void> {

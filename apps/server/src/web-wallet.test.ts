@@ -478,3 +478,38 @@ test("the collection exports as a brief someone outside the project can use", ()
   // A biography with a comma would shift every later column.
   assert.match(route, /replace\(\/"\/g, '""'\)/);
 });
+
+/**
+ * Minting on demand. The pull stays instant and off-chain; this is the
+ * optional second step, and the player pays for it.
+ */
+test("a mint voucher is signed only for a recruit the player owns", () => {
+  const src = readFileSync(join(import.meta.dirname, "routes.ts"), "utf8");
+  const route = src.slice(src.indexOf('"/api/collection/mint-voucher"'));
+  const body = route.slice(0, route.indexOf("app.post", 10));
+  // Entitlement comes from their collection, never from the request — the
+  // browser can ask for any card, and the signature is the authorisation.
+  assert.ok(body.includes("user.collection?.owned[cardId]"), "ownership is read, not trusted");
+  assert.ok(body.includes("n > owned.quantity"), "and one voucher per copy owned");
+  assert.ok(body.indexOf("owned?.quantity") < body.indexOf("signMintVoucher"), "checked before signing");
+});
+
+test("the voucher is bound so it cannot be reused elsewhere", () => {
+  const src = readFileSync(join(import.meta.dirname, "chain.ts"), "utf8");
+  const fn = src.slice(src.indexOf("async signMintVoucher"));
+  // chain + contract + player + card + nonce: a leaked signature is useless
+  // to anyone else, for anything else, on any other deployment.
+  for (const part of ["this.chain.id", "this.nftContract", "cardId", "nonce"])
+    assert.ok(fn.includes(part), `the digest must bind ${part}`);
+});
+
+test("minting is never part of the crate cinematic", () => {
+  // A wallet confirmation mid-animation would interrupt the one moment the
+  // feature exists for, and tax every player who does not want an NFT.
+  const scene = web("components/collection/CrateOpening.tsx");
+  assert.ok(!scene.includes("MintRecruit"), "the opening must not ask for a signature");
+  assert.ok(
+    web("components/collection/CollectionBrowser.tsx").includes("card.owned && ("),
+    "the button belongs on a card they already hold",
+  );
+});

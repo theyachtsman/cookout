@@ -455,6 +455,48 @@ export function createApp(
     }),
   );
 
+  /**
+   * A voucher to mint a recruit the caller owns.
+   *
+   * The pull itself stays instant and off-chain: this is the optional second
+   * step for a player who wants the token, and they pay the gas. Entitlement
+   * is read from their collection, never from the request — the browser can
+   * ask for any card, and only the ones the crates actually gave them are
+   * signed for.
+   *
+   * The nonce is the copy number, so a player who owns three of a card can
+   * mint three tokens and no more. Re-requesting a voucher they have already
+   * spent is harmless: the contract refuses it.
+   */
+  app.post(
+    "/api/collection/mint-voucher",
+    auth,
+    rateLimit("mint_voucher", 30, 60_000),
+    wrap(async (req, res) => {
+      const { cardId, copy } = req.body as { cardId?: string; copy?: number };
+      if (!cardId) throw new Err(400, "cardId required");
+      if (!chain?.nftAddress) throw new Err(503, "minting isn't switched on yet");
+
+      const user = store.getOrCreateUser(req.userAddress!);
+      const owned = user.collection?.owned[cardId];
+      if (!owned?.quantity) throw new Err(403, "you don't own that recruit");
+
+      // One voucher per copy owned: nonce 1..quantity. Asking for a copy they
+      // do not have is the whole attack, and it is the only check that matters.
+      const n = Math.floor(Number(copy ?? 1));
+      if (!Number.isFinite(n) || n < 1 || n > owned.quantity)
+        throw new Err(403, `you own ${owned.quantity} of that recruit`);
+
+      const card = store.settings.collection.cards[cardId];
+      if (!card?.enabled) throw new Err(404, "no such recruit");
+
+      const v = await chain.signMintVoucher(user.address, cardId, BigInt(n));
+      if (!v) throw new Err(503, "minting isn't available right now");
+      store.logAdmin("chain", `mint voucher issued: ${user.address} → ${card.name} copy ${n}`);
+      res.json({ ...v, cardId, nonce: n, cardName: card.name });
+    }),
+  );
+
   // ---- Compliance: the two things a player can do themselves ----
 
   /** What the gate currently requires, for the acceptance screen. */

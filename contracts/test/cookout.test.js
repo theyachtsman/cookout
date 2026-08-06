@@ -1255,3 +1255,115 @@ describe("Pit pools: leaving before the match starts", () => {
     expect(await ethers.provider.getBalance(await p.getAddress())).to.equal(E(5));
   });
 });
+
+describe("GoonSquadNFT — minted on demand, by the player", () => {
+  async function deploy(base = "ipfs://cid/") {
+    const [platform, artOwner, alice, bob] = await ethers.getSigners();
+    const nft = await (await ethers.getContractFactory("GoonSquadNFT")).deploy(
+      platform.address, artOwner.address, base,
+    );
+    return { nft, platform, artOwner, alice, bob };
+  }
+
+  /** The platform's voucher: this address pulled this card, once. */
+  async function voucher(nft, signerAcct, to, cardId, nonce) {
+    const { chainId } = await ethers.provider.getNetwork();
+    const digest = ethers.keccak256(
+      ethers.AbiCoder.defaultAbiCoder().encode(
+        ["uint256", "address", "address", "string", "uint256"],
+        [chainId, await nft.getAddress(), to, cardId, nonce],
+      ),
+    );
+    return signerAcct.signMessage(ethers.getBytes(digest));
+  }
+
+  it("mints to the player who pulled it, paying their own gas", async () => {
+    const { nft, platform, alice } = await deploy();
+    const sig = await voucher(nft, platform, alice.address, "card_ghost", 1);
+
+    await expect(nft.connect(alice).mint("card_ghost", 1, sig))
+      .to.emit(nft, "Minted")
+      .withArgs(alice.address, 1n, "card_ghost", 1n);
+    expect(await nft.ownerOf(1)).to.equal(alice.address);
+    expect(await nft.tokenURI(1)).to.equal("ipfs://cid/card_ghost");
+  });
+
+  it("mints duplicates as separate tokens sharing one artwork", async () => {
+    // The game keeps duplicates, so a card is a type and each mint is a copy.
+    // This is why pre-minting could not work: supply follows play.
+    const { nft, platform, alice, bob } = await deploy();
+    await nft.connect(alice).mint("card_ghost", 1, await voucher(nft, platform, alice.address, "card_ghost", 1));
+    await nft.connect(bob).mint("card_ghost", 2, await voucher(nft, platform, bob.address, "card_ghost", 2));
+
+    expect(await nft.mintedOfCard("card_ghost")).to.equal(2n);
+    expect(await nft.ownerOf(1)).to.equal(alice.address);
+    expect(await nft.ownerOf(2)).to.equal(bob.address);
+    // Same art, different tokens — 174 commissions, not thousands.
+    expect(await nft.tokenURI(1)).to.equal(await nft.tokenURI(2));
+  });
+
+  it("mints nothing without the platform's signature", async () => {
+    const { nft, alice, bob } = await deploy();
+    // Signed by someone who is not the platform.
+    const forged = await voucher(nft, bob, alice.address, "card_ghost", 1);
+    await expect(nft.connect(alice).mint("card_ghost", 1, forged))
+      .to.be.revertedWithCustomError(nft, "BadSignature");
+    await expect(nft.connect(alice).mint("card_ghost", 1, "0x1234"))
+      .to.be.revertedWithCustomError(nft, "BadSignature");
+  });
+
+  it("a voucher works once, and only for its own holder", async () => {
+    const { nft, platform, alice, bob } = await deploy();
+    const sig = await voucher(nft, platform, alice.address, "card_ghost", 1);
+    await nft.connect(alice).mint("card_ghost", 1, sig);
+    // Replaying it mints a second copy for free.
+    await expect(nft.connect(alice).mint("card_ghost", 1, sig))
+      .to.be.revertedWithCustomError(nft, "VoucherSpent");
+    // And it is bound to Alice, so intercepting it gains Bob nothing.
+    await expect(nft.connect(bob).mint("card_ghost", 1, sig))
+      .to.be.revertedWithCustomError(nft, "BadSignature");
+  });
+
+  it("a voucher cannot be spent on a different card", async () => {
+    const { nft, platform, alice } = await deploy();
+    const sig = await voucher(nft, platform, alice.address, "card_common", 1);
+    // Swapping in the legendary would be the obvious attack.
+    await expect(nft.connect(alice).mint("card_legend", 1, sig))
+      .to.be.revertedWithCustomError(nft, "BadSignature");
+  });
+
+  it("the platform cannot mint to itself or take a token back", async () => {
+    const { nft, platform, alice } = await deploy();
+    await nft.connect(alice).mint("card_ghost", 1, await voucher(nft, platform, alice.address, "card_ghost", 1));
+
+    const fns = nft.interface.fragments.filter((f) => f.type === "function").map((f) => f.name);
+    for (const forbidden of ["ownerMint", "adminMint", "burn", "seize", "rescue"])
+      expect(fns).to.not.include(forbidden);
+    // And the ordinary transfer path refuses a non-owner.
+    await expect(nft.connect(platform).transferFrom(alice.address, platform.address, 1))
+      .to.be.revertedWithCustomError(nft, "NotAuthorised");
+  });
+
+  it("the art can be set until it is frozen, then never again", async () => {
+    // Commissioned art lands after the contract does, so the URI has to move
+    // once — and then stop, or the picture behind an owned token could change.
+    const { nft, artOwner, alice } = await deploy("ipfs://placeholder/");
+    await nft.connect(artOwner).setBaseURI("ipfs://final/");
+    await expect(nft.connect(alice).setBaseURI("ipfs://mine/"))
+      .to.be.revertedWithCustomError(nft, "NotOwner");
+
+    await nft.connect(artOwner).freezeMetadata();
+    await expect(nft.connect(artOwner).setBaseURI("ipfs://other/"))
+      .to.be.revertedWithCustomError(nft, "Frozen");
+  });
+
+  it("is a real ERC-721 that players can transfer and sell", async () => {
+    const { nft, platform, alice, bob } = await deploy();
+    await nft.connect(alice).mint("card_ghost", 1, await voucher(nft, platform, alice.address, "card_ghost", 1));
+    await nft.connect(alice).transferFrom(alice.address, bob.address, 1);
+    expect(await nft.ownerOf(1)).to.equal(bob.address);
+    expect(await nft.balanceOf(alice.address)).to.equal(0n);
+    for (const id of ["0x01ffc9a7", "0x80ac58cd", "0x5b5e139f"])
+      expect(await nft.supportsInterface(id), id).to.equal(true);
+  });
+});
