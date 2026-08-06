@@ -64,6 +64,12 @@ const AUCTION_ABI = parseAbi([
   "function eligibleDemandWei() view returns (uint256)",
 ]);
 
+/** Chains we run on, by id — used for display only. */
+const KNOWN_CHAIN_NAMES: Record<number, string> = {
+  4663: "Robinhood Chain",
+  46630: "Robinhood Chain Testnet",
+};
+
 /** Means "pay the creator's own address" to the factory. */
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
@@ -193,7 +199,10 @@ export class ChainService {
 
     this.chain = defineChain({
       id,
-      name: `chain-${id}`,
+      // Shown to players on the docs page, so give it the name they would
+      // recognise rather than a slug. Overridable for any chain we have not
+      // met yet.
+      name: process.env.CHAIN_NAME || KNOWN_CHAIN_NAMES[id] || `chain-${id}`,
       nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
       rpcUrls: { default: { http: [rpc!] } },
     });
