@@ -64,7 +64,8 @@ export interface WalletTxEntry {
     | "buy"
     | "sell"
     | "redeem"
-    | "approve";
+    | "approve"
+    | "mint";
   /** ETH moved (0 for approvals/cancels/claims where unknown). */
   eth: number;
   /** "cookout" = signed by the Cookout Wallet; "wallet" = an external wallet. */
@@ -257,6 +258,25 @@ export async function cookoutSend(
   const receipt = await client.waitForTransactionReceipt({ hash, timeout: 90_000 });
   if (receipt.status !== "success") throw new Error("transaction reverted on-chain");
   return hash;
+}
+
+/**
+ * What a landed transaction actually cost in gas.
+ *
+ * Read from the receipt rather than estimated, so the ledger shows what left
+ * the wallet rather than what we guessed would. Used for entries whose whole
+ * cost IS the gas — a mint moves no ETH, so without this it would appear in
+ * the history as a free action.
+ */
+export async function gasCostOf(chainId: number, hash: string): Promise<number> {
+  try {
+    const r = await publicClientFor(chainId).getTransactionReceipt({
+      hash: hash as `0x${string}`,
+    });
+    return Number(r.gasUsed * r.effectiveGasPrice) / 1e18;
+  } catch {
+    return 0;
+  }
 }
 
 /** Gas a plain ETH transfer needs, priced now. Used to compute "send max". */

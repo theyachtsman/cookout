@@ -1126,7 +1126,9 @@ export type ChainLedgerKind =
   | "buy"
   | "sell"
   | "redeem"
-  | "approve";
+  | "approve"
+  /** Minting a recruit — moves no ETH, so the entry records the gas. */
+  | "mint";
 
 /**
  * One Cookout Wallet movement, recorded server-side from mirrored chain events.

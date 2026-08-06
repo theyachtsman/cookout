@@ -38,6 +38,7 @@ const CHAIN_META: Record<ChainLedgerKind, { icon: string; label: string }> = {
   sell: { icon: "🔴", label: "Sold" },
   redeem: { icon: "🏦", label: "Redeemed" },
   approve: { icon: "✍️", label: "Approved" },
+  mint: { icon: "🎴", label: "Minted a recruit" },
 };
 
 /**
@@ -55,6 +56,8 @@ const LOCAL_KIND: Record<WalletTxEntry["kind"], { kind: ChainLedgerKind; sign: n
   sell: { kind: "sell", sign: 1 },
   redeem: { kind: "redeem", sign: 1 },
   approve: { kind: "approve", sign: 0 },
+  // The gas is already signed negative by the caller, so it passes through.
+  mint: { kind: "mint", sign: 1 },
 };
 
 /**

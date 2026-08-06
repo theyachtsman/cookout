@@ -513,3 +513,24 @@ test("minting is never part of the crate cinematic", () => {
     "the button belongs on a card they already hold",
   );
 });
+
+test("the mint button asks the chain which copies are already minted", () => {
+  // It used to always request copy 1 and remember success only in local state,
+  // so a reload brought the button back and pressing it spent a voucher that
+  // was already gone — reverting with no useful message. The contract exposes
+  // voucherSpent for exactly this; it simply was not being called.
+  const ui = web("components/collection/MintRecruit.tsx");
+  assert.ok(ui.includes("voucherSpent"), "it must read what has been spent");
+  assert.ok(!ui.includes("void mint(1)"), "and never hardcode copy 1");
+  assert.ok(ui.includes("nextCopy === 0"), "with a finished state when all copies are minted");
+});
+
+test("a mint records its gas in the wallet ledger", () => {
+  // A mint moves no ETH, so without the receipt it would appear in the history
+  // as a free action.
+  const ui = web("components/collection/MintRecruit.tsx");
+  assert.match(ui, /eth: -\(await gasCostOf\(/);
+  assert.ok(ui.includes('kind: "mint"'));
+  const wallet = web("lib/cookoutWallet.ts");
+  assert.ok(wallet.includes("getTransactionReceipt"), "read from the receipt, not estimated");
+});

@@ -455,6 +455,18 @@ export function createApp(
     }),
   );
 
+  /** Where the collection lives, so the client never hardcodes an address that
+   *  a redeploy would silently turn into a dead contract. */
+  app.get(
+    "/api/collection/mint-config",
+    wrap((_req, res) => {
+      res.json({
+        contract: chain?.nftAddress ?? null,
+        chainId: chain?.nftAddress ? Number(process.env.CHAIN_ID ?? 0) : null,
+      });
+    }),
+  );
+
   /**
    * A voucher to mint a recruit the caller owns.
    *

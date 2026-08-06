@@ -1,9 +1,16 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { encodeFunctionData } from "viem";
 import { api } from "../../lib/api";
-import { cookoutSend, logWalletTx, signerReady } from "../../lib/cookoutWallet";
+import {
+  cookoutAddress,
+  cookoutSend,
+  gasCostOf,
+  logWalletTx,
+  publicClientFor,
+  signerReady,
+} from "../../lib/cookoutWallet";
 
 /**
  * "Mint this recruit" — the optional second step.
@@ -18,6 +25,20 @@ import { cookoutSend, logWalletTx, signerReady } from "../../lib/cookoutWallet";
  * single pull. Here it is a button on a card they already own, pressed when
  * they feel like it.
  */
+
+const SPENT_ABI = [
+  {
+    type: "function",
+    name: "voucherSpent",
+    stateMutability: "view",
+    inputs: [
+      { name: "to", type: "address" },
+      { name: "cardId", type: "string" },
+      { name: "nonce", type: "uint256" },
+    ],
+    outputs: [{ type: "bool" }],
+  },
+] as const;
 
 const MINT_ABI = [
   {
@@ -53,8 +74,56 @@ export function MintRecruit({
   quantity: number;
 }) {
   const [busy, setBusy] = useState(false);
-  const [done, setDone] = useState<string | null>(null);
   const [error, setError] = useState("");
+  /**
+   * Which copy to mint next, read from the chain.
+   *
+   * The button used to always ask for copy 1 and only remember success in
+   * local state, so a reload brought it straight back and pressing it spent a
+   * voucher that was already gone — the transaction reverted with no useful
+   * message. The contract exposes voucherSpent precisely so a button that
+   * could only fail is never shown; it just was not being asked.
+   *
+   * null = still checking, 0 = every copy is already minted.
+   */
+  const [nextCopy, setNextCopy] = useState<number | null>(null);
+
+  const refresh = useCallback(async () => {
+    const me = cookoutAddress();
+    const contract = process.env.NEXT_PUBLIC_NFT_CONTRACT;
+    if (!me) return;
+    try {
+      // Ask the API where the collection lives rather than hardcoding it, so a
+      // redeploy does not silently point the UI at a dead contract.
+      const cfg = await api<{ contract?: string; chainId?: number }>("/api/collection/mint-config");
+      const addr = (cfg.contract ?? contract) as `0x${string}` | undefined;
+      if (!addr) {
+        setNextCopy(0);
+        return;
+      }
+      const client = publicClientFor(cfg.chainId ?? 46630);
+      for (let copy = 1; copy <= quantity; copy++) {
+        const spent = (await client.readContract({
+          address: addr,
+          abi: SPENT_ABI,
+          functionName: "voucherSpent",
+          args: [me, cardId, BigInt(copy)],
+        })) as boolean;
+        if (!spent) {
+          setNextCopy(copy);
+          return;
+        }
+      }
+      setNextCopy(0); // all minted
+    } catch {
+      // A failed read should not hide a button that might work.
+      setNextCopy(1);
+    }
+  }, [cardId, quantity]);
+
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
 
   const mint = async (copy: number) => {
     setBusy(true);
@@ -71,16 +140,19 @@ export function MintRecruit({
         args: [v.cardId, BigInt(v.nonce), v.signature],
       });
       const hash = await cookoutSend(v.chainId, v.contract as `0x${string}`, data);
+      // A mint moves no ETH, so its whole cost is gas — recorded from the
+      // receipt rather than estimated, or it would show in the wallet history
+      // as a free action.
       logWalletTx({
         hash,
-        kind: "claim",
-        eth: 0,
+        kind: "mint",
+        eth: -(await gasCostOf(v.chainId, hash)),
         via: "cookout",
         chainId: v.chainId,
         at: Date.now(),
         to: v.contract,
       });
-      setDone(hash);
+      await refresh();
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -92,10 +164,11 @@ export function MintRecruit({
   // is worse than no button.
   if (!signerReady()) return null;
 
-  if (done)
+  if (nextCopy === null) return null; // still reading the chain
+  if (nextCopy === 0)
     return (
       <div className="rounded-xl bg-lime-400/10 p-2.5 text-center text-xs font-bold text-lime-300 ring-1 ring-lime-400/30">
-        Minted — it&apos;s in your wallet.
+        {quantity > 1 ? `All ${quantity} copies minted` : "Minted"} — it&apos;s in your wallet.
       </div>
     );
 
@@ -103,10 +176,14 @@ export function MintRecruit({
     <div>
       <button
         disabled={busy}
-        onClick={() => void mint(1)}
+        onClick={() => void mint(nextCopy)}
         className="w-full rounded-xl bg-zinc-800 px-4 py-2.5 text-sm font-black text-zinc-100 transition hover:bg-zinc-700 disabled:opacity-50"
       >
-        {busy ? "Confirm in your wallet…" : "⛓ Mint this recruit"}
+        {busy
+          ? "Confirm in your wallet…"
+          : quantity > 1
+            ? `⛓ Mint this recruit · ${nextCopy} of ${quantity}`
+            : "⛓ Mint this recruit"}
       </button>
       <p className="mt-1 text-center text-[10px] leading-snug text-zinc-600">
         Optional. Turns {cardName} into an NFT you own outright and can trade — you pay the gas.
