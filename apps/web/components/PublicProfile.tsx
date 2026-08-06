@@ -108,6 +108,12 @@ export function PublicProfile({
   initialTab?: Tab;
 }) {
   const unit = useUnit();
+  // Unannounced on the public beta — so not even another player's profile
+  // hints that a collection exists. Declared up here with the other hooks:
+  // everything below the `if (!profile)` return runs only on later renders,
+  // so a hook placed there changes the hook count between renders and React
+  // throws the whole subtree away.
+  const collectionVisible = useCollectionVisible();
   const [profile, setProfile] = useState<PlayerProfile | null>(null);
   const [history, setHistory] = useState<RoundHistoryEntry[]>([]);
   const [creator, setCreator] = useState<CreatorView | null>(null);
@@ -155,9 +161,6 @@ export function PublicProfile({
       creator.creatorReputation !== 0 ||
       (creator.rugBans?.length ?? 0) > 0);
   const hasPit = (profile.pitStats?.matchesPlayed ?? 0) > 0;
-  // Unannounced on the public beta — so not even another player's profile
-  // hints that a collection exists.
-  const collectionVisible = useCollectionVisible();
   const tabs: [Tab, string][] = [
     ["overview", "Overview"],
     ...((collectionVisible ? [["collection", "Collection"]] : []) as [Tab, string][]),

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -692,4 +692,46 @@ test("every card rail on the Cook Out page is a real shelf, with arrows", () => 
   assert.match(shelf, /aria-label=\{side === "left" \? "Scroll left" : "Scroll right"\}/);
   assert.match(shelf, /\{!atStart && arrow\("left"\)\}/);
   assert.match(shelf, /\{!atEnd && arrow\("right"\)\}/);
+});
+
+test("no React hook is called after an early return", () => {
+  // How public profiles broke: useCollectionVisible() was added below
+  // `if (!profile) return <Loading/>`. The first render bailed at that return
+  // having called three hooks; once the fetch resolved the fourth appeared,
+  // React saw the count change between renders, and it threw the whole
+  // subtree away — every profile hit the error screen.
+  //
+  // This project has no ESLint, so react-hooks/rules-of-hooks was never going
+  // to catch it. The check is a heuristic on indentation — components here are
+  // top-level functions with two-space bodies — but it catches this exact
+  // shape, which is the one that has actually bitten.
+  const root = join(import.meta.dirname, "../../../apps/web");
+  const files: string[] = [];
+  (function walk(dir: string) {
+    for (const e of readdirSync(dir, { withFileTypes: true })) {
+      if (e.name === "node_modules" || e.name === ".next") continue;
+      const f = join(dir, e.name);
+      if (e.isDirectory()) walk(f);
+      else if (f.endsWith(".tsx")) files.push(f);
+    }
+  })(root);
+  assert.ok(files.length > 20, "found the component tree");
+
+  const HOOK = /^ {2}(?:const .*?= )?(use[A-Z]\w*)\(/;
+  const EARLY_RETURN = /^ {2}(?:if \(.*\)\s*)?return[\s(<]/;
+  const suspects: string[] = [];
+  for (const f of files) {
+    const lines = readFileSync(f, "utf8").split("\n");
+    let returned = 0;
+    lines.forEach((l, i) => {
+      // A new top-level function starts a fresh component body.
+      if (/^(export )?(default )?(async )?function /.test(l) || /^const \w+ = \(/.test(l)) returned = 0;
+      if (EARLY_RETURN.test(l) && returned === 0) returned = i + 1;
+      const m = HOOK.exec(l);
+      if (m && returned) {
+        suspects.push(`${f.replace(root, "")}:${i + 1} ${m[1]}() after return on line ${returned}`);
+      }
+    });
+  }
+  assert.deepEqual(suspects, [], `hooks called conditionally:\n${suspects.join("\n")}`);
 });
