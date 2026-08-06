@@ -1076,8 +1076,10 @@ export function createApp(
             402,
             "stake your prediction in the pool first — the entry is recorded from the chain",
           );
-        if (entry.trading && staked.battle === 0n)
-          throw new Err(402, "pay the battle entry in the pool first");
+        // Checked against the tier they actually chose: paying into Easy does
+        // not buy a place in Hard, which is the point of separate pots.
+        if (entry.trading && (staked.battle[entry.battleTier ?? "easy"] ?? 0n) === 0n)
+          throw new Err(402, `pay the ${entry.battleTier ?? "easy"} entry in the pool first`);
       } else if ((user.arenaBalance ?? 0) + refundable < cost - 1e-9) {
         throw new Err(400, "not enough in your Cook Out balance for those bets");
       }
@@ -1106,7 +1108,7 @@ export function createApp(
         const staked = chain ? await chain.pitStakesOf(round, addr) : null;
         if (!staked) throw new Err(503, "can't reach the prize pools right now — try again");
         const stillIn =
-          staked.battle > 0n ||
+          Object.values(staked.battle).some((v) => v > 0n) ||
           staked.prediction[1] > 0n ||
           staked.prediction[2] > 0n ||
           staked.prediction[3] > 0n;

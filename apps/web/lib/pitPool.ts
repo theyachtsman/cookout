@@ -9,7 +9,7 @@
  * browser — and why nothing here needs the server's permission to run.
  */
 
-import type { PitCall, PitChain } from "@cookout/shared";
+import type { BattleTier, PitCall, PitChain } from "@cookout/shared";
 import { cookoutSend, logWalletTx, signerReady } from "./cookoutWallet";
 
 /** PitPool.Call — the contract's enum, where 0 means "unresolved". */
@@ -71,12 +71,14 @@ export async function stakePrediction(
  * with is the only thing that can work. That is the fixed-entry rule enforced
  * where it cannot be argued with.
  */
-export async function enterBattle(pit: PitChain): Promise<string> {
+export async function enterBattle(pit: PitChain, tier: BattleTier): Promise<string> {
   ready();
-  const entry = BigInt(pit.battleEntryWei);
+  const pool = pit.battlePools[tier];
+  if (!pool) throw new Error(`no ${tier} pool on this match`);
+  const entry = BigInt(pool.entryWei);
   const hash = await cookoutSend(
     pit.chainId,
-    pit.battlePool as `0x${string}`,
+    pool.address as `0x${string}`,
     SEL.enter as `0x${string}`,
     entry,
   );
@@ -87,7 +89,7 @@ export async function enterBattle(pit: PitChain): Promise<string> {
     via: "cookout",
     chainId: pit.chainId,
     at: Date.now(),
-    to: pit.battlePool,
+    to: pool.address,
   });
   return hash;
 }
@@ -100,10 +102,10 @@ export async function enterBattle(pit: PitChain): Promise<string> {
  */
 export async function claimPitPool(
   pit: PitChain,
-  which: "prediction" | "battle",
+  which: "prediction" | BattleTier,
 ): Promise<string> {
   ready();
-  const pool = which === "prediction" ? pit.predictionPool : pit.battlePool;
+  const pool = which === "prediction" ? pit.predictionPool : pit.battlePools[which].address;
   const hash = await cookoutSend(pit.chainId, pool as `0x${string}`, SEL.claim as `0x${string}`);
   logWalletTx({ hash, kind: "claim", eth: 0, via: "cookout", chainId: pit.chainId, at: Date.now() });
   return hash;
@@ -118,11 +120,13 @@ export async function claimPitPool(
  */
 export async function refundPitPool(
   pit: PitChain,
-  which: "prediction" | "battle",
+  which: "prediction" | BattleTier,
   alreadyOpen: boolean,
 ): Promise<string> {
   ready();
-  const pool = (which === "prediction" ? pit.predictionPool : pit.battlePool) as `0x${string}`;
+  const pool = (
+    which === "prediction" ? pit.predictionPool : pit.battlePools[which].address
+  ) as `0x${string}`;
   if (!alreadyOpen) await cookoutSend(pit.chainId, pool, SEL.openRefunds as `0x${string}`);
   const hash = await cookoutSend(pit.chainId, pool, SEL.refund as `0x${string}`);
   logWalletTx({ hash, kind: "claim", eth: 0, via: "cookout", chainId: pit.chainId, at: Date.now() });
@@ -143,7 +147,7 @@ export async function refundPitPool(
  */
 export async function leavePitPools(
   pit: PitChain,
-  opts: { prediction: boolean; battle: boolean },
+  opts: { prediction: boolean; battle?: BattleTier },
 ): Promise<void> {
   ready();
   const errors: string[] = [];
@@ -156,7 +160,7 @@ export async function leavePitPools(
     }
   };
   if (opts.prediction) await attempt("prediction", pit.predictionPool, SEL.unstake);
-  if (opts.battle) await attempt("battle", pit.battlePool, SEL.exit);
+  if (opts.battle) await attempt("battle", pit.battlePools[opts.battle].address, SEL.exit);
   // Only a total failure is worth surfacing: one empty pool is normal.
   if (errors.length === (opts.prediction ? 1 : 0) + (opts.battle ? 1 : 0) && errors.length > 0)
     throw new Error(errors[0]!);

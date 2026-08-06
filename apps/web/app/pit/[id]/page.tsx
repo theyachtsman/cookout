@@ -642,17 +642,28 @@ function LobbyView({
       // that was never paid for.
       const pc = round.pitChain;
       if (pc) {
-        if (call) {
+        // stake() ADDS to an existing position rather than replacing it, so an
+        // update would silently double the bet. Only stake what is new.
+        if (call && !entry?.prediction) {
           setStaking("prediction");
           await stakePrediction(pc, call, stakeWei(Number(mainBet) || 0, peg));
         }
-        if (house) {
+        if (house && !entry?.houseSpecial) {
           setStaking("house special");
           await stakePrediction(pc, call ?? "graduate", stakeWei(Number(houseBet) || 0, peg));
         }
         if (trading) {
-          setStaking("battle entry");
-          await enterBattle(pc);
+          // Already in this tier's pool? Then an "update" has nothing to pay:
+          // re-entering reverts, which is what made Update bet fail.
+          const alreadyIn = entry?.trading && entry.battleTier === battleTier;
+          if (!alreadyIn) {
+            // Switching tier means leaving the old pot first — they are
+            // separate pools with separate prices.
+            if (entry?.trading && entry.battleTier)
+              await leavePitPools(pc, { prediction: false, battle: entry.battleTier });
+            setStaking("battle entry");
+            await enterBattle(pc, battleTier);
+          }
         }
         setStaking("");
       }
@@ -690,7 +701,7 @@ function LobbyView({
         setStaking("withdrawal");
         await leavePitPools(round.pitChain, {
           prediction: !!entry.prediction || !!entry.houseSpecial,
-          battle: !!entry.trading,
+          battle: entry.trading ? (entry.battleTier ?? "easy") : undefined,
         });
         setStaking("");
       }

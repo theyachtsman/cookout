@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { PitChain } from "@cookout/shared";
+import type { BattleTier, PitChain } from "@cookout/shared";
 import { claimPitPool, refundPitPool } from "../lib/pitPool";
 import { cookoutAddress, ethCall, onCookoutSigner, signerReady } from "../lib/cookoutWallet";
 
@@ -28,7 +28,7 @@ const num = (hex: string) => (hex && hex !== "0x" ? BigInt(hex) : 0n);
 const flag = (hex: string) => num(hex) === 1n;
 
 interface PoolState {
-  which: "prediction" | "battle";
+  which: "prediction" | BattleTier;
   label: string;
   address: string;
   pending: bigint;
@@ -48,7 +48,7 @@ export function PitPayout({ pit }: { pit: PitChain }) {
   const load = useCallback(async () => {
     const me = cookoutAddress();
     if (!me) return;
-    const read = async (which: "prediction" | "battle", label: string, address: string) => {
+    const read = async (which: "prediction" | BattleTier, label: string, address: string) => {
       const [p, r, f] = await Promise.all([
         ethCall(pit.chainId, address, SEL.pending + pad(me)),
         ethCall(pit.chainId, address, SEL.resolved),
@@ -67,7 +67,11 @@ export function PitPayout({ pit }: { pit: PitChain }) {
       setPools(
         await Promise.all([
           read("prediction", "Prediction pool", pit.predictionPool),
-          read("battle", "Battle the Goon Squad", pit.battlePool),
+          // Every tier is its own pot, so each is checked separately — a
+          // player could have money in one and nothing in the others.
+          ...Object.entries(pit.battlePools).map(([tier, p]) =>
+            read(tier as BattleTier, `Battle · ${tier}`, p.address),
+          ),
         ]),
       );
     } catch {

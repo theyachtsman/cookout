@@ -257,6 +257,8 @@ export interface PitResult {
     rewardEach: number;
     carried: boolean;
     winner?: string;
+    /** Winner of each tier's on-chain pot, when the match has them. */
+    winnerByTier?: Partial<Record<BattleTier, string>>;
   };
   /** Flame Trial summary. */
   trial: { participants: number; passed: number; requiredPnlBps: number };
@@ -1147,12 +1149,14 @@ export interface PitChain {
   chainId: number;
   /** Pari-mutuel pool for prediction calls. */
   predictionPool: string;
-  /** Winner-take-all pot for Battle the Goon Squad. */
-  battlePool: string;
-  /** The battle's fixed entry, converted from its tier's USD price at creation. */
-  battleEntryWei: string;
-  /** The USD figure that produced it, for honest display. */
-  battleEntryUsd: number;
+  /**
+   * Winner-take-all pots for Battle the Goon Squad, one per difficulty.
+   *
+   * Separate pools rather than one, because a tier is a price and a pool holds
+   * exactly one. Sharing would put a $5 entrant in a pot fed by $100 entrants,
+   * which is what the fixed ladder exists to prevent.
+   */
+  battlePools: Record<BattleTier, { address: string; entryWei: string; entryUsd: number }>;
   /** Staking closes; after this the resolver may post the outcome. */
   closesAt: number;
   /** After this anyone can open refunds — the bound on the oracle. */

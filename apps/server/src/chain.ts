@@ -36,7 +36,7 @@ import {
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 
-import type { AuctionIntent, AuctionResult, PitChain, Round, RiskTier, TokenConcept } from "@cookout/shared";
+import type { AuctionIntent, AuctionResult, BattleTier, PitChain, Round, RiskTier, TokenConcept } from "@cookout/shared";
 import type { RoundEngine } from "./engine.js";
 import { Err } from "./engine.js";
 import type { Store } from "./store.js";
@@ -67,9 +67,8 @@ const AUCTION_ABI = parseAbi([
 const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 
 const PIT_FACTORY_ABI = parseAbi([
-  "function createPools(bytes32 matchId, uint16 predictionFeeBps, uint16 battleFeeBps, uint256 battleEntryFee, uint64 closesAt, uint64 refundAfter) returns (address,address)",
-  "function poolsFor(bytes32) view returns (address prediction, address battle, uint64 createdAt)",
-  "event PitPoolsCreated(bytes32 indexed matchId, address prediction, address battle, uint256 battleEntryFee, uint64 closesAt, uint64 refundAfter)",
+  "function createPools(bytes32 matchId, uint16 predictionFeeBps, uint16 battleFeeBps, uint256[3] entryFees, uint64 closesAt, uint64 refundAfter) returns (address,address[3])",
+  "function poolsFor(bytes32) view returns (address prediction, address battleEasy, address battleMedium, address battleHard, uint64 createdAt)",
 ]);
 
 const PIT_POOL_ABI = parseAbi([
@@ -365,7 +364,12 @@ export class ChainService {
    */
   async createPitPools(
     round: Round,
-    opts: { battleEntryUsd: number; battleEntryWei: bigint; predictionFeeBps: number; battleFeeBps: number },
+    opts: {
+      /** One entry price per tier, in ladder order: easy, medium, hard. */
+      tiers: { tier: BattleTier; usd: number; wei: bigint }[];
+      predictionFeeBps: number;
+      battleFeeBps: number;
+    },
   ): Promise<PitChain | null> {
     if (!this.enabled || !this.pitFactory) return null;
     const pit = round.pit;
@@ -391,25 +395,29 @@ export class ChainService {
         matchId,
         opts.predictionFeeBps,
         opts.battleFeeBps,
-        opts.battleEntryWei,
+        opts.tiers.map((t) => t.wei) as [bigint, bigint, bigint],
         BigInt(closesAt),
         BigInt(refundAfter),
       ],
     });
     await this.pub.waitForTransactionReceipt({ hash });
-    const [prediction, battle] = (await this.pub.readContract({
+    const pools = (await this.pub.readContract({
       address: this.pitFactory,
       abi: PIT_FACTORY_ABI,
       functionName: "poolsFor",
       args: [matchId],
-    })) as [HexAddress, HexAddress, bigint];
+    })) as [HexAddress, HexAddress, HexAddress, HexAddress, bigint];
+    const [prediction, ...battles] = pools;
 
     return {
       chainId: this.chain.id,
       predictionPool: prediction,
-      battlePool: battle,
-      battleEntryWei: opts.battleEntryWei.toString(),
-      battleEntryUsd: opts.battleEntryUsd,
+      battlePools: Object.fromEntries(
+        opts.tiers.map((t, i) => [
+          t.tier,
+          { address: battles[i]!, entryWei: t.wei.toString(), entryUsd: t.usd },
+        ]),
+      ) as PitChain["battlePools"],
       closesAt: closesAt * 1000,
       refundAfter: refundAfter * 1000,
     };
@@ -425,10 +433,13 @@ export class ChainService {
   async closePitStaking(round: Round): Promise<void> {
     const pc = round.pitChain;
     if (!this.enabled || !pc) return;
-    for (const [label, address, abi] of [
+    const targets: [string, string, unknown][] = [
       ["prediction", pc.predictionPool, PIT_POOL_ABI],
-      ["battle", pc.battlePool, PIT_BATTLE_ABI],
-    ] as const) {
+      ...Object.entries(pc.battlePools).map(
+        ([tier, p]) => [`battle ${tier}`, p.address, PIT_BATTLE_ABI] as [string, string, unknown],
+      ),
+    ];
+    for (const [label, address, abi] of targets) {
       try {
         const hash = await this.wallet.writeContract({
           chain: this.chain,
@@ -458,7 +469,7 @@ export class ChainService {
    */
   async resolvePitPools(
     round: Round,
-    outcome: { call: 1 | 2 | 3; battleWinner?: string },
+    outcome: { call: 1 | 2 | 3; battleWinners?: Partial<Record<BattleTier, string>> },
   ): Promise<void> {
     const pc = round.pitChain;
     if (!this.enabled || !pc) return;
@@ -492,17 +503,21 @@ export class ChainService {
       }),
     );
 
-    // No entrants means no winner to name; the pool's own refund path covers
-    // it, and calling resolve with a zero address would revert anyway.
-    if (outcome.battleWinner) {
-      await post("battle pool", () =>
+    // Each tier is its own pot, so each gets its own winner — the best PnL
+    // among that tier's entrants, not the match's best overall. A tier nobody
+    // entered has no winner to name; its refund path covers it, and resolving
+    // with a zero address would revert anyway.
+    for (const [tier, pool] of Object.entries(pc.battlePools)) {
+      const who = outcome.battleWinners?.[tier as BattleTier];
+      if (!who) continue;
+      await post(`battle pool (${tier})`, () =>
         this.wallet.writeContract({
           chain: this.chain,
           account: this.account,
-          address: pc.battlePool as HexAddress,
+          address: pool.address as HexAddress,
           abi: PIT_BATTLE_ABI,
           functionName: "resolve",
-          args: [outcome.battleWinner as HexAddress],
+          args: [who as HexAddress],
         }),
       );
     }
@@ -520,11 +535,15 @@ export class ChainService {
   async pitStakesOf(
     round: Round,
     address: string,
-  ): Promise<{ prediction: Record<1 | 2 | 3, bigint>; battle: bigint } | null> {
+  ): Promise<{
+    prediction: Record<1 | 2 | 3, bigint>;
+    battle: Record<BattleTier, bigint>;
+  } | null> {
     const pc = round.pitChain;
     if (!this.enabled || !pc) return null;
     const who = address as HexAddress;
-    const [g, r, t, b] = await Promise.all([
+    const tiers = Object.entries(pc.battlePools) as [BattleTier, { address: string }][];
+    const [g, r, t, ...buyIns] = await Promise.all([
       this.pub.readContract({
         address: pc.predictionPool as HexAddress,
         abi: PIT_POOL_ABI,
@@ -543,14 +562,22 @@ export class ChainService {
         functionName: "stakeOf",
         args: [who, 3],
       }) as Promise<bigint>,
-      this.pub.readContract({
-        address: pc.battlePool as HexAddress,
-        abi: PIT_BATTLE_ABI,
-        functionName: "buyIn",
-        args: [who],
-      }) as Promise<bigint>,
+      ...tiers.map(
+        ([, p]) =>
+          this.pub.readContract({
+            address: p.address as HexAddress,
+            abi: PIT_BATTLE_ABI,
+            functionName: "buyIn",
+            args: [who],
+          }) as Promise<bigint>,
+      ),
     ]);
-    return { prediction: { 1: g, 2: r, 3: t }, battle: b };
+    return {
+      prediction: { 1: g, 2: r, 3: t },
+      battle: Object.fromEntries(
+        tiers.map(([tier], i) => [tier, buyIns[i] ?? 0n]),
+      ) as Record<BattleTier, bigint>,
+    };
   }
 
   private async tickRound(round: Round, now: number): Promise<void> {

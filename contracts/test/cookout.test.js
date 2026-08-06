@@ -1080,16 +1080,22 @@ describe("PitPoolFactory", () => {
   it("creates both pools wired to the fixed resolver and fee recipient", async () => {
     const { f, resolver, feeTo } = await factory();
     const t = await now();
-    await f.createPools(MATCH, 500, 500, E(0.01), t + 100, t + 86_500);
+    const fees = [E(0.01), E(0.05), E(0.2)];
+    await f.createPools(MATCH, 500, 500, fees, t + 100, t + 86_500);
 
-    const { prediction, battle } = await f.poolsFor(MATCH);
-    const p = await ethers.getContractAt("PitPool", prediction);
-    const b = await ethers.getContractAt("PitBattlePool", battle);
-    for (const c of [p, b]) {
-      expect(await c.resolver()).to.equal(resolver.address);
-      expect(await c.feeRecipient()).to.equal(feeTo.address);
+    const p = await f.poolsFor(MATCH);
+    const pred = await ethers.getContractAt("PitPool", p.prediction);
+    expect(await pred.resolver()).to.equal(resolver.address);
+
+    // One pool per tier, each holding its own price. Sharing one would put a
+    // $5 entrant in a pot fed by $100 entrants.
+    const battles = [p.battleEasy, p.battleMedium, p.battleHard];
+    for (const [i, addr] of battles.entries()) {
+      const b = await ethers.getContractAt("PitBattlePool", addr);
+      expect(await b.entryFee(), `tier ${i}`).to.equal(fees[i]);
+      expect(await b.feeRecipient()).to.equal(feeTo.address);
     }
-    expect(await b.entryFee()).to.equal(E(0.01));
+    expect(new Set(battles).size).to.equal(3, "three distinct pools");
   });
 
   it("only the resolver may create pools", async () => {
@@ -1097,15 +1103,16 @@ describe("PitPoolFactory", () => {
     // money for a match that does not exist.
     const { f, stranger } = await factory();
     const t = await now();
-    await expect(f.connect(stranger).createPools(MATCH, 500, 500, E(0.01), t + 100, t + 86_500))
+    await expect(f.connect(stranger).createPools(MATCH, 500, 500, [E(0.01), E(0.05), E(0.2)], t + 100, t + 86_500))
       .to.be.revertedWithCustomError(f, "NotResolver");
   });
 
   it("will not create a second set for the same match", async () => {
     const { f } = await factory();
     const t = await now();
-    await f.createPools(MATCH, 500, 500, E(0.01), t + 100, t + 86_500);
-    await expect(f.createPools(MATCH, 500, 500, E(0.01), t + 100, t + 86_500))
+    const fees = [E(0.01), E(0.05), E(0.2)];
+    await f.createPools(MATCH, 500, 500, fees, t + 100, t + 86_500);
+    await expect(f.createPools(MATCH, 500, 500, fees, t + 100, t + 86_500))
       .to.be.revertedWithCustomError(f, "AlreadyCreated");
   });
 
@@ -1113,9 +1120,12 @@ describe("PitPoolFactory", () => {
     const { f } = await factory();
     const t = await now();
     // A fee above the pools' cap, and a refund window that never opens.
-    await expect(f.createPools(MATCH, 1_500, 500, E(0.01), t + 100, t + 86_500)).to.be.reverted;
-    await expect(f.createPools(MATCH, 500, 500, E(0.01), t + 100, t + 50)).to.be.reverted;
-    await expect(f.createPools(MATCH, 500, 500, 0, t + 100, t + 86_500)).to.be.reverted;
+    const fees = [E(0.01), E(0.05), E(0.2)];
+    await expect(f.createPools(MATCH, 1_500, 500, fees, t + 100, t + 86_500)).to.be.reverted;
+    await expect(f.createPools(MATCH, 500, 500, fees, t + 100, t + 50)).to.be.reverted;
+    // A zero entry on any tier must take the whole call down, not deploy two
+    // working pools and one that can never be entered.
+    await expect(f.createPools(MATCH, 500, 500, [E(0.01), 0, E(0.2)], t + 100, t + 86_500)).to.be.reverted;
   });
 });
 

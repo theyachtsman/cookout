@@ -98,7 +98,10 @@ export class RoundEngine {
    * service back without a cycle. Absent on the paper site, where Pit matches
    * have no pools to resolve.
    */
-  onPitChainResolve?: (round: Round, outcome: { call: 1 | 2 | 3; battleWinner?: string }) => void;
+  onPitChainResolve?: (
+    round: Round,
+    outcome: { call: 1 | 2 | 3; battleWinners?: Partial<Record<string, string>> },
+  ) => void;
 
   /**
    * Deploy a Pit match's on-chain prize pools. Same late binding, same reason.
@@ -1218,7 +1221,7 @@ export class RoundEngine {
         const call = summary.pit?.outcome;
         this.onPitChainResolve(round, {
           call: call === "graduate" ? 1 : call === "rug" ? 2 : 3,
-          battleWinner: summary.pit?.trading.winner,
+          battleWinners: summary.pit?.trading.winnerByTier,
         });
       }
       this.finishPitEnd(round, summary, now);

@@ -23,9 +23,16 @@ contract PitPoolFactory {
     ///         call can never redirect fees.
     address public immutable feeRecipient;
 
+    /// @dev One battle pool per difficulty tier, because a tier is a price and
+    ///      a pool can only hold one. Sharing a pool across tiers would make
+    ///      "everyone in this tier pays the same" meaningless — a $5 entrant
+    ///      would be playing for a pot fed by $100 entrants, which is the very
+    ///      thing the fixed ladder was introduced to stop.
     struct Pools {
         address prediction;
-        address battle;
+        address battleEasy;
+        address battleMedium;
+        address battleHard;
         uint64 createdAt;
     }
 
@@ -36,8 +43,8 @@ contract PitPoolFactory {
     event PitPoolsCreated(
         bytes32 indexed matchId,
         address prediction,
-        address battle,
-        uint256 battleEntryFee,
+        address[3] battles,
+        uint256[3] entryFees,
         uint64 closesAt,
         uint64 refundAfter
     );
@@ -53,38 +60,47 @@ contract PitPoolFactory {
     }
 
     /**
-     * @notice Create both pools for one match.
+     * @notice Create every pool for one match: the prediction pool, and one
+     *         battle pool per difficulty tier.
      *
-     * `battleEntryFee` is the difficulty tier's fixed entry, already converted
-     * from USD to wei by the caller. It is passed in rather than computed here
-     * because a contract has no price feed, and a per-match constant is exactly
-     * what makes an entry un-repriceable once players have committed to it.
+     * `entryFees` are the tiers' fixed entries, already converted from USD to
+     * wei by the caller — a contract has no price feed, and a per-match
+     * constant is exactly what makes an entry un-repriceable once players have
+     * committed to it.
      */
     function createPools(
         bytes32 matchId,
         uint16 predictionFeeBps,
         uint16 battleFeeBps,
-        uint256 battleEntryFee,
+        uint256[3] calldata entryFees,
         uint64 closesAt,
         uint64 refundAfter
-    ) external returns (address prediction, address battle) {
+    ) external returns (address prediction, address[3] memory battles) {
         if (msg.sender != resolver) revert NotResolver();
         if (poolsFor[matchId].createdAt != 0) revert AlreadyCreated();
 
         prediction = address(
             new PitPool(resolver, feeRecipient, predictionFeeBps, closesAt, refundAfter)
         );
-        battle = address(
-            new PitBattlePool(
-                resolver,
-                feeRecipient,
-                battleFeeBps,
-                battleEntryFee,
-                closesAt,
-                refundAfter
-            )
+        for (uint256 i = 0; i < 3; i++) {
+            battles[i] = address(
+                new PitBattlePool(
+                    resolver,
+                    feeRecipient,
+                    battleFeeBps,
+                    entryFees[i],
+                    closesAt,
+                    refundAfter
+                )
+            );
+        }
+        poolsFor[matchId] = Pools(
+            prediction,
+            battles[0],
+            battles[1],
+            battles[2],
+            uint64(block.timestamp)
         );
-        poolsFor[matchId] = Pools(prediction, battle, uint64(block.timestamp));
-        emit PitPoolsCreated(matchId, prediction, battle, battleEntryFee, closesAt, refundAfter);
+        emit PitPoolsCreated(matchId, prediction, battles, entryFees, closesAt, refundAfter);
     }
 }

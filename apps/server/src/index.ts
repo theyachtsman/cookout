@@ -42,27 +42,32 @@ const chain = new ChainService(store, engine);
 engine.onPitChainResolve = (round, outcome) => void chain.resolvePitPools(round, outcome);
 engine.onPitChainClose = (round) => void chain.closePitStaking(round);
 engine.onPitChainCreate = (round) => {
-  const tiers = store.settings.game.battleTiers;
-  // The lobby offers every enabled tier, but one match escrows one entry
-  // price, so the pool is deployed at the cheapest enabled one. A player
-  // choosing a dearer tier is choosing a different match.
-  const tier = BATTLE_TIERS.map((k) => tiers[k]).filter((t) => t?.enabled)[0];
-  if (!tier) return;
+  const settings = store.settings.game.battleTiers;
+  // Every tier gets its own pool, always all three, so the ladder the lobby
+  // shows is the ladder that exists on-chain. A disabled tier still deploys —
+  // the contract needs a non-zero entry for each — and is simply not offered.
+  const tiers = BATTLE_TIERS.map((tier) => ({
+    tier,
+    usd: settings[tier]?.entryUsd ?? 5,
+    wei: battleEntryWei(settings[tier]?.entryUsd ?? 5, store.ethUsd || 1),
+  }));
   void chain
     .createPitPools(round, {
-      battleEntryUsd: tier.entryUsd,
-      battleEntryWei: battleEntryWei(tier.entryUsd, store.ethUsd || 1),
+      tiers,
       // The pools cap their cut at 10%; the paper Pit's rake is configurable
       // above that, so clamp rather than deploy something that reverts.
       predictionFeeBps: Math.min(round.pit?.pitFeeBps ?? 500, 1_000),
-      battleFeeBps: tier.feeBps,
+      battleFeeBps: Math.min(settings.easy?.feeBps ?? 500, 1_000),
     })
     .then((pc) => {
       if (!pc) return;
       round.pitChain = pc;
       store.logAdmin(
         "chain",
-        `${round.token.symbol} Pit pools deployed — prediction ${pc.predictionPool}, battle ${pc.battlePool} ($${pc.battleEntryUsd} entry)`,
+        `${round.token.symbol} Pit pools deployed — prediction ${pc.predictionPool}, battles ` +
+          Object.entries(pc.battlePools)
+            .map(([t, p]) => `${t} $${p.entryUsd} ${p.address}`)
+            .join(", "),
       );
     })
     .catch((e) => {

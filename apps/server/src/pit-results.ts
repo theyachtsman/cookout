@@ -92,7 +92,16 @@ export function battleWinnerOf(
   store: Store,
   round: Round,
   pnlByTrader: Map<string, number>,
+  /** Restrict to one tier's entrants — each tier is its own pot. */
+  tier?: string,
 ): string | undefined {
+  if (tier) {
+    const inTier = new Map(
+      [...pnlByTrader].filter(([addr]) => store.pitEntryOf(round.id, addr as never)?.battleTier === tier),
+    );
+    if (inTier.size === 0) return undefined;
+    pnlByTrader = inTier;
+  }
   if (pnlByTrader.size === 0) return undefined;
   const trades = store.trades.get(round.id) ?? [];
   const tradeCount = (addr: string) => trades.reduce((n, t) => (t.userAddress === addr ? n + 1 : n), 0);
@@ -410,8 +419,15 @@ export function resolvePitRound(store: Store, round: Round, ctx: PitResolveCtx):
       qualified: qualifiers.length,
       rewardEach: tradeReward,
       carried: tradeCarried,
-      // Who a winner-take-all on-chain pot pays. Undefined when nobody traded.
+      // Who a winner-take-all on-chain pot pays, per tier: each is its own
+      // pot, so the best PnL among that tier's entrants wins it — not the
+      // match's best overall, who may have been playing for a different stake.
       winner: battleWinnerOf(store, round, traderPnl),
+      winnerByTier: Object.fromEntries(
+        (["easy", "medium", "hard"] as const)
+          .map((t) => [t, battleWinnerOf(store, round, traderPnl, t)])
+          .filter(([, w]) => w),
+      ) as Record<string, string>,
     },
     trial: {
       participants: pit.trialParticipants,

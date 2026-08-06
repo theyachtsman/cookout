@@ -332,7 +332,7 @@ test("a chain Pit entry is verified against the pools, not taken on trust", () =
   const enter = src.slice(src.indexOf('"/api/pit/:id/enter"'));
   const guard = enter.slice(enter.indexOf("if (round.pitChain)"), enter.indexOf("enterPit(store"));
   assert.ok(guard.includes("chain.pitStakesOf"), "it must read the pools");
-  assert.ok(guard.includes("staked.battle === 0n"), "and refuse an unpaid battle entry");
+  assert.match(guard, /staked\.battle\[entry\.battleTier/, "and refuse an unpaid entry in that tier");
   // Reading a stake of zero must reject, not merely warn.
   assert.match(guard, /throw new Err\(\s*402/);
 });
@@ -384,5 +384,33 @@ test("players can get out before the match starts", () => {
   assert.ok(
     web("app/pit/[id]/page.tsx").includes("leavePitPools"),
     "and the withdraw button must call it",
+  );
+});
+
+test("each difficulty tier is its own pot", async () => {
+  // One shared pool would put a $5 entrant in a pot fed by $100 entrants,
+  // which is exactly what the fixed ladder was introduced to prevent — and
+  // with one pool only the cheapest tier could ever be entered at all.
+  const factory = readFileSync(
+    join(import.meta.dirname, "../../../contracts/src/PitPoolFactory.sol"),
+    "utf8",
+  );
+  assert.match(factory, /address battleEasy;\s*address battleMedium;\s*address battleHard;/);
+  assert.match(factory, /uint256\[3\] calldata entryFees/);
+
+  const routes = readFileSync(join(import.meta.dirname, "routes.ts"), "utf8");
+  // Paying into Easy must not buy a place in Hard.
+  assert.match(routes, /staked\.battle\[entry\.battleTier \?\? "easy"\]/);
+});
+
+test("updating a bet does not stake twice", () => {
+  // stake() adds to a position and enter() rejects a second entry, so an
+  // update that re-sent everything either doubled the bet or reverted.
+  const page = web("app/pit/[id]/page.tsx");
+  assert.ok(page.includes("!entry?.prediction"), "an existing prediction is not re-staked");
+  assert.ok(page.includes("alreadyIn"), "an existing battle entry is not re-entered");
+  assert.ok(
+    page.includes("leavePitPools(pc, { prediction: false, battle: entry.battleTier })"),
+    "switching tier leaves the old pot first",
   );
 });
