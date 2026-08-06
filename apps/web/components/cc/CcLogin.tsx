@@ -82,7 +82,7 @@ export function CcLogin({ onSignedIn }: { onSignedIn: () => void }) {
     }
   };
 
-  const useKey = async () => {
+  const signInWithKey = async () => {
     setBusy(true);
     setError("");
     setCcAdminKey(form.adminKey);
@@ -116,7 +116,7 @@ export function CcLogin({ onSignedIn }: { onSignedIn: () => void }) {
           if (e.key !== "Enter" || busy) return;
           if (mode === "login") void signIn();
           else if (mode === "bootstrap") void bootstrap();
-          else void useKey();
+          else void signInWithKey();
         }}
         className="w-full rounded-xl bg-zinc-900/70 px-3 py-2.5 text-sm outline-none ring-1 ring-white/10 focus:ring-lime-400/50"
       />
@@ -178,7 +178,7 @@ export function CcLogin({ onSignedIn }: { onSignedIn: () => void }) {
               </div>
               {field("Server ADMIN_KEY", "adminKey", "password")}
               <button
-                onClick={() => void useKey()}
+                onClick={() => void signInWithKey()}
                 disabled={busy}
                 className="w-full rounded-xl bg-zinc-800 py-2.5 text-sm font-black text-zinc-100 transition hover:bg-zinc-700 disabled:opacity-40"
               >

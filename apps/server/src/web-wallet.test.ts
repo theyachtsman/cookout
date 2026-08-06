@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { readdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -694,44 +694,26 @@ test("every card rail on the Cook Out page is a real shelf, with arrows", () => 
   assert.match(shelf, /\{!atEnd && arrow\("right"\)\}/);
 });
 
-test("no React hook is called after an early return", () => {
-  // How public profiles broke: useCollectionVisible() was added below
+test("the Rules of Hooks are enforced by a real linter, in npm test", () => {
+  // How public profiles went down: useCollectionVisible() was added below
   // `if (!profile) return <Loading/>`. The first render bailed at that return
-  // having called three hooks; once the fetch resolved the fourth appeared,
-  // React saw the count change between renders, and it threw the whole
-  // subtree away — every profile hit the error screen.
+  // having called three hooks; when the fetch resolved a fourth appeared,
+  // React saw the count change between renders and threw the subtree away.
   //
-  // This project has no ESLint, so react-hooks/rules-of-hooks was never going
-  // to catch it. The check is a heuristic on indentation — components here are
-  // top-level functions with two-space bodies — but it catches this exact
-  // shape, which is the one that has actually bitten.
-  const root = join(import.meta.dirname, "../../../apps/web");
-  const files: string[] = [];
-  (function walk(dir: string) {
-    for (const e of readdirSync(dir, { withFileTypes: true })) {
-      if (e.name === "node_modules" || e.name === ".next") continue;
-      const f = join(dir, e.name);
-      if (e.isDirectory()) walk(f);
-      else if (f.endsWith(".tsx")) files.push(f);
-    }
-  })(root);
-  assert.ok(files.length > 20, "found the component tree");
+  // tsc cannot see this and the build cannot either — the error only exists at
+  // runtime, on the second render. This project had no linter at all, so the
+  // one rule that exists precisely for it was never running. A hand-rolled
+  // regex scan lived here for one commit; ESLint parses the code properly, so
+  // this asserts the config instead of duplicating it badly.
+  const root = join(import.meta.dirname, "../../..");
+  const config = readFileSync(join(root, "eslint.config.mjs"), "utf8");
+  assert.match(config, /"react-hooks\/rules-of-hooks":\s*"error"/, "an error, never a warning");
+  assert.match(config, /files: \["apps\/web\/\*\*\/\*\.\{ts,tsx\}"\]/, "covers the component tree");
 
-  const HOOK = /^ {2}(?:const .*?= )?(use[A-Z]\w*)\(/;
-  const EARLY_RETURN = /^ {2}(?:if \(.*\)\s*)?return[\s(<]/;
-  const suspects: string[] = [];
-  for (const f of files) {
-    const lines = readFileSync(f, "utf8").split("\n");
-    let returned = 0;
-    lines.forEach((l, i) => {
-      // A new top-level function starts a fresh component body.
-      if (/^(export )?(default )?(async )?function /.test(l) || /^const \w+ = \(/.test(l)) returned = 0;
-      if (EARLY_RETURN.test(l) && returned === 0) returned = i + 1;
-      const m = HOOK.exec(l);
-      if (m && returned) {
-        suspects.push(`${f.replace(root, "")}:${i + 1} ${m[1]}() after return on line ${returned}`);
-      }
-    });
-  }
-  assert.deepEqual(suspects, [], `hooks called conditionally:\n${suspects.join("\n")}`);
+  // And it has to actually run, or the rule is decoration.
+  const pkg = JSON.parse(readFileSync(join(root, "package.json"), "utf8")) as {
+    scripts: Record<string, string>;
+  };
+  assert.match(pkg.scripts.test ?? "", /npm run lint/, "npm test runs the linter");
+  assert.match(pkg.scripts.lint ?? "", /eslint/, "lint actually invokes eslint");
 });

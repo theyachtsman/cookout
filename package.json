@@ -9,9 +9,16 @@
     "contracts"
   ],
   "scripts": {
-    "test": "npm run test -w @cookout/shared && npm run test -w @cookout/server",
+    "lint": "node node_modules/eslint/bin/eslint.js .",
+    "test": "npm run lint && npm run test -w @cookout/shared && npm run test -w @cookout/server",
     "build": "npm run build -w @cookout/shared && npm run build -w @cookout/server && npm run build -w @cookout/web",
     "dev:server": "npm run dev -w @cookout/server",
     "dev:web": "npm run dev -w @cookout/web"
+  },
+  "devDependencies": {
+    "@next/eslint-plugin-next": "^16.3.0",
+    "eslint": "^9.39.5",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "typescript-eslint": "^8.66.0"
   }
 }
