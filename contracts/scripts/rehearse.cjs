@@ -58,8 +58,11 @@ async function main() {
   }
   log(`   factory ${await factory.getAddress()}  gas ${dep.gasUsed}`);
 
-  log(`\n2. a round at the real per-round seed (rookie 1.5 x CHAIN_SCALE 0.01)`);
+  log(`\n2. a round at the real curve anchor (rookie 1.5 x CHAIN_SCALE 0.01)`);
+  // Virtual: it sets the opening price and nobody funds it. The house used to
+  // send this as msg.value and never got it back.
   const SEED = E(0.015);
+  const opBefore = await ethers.provider.getBalance(me.address);
   const now = (await ethers.provider.getBlock("latest")).timestamp;
   const rc = await (
     await factory.createRound(
@@ -69,10 +72,11 @@ async function main() {
         auctionMaxRaiseWei: E(1), auctionFeeBps: 100, tradeFeeBps: 100,
         mcapTargetWei: 0, graduationMcapWei: 0,
         graduationMinVolumeWei: 0, graduationMinHolders: 0,
+        virtualEthReserve: SEED,
         feeRecipient: me.address, creator: me.address,
         feeDestination: ethers.ZeroAddress,
       },
-      { value: SEED },
+      { value: 0 },
     )
   ).wait();
   const r = await factory.rounds(0);
@@ -80,7 +84,11 @@ async function main() {
   const auction = await ethers.getContractAt("BatchAuction", r.auction);
   const token = await ethers.getContractAt("ArenaToken", r.token);
   const locker = await ethers.getContractAt("CookoutLpLocker", r.locker);
+  const spent = opBefore - (await ethers.provider.getBalance(me.address));
   log(`   pool ${r.pool}  gas ${rc.gasUsed}`);
+  log(`   operator paid ${f(spent)} ETH — gas only, not the ${f(SEED)} anchor`);
+  if (spent >= SEED) { log("   FAIL  the house funded this round"); bad++; }
+  else log(`   PASS  the house funded nothing`);
 
   log(`\n3. run it to graduation`);
   await (await auction.submit(0, { value: E(0.002) })).wait();
@@ -122,8 +130,9 @@ async function main() {
   log(`\n--- what this would cost live, at the real ${Number(gp) / 1e9} gwei ---`);
   log(`   deploy once:        ${f(dep.gasUsed * gp)} ETH`);
   log(`   gas for one round:  ${f((rc.gasUsed + st.gasUsed + rs.gasUsed + mg.gasUsed) * gp)} ETH`);
-  log(`   seed per round:     ${f(SEED)} ETH  (locked forever on graduation)`);
-  log(`   total this run:     ${f(gasTotal * gp + SEED)} ETH`);
+  log(`   seed per round:     none — the anchor is virtual, nobody funds it`);
+  log(`   total this run:     ${f(gasTotal * gp)} ETH`);
+  log(`   fees back per round: ~1% of volume, claimed to the operator`);
 
   log(`\n${bad === 0 ? "REHEARSAL PASSED — mainnet is ready, at zero cost." : `${bad} FAILED`}`);
   if (bad) process.exit(1);
