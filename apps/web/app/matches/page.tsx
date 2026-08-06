@@ -244,13 +244,13 @@ export default function Home() {
                   </h2>
                   <span className="text-xs text-zinc-600">{queue.length} in the queue</span>
                 </div>
-                <div className="no-scrollbar flex gap-4 overflow-x-auto py-2">
+                <CategoryShelf title="Up next" count={queue.length} hideHeader>
                   {queue.map((r) => (
                     <div key={r.id} className="w-80 shrink-0">
                       <RoundCard round={r} />
                     </div>
                   ))}
-                </div>
+                </CategoryShelf>
               </div>
             )}
           </>
@@ -286,13 +286,16 @@ export default function Home() {
               {t("cookout.endurance.blurb")}
             </p>
           </div>
-          <div className="no-scrollbar flex gap-4 overflow-x-auto py-2">
+          {/* hideHeader keeps the custom header above; the shelf is here for the
+              edge arrows, the fades and wheel-to-horizontal that every other
+              rail on the site already has. */}
+          <CategoryShelf title="Endurance" count={enduranceQueue.length} hideHeader>
             {enduranceQueue.map((r) => (
               <div key={r.id} className="w-80 shrink-0">
                 <RoundCard round={r} />
               </div>
             ))}
-          </div>
+          </CategoryShelf>
         </section>
       )}
 

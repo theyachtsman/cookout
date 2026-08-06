@@ -674,3 +674,22 @@ test("every operator-paid round action has a call site, not just a method", () =
     "claimed after migration is kicked off",
   );
 });
+
+test("every card rail on the Cook Out page is a real shelf, with arrows", () => {
+  // The Endurance rail was a bare overflow-x-auto div: it scrolled by wheel or
+  // swipe but had no edge arrows and no fades, so on a desktop with more coins
+  // than fit there was nothing to indicate the row continued. CategoryShelf is
+  // what every other rail uses; hideHeader keeps each section's own header.
+  const page = web("app/matches/page.tsx");
+  const rails = [...page.matchAll(/no-scrollbar flex gap-4 overflow-x-auto/g)];
+  assert.equal(rails.length, 0, "no hand-rolled card rails left on this page");
+  // Both the Endurance and Up Next rails now go through the shelf.
+  assert.match(page, /<CategoryShelf title="Endurance" count=\{enduranceQueue\.length\} hideHeader>/);
+  assert.match(page, /<CategoryShelf title="Up next" count=\{queue\.length\} hideHeader>/);
+
+  // And the shelf still actually renders arrows, so the above means something.
+  const shelf = web("components/CategoryShelf.tsx");
+  assert.match(shelf, /aria-label=\{side === "left" \? "Scroll left" : "Scroll right"\}/);
+  assert.match(shelf, /\{!atStart && arrow\("left"\)\}/);
+  assert.match(shelf, /\{!atEnd && arrow\("right"\)\}/);
+});
