@@ -5,6 +5,7 @@ import { ContactShadows, Environment, Lightformer } from "@react-three/drei";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as THREE from "three";
 import { RARITY_MAP, type CratePull } from "@cookout/shared";
+import { MintRecruit } from "./MintRecruit";
 import { audio } from "../../lib/audio";
 
 /**
@@ -564,9 +565,18 @@ function DossierCard({
           </div>
         </div>
 
+        {/* Mint it here, while they are looking at it. Offered on the RESULT,
+            never during the animation — the reveal is the moment the feature
+            exists for and a wallet prompt in the middle of it would spoil the
+            thing it is celebrating. Nothing waits on this: the recruit is
+            already theirs, and skipping it costs them nothing. */}
+        <div className="mt-3">
+          <MintRecruit cardId={card.id} cardName={card.name} quantity={quantityOwned} />
+        </div>
+
         <button
           onClick={onNext}
-          className="mt-4 w-full rounded-xl bg-lime-400 py-3 text-sm font-black text-zinc-950 hover:bg-lime-300"
+          className="mt-3 w-full rounded-xl bg-lime-400 py-3 text-sm font-black text-zinc-950 hover:bg-lime-300"
         >
           {last ? "Done" : "Next recruit →"}
         </button>

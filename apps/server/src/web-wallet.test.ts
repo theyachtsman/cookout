@@ -503,14 +503,23 @@ test("the voucher is bound so it cannot be reused elsewhere", () => {
     assert.ok(fn.includes(part), `the digest must bind ${part}`);
 });
 
-test("minting is never part of the crate cinematic", () => {
-  // A wallet confirmation mid-animation would interrupt the one moment the
-  // feature exists for, and tax every player who does not want an NFT.
+test("minting is offered on the result, never during the animation", () => {
+  // The distinction that matters is not "not in this file" — it is that the
+  // reveal is never blocked. A wallet prompt mid-animation would spoil the
+  // moment the feature exists to celebrate; a button on the card afterwards,
+  // while they are looking at it, is the natural place to offer it.
   const scene = web("components/collection/CrateOpening.tsx");
-  assert.ok(!scene.includes("MintRecruit"), "the opening must not ask for a signature");
+  const card = scene.slice(scene.indexOf("function DossierCard"));
+  assert.ok(card.includes("<MintRecruit"), "the result card offers it");
+
+  // Nothing in the phases that run the animation may reach for it.
+  const cinematic = scene.slice(0, scene.indexOf("function DossierCard"));
+  assert.ok(!cinematic.includes("MintRecruit("), "the animation must not call it");
+  assert.ok(!/phase === "reveal"[\s\S]{0,400}MintRecruit/.test(scene), "and the reveal must not wait on it");
+
   assert.ok(
     web("components/collection/CollectionBrowser.tsx").includes("card.owned && ("),
-    "the button belongs on a card they already hold",
+    "and it stays available on a card they already hold",
   );
 });
 
