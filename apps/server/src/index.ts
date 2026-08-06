@@ -151,6 +151,18 @@ if (chain.enabled) {
       ? `  Pit prize pools ON — factory ${process.env.CHAIN_PIT_FACTORY} (real money)`
       : `  Pit prize pools OFF — no CHAIN_PIT_FACTORY, Pit matches run without a pot`,
   );
+  if (chain.nftAddress) {
+    console.log(`  Recruit NFTs ON — ${chain.nftAddress}, signer ${chain.nftSignerAddress}`);
+    // The contract's signer is immutable, so a mismatch here is not a warning
+    // it can recover from — every mint reverts until the env matches.
+    if (chain.nftSignerIsOperator)
+      console.log(
+        "  WARNING: vouchers are signed by the OPERATOR key. Set CHAIN_NFT_SIGNER_KEY " +
+          "so the gas wallet cannot also print the collection.",
+      );
+  } else {
+    console.log("  Recruit NFTs OFF — no CHAIN_NFT, pulls stay database-only");
+  }
   // Fire-and-forget: ChainService.tick self-guards against overlap. 1.5s keeps
   // the mirrored chart snappy; the guard absorbs slow RPC round-trips.
   setInterval(() => void chain.tick(Date.now()), 1500);

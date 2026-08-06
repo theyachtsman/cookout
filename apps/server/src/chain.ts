@@ -149,6 +149,18 @@ export class ChainService {
   private pitFactory?: HexAddress;
   /** Deployed GoonSquadNFT, when CHAIN_NFT is configured. */
   private nftContract?: HexAddress;
+  /**
+   * Signs mint vouchers. Deliberately separate from the operator key.
+   *
+   * The operator pays gas from a hot wallet that is topped up and rotated;
+   * this one authorises minting and is immutable in the contract, so it can
+   * never be rotated without invalidating every voucher already issued. They
+   * want different lifetimes, so they are different keys. Falls back to the
+   * operator only so the feature works before one is configured — the startup
+   * log says so, loudly, because on mainnet that would mean the gas key can
+   * also print the collection.
+   */
+  private nftSigner?: ReturnType<typeof privateKeyToAccount>;
   private pub!: PubClient;
   private wallet!: WalClient;
   private account!: ReturnType<typeof privateKeyToAccount>;
@@ -173,6 +185,9 @@ export class ChainService {
     if (pf && /^0x[0-9a-fA-F]{40}$/.test(pf)) this.pitFactory = pf as HexAddress;
     const nft = process.env.CHAIN_NFT;
     if (nft && /^0x[0-9a-fA-F]{40}$/.test(nft)) this.nftContract = nft as HexAddress;
+    const signerKey = process.env.CHAIN_NFT_SIGNER_KEY;
+    if (signerKey && /^0x[0-9a-fA-F]{64}$/.test(signerKey))
+      this.nftSigner = privateKeyToAccount(signerKey as `0x${string}`);
     this.enabled = Boolean(rpc && id && factory && key);
     if (!this.enabled) return;
 
@@ -609,13 +624,25 @@ export class ChainService {
         [BigInt(this.chain.id), this.nftContract, to as HexAddress, cardId, nonce],
       ),
     );
-    const signature = await this.account.signMessage({ message: { raw: digest } });
+    const signature = await (this.nftSigner ?? this.account).signMessage({ message: { raw: digest } });
     return { signature, contract: this.nftContract, chainId: this.chain.id };
   }
 
   /** The collection contract, when one is configured. */
   get nftAddress(): string | undefined {
     return this.nftContract;
+  }
+
+  /** The address the contract's `signer` must be set to. Printed at startup so
+   *  a mismatch is caught before a player hits a mint that can only revert. */
+  get nftSignerAddress(): string | undefined {
+    if (!this.enabled) return undefined;
+    return (this.nftSigner ?? this.account).address;
+  }
+
+  /** True when vouchers are signed by the gas-paying operator key. */
+  get nftSignerIsOperator(): boolean {
+    return !this.nftSigner;
   }
 
   private async tickRound(round: Round, now: number): Promise<void> {

@@ -309,3 +309,39 @@ The audit log says so loudly, naming the deadline. Retry before the refund
 window opens; after it, entrants can and will refund themselves, and the match
 pays nobody. Resolution is idempotent on-chain — the pools refuse a second
 resolve — so retrying after a dropped receipt cannot pay twice.
+
+## The Recruit NFT collection
+
+Pulls stay off-chain and instant. Minting is the optional second step, paid for
+by the player. Two env vars turn it on:
+
+```
+CHAIN_NFT=0x…                 the deployed GoonSquadNFT
+CHAIN_NFT_SIGNER_KEY=0x…      signs mint vouchers
+```
+
+**The signing key must be separate from the operator key, and it is different
+in kind.** The operator pays gas from a hot wallet you top up and rotate. The
+signer authorises minting and is written into the contract as `immutable` — it
+can never be rotated without invalidating every voucher already issued, and
+anyone holding it can mint the entire collection to themselves. Treat it like
+a signing certificate, not a wallet: it needs no balance and should never pay
+for anything.
+
+If `CHAIN_NFT_SIGNER_KEY` is unset the operator key signs instead, and startup
+says so in capitals. That is fine on testnet and is not fine on mainnet.
+
+Startup prints the signer's address. **It must equal the `signer` the contract
+was deployed with** — that value is immutable, so a mismatch is not something
+the server can recover from: every mint reverts until the env matches.
+
+### Order of operations
+
+1. Deploy `GoonSquadNFT(signer, owner, baseURI)` with a placeholder URI.
+2. Set both env vars, restart, and check the startup line names the address you
+   expect.
+3. Commission the art from the collection export (Command Center → Collection →
+   NFT import → Download CSV/JSON).
+4. Publish it, then `setBaseURI` to the real root.
+5. `freezeMetadata()` when you are certain. One way — after this the artwork
+   behind an owned token can never change, which is the point.
