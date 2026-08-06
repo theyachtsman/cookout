@@ -15,7 +15,7 @@
  * nothing to scroll it into view.
  */
 import Link from "next/link";
-import { FeeDestination } from "../../components/FeeDestination";
+import { FeeDestination } from "./FeeDestination";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";

@@ -152,7 +152,7 @@ test("the protocol fee wallet is the one the operator set", async () => {
 test("the launch form asks for the destination and says it is permanent", () => {
   const ui = web("components/FeeDestination.tsx");
   assert.ok(ui.includes("permanent"), "the consequence must be stated, not implied");
-  assert.ok(web("app/submissions/page.tsx").includes("<FeeDestination"));
+  assert.ok(web("components/LaunchCoin.tsx").includes("<FeeDestination"));
 });
 
 /**
