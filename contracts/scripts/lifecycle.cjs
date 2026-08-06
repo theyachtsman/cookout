@@ -127,6 +127,31 @@ async function main() {
   try { await pool.migrate.staticCall(); throw new Error("migrated twice!"); }
   catch (e) { log(`   second migrate rejected: ${e.shortMessage ?? e.message}`); }
 
+  // ---- 10. the round pays for its own gas --------------------------------
+  //
+  // The operator sends four transactions per round and is named as the pool's
+  // feeRecipient precisely so the trade fee offsets that. But claimFees() is a
+  // permissionless PULL: it does not pay out on its own, and until the server
+  // started pulling it, every round's fees sat in a finished pool while the
+  // wallet that paid for the round only ever went down.
+  log(`\n10. claim the round's trade fees to the operator`);
+  const accrued = await pool.feesAccrued();
+  log(`   accrued ${ethers.formatEther(accrued)} ETH`);
+  if (accrued === 0n) throw new Error("no fees accrued — nothing to prove");
+
+  const opBefore = await ethers.provider.getBalance(me.address);
+  const claim = await (await pool.claimFees()).wait();
+  const gas = claim.gasUsed * claim.gasPrice;
+  const opAfter = await ethers.provider.getBalance(me.address);
+
+  log(`   claimed, gas ${claim.gasUsed} (${ethers.formatEther(gas)} ETH)`);
+  log(`   operator net ${ethers.formatEther(opAfter - opBefore)} ETH`);
+  if ((await pool.feesAccrued()) !== 0n) throw new Error("fees still owed after claim");
+  if (opAfter - opBefore !== accrued - gas) throw new Error("operator did not receive the fee");
+  // Claiming twice must be harmless, not a way to drain the pool.
+  await (await pool.claimFees()).wait();
+  log(`   second claim paid nothing (as it must)`);
+
   log(`\nDONE — full lifecycle on chain 46630.`);
 }
 main().catch((e) => { console.error("FAILED:", e.message ?? e); process.exit(1); });

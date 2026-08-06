@@ -649,3 +649,28 @@ test("the server refuses to start against a stale @cookout/shared build", () => 
   assert.ok(call > 0, "the guard is called");
   assert.ok(call < index.indexOf("new Store()"), "before any state is built");
 });
+
+test("every operator-paid round action has a call site, not just a method", () => {
+  // Three times now I have written one of these and never called it —
+  // createPitPools, voucherSpent, and claimRoundFees — each time shipping a
+  // method that reads as done and does nothing. The test is the call site, in
+  // both directions: the method must exist, and something must invoke it.
+  const src = readFileSync(join(import.meta.dirname, "chain.ts"), "utf8");
+  // Callers live in chain.ts for the private ones and index.ts for the hooks,
+  // so search both rather than assume where the call has to be.
+  const callers = src + readFileSync(join(import.meta.dirname, "index.ts"), "utf8");
+  for (const method of ["claimRoundFees", "migrateRound", "createPitPools"]) {
+    assert.ok(new RegExp(`(private )?async ${method}\\(`).test(src), `${method} is defined`);
+    assert.match(callers, new RegExp(`\\.${method}\\(`), `${method} is actually called`);
+  }
+
+  // And the claim specifically hangs off resolution, so it covers rounds that
+  // failed as well as rounds that graduated — a dead round still charged trade
+  // fees and still cost four transactions.
+  const resolvedBlock = src.slice(src.indexOf("if (resolved) {"), src.indexOf("// Past the on-chain end time"));
+  assert.match(resolvedBlock, /this\.claimRoundFees\(round\)/, "claimed on every resolution");
+  assert.ok(
+    resolvedBlock.indexOf("claimRoundFees") > resolvedBlock.indexOf("migrateRound"),
+    "claimed after migration is kicked off",
+  );
+});

@@ -957,6 +957,12 @@ export class ChainService {
       // migrate() is permissionless, but permissionless only means anyone MAY
       // fire it — nobody else has a reason to, exactly like settle and resolve.
       if (resolved.graduated) void this.migrateRound(round);
+      // Take the round's trade fees. Same reasoning as migrate: claimFees() is
+      // a permissionless pull and we are the only party with a reason to pull
+      // it, because we are the feeRecipient paying this round's gas. Fires for
+      // graduated and failed rounds alike — a round that died still charged
+      // trade fees and still cost us four transactions.
+      void this.claimRoundFees(round);
       return;
     }
 
