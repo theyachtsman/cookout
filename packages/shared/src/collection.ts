@@ -46,9 +46,114 @@ export interface CardChainInfo {
   contractAddress?: string;
   tokenId?: string;
   metadataUri?: string;
+  /** Artwork from the NFT metadata. Takes precedence over the Media Library
+   *  asset, because once a card is bound to a real token the token's image is
+   *  the truth — anything else would show players art their NFT does not have. */
+  imageUrl?: string;
   mintStatus?: "unminted" | "pending" | "minted";
   owner?: string;
   transferable?: boolean;
+}
+
+/**
+ * One entry from a minted collection's metadata, in the shape every ERC-721
+ * generator emits. Only `tokenId` is required — the rest is whatever the
+ * creator's tooling produced.
+ */
+export interface NftManifestEntry {
+  tokenId: string | number;
+  name?: string;
+  description?: string;
+  image?: string;
+  external_url?: string;
+  attributes?: { trait_type?: string; value?: unknown }[];
+}
+
+export interface NftImportPlan {
+  /** Card ↔ token pairings that would be written. */
+  matched: {
+    cardId: string;
+    cardName: string;
+    tokenId: string;
+    imageUrl?: string;
+    /** Already bound to a DIFFERENT token — rebinding needs saying out loud. */
+    rebind?: string;
+  }[];
+  /** Manifest entries with no card to attach to. */
+  unmatched: { tokenId: string; name?: string; reason: string }[];
+  /** Cards left without a token after this import. */
+  unboundCards: { cardId: string; cardName: string }[];
+}
+
+/** How a manifest entry is paired with a card. */
+export type NftMatchBy = "name" | "cardNumber" | "order";
+
+const norm = (v: unknown) => String(v ?? "").trim().toLowerCase();
+
+/**
+ * Work out what an import would do, without doing any of it.
+ *
+ * Pure so the Command Center can show the plan before anything is written.
+ * That preview is the point: binding a card to the wrong token puts someone
+ * else's artwork on a dossier players already own, and the fix afterwards is
+ * another guess. Rebinds and duplicates are called out rather than resolved
+ * silently — the operator knows which of their tokens is which, and this
+ * does not.
+ */
+export function planNftImport(
+  entries: NftManifestEntry[],
+  cards: CollectionCard[],
+  opts: { matchBy: NftMatchBy },
+): NftImportPlan {
+  const plan: NftImportPlan = { matched: [], unmatched: [], unboundCards: [] };
+  const takenCards = new Set<string>();
+
+  const findCard = (e: NftManifestEntry, index: number): CollectionCard | undefined => {
+    if (opts.matchBy === "order") return cards[index];
+    const key = opts.matchBy === "name" ? norm(e.name) : norm(e.name);
+    if (!key) return undefined;
+    return cards.find((c) =>
+      opts.matchBy === "cardNumber" ? norm(c.cardNumber) === key : norm(c.name) === key,
+    );
+  };
+
+  entries.forEach((e, i) => {
+    const tokenId = String(e.tokenId ?? "").trim();
+    if (!tokenId) {
+      plan.unmatched.push({ tokenId: "", name: e.name, reason: "no tokenId" });
+      return;
+    }
+    const card = findCard(e, i);
+    if (!card) {
+      plan.unmatched.push({
+        tokenId,
+        name: e.name,
+        reason:
+          opts.matchBy === "order"
+            ? "more tokens than cards"
+            : `no card matches "${e.name ?? ""}"`,
+      });
+      return;
+    }
+    if (takenCards.has(card.id)) {
+      plan.unmatched.push({ tokenId, name: e.name, reason: `${card.name} already claimed above` });
+      return;
+    }
+    takenCards.add(card.id);
+    const existing = card.chain?.tokenId;
+    plan.matched.push({
+      cardId: card.id,
+      cardName: card.name,
+      tokenId,
+      imageUrl: e.image,
+      ...(existing && existing !== tokenId ? { rebind: existing } : {}),
+    });
+  });
+
+  plan.unboundCards = cards
+    .filter((c) => !takenCards.has(c.id) && !c.chain?.tokenId)
+    .map((c) => ({ cardId: c.id, cardName: c.name }));
+  return plan;
 }
 
 export interface CollectionCard {

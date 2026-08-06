@@ -359,7 +359,7 @@ export function CrateOpening({
   // Arrival lands, then the crate is workable.
   useEffect(() => {
     if (skipped || phase !== "arrival") return;
-    audio.play("round.launch");
+    audio.play("crate.arrive");
     const t = setTimeout(() => setPhase("pressure"), 700);
     return () => clearTimeout(t);
   }, [phase, skipped, index]);
@@ -368,10 +368,13 @@ export function CrateOpening({
     if (phase !== "pressure") return;
     setPressure((p) => {
       const next = Math.min(1, p + 0.18);
-      audio.play("ui.click");
+      audio.play("crate.strain");
       if (next >= 1) {
         setPhase("reveal");
-        audio.play(isBig ? "round.graduated" : "trade.buy");
+        // The lid going always plays; the pull sting rides on top of it a beat
+        // later, so a legendary is heard as "it opened AND it was rare".
+        audio.play("crate.burst");
+        setTimeout(() => audio.play(isBig ? "crate.legendary" : "crate.reveal"), 220);
         // Let the launch play, then hand over to the inspection card.
         setTimeout(() => setPhase("inspect"), isBig ? 2200 : 1500);
       }

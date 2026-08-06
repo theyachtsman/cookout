@@ -6,6 +6,8 @@ import {
   RARITY_MAP,
   type CardRarity,
   type CollectionCard,
+  type NftImportPlan,
+  type NftMatchBy,
   type CollectionSettings,
 } from "@cookout/shared";
 import { cc } from "../../lib/cc";
@@ -30,9 +32,189 @@ interface Data {
   unreachableRarities: CardRarity[];
 }
 
+/**
+ * Bind a minted collection to the cards.
+ *
+ * Paste what the mint produced and it says what would happen before anything
+ * is written. That preview is the whole point: attaching a card to the wrong
+ * token puts someone else's artwork on a dossier players already own, and
+ * every fix after that is another guess.
+ */
+function NftImportPanel({
+  onDone,
+  onError,
+  onNote,
+}: {
+  onDone: () => void;
+  onError: (m: string) => void;
+  onNote: (m: string) => void;
+}) {
+  const [text, setText] = useState("");
+  const [matchBy, setMatchBy] = useState<NftMatchBy>("name");
+  const [contract, setContract] = useState("");
+  const [baseUri, setBaseUri] = useState("");
+  const [plan, setPlan] = useState<NftImportPlan | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const run = async (apply: boolean) => {
+    setBusy(true);
+    onError("");
+    try {
+      let manifest: unknown;
+      try {
+        manifest = JSON.parse(text);
+      } catch {
+        throw new Error("that isn't valid JSON — paste the metadata your mint produced");
+      }
+      const r = await cc<{ plan: NftImportPlan; applied: boolean }>("/api/cc/collection/import", {
+        method: "POST",
+        body: { manifest, matchBy, contractAddress: contract || undefined, baseUri: baseUri || undefined, apply },
+      });
+      setPlan(r.plan);
+      if (r.applied) {
+        onNote(`Bound ${r.plan.matched.length} card(s) to their tokens.`);
+        onDone();
+      }
+    } catch (e) {
+      onError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const rebinds = plan?.matched.filter((m) => m.rebind) ?? [];
+
+  return (
+    <Panel
+      title="NFT import"
+      subtitle="Paste the metadata from your minted collection and attach it to the Recruit Crate cards."
+    >
+      <div className="space-y-3">
+        <textarea
+          value={text}
+          onChange={(e) => setText(e.target.value)}
+          rows={8}
+          spellCheck={false}
+          placeholder={'[{ "tokenId": 1, "name": "Ghost", "image": "ipfs://…" }, …]\n\nor { "tokens": [ … ] }'}
+          className="w-full rounded-xl bg-zinc-950 px-3 py-2 font-mono text-xs text-zinc-200 outline-none ring-1 ring-white/10 focus:ring-lime-400/40"
+        />
+
+        <div className="grid gap-2 sm:grid-cols-3">
+          <label className="block">
+            <span className="text-[11px] font-bold text-zinc-400">Pair each token with</span>
+            <select
+              value={matchBy}
+              onChange={(e) => setMatchBy(e.target.value as NftMatchBy)}
+              className="mt-0.5 w-full rounded-lg bg-zinc-900 px-2 py-1.5 text-sm outline-none ring-1 ring-white/10"
+            >
+              <option value="name">the card of the same name</option>
+              <option value="cardNumber">the matching catalogue number</option>
+              <option value="order">the card in the same position</option>
+            </select>
+          </label>
+          <label className="block">
+            <span className="text-[11px] font-bold text-zinc-400">Contract (optional)</span>
+            <input
+              value={contract}
+              onChange={(e) => setContract(e.target.value.trim())}
+              placeholder="0x…"
+              className="mt-0.5 w-full rounded-lg bg-zinc-900 px-2 py-1.5 font-mono text-sm outline-none ring-1 ring-white/10"
+            />
+          </label>
+          <label className="block">
+            <span className="text-[11px] font-bold text-zinc-400">Metadata base URI (optional)</span>
+            <input
+              value={baseUri}
+              onChange={(e) => setBaseUri(e.target.value.trim())}
+              placeholder="ipfs://…/"
+              className="mt-0.5 w-full rounded-lg bg-zinc-900 px-2 py-1.5 font-mono text-sm outline-none ring-1 ring-white/10"
+            />
+          </label>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            disabled={busy || !text.trim()}
+            onClick={() => void run(false)}
+            className="rounded-lg bg-zinc-800 px-4 py-2 text-sm font-bold text-zinc-200 hover:bg-zinc-700 disabled:opacity-40"
+          >
+            {busy ? "…" : "Preview"}
+          </button>
+          <button
+            disabled={busy || !plan || plan.matched.length === 0}
+            onClick={() => void run(true)}
+            className="rounded-lg bg-lime-400 px-4 py-2 text-sm font-black text-zinc-950 hover:bg-lime-300 disabled:opacity-40"
+          >
+            Apply {plan ? `· ${plan.matched.length}` : ""}
+          </button>
+          <button
+            disabled={busy}
+            onClick={() => {
+              if (!confirm("Unbind every card from its token? Artwork reverts to the Media Library.")) return;
+              setBusy(true);
+              cc<{ cleared: number }>("/api/cc/collection/import/clear", { method: "POST", body: {} })
+                .then((r) => {
+                  onNote(`Unbound ${r.cleared} card(s).`);
+                  setPlan(null);
+                  onDone();
+                })
+                .catch((e) => onError((e as Error).message))
+                .finally(() => setBusy(false));
+            }}
+            className="ml-auto rounded-lg bg-zinc-900 px-3 py-2 text-xs font-bold text-zinc-500 hover:bg-red-500/15 hover:text-red-300"
+          >
+            Unbind all
+          </button>
+        </div>
+
+        {plan && (
+          <div className="space-y-2 rounded-xl bg-zinc-950/60 p-3 ring-1 ring-white/5">
+            <div className="flex flex-wrap gap-3 text-xs">
+              <span className="font-bold text-lime-300">{plan.matched.length} will bind</span>
+              {rebinds.length > 0 && (
+                <span className="font-bold text-amber-300">{rebinds.length} already had a token</span>
+              )}
+              {plan.unmatched.length > 0 && (
+                <span className="font-bold text-red-300">{plan.unmatched.length} unmatched</span>
+              )}
+              {plan.unboundCards.length > 0 && (
+                <span className="text-zinc-500">{plan.unboundCards.length} cards left without one</span>
+              )}
+            </div>
+
+            {rebinds.length > 0 && (
+              <p className="text-[11px] leading-snug text-amber-200/80">
+                Those cards are bound to a different token already. Players who own one will see
+                different artwork after this — check the pairing is right before applying.
+              </p>
+            )}
+
+            <div className="max-h-64 space-y-1 overflow-y-auto">
+              {plan.matched.slice(0, 60).map((m) => (
+                <div key={m.cardId} className="flex items-center gap-2 rounded-lg bg-zinc-900/60 px-2 py-1 text-xs">
+                  <span className="min-w-0 flex-1 truncate text-zinc-200">{m.cardName}</span>
+                  {m.rebind && <span className="font-mono text-[10px] text-amber-400">was #{m.rebind}</span>}
+                  <span className="font-mono text-zinc-500">#{m.tokenId}</span>
+                </div>
+              ))}
+              {plan.unmatched.slice(0, 30).map((u, i) => (
+                <div key={`u${i}`} className="flex items-center gap-2 rounded-lg bg-red-500/[0.07] px-2 py-1 text-xs">
+                  <span className="min-w-0 flex-1 truncate text-red-200">{u.name || "(unnamed)"}</span>
+                  <span className="truncate text-[10px] text-red-300/70">{u.reason}</span>
+                  <span className="font-mono text-zinc-600">#{u.tokenId || "?"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </Panel>
+  );
+}
+
 export function CollectionManagerModule() {
   const [data, setData] = useState<Data | null>(null);
-  const [tab, setTab] = useState<"cards" | "odds" | "sets" | "packs">("cards");
+  const [tab, setTab] = useState<"cards" | "odds" | "sets" | "packs" | "mint">("cards");
   const [editing, setEditing] = useState<CollectionCard | null>(null);
   const [q, setQ] = useState("");
   const [rarity, setRarity] = useState<CardRarity | "">("");
@@ -92,6 +274,7 @@ export function CollectionManagerModule() {
             ["odds", "Drop odds"],
             ["sets", `Sets (${Object.keys(s.sets).length})`],
             ["packs", "Crate packs"],
+            ["mint", "NFT import"],
           ] as const
         ).map(([k, label]) => (
           <button
@@ -348,6 +531,8 @@ export function CollectionManagerModule() {
           </div>
         </Panel>
       )}
+
+      {tab === "mint" && <NftImportPanel onDone={load} onError={setError} onNote={setNote} />}
 
       {editing && (
         <CardEditor

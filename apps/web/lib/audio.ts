@@ -780,6 +780,68 @@ function register(): void {
     },
   });
 
+  // ---------------- Recruit Crates ----------------
+  // The crate cinematic used to borrow Match and Trading cues, which meant
+  // retuning a trade sound silently changed the crate and the crate could
+  // never be tuned on its own. These are its own voices, and its own group in
+  // the Audio Manager.
+  R("crate.arrive", {
+    // Heavy steel case dropped onto a metal table: impact, then the ring.
+    category: "round",
+    priority: 8,
+    duck: true,
+    render: (c) => {
+      sub(c, 46, { dur: 0.7, gain: 0.32, drop: 30, dropDur: 0.09, drive: 2.4 });
+      noiseBurst(c, { dur: 0.14, gain: 0.14, type: "bandpass", cutoff: 2400, cutoffTo: 600, q: 0.8 });
+      // the table ringing afterwards, which is what sells the weight
+      fm(c, A4, { at: 0.03, dur: 0.5, gain: 0.05, ratio: 3.3, index: 90, send: 0.5 });
+    },
+  });
+  R("crate.strain", {
+    // One hit of forcing it. Short and dry so a fast press never smears.
+    category: "ui",
+    priority: 4,
+    render: (c) => {
+      sub(c, 70, { dur: 0.16, gain: 0.16, drop: 22, dropDur: 0.05, drive: 2 });
+      noiseBurst(c, { dur: 0.09, gain: 0.1, type: "bandpass", cutoff: 3200, cutoffTo: 1200, q: 1.4 });
+    },
+  });
+  R("crate.burst", {
+    // Latches let go: crack, pressure release, metal lid tumbling.
+    category: "round",
+    priority: 9,
+    duck: true,
+    render: (c) => {
+      sub(c, 40, { dur: 0.9, gain: 0.34, drop: 26, dropDur: 0.12, drive: 3 });
+      noiseBurst(c, { dur: 0.5, gain: 0.16, type: "bandpass", cutoff: 900, cutoffTo: 8000, q: 0.5, send: 0.55 });
+      noiseBurst(c, { at: 0.02, dur: 0.12, gain: 0.13, type: "highpass", cutoff: 3000, q: 0.7 });
+      fm(c, A5, { at: 0.05, dur: 0.6, gain: 0.07, ratio: 2.7, index: 140, send: 0.5 });
+    },
+  });
+  R("crate.reveal", {
+    // A card turning to face you — air, then a soft bell to land it.
+    category: "ui",
+    priority: 6,
+    render: (c) => {
+      noiseBurst(c, { dur: 0.26, gain: 0.06, type: "bandpass", cutoff: 1200, cutoffTo: 5200, q: 0.7, send: 0.4 });
+      fm(c, E5, { at: 0.08, dur: 0.45, gain: 0.07, ratio: 2, index: 90, send: 0.45 });
+    },
+  });
+  R("crate.legendary", {
+    // Reserved for the pull that matters: it has to be unmistakably different
+    // from the one you get nine times out of ten.
+    category: "victory",
+    priority: 10,
+    duck: true,
+    render: (c) => {
+      sub(c, 52, { dur: 0.8, gain: 0.2, drop: 34, dropDur: 0.12, drive: 2 });
+      voice(c, A4, { dur: 1.1, type: "sawtooth", gain: 0.07, cutoff: 700, cutoffTo: 3600, q: 1.3, detune: 12, attack: 0.04, drive: 3, send: 0.45 });
+      voice(c, E5, { at: 0.08, dur: 1.05, type: "sawtooth", gain: 0.06, cutoff: 800, cutoffTo: 3800, q: 1.3, detune: 12, attack: 0.05, drive: 3, send: 0.45 });
+      fm(c, A5, { at: 0.22, dur: 0.9, gain: 0.11, ratio: 2, index: 150, send: 0.6 });
+      fm(c, E6, { at: 0.4, dur: 0.8, gain: 0.08, ratio: 3, index: 120, send: 0.6 });
+    },
+  });
+
   // ---------------- Round events: Victory / Failure ----------------
   R("round.graduated", {
     category: "victory",

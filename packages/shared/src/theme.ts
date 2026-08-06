@@ -159,7 +159,14 @@ export const SOUND_CUES: SoundCueDef[] = [
   { key: "xp.levelup", label: "Level up", description: "A new level", group: "Progression" },
   { key: "achievement.unlock", label: "Achievement", description: "A badge unlocks", group: "Progression" },
   { key: "burger.earn", label: "BURGERS earned", description: "The 🍔 toast", group: "Progression" },
-  { key: "lootbox.open", label: "Recruit Cooler", description: "A loot box opens", group: "Progression" },
+  // The crate opening is a cinematic with its own beats, and it was borrowing
+  // Match and Trading cues — so retuning a trade sound silently changed the
+  // crate, and the crate could never be tuned on its own.
+  { key: "crate.arrive", label: "Crate lands", description: "The crate slams onto the table", group: "Recruit Crates" },
+  { key: "crate.strain", label: "Straining", description: "Each hit while forcing it open", group: "Recruit Crates" },
+  { key: "crate.burst", label: "Crate bursts", description: "The lid blows off", group: "Recruit Crates" },
+  { key: "crate.reveal", label: "Reveal", description: "A dossier turns to face you", group: "Recruit Crates" },
+  { key: "crate.legendary", label: "Legendary pull", description: "The rare-pull sting", group: "Recruit Crates" },
   { key: "ui.click", label: "Click", description: "Buttons and tabs", group: "Interface" },
   { key: "ui.tab", label: "Tab change", description: "Switching view", group: "Interface" },
   { key: "ui.error", label: "Error", description: "Something was refused", group: "Interface" },

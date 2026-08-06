@@ -180,6 +180,21 @@ export function CollectionBrowser({
   );
 }
 
+/**
+ * Where a card's artwork comes from.
+ *
+ * A bound NFT's own image wins over the Media Library asset: once a card
+ * points at a real token, that token's art is the truth, and showing anything
+ * else would put a picture on the dossier the player's NFT does not have.
+ * ipfs:// is rewritten to a gateway, because browsers cannot fetch it.
+ */
+function cardArt(card: { portraitAssetId?: string; dossierAssetId?: string; chain?: { imageUrl?: string } }, prefer: "portrait" | "dossier" = "portrait"): string | null {
+  const nft = card.chain?.imageUrl;
+  if (nft) return nft.startsWith("ipfs://") ? `https://ipfs.io/ipfs/${nft.slice(7)}` : nft;
+  const asset = prefer === "dossier" ? (card.dossierAssetId ?? card.portraitAssetId) : card.portraitAssetId;
+  return asset ? `${apiUrl()}/media/${asset}` : null;
+}
+
 function CardTile({ card, onOpen }: { card: BrowserCard; onOpen: () => void }) {
   const rarity = RARITY_MAP[card.rarity];
   if (!card.owned)
@@ -208,10 +223,10 @@ function CardTile({ card, onOpen }: { card: BrowserCard; onOpen: () => void }) {
       style={{ borderColor: rarity.color, boxShadow: `inset 0 0 0 2px ${rarity.color}55` }}
     >
       <div className="flex-1 overflow-hidden rounded-lg bg-zinc-900/60">
-        {card.portraitAssetId ? (
+        {cardArt(card) ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img
-            src={`${apiUrl()}/media/${card.portraitAssetId}`}
+            src={cardArt(card)!}
             alt={card.name ?? ""}
             className="h-full w-full object-cover"
           />
@@ -272,10 +287,10 @@ export function DossierViewer({ card, onClose }: { card: BrowserCard; onClose: (
               <div className="h-full overflow-y-auto p-3 text-xs leading-snug text-zinc-400">
                 {card.lore || "No further records."}
               </div>
-            ) : card.dossierAssetId || card.portraitAssetId ? (
+            ) : cardArt(card, "dossier") ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={`${apiUrl()}/media/${card.dossierAssetId ?? card.portraitAssetId}`}
+                src={cardArt(card, "dossier")!}
                 alt=""
                 className="h-full w-full object-cover"
               />

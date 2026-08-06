@@ -434,3 +434,34 @@ test("the scene gives its metals something to reflect", () => {
   assert.ok(src.includes("Lightformer"), "built in-scene, so it needs no HDRI download");
   assert.ok(src.includes("ACESFilmicToneMapping"), "and filmic tone mapping");
 });
+
+test("the crate has its own sound cues, not borrowed ones", async () => {
+  // It played round.launch, ui.click and trade.buy — so retuning a trade
+  // silently changed the crate, and the crate could not be tuned at all.
+  const { SOUND_CUES } = await import("@cookout/shared");
+  const crate = SOUND_CUES.filter((c) => c.group === "Recruit Crates").map((c) => c.key);
+  assert.deepEqual(crate, [
+    "crate.arrive",
+    "crate.strain",
+    "crate.burst",
+    "crate.reveal",
+    "crate.legendary",
+  ]);
+
+  const scene = web("components/collection/CrateOpening.tsx");
+  for (const key of crate) assert.ok(scene.includes(`"${key}"`), `${key} is never played`);
+  // Every registered cue needs a voice, or the Audio Manager offers a slider
+  // that controls nothing.
+  const lib = web("lib/audio.ts");
+  for (const key of crate) assert.ok(lib.includes(`R("${key}"`), `${key} has no voice`);
+});
+
+test("a card bound to a token shows the token's own art", async () => {
+  const { planNftImport } = await import("@cookout/shared");
+  assert.equal(typeof planNftImport, "function");
+  // Otherwise the import is cosmetic: the binding exists and players still see
+  // whatever was in the Media Library.
+  const browser = web("components/collection/CollectionBrowser.tsx");
+  assert.ok(browser.includes("chain?.imageUrl"), "NFT art must win over the asset");
+  assert.ok(browser.includes("ipfs://"), "and ipfs:// must be rewritten to a gateway");
+});

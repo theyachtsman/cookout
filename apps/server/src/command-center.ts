@@ -45,7 +45,8 @@ import {
 import { buildAnalytics, isRealPlayer } from "./analytics.js";
 import { adminAdjustBurgers } from "./burger.js";
 import { ComplianceService } from "./compliance.js";
-import type { ComplianceSettings, Round } from "@cookout/shared";
+import type { ComplianceSettings, NftManifestEntry, NftMatchBy, Round } from "@cookout/shared";
+import { planNftImport } from "@cookout/shared";
 import { MediaService } from "./media.js";
 import { rateLimit } from "./ratelimit.js";
 import {
@@ -1788,6 +1789,101 @@ export function mountCommandCenter(
       delete store.settings.collection.cards[card.id];
       audit(store, req, { module: "nft", action: "card.delete", target: card.name, before: card });
       res.json({ ok: true });
+    }),
+  );
+
+  /**
+   * Bind a minted collection to the Recruit Crate cards.
+   *
+   * Takes the metadata a mint produces — an array of ERC-721 entries, or an
+   * object with a `tokens`/`assets` array, since every generator names it
+   * something different. Answers with the plan and only writes when explicitly
+   * told to: pairing a card with the wrong token puts someone else's artwork
+   * on a dossier players already own, and the fix afterwards is another guess.
+   */
+  app.post(
+    "/api/cc/collection/import",
+    gate("content.manage"),
+    wrap((req, res) => {
+      const body = req.body as {
+        manifest?: unknown;
+        matchBy?: NftMatchBy;
+        contractAddress?: string;
+        baseUri?: string;
+        apply?: boolean;
+      };
+
+      const raw = body.manifest;
+      const list = Array.isArray(raw)
+        ? raw
+        : ((raw as { tokens?: unknown[]; assets?: unknown[]; nfts?: unknown[] })?.tokens ??
+          (raw as { assets?: unknown[] })?.assets ??
+          (raw as { nfts?: unknown[] })?.nfts);
+      if (!Array.isArray(list) || list.length === 0)
+        throw new CcError(400, "paste the collection's metadata — an array, or { tokens: [...] }");
+      if (list.length > 5_000) throw new CcError(400, "that manifest is too large to import at once");
+
+      const matchBy: NftMatchBy = ["name", "cardNumber", "order"].includes(body.matchBy ?? "")
+        ? (body.matchBy as NftMatchBy)
+        : "name";
+      const contract = (body.contractAddress ?? "").trim();
+      if (contract && !/^0x[0-9a-fA-F]{40}$/.test(contract))
+        throw new CcError(400, "contract address must be a 0x address");
+
+      const cards = Object.values(store.settings.collection.cards);
+      const plan = planNftImport(list as NftManifestEntry[], cards, { matchBy });
+
+      if (!body.apply) {
+        res.json({ plan, applied: false, cards: cards.length, entries: list.length });
+        return;
+      }
+
+      for (const m of plan.matched) {
+        const card = store.settings.collection.cards[m.cardId];
+        if (!card) continue;
+        card.chain = {
+          ...card.chain,
+          tokenId: m.tokenId,
+          ...(contract ? { contractAddress: contract } : {}),
+          ...(m.imageUrl ? { imageUrl: m.imageUrl } : {}),
+          ...(body.baseUri
+            ? { metadataUri: `${body.baseUri.replace(/\/$/, "")}/${m.tokenId}` }
+            : {}),
+          // Bound to a real token, but nothing is transferable during the
+          // paper beta — that switch is deliberately not flipped here.
+          mintStatus: "minted",
+        };
+      }
+      audit(store, req, {
+        module: "nft",
+        action: "collection.import",
+        target: contract || "(no contract)",
+        note:
+          `bound ${plan.matched.length} card(s) by ${matchBy}` +
+          (plan.matched.some((m) => m.rebind) ? `, ${plan.matched.filter((m) => m.rebind).length} rebound` : "") +
+          (plan.unmatched.length ? `, ${plan.unmatched.length} unmatched` : ""),
+      });
+      res.json({ plan, applied: true });
+    }),
+  );
+
+  /** Drop every token binding, so a bad import can be undone in one move. */
+  app.post(
+    "/api/cc/collection/import/clear",
+    gate("content.manage"),
+    wrap((req, res) => {
+      let cleared = 0;
+      for (const card of Object.values(store.settings.collection.cards)) {
+        if (!card.chain?.tokenId && !card.chain?.imageUrl) continue;
+        card.chain = { mintStatus: "unminted", transferable: false };
+        cleared++;
+      }
+      audit(store, req, {
+        module: "nft",
+        action: "collection.import.clear",
+        note: `unbound ${cleared} card(s)`,
+      });
+      res.json({ ok: true, cleared });
     }),
   );
 
