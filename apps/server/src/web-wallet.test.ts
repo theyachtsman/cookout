@@ -304,7 +304,7 @@ test("both Pit chain hooks are actually called, not just defined", () => {
   // it, so both directions get pinned: bound in index, invoked in the engine.
   const idx = readFileSync(join(import.meta.dirname, "index.ts"), "utf8");
   const eng = readFileSync(join(import.meta.dirname, "engine.ts"), "utf8");
-  for (const hook of ["onPitChainCreate", "onPitChainResolve"]) {
+  for (const hook of ["onPitChainCreate", "onPitChainClose", "onPitChainResolve"]) {
     assert.match(idx, new RegExp(`engine\\.${hook}\\s*=`), `${hook} must be bound`);
     // Either call style — the point is that it is reached, not how.
     assert.ok(

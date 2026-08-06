@@ -40,6 +40,7 @@ const chain = new ChainService(store, engine);
 // Close the loop the constructors cannot: the chain service depends on the
 // engine, so the engine gets its chain hook after both exist.
 engine.onPitChainResolve = (round, outcome) => void chain.resolvePitPools(round, outcome);
+engine.onPitChainClose = (round) => void chain.closePitStaking(round);
 engine.onPitChainCreate = (round) => {
   const tiers = store.settings.game.battleTiers;
   // The lobby offers every enabled tier, but one match escrows one entry

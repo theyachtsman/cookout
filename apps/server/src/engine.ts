@@ -106,6 +106,9 @@ export class RoundEngine {
    */
   onPitChainCreate?: (round: Round) => void;
 
+  /** Shut a Pit match's pools when its lobby closes. Same late binding. */
+  onPitChainClose?: (round: Round) => void;
+
   constructor(
     private store: Store,
     private broadcast: Broadcast,
@@ -347,6 +350,10 @@ export class RoundEngine {
 
   /** Pit lobby closed: seed the pool and start live trading (no auction). */
   private startPitLive(round: Round, now: number): void {
+    // The lobby is closing, so the pools stop taking bets. This is the real
+    // moment; the contract's own deadline is only a backstop for when the
+    // server never gets here.
+    if (round.pitChain) this.onPitChainClose?.(round);
     const cfg = round.config;
     round.pool = {
       ethReserve: cfg.initialEthLiquidity,

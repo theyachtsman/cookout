@@ -74,6 +74,7 @@ const PIT_FACTORY_ABI = parseAbi([
 
 const PIT_POOL_ABI = parseAbi([
   "function resolve(uint8 result)",
+  "function closeStaking()",
   "function stakeOf(address, uint8) view returns (uint256)",
   "function totalStaked() view returns (uint256)",
   "function resolved() view returns (bool)",
@@ -82,6 +83,7 @@ const PIT_POOL_ABI = parseAbi([
 
 const PIT_BATTLE_ABI = parseAbi([
   "function resolve(address winner)",
+  "function closeStaking()",
   "function buyIn(address) view returns (uint256)",
   "function pot() view returns (uint256)",
   "function entrants() view returns (uint256)",
@@ -369,10 +371,13 @@ export class ChainService {
     const pit = round.pit;
     if (!pit) return null;
 
-    // Staking closes when the lobby does; refunds open a day later, which is
-    // long enough for a stuck resolver to be noticed and fixed, and short
-    // enough that players are not waiting a week for their own money.
-    const closesAt = Math.floor((round.queueClosesAt ?? round.scheduledAt ?? Date.now()) / 1000);
+    // A Pit lobby closes when it fills, which nobody can know now — so this
+    // is the DEADLINE by which that must have happened, and the server calls
+    // closeStaking() at the real moment. Using scheduledAt here, as this did,
+    // deployed a pool that was already closed: every bet reverted.
+    const deadline =
+      (round.scheduledAt ?? Date.now()) + (pit.queueMaxSeconds ?? 600) * 1000;
+    const closesAt = Math.floor(deadline / 1000);
     const refundAfter = closesAt + 86_400;
     const matchId = keccak256(toHex(round.id));
 
@@ -408,6 +413,40 @@ export class ChainService {
       closesAt: closesAt * 1000,
       refundAfter: refundAfter * 1000,
     };
+  }
+
+  /**
+   * Shut staking because the match has started.
+   *
+   * The deadline in the contract is a backstop; this is the real event. Called
+   * when the lobby fills, so a blitz that finishes long before the deadline
+   * can still be resolved, and nobody can bet on a match already underway.
+   */
+  async closePitStaking(round: Round): Promise<void> {
+    const pc = round.pitChain;
+    if (!this.enabled || !pc) return;
+    for (const [label, address, abi] of [
+      ["prediction", pc.predictionPool, PIT_POOL_ABI],
+      ["battle", pc.battlePool, PIT_BATTLE_ABI],
+    ] as const) {
+      try {
+        const hash = await this.wallet.writeContract({
+          chain: this.chain,
+          account: this.account,
+          address: address as HexAddress,
+          abi,
+          functionName: "closeStaking",
+        });
+        await this.pub.waitForTransactionReceipt({ hash });
+      } catch (e) {
+        // Not fatal: the deadline still closes it, and resolution tolerates
+        // either route. Worth a line because it means late bets are possible.
+        this.store.logAdmin(
+          "chain",
+          `could not close ${label} staking for ${round.token.symbol}: ${(e as Error).message}`,
+        );
+      }
+    }
   }
 
   /**

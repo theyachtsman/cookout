@@ -1118,3 +1118,60 @@ describe("PitPoolFactory", () => {
     await expect(f.createPools(MATCH, 500, 500, 0, t + 100, t + 86_500)).to.be.reverted;
   });
 });
+
+describe("Pit pools: staking closes when the match starts", () => {
+  const GRADUATE = 1;
+
+  async function pools({ closeIn = 10_000 } = {}) {
+    const [house, feeTo, a, b] = await ethers.getSigners();
+    const t = await now();
+    const p = await (await ethers.getContractFactory("PitPool")).deploy(
+      house.address, feeTo.address, 500, t + closeIn, t + closeIn + 86_400,
+    );
+    const bt = await (await ethers.getContractFactory("PitBattlePool")).deploy(
+      house.address, feeTo.address, 500, E(1), t + closeIn, t + closeIn + 86_400,
+    );
+    return { p, bt, house, a, b };
+  }
+
+  it("resolves a match that finished before the deadline", async () => {
+    // A blitz can be over in a minute while the lobby deadline is ten minutes
+    // out. Without closeStaking, resolve() reverted as NotClosed and the pot
+    // sat there until the refund window.
+    const { p, house, a } = await pools();
+    await p.connect(a).stake(GRADUATE, { value: E(1) });
+    await expect(p.connect(house).resolve(GRADUATE)).to.be.revertedWithCustomError(p, "NotClosed");
+
+    await p.connect(house).closeStaking();
+    await expect(p.connect(house).resolve(GRADUATE)).to.not.be.reverted;
+  });
+
+  it("refuses bets once the match has started", async () => {
+    // The other half of the same bug: the pool used to keep taking money after
+    // the match was underway.
+    const { bt, house, a, b } = await pools();
+    await bt.connect(a).enter({ value: E(1) });
+    await bt.connect(house).closeStaking();
+    await expect(bt.connect(b).enter({ value: E(1) })).to.be.revertedWithCustomError(bt, "Closed");
+  });
+
+  it("only the resolver may close staking, and only forwards", async () => {
+    const { p, house, a } = await pools();
+    await expect(p.connect(a).closeStaking()).to.be.revertedWithCustomError(p, "NotResolver");
+    await p.connect(house).closeStaking();
+    expect(await p.stakingClosed()).to.equal(true);
+    // No reopening: a second call is harmless, and there is no setter back.
+    await p.connect(house).closeStaking();
+    expect(await p.stakingClosed()).to.equal(true);
+  });
+
+  it("closing early cannot strand money — refunds still open on time", async () => {
+    const { p, house, a } = await pools({ closeIn: 60 });
+    await p.connect(a).stake(GRADUATE, { value: E(2) });
+    await p.connect(house).closeStaking();
+    // Resolver goes quiet after closing. The window is untouched by it.
+    await mine(90_000);
+    await p.connect(a).openRefunds();
+    await expect(p.connect(a).refund()).to.changeEtherBalance(a, E(2));
+  });
+});

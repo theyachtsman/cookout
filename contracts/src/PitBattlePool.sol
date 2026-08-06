@@ -52,6 +52,14 @@ contract PitBattlePool {
     uint256 public immutable entryFee;
     /// @notice Buy-ins close here; the winner cannot be named before it.
     uint64 public immutable closesAt;
+    /// @notice Staking is shut early once the match actually starts. A Pit
+    ///         lobby closes when it fills, which nobody can know at deploy
+    ///         time — `closesAt` is only the deadline by which it must have
+    ///         happened. Without this the pool either takes bets after the
+    ///         match began, or refuses resolution of a match that finished
+    ///         before the deadline. One-way, and strictly less power than
+    ///         naming the outcome, which the resolver already has.
+    bool public stakingClosed;
     /// @notice After this, anyone may open refunds.
     uint64 public immutable refundAfter;
 
@@ -72,6 +80,7 @@ contract PitBattlePool {
     event Refunded(address indexed who, uint256 amount);
 
     error NotResolver();
+    error StakingOpen();
     error Closed();
     error NotClosed();
     error AlreadyResolved();
@@ -122,7 +131,7 @@ contract PitBattlePool {
     ///      entry per address, since a second buys no extra claim on a prize
     ///      decided by PnL — it would only be a donation to the winner.
     function enter() external payable {
-        if (block.timestamp >= closesAt) revert Closed();
+        if (stakingClosed || block.timestamp >= closesAt) revert Closed();
         if (msg.value != entryFee) revert WrongEntryFee();
         if (buyIn[msg.sender] != 0) revert AlreadyEntered();
         buyIn[msg.sender] = msg.value;
@@ -140,7 +149,7 @@ contract PitBattlePool {
      */
     function resolve(address winner_) external nonReentrant {
         if (msg.sender != resolver) revert NotResolver();
-        if (block.timestamp < closesAt) revert NotClosed();
+        if (!stakingClosed && block.timestamp < closesAt) revert NotClosed();
         if (resolved) revert AlreadyResolved();
         if (refunding) revert Refunding();
         if (buyIn[winner_] == 0) revert NotAnEntrant();
@@ -163,6 +172,14 @@ contract PitBattlePool {
         uint256 amount = pot - (pot * feeBps) / BPS;
         _pay(msg.sender, amount);
         emit Claimed(msg.sender, amount);
+    }
+
+    /// @notice Shut staking because the match has started. Resolver-only and
+    ///         one-way: it cannot be reopened, and it cannot be used to keep
+    ///         anyone's money — every path out of this contract is unchanged.
+    function closeStaking() external {
+        if (msg.sender != resolver) revert NotResolver();
+        stakingClosed = true;
     }
 
     /// @notice Open refunds because the battle was never resolved.

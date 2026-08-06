@@ -50,6 +50,14 @@ contract PitPool {
     uint16 public immutable feeBps;
     /// @notice Staking closes here; resolution cannot happen before it.
     uint64 public immutable closesAt;
+    /// @notice Staking is shut early once the match actually starts. A Pit
+    ///         lobby closes when it fills, which nobody can know at deploy
+    ///         time — `closesAt` is only the deadline by which it must have
+    ///         happened. Without this the pool either takes bets after the
+    ///         match began, or refuses resolution of a match that finished
+    ///         before the deadline. One-way, and strictly less power than
+    ///         naming the outcome, which the resolver already has.
+    bool public stakingClosed;
     /// @notice After this, anyone may open refunds. The bound on the oracle.
     uint64 public immutable refundAfter;
 
@@ -72,6 +80,7 @@ contract PitPool {
     event Refunded(address indexed who, uint256 amount);
 
     error NotResolver();
+    error StakingOpen();
     error BadCall();
     error Closed();
     error NotClosed();
@@ -114,7 +123,7 @@ contract PitPool {
     /// @notice Back a call with ETH. Staking again on the same call adds to it.
     function stake(Call call) external payable {
         if (call == Call.NONE) revert BadCall();
-        if (block.timestamp >= closesAt) revert Closed();
+        if (stakingClosed || block.timestamp >= closesAt) revert Closed();
         if (msg.value == 0) revert BadCall();
         stakeOf[msg.sender][call] += msg.value;
         totalOn[call] += msg.value;
@@ -132,7 +141,7 @@ contract PitPool {
     function resolve(Call result) external nonReentrant {
         if (msg.sender != resolver) revert NotResolver();
         if (result == Call.NONE) revert BadCall();
-        if (block.timestamp < closesAt) revert NotClosed();
+        if (!stakingClosed && block.timestamp < closesAt) revert NotClosed();
         if (resolved) revert AlreadyResolved();
         if (refunding) revert Refunding();
         resolved = true;
@@ -164,6 +173,14 @@ contract PitPool {
         uint256 amount = (payoutPot * mine) / winningStake;
         _pay(msg.sender, amount);
         emit Claimed(msg.sender, amount);
+    }
+
+    /// @notice Shut staking because the match has started. Resolver-only and
+    ///         one-way: it cannot be reopened, and it cannot be used to keep
+    ///         anyone's money — every path out of this contract is unchanged.
+    function closeStaking() external {
+        if (msg.sender != resolver) revert NotResolver();
+        stakingClosed = true;
     }
 
     /**
