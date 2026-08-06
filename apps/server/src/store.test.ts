@@ -300,17 +300,47 @@ test("a live round whose pool lost its ETH reserve is repaired, not left dead", 
         token: { symbol: "BERP" },
         config: { initialEthLiquidity: 1, initialTokenLiquidity: 1_000_000 },
         pool: { ethReserve: null, tokenReserve: 1_000_000, totalSupply: 2_000_000 },
+        clearingPrice: null,
+      },
+    ],
+    // Settled against the poisoned pool: no fills, but the derived numbers
+    // came back null and that is what the page choked on.
+    auctionResults: [
+      {
+        roundId: "poisoned-1",
+        fills: [],
+        totalDemand: 0,
+        totalRaised: 0,
+        fillRatio: 0,
+        clearingPrice: null,
+        poolAfter: { ethReserve: null, tokenReserve: 1_000_000, totalSupply: 2_000_000 },
       },
     ],
   } as never);
 
   const back = restored.rounds.get("poisoned-1")!;
   assert.equal(back.pool?.ethReserve, 1, "reseeded from the anchor");
+  // Reseeding the reserve alone was not enough: the round page reads the
+  // clearing price, which was derived from the broken pool and stayed null.
+  assert.equal((back as never as Record<string, number>).clearingPrice, 1e-6);
   assert.ok(Number.isFinite(back.pool!.ethReserve / back.pool!.tokenReserve), "prices again");
   assert.ok(
     restored.adminLog.some((e) => /repaired BERP/.test(e.detail ?? "")),
     "the repair is recorded, not silent",
   );
+
+  const auction = restored.auctionResults.get("poisoned-1")! as never as Record<string, never>;
+  assert.equal((auction.poolAfter as Record<string, number>).ethReserve, 1);
+  assert.equal(auction.clearingPrice as unknown as number, 1e-6);
+
+  // The whole point: nothing the page reads is null any more.
+  for (const [what, v] of [
+    ["pool reserve", back.pool?.ethReserve],
+    ["round clearing price", (back as never as Record<string, number>).clearingPrice],
+    ["auction clearing price", auction.clearingPrice as unknown as number],
+  ] as const) {
+    assert.ok(Number.isFinite(v as number), `${what} is a real number`);
+  }
 });
 
 test("a healthy pool is never rewritten by the repair", () => {

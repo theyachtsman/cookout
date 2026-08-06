@@ -1362,6 +1362,18 @@ export class Store {
         // restore would overwrite it and the repair would be invisible.
         repaired.push(r.token?.symbol ?? r.id);
       }
+      // The clearing price is derived from that pool, so it was poisoned too —
+      // and reseeding the reserve alone still left the round page crashing on
+      // a null price. Whatever consumed the broken pool has to be repaired
+      // with it, not just the pool itself.
+      const spot =
+        pool && Number.isFinite(pool.ethReserve) && pool.tokenReserve > 0
+          ? pool.ethReserve / pool.tokenReserve
+          : undefined;
+      const rr = r as unknown as Record<string, unknown>;
+      if (spot !== undefined && rr.clearingPrice !== undefined && !Number.isFinite(rr.clearingPrice as number)) {
+        rr.clearingPrice = spot;
+      }
       this.rounds.set(r.id, r);
     }
     // Restore what a live round needs to keep running. Derived match stats
@@ -1376,7 +1388,23 @@ export class Store {
       if (lr.pitEntries?.length) this.pitEntries.set(lr.roundId, new Map(lr.pitEntries));
     }
     for (const [roundId, candles] of snap.candles ?? []) this.candles.set(roundId, candles);
-    for (const a of snap.auctionResults) this.auctionResults.set(a.roundId, a);
+    for (const a of snap.auctionResults) {
+      // Settled against a poisoned pool, so the result carries the same NaN
+      // through poolAfter and the clearing price. This is what the round page
+      // actually reads, so repairing the round's pool without repairing this
+      // left the coin looking exactly as broken as before.
+      const res = a as unknown as Record<string, unknown>;
+      const after = res.poolAfter as Record<string, number> | undefined;
+      const anchor = (this.rounds.get(a.roundId)?.config as unknown as Record<string, number>)
+        ?.curveAnchorEth;
+      if (after && !Number.isFinite(after.ethReserve) && typeof anchor === "number") {
+        after.ethReserve = anchor;
+      }
+      if (!Number.isFinite(res.clearingPrice as number) && after && after.tokenReserve > 0) {
+        res.clearingPrice = after.ethReserve / after.tokenReserve;
+      }
+      this.auctionResults.set(a.roundId, a);
+    }
     for (const s of snap.summaries) this.summaries.set(s.roundId, s);
     for (const b of snap.betaSignups ?? []) this.betaSignups.set(b.address, b);
     for (const [token, s] of snap.sessions ?? []) {
