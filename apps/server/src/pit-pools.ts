@@ -51,6 +51,14 @@ export function withdrawPit(store: Store, round: Round, address: Address): void 
   if (!entry) return;
   const user = store.getOrCreateUser(addr);
   const bot = addr.startsWith("0xb07");
+  // A chain stake is in the pool contract, not in a balance we control. There
+  // is no unstake before close, so the pot bookkeeping unwinds but no paper
+  // money moves — crediting it here would mint pETH out of an on-chain bet.
+  const onChain = !!round.pitChain;
+  const credit = (amount: number) => {
+    if (onChain || amount <= 0) return;
+    user.arenaBalance = (user.arenaBalance ?? 0) + amount;
+  };
 
   const main = mainStakeOf(round, entry);
   const house = houseStakeOf(round, entry);
@@ -59,22 +67,25 @@ export function withdrawPit(store: Store, round: Round, address: Address): void 
   const predRefund = main + house;
 
   if (predRefund > 0) {
-    user.arenaBalance = (user.arenaBalance ?? 0) + predRefund;
-    if (!bot) store.recordLedger(addr, "pit_prediction", predRefund, { symbol: round.token.symbol, roundId: round.id });
+    credit(predRefund);
+    if (!bot && !onChain)
+      store.recordLedger(addr, "pit_prediction", predRefund, { symbol: round.token.symbol, roundId: round.id });
     pit.prediction.pot -= predRefund;
     pit.prediction.participants = Math.max(0, pit.prediction.participants - 1);
     if (entry.prediction) pit.mainParticipants = Math.max(0, pit.mainParticipants - 1);
     if (entry.houseSpecial) pit.houseParticipants = Math.max(0, pit.houseParticipants - 1);
   }
   if (trade > 0) {
-    user.arenaBalance = (user.arenaBalance ?? 0) + trade;
-    if (!bot) store.recordLedger(addr, "pit_trading", trade, { symbol: round.token.symbol, roundId: round.id });
+    credit(trade);
+    if (!bot && !onChain)
+      store.recordLedger(addr, "pit_trading", trade, { symbol: round.token.symbol, roundId: round.id });
     pit.trading.pot -= trade;
     pit.trading.participants = Math.max(0, pit.trading.participants - 1);
   }
   if (trial > 0) {
-    user.arenaBalance = (user.arenaBalance ?? 0) + trial;
-    if (!bot) store.recordLedger(addr, "pit_trial", trial, { symbol: round.token.symbol, roundId: round.id });
+    credit(trial);
+    if (!bot && !onChain)
+      store.recordLedger(addr, "pit_trial", trial, { symbol: round.token.symbol, roundId: round.id });
     pit.trialParticipants = Math.max(0, pit.trialParticipants - 1);
   }
   // Both trading and Trial hand out a paper stack — clear it on withdrawal.
@@ -93,6 +104,16 @@ export function enterPit(store: Store, round: Round, address: Address, entry: Pi
   withdrawPit(store, round, addr); // replace any existing entry
   const user = store.getOrCreateUser(addr);
   const bot = addr.startsWith("0xb07");
+  // On a chain match the money is already escrowed in the pool contracts —
+  // the player sent it there themselves before we ever saw this entry. Taking
+  // it from their paper balance too would charge them twice for one bet. The
+  // pot still tracks it, because the game's own maths runs off these numbers
+  // whether or not there is a contract behind them.
+  const onChain = !!round.pitChain;
+  const debit = (amount: number) => {
+    if (onChain || amount <= 0) return;
+    user.arenaBalance = (user.arenaBalance ?? 0) - amount;
+  };
 
   const main = mainStakeOf(round, entry);
   const house = houseStakeOf(round, entry);
@@ -101,22 +122,25 @@ export function enterPit(store: Store, round: Round, address: Address, entry: Pi
   const predTotal = main + house;
 
   if (predTotal > 0) {
-    user.arenaBalance = (user.arenaBalance ?? 0) - predTotal;
-    if (!bot) store.recordLedger(addr, "pit_prediction", -predTotal, { symbol: round.token.symbol, roundId: round.id });
+    debit(predTotal);
+    if (!bot && !onChain)
+      store.recordLedger(addr, "pit_prediction", -predTotal, { symbol: round.token.symbol, roundId: round.id });
     pit.prediction.pot += predTotal;
     pit.prediction.participants += 1;
     if (entry.prediction) pit.mainParticipants += 1;
     if (entry.houseSpecial) pit.houseParticipants += 1;
   }
   if (trade > 0) {
-    user.arenaBalance = (user.arenaBalance ?? 0) - trade;
-    if (!bot) store.recordLedger(addr, "pit_trading", -trade, { symbol: round.token.symbol, roundId: round.id });
+    debit(trade);
+    if (!bot && !onChain)
+      store.recordLedger(addr, "pit_trading", -trade, { symbol: round.token.symbol, roundId: round.id });
     pit.trading.pot += trade;
     pit.trading.participants += 1;
   }
   if (trial > 0) {
-    user.arenaBalance = (user.arenaBalance ?? 0) - trial;
-    if (!bot) store.recordLedger(addr, "pit_trial", -trial, { symbol: round.token.symbol, roundId: round.id });
+    debit(trial);
+    if (!bot && !onChain)
+      store.recordLedger(addr, "pit_trial", -trial, { symbol: round.token.symbol, roundId: round.id });
     pit.trialParticipants += 1;
   }
   // Trading and Trial both trade a paper stack against the Goon Squad.

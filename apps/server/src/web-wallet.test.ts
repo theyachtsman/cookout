@@ -321,3 +321,45 @@ test("the prediction pool fee is clamped to what the contract accepts", () => {
   const idx = readFileSync(join(import.meta.dirname, "index.ts"), "utf8");
   assert.match(idx, /Math\.min\(round\.pit\?\.pitFeeBps \?\? 500, 1_000\)/);
 });
+
+/**
+ * Chain Pit entries. The money goes from the player's wallet to the pool, so
+ * the server is not in the payment path and cannot be the one to decide
+ * whether a bet was paid for.
+ */
+test("a chain Pit entry is verified against the pools, not taken on trust", () => {
+  const src = readFileSync(join(import.meta.dirname, "routes.ts"), "utf8");
+  const enter = src.slice(src.indexOf('"/api/pit/:id/enter"'));
+  const guard = enter.slice(enter.indexOf("if (round.pitChain)"), enter.indexOf("enterPit(store"));
+  assert.ok(guard.includes("chain.pitStakesOf"), "it must read the pools");
+  assert.ok(guard.includes("staked.battle === 0n"), "and refuse an unpaid battle entry");
+  // Reading a stake of zero must reject, not merely warn.
+  assert.match(guard, /throw new Err\(\s*402/);
+});
+
+test("a chain entry is never also charged to the paper balance", () => {
+  // The stake is already in the contract; debiting pETH as well would charge
+  // twice for one bet, and refunding it on withdrawal would mint money.
+  const src = readFileSync(join(import.meta.dirname, "pit-pools.ts"), "utf8");
+  assert.ok(src.includes("const onChain = !!round.pitChain"), "both paths must know");
+  // Exactly one balance write per function — the one inside its guard. A
+  // second would be a branch that moves paper money regardless of onChain,
+  // which is the bug this is here to catch.
+  const between = (from: string, to?: string) =>
+    src.slice(src.indexOf(from), to ? src.indexOf(to) : undefined);
+  const writes = (body: string) => (body.match(/user\.arenaBalance = /g) ?? []).length;
+  const withdraw = between("export function withdrawPit", "export function enterPit");
+  const enter = between("export function enterPit");
+  assert.equal(writes(withdraw), 1, "withdrawal must credit only through its guard");
+  assert.equal(writes(enter), 1, "entry must debit only through its guard");
+  assert.ok(withdraw.includes("credit(") && enter.includes("debit("), "and the branches use them");
+});
+
+test("players can reach their own money without us", () => {
+  // Pull-based payouts and a permissionless refund window are only guarantees
+  // if the UI offers them; otherwise the money is theoretically theirs.
+  const ui = web("components/PitPayout.tsx");
+  assert.ok(ui.includes("claimPitPool") && ui.includes("refundPitPool"));
+  const lib = web("lib/pitPool.ts");
+  assert.ok(lib.includes("openRefunds"), "the escape hatch must be callable from the client");
+});

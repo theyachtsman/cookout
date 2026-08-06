@@ -17,6 +17,8 @@ import {
   type RoundSummary,
   type Trade,
 } from "@cookout/shared";
+import { PitPayout } from "../../../components/PitPayout";
+import { enterBattle, stakePrediction, stakeWei } from "../../../lib/pitPool";
 import { api } from "../../../lib/api";
 import { useSession } from "../../../lib/session";
 import { useSocial } from "../../../lib/social";
@@ -310,6 +312,8 @@ export default function PitMatchPage() {
         </div>
       </div>
 
+      {round.pitChain && <PitPayout pit={round.pitChain} />}
+
       {round.state === "lobby" && (
         <LobbyView
           round={round}
@@ -560,6 +564,9 @@ function LobbyView({
   const [trial, setTrial] = useState(false);
   const [trialUsd, setTrialUsd] = useState<string>(String(pit.trialMinUsd ?? 5));
   const [busy, setBusy] = useState(false);
+  // Which on-chain stake is in flight, so the button says what is happening
+  // instead of just spinning through two or three wallet transactions.
+  const [staking, setStaking] = useState("");
   const [error, setError] = useState("");
 
   const armed = !!round.queueOpensAt;
@@ -628,6 +635,27 @@ function LobbyView({
     }
     setBusy(true);
     try {
+      // On a chain match the money goes from the player's wallet to the pool
+      // contracts first, and only then does the server record the entry —
+      // which it does by reading the pools, not by believing this call. Order
+      // matters: stake, then register, so a failed stake never books a bet
+      // that was never paid for.
+      const pc = round.pitChain;
+      if (pc) {
+        if (call) {
+          setStaking("prediction");
+          await stakePrediction(pc, call, stakeWei(Number(mainBet) || 0, peg));
+        }
+        if (house) {
+          setStaking("house special");
+          await stakePrediction(pc, call ?? "graduate", stakeWei(Number(houseBet) || 0, peg));
+        }
+        if (trading) {
+          setStaking("battle entry");
+          await enterBattle(pc);
+        }
+        setStaking("");
+      }
       await api(`/api/pit/${round.id}/enter`, {
         body: {
           prediction: call ?? undefined,
@@ -647,6 +675,7 @@ function LobbyView({
     } catch (e) {
       setError((e as Error).message);
     } finally {
+      setStaking("");
       setBusy(false);
     }
   };
@@ -879,7 +908,13 @@ function LobbyView({
                 disabled={busy || cost === 0}
                 className="flex-1 rounded-xl bg-lime-400 py-3.5 text-base font-black text-zinc-950 shadow-lg shadow-lime-500/20 transition hover:bg-lime-300 disabled:opacity-40 disabled:shadow-none"
               >
-                {busy ? "Placing…" : cost > 0 ? `${editing ? "Update bet" : "Place bet"} · ${fmt(cost)}` : "Pick a bet above"}
+                {staking
+                  ? `Confirm the ${staking}…`
+                  : busy
+                    ? "Placing…"
+                    : cost > 0
+                      ? `${editing ? "Update bet" : "Place bet"} · ${fmt(cost)}`
+                      : "Pick a bet above"}
               </button>
             ) : (
               <button

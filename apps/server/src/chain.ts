@@ -74,6 +74,7 @@ const PIT_FACTORY_ABI = parseAbi([
 
 const PIT_POOL_ABI = parseAbi([
   "function resolve(uint8 result)",
+  "function stakeOf(address, uint8) view returns (uint256)",
   "function totalStaked() view returns (uint256)",
   "function resolved() view returns (bool)",
   "event Staked(address indexed who, uint8 indexed call, uint256 amount)",
@@ -81,6 +82,7 @@ const PIT_POOL_ABI = parseAbi([
 
 const PIT_BATTLE_ABI = parseAbi([
   "function resolve(address winner)",
+  "function buyIn(address) view returns (uint256)",
   "function pot() view returns (uint256)",
   "function entrants() view returns (uint256)",
   "function resolved() view returns (bool)",
@@ -466,6 +468,50 @@ export class ChainService {
       );
     }
     if (tx) pc.resolvedTx = tx;
+  }
+
+  /**
+   * What a player has actually escrowed for this match, read from the pools.
+   *
+   * The server never takes the client's word for a chain entry. It cannot: the
+   * stake goes straight from the player's wallet to the contract, so the only
+   * honest source is the contract itself. A claim to have staked is worth
+   * exactly nothing until this says otherwise.
+   */
+  async pitStakesOf(
+    round: Round,
+    address: string,
+  ): Promise<{ prediction: Record<1 | 2 | 3, bigint>; battle: bigint } | null> {
+    const pc = round.pitChain;
+    if (!this.enabled || !pc) return null;
+    const who = address as HexAddress;
+    const [g, r, t, b] = await Promise.all([
+      this.pub.readContract({
+        address: pc.predictionPool as HexAddress,
+        abi: PIT_POOL_ABI,
+        functionName: "stakeOf",
+        args: [who, 1],
+      }) as Promise<bigint>,
+      this.pub.readContract({
+        address: pc.predictionPool as HexAddress,
+        abi: PIT_POOL_ABI,
+        functionName: "stakeOf",
+        args: [who, 2],
+      }) as Promise<bigint>,
+      this.pub.readContract({
+        address: pc.predictionPool as HexAddress,
+        abi: PIT_POOL_ABI,
+        functionName: "stakeOf",
+        args: [who, 3],
+      }) as Promise<bigint>,
+      this.pub.readContract({
+        address: pc.battlePool as HexAddress,
+        abi: PIT_BATTLE_ABI,
+        functionName: "buyIn",
+        args: [who],
+      }) as Promise<bigint>,
+    ]);
+    return { prediction: { 1: g, 2: r, 3: t }, battle: b };
   }
 
   private async tickRound(round: Round, now: number): Promise<void> {

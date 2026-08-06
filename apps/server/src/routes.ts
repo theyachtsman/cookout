@@ -979,7 +979,9 @@ export function createApp(
   app.post(
     "/api/pit/:id/enter",
     auth,
-    wrap((req, res) => {
+    // Async because a chain match verifies the stake against the pools before
+    // it records anything.
+    wrap(async (req, res) => {
       const round = store.rounds.get(req.params.id!);
       if (!round || round.matchType !== "pit") throw new Err(404, "pit match not found");
       if (!store.flag("pit")) throw new Err(503, "The Pit is closed right now");
@@ -1061,8 +1063,24 @@ export function createApp(
       const existing = store.pitEntryOf(round.id, addr);
       const refundable = existing ? pitEntryCost(round, existing) : 0;
       const cost = pitEntryCost(round, entry);
-      if ((user.arenaBalance ?? 0) + refundable < cost - 1e-9)
+      if (round.pitChain) {
+        // A chain match is paid in the pool contracts, not from a balance we
+        // hold — so the check is not "can they afford it" but "did they
+        // actually do it". Read the pools; a claim to have staked is worth
+        // nothing on its own, since the money never passes through here.
+        const staked = chain ? await chain.pitStakesOf(round, addr) : null;
+        if (!staked) throw new Err(503, "can't reach the prize pools right now — try again");
+        const callCode = entry.prediction === "graduate" ? 1 : entry.prediction === "rug" ? 2 : 3;
+        if (entry.prediction && staked.prediction[callCode as 1 | 2 | 3] === 0n)
+          throw new Err(
+            402,
+            "stake your prediction in the pool first — the entry is recorded from the chain",
+          );
+        if (entry.trading && staked.battle === 0n)
+          throw new Err(402, "pay the battle entry in the pool first");
+      } else if ((user.arenaBalance ?? 0) + refundable < cost - 1e-9) {
         throw new Err(400, "not enough in your Cook Out balance for those bets");
+      }
       enterPit(store, round, addr, entry);
       engine.armPitLobby(round, Date.now());
       engine.emitLobbyPublic(round);
