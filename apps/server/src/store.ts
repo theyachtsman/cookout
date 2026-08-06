@@ -1340,6 +1340,7 @@ export class Store {
     }
     for (const c of snap.concepts) this.concepts.set(c.id, c);
     for (const [id, voters] of snap.conceptVoters) this.conceptVoters.set(id, new Set(voters));
+    const repaired: string[] = [];
     for (const r of snap.archivedRounds) {
       // Rounds written before the curveAnchorEth rename carry the old field
       // name. Every price the engine computes divides by this, so leaving it
@@ -1348,6 +1349,18 @@ export class Store {
       const cfg = r.config as unknown as Record<string, unknown>;
       if (cfg && cfg.curveAnchorEth === undefined && typeof cfg.initialEthLiquidity === "number") {
         cfg.curveAnchorEth = cfg.initialEthLiquidity;
+      }
+      // A pool seeded from a missing anchor is NaN, and NaN serialises to null,
+      // so it comes back poisoned and every price derived from it is null —
+      // which is what actually crashes the round page. Reseed from the anchor
+      // rather than leave a live coin untradeable. Safe because a pool this
+      // broken never executed a trade: any swap against NaN reserves fails.
+      const pool = r.pool as unknown as Record<string, number> | undefined;
+      if (pool && !Number.isFinite(pool.ethReserve) && typeof cfg?.curveAnchorEth === "number") {
+        pool.ethReserve = cfg.curveAnchorEth as number;
+        // Recorded after the snapshot's own log is restored below, or the
+        // restore would overwrite it and the repair would be invisible.
+        repaired.push(r.token?.symbol ?? r.id);
       }
       this.rounds.set(r.id, r);
     }
@@ -1395,6 +1408,9 @@ export class Store {
       this.settings.collection = mergeCollectionSettings(snap.settings.collection);
     }
     this.adminLog = snap.adminLog;
+    for (const symbol of repaired) {
+      this.logAdmin("system", `repaired ${symbol}: pool had no ETH reserve, reseeded from the curve anchor`);
+    }
     for (const a of snap.staff ?? []) this.staff.set(a.id, a);
     this.auditLog = snap.auditLog ?? [];
     this.featureFlags = snap.featureFlags ?? {};

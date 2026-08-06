@@ -629,3 +629,23 @@ test("the collection stays dark on the paper beta, in the UI and on the wire", (
     assert.match(routes.slice(start, start + 900), /collectionOff\(\)/, `${route} is gated`);
   }
 });
+
+test("the server refuses to start against a stale @cookout/shared build", () => {
+  // The failure this prevents, which actually happened: the server runs from
+  // TypeScript source, but @cookout/shared resolves to its compiled dist. A
+  // deploy that pulls new code and runs `npm i` does not rebuild that package,
+  // so the two disagree on field names — and nothing throws. Reads return
+  // undefined, arithmetic yields NaN, NaN serialises to null, and the null is
+  // written into a live round. Silent corruption of data being traded.
+  const guard = readFileSync(join(import.meta.dirname, "shared-build.ts"), "utf8");
+  assert.match(guard, /export function assertSharedBuildFresh/);
+  assert.match(guard, /if \(src > dist\)/, "compares source against build");
+  assert.match(guard, /process\.exit\(1\)/, "refuses rather than corrupting");
+  assert.match(guard, /npm run build -w @cookout\/shared/, "says how to fix it");
+
+  // And it runs before anything can read a shared constant.
+  const index = readFileSync(join(import.meta.dirname, "index.ts"), "utf8");
+  const call = index.indexOf("assertSharedBuildFresh(");
+  assert.ok(call > 0, "the guard is called");
+  assert.ok(call < index.indexOf("new Store()"), "before any state is built");
+});

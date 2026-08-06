@@ -13,6 +13,11 @@ import { StaffService } from "./staff.js";
 import { Store } from "./store.js";
 import { createPitBoss, TelegramScheduler } from "./telegram/index.js";
 import { Hub } from "./ws.js";
+import { assertSharedBuildFresh } from "./shared-build.js";
+
+// Before anything reads a shared constant. See shared-build.ts — a stale build
+// here does not crash, it quietly writes NaN into whatever round is live.
+assertSharedBuildFresh(new URL("../../..", import.meta.url).pathname);
 
 const PORT = Number(process.env.PORT ?? 4000);
 const HOST = process.env.HOST ?? "0.0.0.0";

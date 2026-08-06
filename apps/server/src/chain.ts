@@ -107,6 +107,8 @@ const POOL_ABI = parseAbi([
   "function migrated() view returns (bool)",
   "function endTime() view returns (uint64)",
   "function getReserves() view returns (uint256, uint256)",
+  "function feesAccrued() view returns (uint256)",
+  "function claimFees()",
 ]);
 
 /** Minimal structural views of the viem clients (only the methods this
@@ -115,6 +117,7 @@ const POOL_ABI = parseAbi([
  *  typing sidesteps that while keeping every call site checked. */
 interface PubClient {
   getBlockNumber(): Promise<bigint>;
+  getGasPrice(): Promise<bigint>;
   getBalance(args: { address: HexAddress }): Promise<bigint>;
   getLogs(args: { address: HexAddress; fromBlock: bigint; toBlock: bigint }): Promise<Log[]>;
   readContract(args: {
@@ -986,6 +989,64 @@ export class ChainService {
         // 2 = Graduated, 3 = Redeem — someone else resolved; next tick mirrors.
         if (phase < 2) throw e;
       }
+    }
+  }
+
+  /**
+   * Collect a finished round's trade fees to the operator wallet.
+   *
+   * This is what pays for the operator's gas. Every round costs it four
+   * transactions — create, settle, resolve, migrate — and the trade fee on
+   * that round is its income; the pool names the operator as `feeRecipient`
+   * precisely so the two net out. But `claimFees()` is not automatic: it is a
+   * permissionless pull, and until this existed nobody pulled it, so every
+   * round's fees sat in a finished pool while the wallet that paid for the
+   * round only ever went down.
+   *
+   * Skipped when the fee is worth less than roughly what claiming it costs —
+   * spending 40k gas to collect less than 40k gas of fees is just a slower way
+   * to run the wallet dry. Uncollected dust stays claimable forever, so a
+   * skipped claim loses nothing.
+   */
+  private async claimRoundFees(round: Round): Promise<void> {
+    const c = round.chain;
+    if (!c?.pool) return;
+    const key = `fees:${round.id}`;
+    if (this.inflight.has(key)) return;
+    this.inflight.add(key);
+    try {
+      const accrued = (await this.pub.readContract({
+        address: c.pool as HexAddress,
+        abi: POOL_ABI,
+        functionName: "feesAccrued",
+      })) as bigint;
+      if (accrued === 0n) return;
+      // ~40k gas for the claim; only bother when the fee clears twice that,
+      // so collecting is always meaningfully profitable rather than break-even.
+      const floor = (await this.pub.getGasPrice()) * 80_000n;
+      if (accrued < floor) return;
+
+      const hash = await this.wallet.writeContract({
+        chain: this.chain,
+        account: this.account,
+        address: c.pool as HexAddress,
+        abi: POOL_ABI,
+        functionName: "claimFees",
+      });
+      await this.pub.waitForTransactionReceipt({ hash });
+      this.store.logAdmin(
+        "chain",
+        `collected ${formatEther(accrued)} ETH of ${round.token.symbol} trade fees to the operator (${hash})`,
+      );
+    } catch (e) {
+      // Never worth failing a round over. The fees stay claimable by anyone,
+      // forever, and the next finished round tries again.
+      this.store.logAdmin(
+        "chain",
+        `fee collection failed for ${round.token.symbol}: ${(e as Error).message}. Still claimable.`,
+      );
+    } finally {
+      this.inflight.delete(key);
     }
   }
 

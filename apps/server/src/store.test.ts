@@ -283,3 +283,52 @@ test("hydrate does not overwrite a round that already uses the new name", () => 
   } as never);
   assert.equal((restored.rounds.get("new-1")?.config as never as Record<string, number>).curveAnchorEth, 2);
 });
+
+test("a live round whose pool lost its ETH reserve is repaired, not left dead", () => {
+  // This is what a stale @cookout/shared build actually did to production: the
+  // config field it wrote no longer existed, the pool was seeded from
+  // undefined, NaN serialised to null, and the round page crashed on every
+  // price derived from it. The coin was live and untradeable.
+  const store = new Store();
+  const restored = new Store();
+  restored.hydrate({
+    ...store.snapshot(),
+    archivedRounds: [
+      {
+        id: "poisoned-1",
+        state: "live",
+        token: { symbol: "BERP" },
+        config: { initialEthLiquidity: 1, initialTokenLiquidity: 1_000_000 },
+        pool: { ethReserve: null, tokenReserve: 1_000_000, totalSupply: 2_000_000 },
+      },
+    ],
+  } as never);
+
+  const back = restored.rounds.get("poisoned-1")!;
+  assert.equal(back.pool?.ethReserve, 1, "reseeded from the anchor");
+  assert.ok(Number.isFinite(back.pool!.ethReserve / back.pool!.tokenReserve), "prices again");
+  assert.ok(
+    restored.adminLog.some((e) => /repaired BERP/.test(e.detail ?? "")),
+    "the repair is recorded, not silent",
+  );
+});
+
+test("a healthy pool is never rewritten by the repair", () => {
+  const store = new Store();
+  const restored = new Store();
+  restored.hydrate({
+    ...store.snapshot(),
+    archivedRounds: [
+      {
+        id: "healthy-1",
+        state: "live",
+        token: { symbol: "OK" },
+        // Mid-round: the reserve has moved well away from the anchor and must
+        // stay exactly where it is.
+        config: { curveAnchorEth: 1, initialTokenLiquidity: 1_000_000 },
+        pool: { ethReserve: 7.25, tokenReserve: 800_000, totalSupply: 2_000_000 },
+      },
+    ],
+  } as never);
+  assert.equal(restored.rounds.get("healthy-1")?.pool?.ethReserve, 7.25);
+});
