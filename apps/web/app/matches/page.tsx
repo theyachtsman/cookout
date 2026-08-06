@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { LaunchCoinModal } from "../../components/LaunchCoin";
 import { CoinCard, ModeChip, OverTimeChip } from "../../components/CoinCard";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GAME_MODES, isEnduranceMode, marketCap, type GameMode, type Round } from "@cookout/shared";
@@ -45,6 +46,12 @@ const MODE_ICON: Record<GameMode, string> = {
 export default function Home() {
   const { t } = useCopy();
   const [rounds, setRounds] = useState<Round[]>([]);
+  // Deep-linkable: ?launch=1 opens the form, so every link that used to point
+  // at the launch page still lands somewhere useful.
+  const [launching, setLaunching] = useState(false);
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("launch") === "1") setLaunching(true);
+  }, []);
   const [filter, setFilter] = useState<ResultFilter>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("mode");
   const [sortBy, setSortBy] = useState<SortBy>("newest");
@@ -208,8 +215,20 @@ export default function Home() {
 
   return (
     <div className="space-y-10">
+      <LaunchCoinModal open={launching} onClose={() => setLaunching(false)} />
       <section>
-        <h1 className="mb-1 text-2xl font-black">{t("cookout.title")}</h1>
+        <div className="mb-1 flex flex-wrap items-start justify-between gap-3">
+          <h1 className="text-2xl font-black">{t("cookout.title")}</h1>
+          {/* Launching lives here now rather than in the nav — it is the one
+              action this page is missing, and it is a form you want gone again
+              two minutes later. */}
+          <button
+            onClick={() => setLaunching(true)}
+            className="shrink-0 rounded-xl bg-lime-400 px-4 py-2 text-sm font-black text-zinc-950 shadow-lg shadow-lime-400/20 transition hover:bg-lime-300"
+          >
+            🔥 Launch a Coin
+          </button>
+        </div>
         <p className="mb-5 text-sm text-zinc-400">
           {t("cookout.intro")}
         </p>
@@ -244,12 +263,12 @@ export default function Home() {
             <p className="mx-auto mt-1 max-w-md text-sm text-zinc-400">
               {t("cookout.empty.body")}
             </p>
-            <Link
-              href="/submissions"
+            <button
+              onClick={() => setLaunching(true)}
               className="mt-4 inline-block rounded-xl bg-lime-400 px-6 py-2.5 font-black text-zinc-950 shadow-lg shadow-lime-400/25 transition hover:bg-lime-300"
             >
               🔥 Launch a Coin →
-            </Link>
+            </button>
           </div>
         )}
       </section>

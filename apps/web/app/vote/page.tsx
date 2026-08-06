@@ -169,7 +169,7 @@ export default function VotePage() {
           {Math.round(VOTING_WINDOW_MS / 3_600_000)} hours closes out. One vote per wallet.
         </p>
         <Link
-          href="/submissions"
+          href="/matches?launch=1"
           className="mt-4 inline-block rounded-lg bg-lime-400 px-5 py-2 font-black text-zinc-950 hover:bg-lime-300"
         >
           Submit your own coin →
@@ -186,7 +186,7 @@ export default function VotePage() {
         {voting.length === 0 ? (
           <div className="rounded-2xl bg-zinc-900/40 p-8 text-center text-sm text-zinc-500">
             Nothing up for a vote right now.{" "}
-            <Link href="/submissions" className="text-lime-400 hover:underline">
+            <Link href="/matches?launch=1" className="text-lime-400 hover:underline">
               Make a coin
             </Link>
             .

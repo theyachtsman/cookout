@@ -221,7 +221,6 @@ const STATIC_COPY: CopyEntry[] = [
   { key: "nav.matches", group: "Navigation", label: "Nav: Cook Out", defaultText: "Cook Out" },
   { key: "nav.pit", group: "Navigation", label: "Nav: The Pit", defaultText: "The Pit" },
   { key: "nav.vote", group: "Navigation", label: "Nav: Vote", defaultText: "Vote" },
-  { key: "nav.launch", group: "Navigation", label: "Nav: Launch a Coin", defaultText: "Launch a Coin" },
   { key: "nav.leaderboard", group: "Navigation", label: "Nav: Boards", defaultText: "Boards" },
   { key: "nav.jackpot", group: "Navigation", label: "Nav: Jackpot", defaultText: "Jackpot" },
   { key: "nav.docs", group: "Navigation", label: "Nav: Docs", defaultText: "Docs" },
