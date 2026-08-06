@@ -365,8 +365,18 @@ export interface RoundConfig {
   maxDurationSeconds: number;
   /** Cap on total paper-ETH the batch auction will accept. */
   auctionMaxRaise: number;
-  /** Initial pool liquidity (paper ETH). */
-  initialEthLiquidity: number;
+  /**
+   * The ETH side the curve opens at — an anchor, not a deposit.
+   *
+   * Named for what it is because the old name (`initialEthLiquidity`) read as
+   * money the house had to put up, and on chain that is exactly the mistake
+   * that cost us: it used to be sent as msg.value with no path back out. It is
+   * `virtualEthReserve` on RoundPool now — it prices the curve, nobody funds
+   * it, and it is never withdrawable. On the paper side it is simply where the
+   * simulated reserve starts. Either way it sets the opening price and how
+   * hard a trade moves it; it is not a treasury commitment.
+   */
+  curveAnchorEth: number;
   initialTokenLiquidity: number;
   totalSupply: number;
   /** Trading fee in basis points, applied on continuous trades. */

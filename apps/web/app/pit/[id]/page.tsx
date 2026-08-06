@@ -135,7 +135,7 @@ export default function PitMatchPage() {
   }, [data?.killfeed]);
   liveRef.current = round?.state === "live";
   myAddrRef.current = profile?.address;
-  bigEthRef.current = Math.max(0.05, (ticker?.liquidity ?? round?.config.initialEthLiquidity ?? 1) * 0.05);
+  bigEthRef.current = Math.max(0.05, (ticker?.liquidity ?? round?.config.curveAnchorEth ?? 1) * 0.05);
 
   // A hard flash + horn when the match goes live — the bell.
   const wasLive = useRef(false);

@@ -215,6 +215,7 @@ const STATIC_COPY: CopyEntry[] = [
   { key: "docs.section.badges", group: "Docs", label: "Section: badges", defaultText: "Badges & Achievements" },
   { key: "docs.section.grill", group: "Docs", label: "Section: grill", defaultText: "The Grill (Chat)" },
   { key: "docs.section.creators", group: "Docs", label: "Section: creators", defaultText: "Launching Your Own Coin" },
+  { key: "docs.section.contracts", group: "Docs", label: "Section: contracts", defaultText: "Contracts" },
   { key: "docs.section.faq", group: "Docs", label: "Section: faq", defaultText: "FAQ" },
 
   // ------------------------------------------------------------ site chrome

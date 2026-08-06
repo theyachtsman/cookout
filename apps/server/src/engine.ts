@@ -204,7 +204,7 @@ export class RoundEngine {
       lobbySeconds: pit.lobbySeconds,
       queueSeconds: 0,
       maxDurationSeconds: minutes * 60,
-      initialEthLiquidity: initialEth,
+      curveAnchorEth: initialEth,
       initialTokenLiquidity: 1_000_000,
       totalSupply: 2_000_000,
       graduationMcap: this.store.bondTargetEth(),
@@ -359,7 +359,7 @@ export class RoundEngine {
     if (round.pitChain) this.onPitChainClose?.(round);
     const cfg = round.config;
     round.pool = {
-      ethReserve: cfg.initialEthLiquidity,
+      ethReserve: cfg.curveAnchorEth,
       tokenReserve: cfg.initialTokenLiquidity,
       totalSupply: cfg.totalSupply,
     };
@@ -615,7 +615,7 @@ export class RoundEngine {
     this.emitState(round);
     const cfg = round.config;
     const pool: PoolState = {
-      ethReserve: cfg.initialEthLiquidity,
+      ethReserve: cfg.curveAnchorEth,
       tokenReserve: cfg.initialTokenLiquidity,
       totalSupply: cfg.totalSupply,
     };
@@ -682,7 +682,7 @@ export class RoundEngine {
     // the seed price to the post-settlement spot, so the chart blasts off
     // from the actual open instead of starting blank.
     if (result.totalRaised > 0) {
-      const openPrice = cfg.initialEthLiquidity / cfg.initialTokenLiquidity;
+      const openPrice = cfg.curveAnchorEth / cfg.initialTokenLiquidity;
       const spotAfter = spotPrice(round.pool);
       this.closeCandle(round.id, {
         t: Math.floor(now / 1000),
@@ -1454,7 +1454,7 @@ export class RoundEngine {
     // candle — from the pre-auction seed price to the post-settlement spot —
     // so the chart blasts off from the actual open instead of starting blank.
     if (result.totalRaised > 0) {
-      const openPrice = round.config.initialEthLiquidity / round.config.initialTokenLiquidity;
+      const openPrice = round.config.curveAnchorEth / round.config.initialTokenLiquidity;
       const spotAfter = spotPrice(round.pool);
       this.closeCandle(round.id, {
         t: Math.floor(now / 1000),

@@ -60,6 +60,7 @@ test("Burger XP milestones: a multi-level jump pays each crossed tier once", () 
 
 test("Burger purchase: mints $BURG, debits Cook Out balance, routes revenue", () => {
   const store = new Store();
+  store.featureFlags.burger_purchase = true; // off by default until mainnet
   const u = store.getOrCreateUser(A);
   u.arenaBalance = 10;
   const rate = store.settings.burger.burgersPerEth;
@@ -79,6 +80,7 @@ test("Burger purchase: mints $BURG, debits Cook Out balance, routes revenue", ()
 
 test("Burger purchase: rejects an underfunded buy", () => {
   const store = new Store();
+  store.featureFlags.burger_purchase = true;
   const u = store.getOrCreateUser(A);
   u.arenaBalance = 0.001;
   assert.throws(() => purchaseBurgers(store, A, 5), /Not enough/);
@@ -93,6 +95,7 @@ test("Burger admin adjust: grant adds, removal clamps at zero", () => {
 
 test("Burger analytics: aggregates earned / purchased / holders", () => {
   const store = new Store();
+  store.featureFlags.burger_purchase = true;
   const u = store.getOrCreateUser(A);
   u.arenaBalance = 10;
   awardBurger(store, A, "match_complete");
@@ -102,4 +105,21 @@ test("Burger analytics: aggregates earned / purchased / holders", () => {
   assert.ok(a.totalPurchased > 0);
   assert.equal(a.holders, 1);
   assert.ok(a.bySource.some((s) => s.source === "match_complete"));
+});
+
+test("buying $BURG is off until real money is the balance", () => {
+  // Pricing $BURG against paper or testnet ETH sets a rate against money that
+  // is not real, and that rate becomes the expectation people carry into
+  // mainnet. Earning is unaffected — this is only the shop.
+  const store = new Store();
+  const u = store.getOrCreateUser(A);
+  u.arenaBalance = 100;
+  assert.equal(store.flag("burger_purchase"), false, "off by default");
+  assert.throws(() => purchaseBurgers(store, A, 1), /turned off/);
+  assert.equal(u.burgerBalance ?? 0, 0, "nothing minted");
+  assert.equal(u.arenaBalance, 100, "nothing debited");
+
+  // Earning still works, so the economy keeps running.
+  assert.ok(awardBurger(store, A, "match_complete") > 0);
+  assert.ok((u.burgerBalance ?? 0) > 0);
 });

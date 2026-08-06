@@ -432,7 +432,7 @@ export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
     queueSeconds: 90,
     maxDurationSeconds: 600,
     auctionMaxRaise: 0.75,
-    initialEthLiquidity: 1.5, // opens ≈ $5.8k mcap
+    curveAnchorEth: 1.5, // opens ≈ $5.8k mcap
     initialTokenLiquidity: 1_000_000,
     totalSupply: 2_000_000,
     tradeFeeBps: 100,
@@ -455,7 +455,7 @@ export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
     queueSeconds: 60,
     maxDurationSeconds: 480,
     auctionMaxRaise: 0.6,
-    initialEthLiquidity: 1.0, // opens ≈ $3.8k mcap
+    curveAnchorEth: 1.0, // opens ≈ $3.8k mcap
     initialTokenLiquidity: 1_000_000,
     totalSupply: 2_000_000,
     tradeFeeBps: 100,
@@ -476,7 +476,7 @@ export const TIER_CONFIGS: Record<RiskTier, RoundConfig> = {
     queueSeconds: 45,
     maxDurationSeconds: 360,
     auctionMaxRaise: 0.4,
-    initialEthLiquidity: 0.4, // opens ≈ $1.5k mcap — violent by design
+    curveAnchorEth: 0.4, // opens ≈ $1.5k mcap — violent by design
     initialTokenLiquidity: 1_000_000,
     totalSupply: 2_000_000,
     tradeFeeBps: 100,

@@ -75,7 +75,7 @@ test("merge fills in new content without clobbering stored edits", () => {
 
 test("guardrails refuse values that would break the engine", () => {
   assert.match(gameSettingProblem("tiers.standard.maxDurationSeconds", 0) ?? "", /greater than zero/);
-  assert.match(gameSettingProblem("tiers.standard.initialEthLiquidity", -1) ?? "", /greater than zero/);
+  assert.match(gameSettingProblem("tiers.standard.curveAnchorEth", -1) ?? "", /greater than zero/);
   assert.match(gameSettingProblem("tiers.standard.tradeFeeBps", -5) ?? "", /negative/);
   assert.match(gameSettingProblem("tiers.standard.tradeFeeBps", 10_001) ?? "", /100%/);
   assert.match(gameSettingProblem("bondTargetUsd", 0) ?? "", /greater than zero/);

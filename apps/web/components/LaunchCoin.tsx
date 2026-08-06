@@ -423,7 +423,7 @@ function LaunchCoinBody({
         <div className="grid grid-cols-2 gap-3 text-sm md:grid-cols-5">
           {[
             ["Supply in pool at open", "50%"],
-            ["Seed liquidity (Classic)", `${TIER_CONFIGS.standard.initialEthLiquidity} ${unit}`],
+            ["Opening depth (Classic)", `${TIER_CONFIGS.standard.curveAnchorEth} ${unit}`],
             ["Trade fee", `${TIER_CONFIGS.standard.tradeFeeBps / 100}% (creator gets ${CREATOR_FEE_SHARE * 100}% of fees)`],
             ["Auction fee", `${TIER_CONFIGS.standard.auctionFeeBps / 100}%`],
             ["Serves up at", `$40,000 mcap · ${TIER_CONFIGS.standard.graduationMinHolders} holders · ${TIER_CONFIGS.standard.graduationMinVolume} ${unit} vol`],

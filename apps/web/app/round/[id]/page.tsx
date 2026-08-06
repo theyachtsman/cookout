@@ -251,7 +251,7 @@ export default function RoundPage() {
 
   liveRef.current = round?.state === "live";
   positionRef.current = position;
-  bigEthRef.current = Math.max(0.05, (ticker?.liquidity ?? round?.config.initialEthLiquidity ?? 1) * 0.05);
+  bigEthRef.current = Math.max(0.05, (ticker?.liquidity ?? round?.config.curveAnchorEth ?? 1) * 0.05);
   myAddrRef.current = profile?.address;
 
   useRoundSocket(id, (e) => {
@@ -602,7 +602,7 @@ export default function RoundPage() {
               livePrice={ticker?.price}
               openPrice={round.clearingPrice}
               supply={round.config.totalSupply}
-              bigTradeEth={Math.max(0.05, (ticker?.liquidity ?? round.config.initialEthLiquidity) * 0.05)}
+              bigTradeEth={Math.max(0.05, (ticker?.liquidity ?? round.config.curveAnchorEth) * 0.05)}
               cooking={ticker?.cooking}
               ethUsd={ticker?.ethUsd}
               highlightAddress={profile?.address}

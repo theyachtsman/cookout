@@ -218,7 +218,7 @@ export function ArenaHeader({
     stats.push(["Holders", String(ticker.holders)]);
     stats.push(["Age", ageText]);
   } else {
-    stats.push(["Seed liquidity", `${round.config.initialEthLiquidity} ${unit}`]);
+    stats.push(["Opening depth", `${round.config.curveAnchorEth} ${unit}`]);
     stats.push(["Supply", round.config.totalSupply.toLocaleString()]);
     stats.push(["Trade fee", `${round.config.tradeFeeBps / 100}%`]);
     if (players !== undefined) stats.push(["In the room", String(players)]);

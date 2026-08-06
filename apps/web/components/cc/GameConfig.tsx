@@ -234,7 +234,11 @@ const TIER_FIELDS: [keyof GameSettings["tiers"]["rookie"], string, string][] = [
   ["lobbySeconds", "Lobby (s)", "Before the queue opens"],
   ["queueSeconds", "Queue (s)", "How long the Fair Open accepts intents"],
   ["auctionMaxRaise", "Fair Open cap", "Overridden by the mode's pull-up cap"],
-  ["initialEthLiquidity", "Seed liquidity (pETH)", ""],
+  [
+    "curveAnchorEth",
+    "Curve anchor (pETH)",
+    "Sets the opening price and how hard trades move it. Virtual — nobody funds this, on paper or on chain.",
+  ],
   ["initialTokenLiquidity", "Seed tokens", ""],
   ["totalSupply", "Total supply", ""],
   ["maxPositionEth", "Queue position cap", "0 = uncapped"],

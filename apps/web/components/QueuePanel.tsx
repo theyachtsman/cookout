@@ -455,7 +455,7 @@ export function QueuePanel({
           <dl className="space-y-1 text-sm">
             <Row k="Total supply" v={round.config.totalSupply.toLocaleString()} />
             <Row k="Pool at open" v={round.config.initialTokenLiquidity.toLocaleString()} />
-            <Row k="Seed liquidity" v={`${round.config.initialEthLiquidity} ${unit}`} />
+            <Row k="Opening depth" v={`${round.config.curveAnchorEth} ${unit}`} />
             <Row k="Trade fee" v={`${round.config.tradeFeeBps / 100}%`} />
             <Row k="Auction fee" v={`${round.config.auctionFeeBps / 100}%`} />
             <Row

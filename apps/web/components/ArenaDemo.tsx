@@ -1565,7 +1565,7 @@ function LaunchpadScene() {
       <div className="mt-auto grid grid-cols-2 gap-2 sm:grid-cols-4">
         {[
           ["50%", "supply in pool at open"],
-          ["1.5 pETH", "seed liquidity"],
+          ["1.5 pETH", "opening depth"],
           ["1% fee", "creator gets 30%"],
           ["$40k mcap", "serves up / graduates"],
         ].map(([v, k]) => (

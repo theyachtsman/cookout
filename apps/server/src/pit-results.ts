@@ -49,7 +49,7 @@ export function houseSpecialHit(round: Round, ctx: PitResolveCtx, kind: HouseSpe
   const graduated = !!round.graduated;
   const timer = !rug && !graduated;
   const openMcap = marketCap({
-    ethReserve: cfg.initialEthLiquidity,
+    ethReserve: cfg.curveAnchorEth,
     tokenReserve: cfg.initialTokenLiquidity,
     totalSupply: cfg.totalSupply,
   });

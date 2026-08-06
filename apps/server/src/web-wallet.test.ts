@@ -553,7 +553,7 @@ test("creating a round costs the house nothing but gas", () => {
   const create = src.slice(src.indexOf("functionName: \"createRound\""));
   const head = create.slice(0, 600);
   assert.match(head, /value: 0n/, "no ETH may be sent with a round");
-  assert.ok(!/value: parseEther\(String\(config\.initialEthLiquidity\)\)/.test(src));
+  assert.ok(!/value: parseEther\(String\(config\.curveAnchorEth\)\)/.test(src));
   assert.ok(src.includes("virtualEthReserve: parseEther"), "the anchor is passed instead");
 });
 

@@ -230,7 +230,7 @@ export class ChainService {
     const config = this.store.tierConfig(tier);
     config.graduationMcap = this.store.bondTargetEth() * s;
     config.auctionMaxRaise *= s;
-    config.initialEthLiquidity *= s;
+    config.curveAnchorEth *= s;
     config.graduationMinVolume *= s;
     config.maxPositionEth *= s;
     config.liveMaxPositionEth *= s;
@@ -254,7 +254,7 @@ export class ChainService {
       address: this.factory,
       abi: FACTORY_ABI,
       functionName: "createRound",
-      // Nothing. `initialEthLiquidity` is the curve's virtual anchor now, not
+      // Nothing. `curveAnchorEth` is the curve's virtual anchor now, not
       // money: it sets the opening price without the house funding it. It used
       // to be sent as msg.value and was unrecoverable — no path in RoundPool
       // returns principal — so every launch cost the platform its seed whether
@@ -274,7 +274,7 @@ export class ChainService {
           graduationMcapWei: parseEther(String(config.graduationMcap)),
           graduationMinVolumeWei: parseEther(String(config.graduationMinVolume)),
           graduationMinHolders: BigInt(config.graduationMinHolders),
-          virtualEthReserve: parseEther(String(config.initialEthLiquidity)),
+          virtualEthReserve: parseEther(String(config.curveAnchorEth)),
           feeRecipient: this.account.address,
           // Chosen by the creator at launch and immutable from here: it is
           // burned into the FeeSplitter this call deploys.
@@ -639,6 +639,36 @@ export class ChainService {
     return this.nftContract;
   }
 
+  /**
+   * Everything a player needs to verify us themselves.
+   *
+   * Read from the live config rather than written down anywhere, so the docs
+   * page can never advertise an address the site has stopped using — a stale
+   * contract link is worse than none, because someone will trust it.
+   */
+  get publicContracts():
+    | {
+        chainId: number;
+        chainName: string;
+        explorer?: string;
+        roundFactory: string;
+        pitFactory?: string;
+        collection?: string;
+        protocolFeeWallet?: string;
+      }
+    | null {
+    if (!this.enabled) return null;
+    return {
+      chainId: this.chain.id,
+      chainName: this.chain.name,
+      explorer: process.env.CHAIN_EXPLORER || undefined,
+      roundFactory: this.factory,
+      pitFactory: this.pitFactory,
+      collection: this.nftContract,
+      protocolFeeWallet: process.env.CHAIN_PROTOCOL_FEE_WALLET || undefined,
+    };
+  }
+
   /** The address the contract's `signer` must be set to. Printed at startup so
    *  a mismatch is caught before a player hits a mint that can only revert. */
   get nftSignerAddress(): string | undefined {
@@ -830,7 +860,7 @@ export class ChainService {
       // recompute the settlement from the auction's public intents.
       auditHash: `onchain:${c.chainId}:${auction}`,
     };
-    const fee = wad(fillWei) - (wad(ethR) - round.config.initialEthLiquidity);
+    const fee = wad(fillWei) - (wad(ethR) - round.config.curveAnchorEth);
     this.engine.applyChainSettlement(round, result, Math.max(0, fee), Number(endTime) * 1000, now);
   }
 

@@ -31,8 +31,10 @@ import {
   WEEKLY_MISSIONS,
   xpForLevel,
 } from "@cookout/shared";
+import { useEffect, useState } from "react";
 import { useCopy } from "../../lib/copy";
 import { useChainOnly } from "../../lib/chainOnly";
+import { api } from "../../lib/api";
 
 /** Product wiki: everything a new player needs, in the Cook Out's own voice. */
 
@@ -54,18 +56,24 @@ const SECTION_IDS = [
   "badges",
   "grill",
   "creators",
+  "contracts",
   "faq",
 ] as const;
 
 export default function Docs() {
   const { t } = useCopy();
   const chainOnly = useChainOnly();
+  const contracts = usePublicContracts();
+  // The paper site has no contracts, so it must not offer the section — an
+  // empty "Contracts" heading reads as something broken, and a populated one
+  // on a paper site would be a lie.
+  const sections = SECTION_IDS.filter((id) => id !== "contracts" || contracts);
   return (
     <div className="mx-auto flex max-w-6xl gap-10">
       <aside className="sticky top-20 hidden h-fit w-52 shrink-0 md:block">
         <div className="text-xs font-bold uppercase tracking-widest text-zinc-500">{t("docs.title")}</div>
         <nav className="mt-3 space-y-1">
-          {SECTION_IDS.map((id) => (
+          {sections.map((id) => (
             <a
               key={id}
               href={`#${id}`}
@@ -517,7 +525,7 @@ export default function Docs() {
                     <tr key={t} className="border-t border-zinc-800">
                       <td className="py-2 pr-4 font-bold uppercase">{t}</td>
                       <td className="py-2 pr-4">Lv {TIER_UNLOCK_LEVEL[t]}</td>
-                      <td className="py-2 pr-4">{c.initialEthLiquidity} pETH (deep→thin)</td>
+                      <td className="py-2 pr-4">{c.curveAnchorEth} pETH (deep→thin)</td>
                       <td className="py-2 pr-4">{c.maxPositionEth > 0 ? `${c.maxPositionEth} pETH` : "none"}</td>
                       <td className="py-2">{c.devSellLockSeconds > 0 ? `${c.devSellLockSeconds}s` : "none 💀"}</td>
                     </tr>
@@ -1059,6 +1067,64 @@ export default function Docs() {
           </p>
         </Section>
 
+        {contracts && (
+          <Section id="contracts" title={t(`docs.section.contracts`)}>
+            <p>
+              Everything below is deployed, verifiable, and ours. You do not have to take our
+              word for any of it — open the explorer and read the code.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[34rem] text-left text-sm">
+                <tbody>
+                  <ContractRow
+                    label="Round factory"
+                    note="Deploys every coin's token, curve, and auction"
+                    address={contracts.roundFactory}
+                    explorer={contracts.explorer}
+                  />
+                  {contracts.pitFactory && (
+                    <ContractRow
+                      label="Pit prize pools"
+                      note="Holds prediction and Battle stakes until a match resolves"
+                      address={contracts.pitFactory}
+                      explorer={contracts.explorer}
+                    />
+                  )}
+                  {contracts.collection && (
+                    <ContractRow
+                      label="Flame Goon Squad"
+                      note="The recruit collection you mint from crates"
+                      address={contracts.collection}
+                      explorer={contracts.explorer}
+                    />
+                  )}
+                  {contracts.protocolFeeWallet && (
+                    <ContractRow
+                      label="Protocol fees"
+                      note="Where the platform's share of graduated trading fees goes"
+                      address={contracts.protocolFeeWallet}
+                      explorer={contracts.explorer}
+                    />
+                  )}
+                </tbody>
+              </table>
+            </div>
+            <p className="text-sm text-zinc-400">
+              Running on <b className="text-zinc-200">{contracts.chainName}</b> (chain id{" "}
+              <span className="font-mono">{contracts.chainId}</span>).
+            </p>
+            <p className="text-sm text-zinc-400">
+              Two guarantees worth checking yourself. <b className="text-zinc-200">Liquidity is
+              locked forever</b>: when a coin graduates, its Uniswap v4 position goes to an
+              immutable locker that can only ever collect trading fees — it has no function to
+              remove liquidity, move the position, or change where fees go, and nobody can upgrade
+              it. And <b className="text-zinc-200">the house puts up nothing</b>: a round&apos;s
+              opening price comes from a virtual reserve, so every wei the pool holds is money
+              players put in, and it is the only money that can come out.
+            </p>
+          </Section>
+        )}
+
         <Section id="faq" title={t(`docs.section.faq`)}>
           <dl className="space-y-4">
             <Faq q="Is this real money?">
@@ -1253,6 +1319,62 @@ function Section({ id, title, children }: { id: string; title: string; children:
       <h2 className="mb-4 border-b border-zinc-800 pb-2 text-2xl font-black">{title}</h2>
       <div className="space-y-3 leading-relaxed text-zinc-300">{children}</div>
     </section>
+  );
+}
+
+interface PublicContracts {
+  chainId: number;
+  chainName: string;
+  explorer?: string;
+  roundFactory: string;
+  pitFactory?: string;
+  collection?: string;
+  protocolFeeWallet?: string;
+}
+
+/** The contracts the API says it is actually using, or null on the paper site. */
+function usePublicContracts(): PublicContracts | null {
+  const [contracts, setContracts] = useState<PublicContracts | null>(null);
+  useEffect(() => {
+    api<PublicContracts | null>("/api/chain/contracts")
+      .then(setContracts)
+      .catch(() => setContracts(null));
+  }, []);
+  return contracts;
+}
+
+function ContractRow({
+  label,
+  note,
+  address,
+  explorer,
+}: {
+  label: string;
+  note: string;
+  address: string;
+  explorer?: string;
+}) {
+  return (
+    <tr className="border-b border-zinc-800/70 align-top">
+      <td className="py-3 pr-4">
+        <div className="font-bold text-zinc-100">{label}</div>
+        <div className="text-xs text-zinc-500">{note}</div>
+      </td>
+      <td className="py-3">
+        {explorer ? (
+          <a
+            href={`${explorer.replace(/\/$/, "")}/address/${address}`}
+            target="_blank"
+            rel="noreferrer"
+            className="break-all font-mono text-xs text-lime-300 hover:underline"
+          >
+            {address}
+          </a>
+        ) : (
+          <span className="break-all font-mono text-xs text-zinc-400">{address}</span>
+        )}
+      </td>
+    </tr>
   );
 }
 

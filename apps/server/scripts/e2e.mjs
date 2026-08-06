@@ -91,7 +91,7 @@ const waitState = async (states, timeoutMs = 30000) => {
 };
 
 await waitState(["queue_open"]);
-const spot = round.config.initialEthLiquidity / round.config.initialTokenLiquidity;
+const spot = round.config.curveAnchorEth / round.config.initialTokenLiquidity;
 await j(`/api/rounds/${round.id}/intents`, { token: alice.token, body: { ethAmount: 0.2 } });
 await j(`/api/rounds/${round.id}/intents`, { token: bob.token, body: { ethAmount: 0.1 } });
 await j(`/api/rounds/${round.id}/intents`, {
@@ -129,7 +129,7 @@ const recomputed = settleAuction({
   roundId: round.id,
   intents,
   pool: {
-    ethReserve: round.config.initialEthLiquidity,
+    ethReserve: round.config.curveAnchorEth,
     tokenReserve: round.config.initialTokenLiquidity,
     totalSupply: round.config.totalSupply,
   },

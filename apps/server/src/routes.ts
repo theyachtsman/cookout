@@ -468,6 +468,19 @@ export function createApp(
   );
 
   /**
+   * The contracts this site actually runs on, for the docs page.
+   *
+   * Null when the chain is off, which is what keeps the paper site from
+   * advertising contracts it does not use.
+   */
+  app.get(
+    "/api/chain/contracts",
+    wrap((_req, res) => {
+      res.json(chain?.publicContracts ?? null);
+    }),
+  );
+
+  /**
    * A voucher to mint a recruit the caller owns.
    *
    * The pull itself stays instant and off-chain: this is the optional second
@@ -591,6 +604,9 @@ export function createApp(
       const cfg = store.settings.burger;
       res.json({
         enabled: cfg.enabled,
+        // The shop is a separate switch from the economy: earning stays on
+        // while buying is off, so the UI has to be told which.
+        canPurchase: store.flag("burger_purchase"),
         balance: u.burgerBalance ?? 0,
         earned: u.burgerEarned ?? 0,
         purchased: u.burgerPurchased ?? 0,

@@ -1340,7 +1340,17 @@ export class Store {
     }
     for (const c of snap.concepts) this.concepts.set(c.id, c);
     for (const [id, voters] of snap.conceptVoters) this.conceptVoters.set(id, new Set(voters));
-    for (const r of snap.archivedRounds) this.rounds.set(r.id, r);
+    for (const r of snap.archivedRounds) {
+      // Rounds written before the curveAnchorEth rename carry the old field
+      // name. Every price the engine computes divides by this, so leaving it
+      // undefined turns a running round's spot price into NaN — which is
+      // exactly the sort of thing that eats someone's live coin on a deploy.
+      const cfg = r.config as unknown as Record<string, unknown>;
+      if (cfg && cfg.curveAnchorEth === undefined && typeof cfg.initialEthLiquidity === "number") {
+        cfg.curveAnchorEth = cfg.initialEthLiquidity;
+      }
+      this.rounds.set(r.id, r);
+    }
     // Restore what a live round needs to keep running. Derived match stats
     // (peak mcap, volume-by-second) are rebuilt lazily by the engine rather
     // than stored: they are cheap to lose and awkward to keep correct, and

@@ -121,6 +121,9 @@ export function purchaseBurgers(
 ): { burgers: number; burgerBalance: number; arenaBalance: number } {
   const cfg = store.settings.burger;
   if (!cfg.enabled) throw new Error("The Burger shop is closed.");
+  // Checked here rather than at the route, so no caller can buy around it.
+  if (!store.flag("burger_purchase"))
+    throw new Error("Buying $BURG is turned off for now — you can still earn it.");
   const spend = Number(eth);
   if (!Number.isFinite(spend) || spend <= 0) throw new Error("Enter an amount to spend.");
   const u = store.getOrCreateUser(address);

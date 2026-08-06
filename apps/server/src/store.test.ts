@@ -248,3 +248,38 @@ test("a finished round still round-trips, without duplicating", () => {
   assert.equal(restored.rounds.size, 1);
   assert.equal(restored.rounds.get("done-1")?.state, "results");
 });
+
+test("a round snapshotted before the curveAnchorEth rename still prices", () => {
+  // Every price the engine computes divides by this field. A round persisted
+  // under the old name would come back with it undefined and turn its own spot
+  // price into NaN — a live coin destroyed by a deploy, which is precisely the
+  // failure this rename must not cause.
+  const store = new Store();
+  const restored = new Store();
+  restored.hydrate({
+    ...store.snapshot(),
+    archivedRounds: [
+      {
+        id: "legacy-1",
+        state: "live",
+        config: { initialEthLiquidity: 1.5, initialTokenLiquidity: 1_000_000 },
+      },
+    ],
+  } as never);
+
+  const cfg = restored.rounds.get("legacy-1")?.config as unknown as Record<string, number>;
+  assert.equal(cfg.curveAnchorEth, 1.5);
+  assert.ok(Number.isFinite(cfg.curveAnchorEth / cfg.initialTokenLiquidity), "opens at a real price");
+});
+
+test("hydrate does not overwrite a round that already uses the new name", () => {
+  const store = new Store();
+  const restored = new Store();
+  restored.hydrate({
+    ...store.snapshot(),
+    archivedRounds: [
+      { id: "new-1", state: "live", config: { curveAnchorEth: 2, initialEthLiquidity: 9 } },
+    ],
+  } as never);
+  assert.equal((restored.rounds.get("new-1")?.config as never as Record<string, number>).curveAnchorEth, 2);
+});

@@ -10,6 +10,8 @@ import { ExpandableRows } from "./ProfileUI";
 
 interface BurgerState {
   enabled: boolean;
+  /** False while the shop is switched off — earning is unaffected. */
+  canPurchase: boolean;
   balance: number;
   earned: number;
   purchased: number;
@@ -88,6 +90,20 @@ export function BurgerWallet() {
         <Stat label="Spent" value={state?.spent ?? 0} />
       </div>
 
+      {/* The shop, only while buying is on. Pricing $BURG against paper or
+          testnet ETH would set a rate against money that isn't real, and that
+          is the number people would carry into mainnet as the expectation. */}
+      {state?.canPurchase === false ? (
+        <div className="mt-4 rounded-xl bg-zinc-950/40 p-4">
+          <h3 className="mb-1 text-xs font-black uppercase tracking-wide text-zinc-400">
+            Buying $BURG
+          </h3>
+          <p className="text-sm text-zinc-500">
+            The shop is closed for now — $BURG is earned only. Finish matches, clear quests, launch
+            coins, and hit milestones.
+          </p>
+        </div>
+      ) : (
       <div className="mt-4 rounded-xl bg-zinc-950/40 p-4">
         <h3 className="mb-2 text-xs font-black uppercase tracking-wide text-zinc-400">Buy $BURG</h3>
         <div className="flex flex-wrap items-center gap-2">
@@ -117,6 +133,7 @@ export function BurgerWallet() {
         {error && <div className="mt-2 text-sm text-red-400">{error}</div>}
         {msg && <div className="mt-2 text-sm text-amber-300">{msg}</div>}
       </div>
+      )}
 
       <div className="mt-4">
         <h3 className="mb-2 text-xs font-black uppercase tracking-wide text-zinc-400">Burger History</h3>

@@ -168,7 +168,7 @@ export function mergeGameSettings(stored: Partial<GameSettings> | undefined): Ga
   const fresh = freshGameSettings();
   if (!stored) return fresh;
   return {
-    tiers: { ...fresh.tiers, ...(stored.tiers ?? {}) },
+    tiers: { ...fresh.tiers, ...mapLegacyAnchor(stored.tiers) },
     modes: { ...fresh.modes, ...(stored.modes ?? {}) },
     xp: { ...fresh.xp, ...(stored.xp ?? {}) },
     podiumXp: stored.podiumXp?.length ? [...stored.podiumXp] : fresh.podiumXp,
@@ -182,6 +182,28 @@ export function mergeGameSettings(stored: Partial<GameSettings> | undefined): Ga
     achievements: { ...fresh.achievements, ...(stored.achievements ?? {}) },
     battleTiers: { ...fresh.battleTiers, ...(stored.battleTiers ?? {}) },
   };
+}
+
+/**
+ * Carry an operator's stored tier edits across the curveAnchorEth rename.
+ *
+ * Command Center writes overrides by field name, so a value an operator tuned
+ * before the rename is sitting in the database under `initialEthLiquidity`.
+ * Dropping it would silently snap that tier back to its default opening price
+ * — the kind of regression nobody notices until a round feels wrong.
+ */
+function mapLegacyAnchor<T>(tiers: T | undefined): T | Record<string, unknown> {
+  if (!tiers || typeof tiers !== "object") return tiers ?? {};
+  const out: Record<string, unknown> = {};
+  for (const [tier, cfg] of Object.entries(tiers as Record<string, unknown>)) {
+    if (cfg && typeof cfg === "object" && "initialEthLiquidity" in cfg) {
+      const { initialEthLiquidity, ...rest } = cfg as Record<string, unknown>;
+      out[tier] = { curveAnchorEth: initialEthLiquidity, ...rest };
+    } else {
+      out[tier] = cfg;
+    }
+  }
+  return out as T;
 }
 
 /**
@@ -215,7 +237,7 @@ export function gameSettingProblem(path: string, value: unknown): string | null 
   const nonNegative = (label: string) => (n >= 0 ? null : `${label} can't be negative`);
 
   if (path.endsWith(".maxDurationSeconds")) return positive("round length");
-  if (path.endsWith(".initialEthLiquidity")) return positive("seed liquidity");
+  if (path.endsWith(".curveAnchorEth")) return positive("the curve anchor");
   if (path.endsWith(".initialTokenLiquidity")) return positive("seed token liquidity");
   if (path.endsWith(".totalSupply")) return positive("total supply");
   if (path.endsWith(".graduationMcap")) return positive("graduation market cap");

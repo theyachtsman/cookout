@@ -213,11 +213,13 @@ Measured, not estimated, at the chain's real ~0.023 gwei:
 | --- | --- |
 | Deploy the factory (once) | **0.00012 ETH** |
 | Gas for one full round | **0.00014 ETH** |
-| Seed liquidity per round | **0.015 ETH** — locked forever if it graduates |
+| Seed liquidity per round | **none** — the house funds no round |
 
-Gas is not the cost. The per-round seed is (`initialEthLiquidity` x
-`CHAIN_SCALE`, so 1.5 x 0.01 at rookie tier), and on graduation it stays in the
-locked v4 position permanently. Lower `CHAIN_SCALE` to open smaller.
+Gas is the whole cost. `curveAnchorEth` (x `CHAIN_SCALE`) is a *virtual*
+reserve: it sets the opening price and nobody puts it up, so a round costs the
+operator ~0.00005 ETH of gas and nothing else. Only real ETH that players trade
+in is ever held, and only that migrates into the locked v4 position. Lower
+`CHAIN_SCALE` to open smaller.
 
 **0.02 ETH** covers deployment plus one real round end to end. Ongoing, budget
 ~0.015 ETH per round you create.

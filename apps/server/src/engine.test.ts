@@ -160,7 +160,7 @@ test("1-minute blitz: dev can rug the whole bag penalty-free, no sell lock", () 
   assert.equal(round.blitz, true, "1-min rounds are blitz");
   assert.equal(round.config.devSellLockSeconds, 0, "blitz drops the dev sell lock");
   round.config.maxPositionEth = 0;
-  round.config.initialEthLiquidity = 50;
+  round.config.curveAnchorEth = 50;
   round.config.graduationMcap = 1e9;
   engine.tick(t0);
   engine.tick(round.queueOpensAt!);
@@ -183,7 +183,7 @@ test("dev rug: a trim under 75% is safe; crossing 75% cumulative pulls the coin"
   const round = engine.scheduleRound(concept, "degen", t0);
   round.config.maxPositionEth = 0;
   // Deep pool + no graduation so the ONLY rug path is the dev dump.
-  round.config.initialEthLiquidity = 50;
+  round.config.curveAnchorEth = 50;
   round.config.graduationMcap = 1e9;
   engine.tick(t0);
   engine.tick(round.queueOpensAt!);
@@ -279,7 +279,7 @@ test("limit intents below clearing are refunded in full at settlement", () => {
   engine.tick(round.queueOpensAt!);
   const a = store.arenaDeposit(A, 10);
   store.arenaDeposit(B, 10);
-  const spot = round.config.initialEthLiquidity / round.config.initialTokenLiquidity;
+  const spot = round.config.curveAnchorEth / round.config.initialTokenLiquidity;
   engine.submitIntent(round.id, A, 0.2, spot * 1.000001, round.queueOpensAt! + 1); // too tight
   engine.submitIntent(round.id, B, 0.25, undefined, round.queueOpensAt! + 2);
   assert.ok(Math.abs((a.arenaBalance ?? 0) - 9.8) < 1e-9);

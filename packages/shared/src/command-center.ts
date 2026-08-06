@@ -274,6 +274,11 @@ export const FEATURE_FLAGS: FeatureFlagDef[] = [
   { key: "endurance", label: "Endurance", description: "The no-timer launchpad track", group: "Modes", defaultValue: true },
   { key: "goons", label: "Flame Goon Squad", description: "AI personalities and their commentary", group: "Modes", defaultValue: true },
   { key: "burgers", label: "BURGERS economy", description: "Earning and spending $BURG", group: "Economy", defaultValue: true },
+  // Off by design. Selling $BURG for paper or testnet ETH prices the currency
+  // against money that is not real, and whatever rate we set now would set the
+  // expectation people carry into mainnet. Earning still works; this is only
+  // the buy. Revisit once real ETH is the balance.
+  { key: "burger_purchase", label: "Buy $BURG", description: "Let players buy $BURG with their Cook Out balance", group: "Economy", defaultValue: false },
   { key: "jackpot", label: "Weekly Jackpot", description: "The XP-driven weekly prize pool", group: "Economy", defaultValue: true },
   { key: "loot_boxes", label: "Recruit Crates", description: "Buying and opening Recruit Crates", group: "Economy", defaultValue: true },
   { key: "nfts", label: "Squad Collection", description: "The collection, roster and sets", group: "Economy", defaultValue: true },
