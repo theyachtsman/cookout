@@ -14,5 +14,7 @@
   "gasUsed": "5574998",
   "deployedAt": "2026-08-05T16:20:39.664Z",
   "pitPoolFactory": "0xFf058D2706809Fe095c757bAdBc8411FAB701271",
-  "pitPoolFactoryBlock": 97527732
+  "pitPoolFactoryBlock": 97527732,
+  "goonSquadNft": "0x51726B3127c4Ab4b08214b49486a4161440773d6",
+  "goonSquadNftSigner": "0x8d8945EabE656C99acd0Adb99d524181d4050dc1"
 }
