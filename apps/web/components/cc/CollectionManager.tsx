@@ -10,7 +10,7 @@ import {
   type NftMatchBy,
   type CollectionSettings,
 } from "@cookout/shared";
-import { cc } from "../../lib/cc";
+import { cc, ccRaw } from "../../lib/cc";
 import { Panel } from "./CcModules";
 import { AssetPicker } from "./MediaLibrary";
 
@@ -82,6 +82,26 @@ function NftImportPanel({
     }
   };
 
+  /** Fetch with the staff token, then hand the browser a real file. A plain
+   *  link cannot carry the auth header the Command Center runs on. */
+  const download = async (fmt: "csv" | "json") => {
+    setBusy(true);
+    try {
+      const res = await ccRaw(`/api/cc/collection/export?format=${fmt}`);
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `flame-goon-squad.${fmt}`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      onError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const rebinds = plan?.matched.filter((m) => m.rebind) ?? [];
 
   return (
@@ -130,6 +150,33 @@ function NftImportPanel({
               className="mt-0.5 w-full rounded-lg bg-zinc-900 px-2 py-1.5 font-mono text-sm outline-none ring-1 ring-white/10"
             />
           </label>
+        </div>
+
+        <div className="rounded-xl bg-zinc-950/60 p-3 ring-1 ring-white/5">
+          <div className="text-[11px] font-bold uppercase tracking-wide text-zinc-400">
+            Brief for the artist
+          </div>
+          <p className="mt-1 text-[11px] leading-snug text-zinc-500">
+            Every card&apos;s written spec, plus counts and set membership — enough for someone who
+            has never seen this project to quote and schedule the work.
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {(
+              [
+                ["csv", "Download CSV", "opens in a spreadsheet"],
+                ["json", "Download JSON", "keeps the lists intact"],
+              ] as const
+            ).map(([fmt, label, hint]) => (
+              <button
+                key={fmt}
+                onClick={() => download(fmt)}
+                title={hint}
+                className="rounded-lg bg-zinc-800 px-3 py-1.5 text-xs font-bold text-zinc-200 hover:bg-zinc-700"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="flex flex-wrap gap-2">

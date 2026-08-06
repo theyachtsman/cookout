@@ -36,6 +36,24 @@ export function setCcAdminKey(key: string | null): void {
 
 export class CcAuthError extends Error {}
 
+/**
+ * The same authenticated request, but handed back raw.
+ *
+ * Downloads need the response itself rather than parsed JSON, and a plain
+ * <a href> cannot carry the staff token the Command Center runs on — so the
+ * file is fetched here and handed to the browser as a blob.
+ */
+export async function ccRaw(path: string): Promise<Response> {
+  const headers: Record<string, string> = {};
+  const token = ccToken();
+  const key = ccAdminKey();
+  if (token) headers.authorization = `Bearer ${token}`;
+  if (key) headers["x-admin-key"] = key;
+  const res = await fetch(`${apiUrl()}${path}`, { headers });
+  if (!res.ok) throw new Error(`export failed (${res.status})`);
+  return res;
+}
+
 export async function cc<T = unknown>(
   path: string,
   opts: { method?: string; body?: unknown } = {},

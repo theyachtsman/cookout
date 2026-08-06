@@ -1867,6 +1867,101 @@ export function mountCommandCenter(
     }),
   );
 
+  /**
+   * The whole collection, as a brief.
+   *
+   * Built to be handed to someone who has never seen this codebase: every
+   * card's written spec, plus the counts and set membership an artist needs to
+   * quote and schedule the work. CSV opens in a spreadsheet; JSON keeps the
+   * arrays intact for anyone scripting against it.
+   */
+  app.get(
+    "/api/cc/collection/export",
+    gate("content.manage"),
+    wrap((req, res) => {
+      const c = store.settings.collection;
+      const cards = Object.values(c.cards).sort(
+        (a, b) => a.cardNumber.localeCompare(b.cardNumber) || a.name.localeCompare(b.name),
+      );
+      const setNameOf = (id: string) => c.sets[id]?.name ?? id;
+
+      if (req.query.format === "csv") {
+        // Quote everything and double any quote inside: a biography with a
+        // comma in it would otherwise shift every later column.
+        const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+        const header = [
+          "card_number", "name", "callsign", "rarity", "species", "division", "role",
+          "equipment", "traits", "sets", "season", "enabled",
+          "description", "biography", "lore",
+          "token_id", "contract", "image_url",
+        ];
+        const rows = cards.map((card) =>
+          [
+            card.cardNumber, card.name, card.callsign, card.rarity, card.species,
+            card.division, card.role,
+            (card.equipment ?? []).join(" | "),
+            (card.traits ?? []).join(" | "),
+            (card.sets ?? []).map(setNameOf).join(" | "),
+            card.releaseSeason, card.enabled ? "yes" : "no",
+            card.description, card.biography, card.lore,
+            card.chain?.tokenId ?? "", card.chain?.contractAddress ?? "", card.chain?.imageUrl ?? "",
+          ].map(cell).join(","),
+        );
+        res.setHeader("content-type", "text/csv; charset=utf-8");
+        res.setHeader("content-disposition", `attachment; filename="flame-goon-squad-${c.season}.csv"`);
+        audit(store, req, { module: "nft", action: "collection.export", note: `csv, ${cards.length} cards` });
+        res.send([header.join(","), ...rows].join("\n"));
+        return;
+      }
+
+      const byRarity: Record<string, number> = {};
+      for (const card of cards) byRarity[card.rarity] = (byRarity[card.rarity] ?? 0) + 1;
+
+      audit(store, req, { module: "nft", action: "collection.export", note: `json, ${cards.length} cards` });
+      res.setHeader("content-disposition", `attachment; filename="flame-goon-squad-${c.season}.json"`);
+      res.json({
+        collection: "Flame Goon Squad",
+        season: c.season,
+        exportedAt: new Date().toISOString(),
+        summary: {
+          totalCards: cards.length,
+          byRarity,
+          // What an artist actually needs to quote: how many pieces, and how
+          // many are one-offs versus variations on a template.
+          named: cards.filter((x) => x.rarity === "legendary" || x.rarity === "epic").length,
+          procedural: cards.filter((x) => x.rarity !== "legendary" && x.rarity !== "epic").length,
+          sets: Object.values(c.sets).length,
+        },
+        dropOdds: c.dropTable,
+        sets: Object.values(c.sets).map((set) => ({
+          id: set.id,
+          name: set.name,
+          description: set.description,
+          cardCount: cards.filter((x) => (x.sets ?? []).includes(set.id)).length,
+        })),
+        cards: cards.map((card) => ({
+          cardNumber: card.cardNumber,
+          name: card.name,
+          callsign: card.callsign,
+          rarity: card.rarity,
+          species: card.species,
+          division: card.division,
+          role: card.role,
+          equipment: card.equipment,
+          traits: card.traits,
+          description: card.description,
+          biography: card.biography,
+          lore: card.lore,
+          sets: (card.sets ?? []).map(setNameOf),
+          releaseSeason: card.releaseSeason,
+          enabled: card.enabled,
+          aiHandle: card.aiHandle,
+          chain: card.chain,
+        })),
+      });
+    }),
+  );
+
   /** Drop every token binding, so a bad import can be undone in one move. */
   app.post(
     "/api/cc/collection/import/clear",

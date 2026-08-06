@@ -465,3 +465,16 @@ test("a card bound to a token shows the token's own art", async () => {
   assert.ok(browser.includes("chain?.imageUrl"), "NFT art must win over the asset");
   assert.ok(browser.includes("ipfs://"), "and ipfs:// must be rewritten to a gateway");
 });
+
+test("the collection exports as a brief someone outside the project can use", () => {
+  const src = readFileSync(join(import.meta.dirname, "command-center.ts"), "utf8");
+  const route = src.slice(src.indexOf('"/api/cc/collection/export"'));
+  // An artist quotes on counts and on how many are one-offs versus variations.
+  for (const field of ["byRarity", "named", "procedural", "cardCount"])
+    assert.ok(route.includes(field), `the summary needs ${field}`);
+  // Every written field, or they are drawing from a name alone.
+  for (const field of ["biography", "lore", "equipment", "traits", "description"])
+    assert.ok(route.includes(field), `${field} must be in the export`);
+  // A biography with a comma would shift every later column.
+  assert.match(route, /replace\(\/"\/g, '""'\)/);
+});
