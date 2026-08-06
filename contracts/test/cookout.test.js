@@ -59,6 +59,7 @@ async function createRound(overrides = {}) {
     graduationMcapWei: E(400),
     graduationMinVolumeWei: E(200),
     graduationMinHolders: 10,
+    virtualEthReserve: E(100),
     feeRecipient: deployer.address,
     creator: deployer.address,
     feeDestination: ethers.ZeroAddress, // defaults to the creator
@@ -66,7 +67,8 @@ async function createRound(overrides = {}) {
   };
   delete params.liquidity;
   delete params.positionManager;
-  await (await factory.createRound(params, { value: overrides.liquidity ?? E(100) })).wait();
+  // No seed: the pool is priced by its virtual anchor and holds only player money.
+  await (await factory.createRound(params, { value: overrides.liquidity ?? 0n })).wait();
   const r = await factory.rounds(0);
   return {
     factory,
@@ -135,12 +137,13 @@ describe("RoundFactory parameter bounds", () => {
       graduationMcapWei: E(400),
       graduationMinVolumeWei: E(200),
       graduationMinHolders: 10,
+      virtualEthReserve: E(100),
       feeRecipient: deployer.address,
       creator: deployer.address,
       feeDestination: ethers.ZeroAddress,
       ...overrides,
     };
-    await expect(factory.createRound(params, { value: E(100) })).to.be.revertedWithCustomError(
+    await expect(factory.createRound(params, { value: 0n })).to.be.revertedWithCustomError(
       factory,
       reason,
     );
@@ -355,7 +358,9 @@ describe("Differential: Solidity settlement matches the TS reference", () => {
       const signers = await ethers.getSigners();
       const { auction } = await createRound({
         totalSupply: E(v.pool.token),
-        liquidity: E(v.pool.eth),
+        // The vector's ETH side is now the virtual anchor, which is exactly how
+        // production runs: the curve opens at this price with nobody funding it.
+        virtualEthReserve: E(v.pool.eth),
         auctionMaxRaiseWei: E(v.maxRaise),
         auctionFeeBps: v.feeBps,
       });
@@ -423,13 +428,19 @@ describe("Differential: TS trade quotes match the pool exactly", () => {
       ethers.MaxUint256,       // graduation unreachable
       ethers.MaxUint256,
       ethers.MaxUint256,
+      // The quote vectors price a pool holding real reserves, so the anchor is
+      // 1 wei — present because the contract requires one, negligible in the
+      // maths, and the reserves come from initialize() as before.
+      1n,
       V4.positionManager,
       V4.permit2,
       ethers.ZeroAddress, // no locker: these tests never migrate
     );
     await pool.initAuction(deployer.address); // the deployer stands in for the auction
     await token.transfer(await pool.getAddress(), tokenReserve);
-    await pool.initialize({ value: toWei(reserves.eth) });
+    // pricing = real + virtual, and the anchor is 1 wei, so fund one wei short
+    // to land on the vector's reserve exactly.
+    await pool.initialize({ value: toWei(reserves.eth) - 1n });
     await pool.auctionBuy({ value: 0 }); // zero-value open: reserves unchanged
     if (extraTokensForSeller > 0n) await token.transfer(trader.address, extraTokensForSeller);
     return { pool, token, trader };
@@ -1365,5 +1376,88 @@ describe("GoonSquadNFT — minted on demand, by the player", () => {
     expect(await nft.balanceOf(alice.address)).to.equal(0n);
     for (const id of ["0x01ffc9a7", "0x80ac58cd", "0x5b5e139f"])
       expect(await nft.supportsInterface(id), id).to.equal(true);
+  });
+});
+
+describe("Virtual reserves — the house funds nothing", () => {
+  it("creates a round with zero ETH and still has a price", async () => {
+    // The old design needed a real house seed purely to give the curve a
+    // non-zero ETH side, and nothing in the pool ever paid that principal
+    // back — every launch cost the platform its seed whether the coin
+    // graduated or died.
+    const { pool, factory } = await createRound({ virtualEthReserve: E(100) });
+    expect(await ethers.provider.getBalance(await pool.getAddress())).to.equal(0n);
+    expect(await pool.ethReserve()).to.equal(0n);
+    expect(await pool.virtualEthReserve()).to.equal(E(100));
+    // A price exists anyway, which is the whole point.
+    expect(await pool.spotPriceWad()).to.be.greaterThan(0n);
+    expect(await factory.roundCount()).to.equal(1n);
+  });
+
+  it("holds only player money, and gives it back on a sell", async () => {
+    const { pool, token, auction } = await createRound({ virtualEthReserve: E(100) });
+    const [, alice] = await ethers.getSigners();
+    await auction.connect(alice).submit(0, { value: E(2) });
+    await mine(200);
+    await auction.settle();
+    await auction.connect(alice).claim(0);
+
+    const held = await ethers.provider.getBalance(await pool.getAddress());
+    expect(held).to.be.greaterThan(0n, "the pool holds what players paid in");
+    expect(await pool.ethReserve()).to.be.lessThanOrEqual(held);
+
+    // Selling the whole position back returns nearly all of it — the virtual
+    // side prices the trade but can never be withdrawn.
+    const bag = await token.balanceOf(alice.address);
+    await token.connect(alice).approve(await pool.getAddress(), bag);
+    await pool.connect(alice).sell(bag, 0);
+    expect(await pool.ethReserve()).to.be.lessThan(E(0.01), "curve reserve drained back out");
+  });
+
+  it("cannot pay out more real ETH than it holds", async () => {
+    // The failure this guards: a sell priced on the virtual side draining ETH
+    // the pool never received, which would come out of another round's money.
+    const { pool, token, auction } = await createRound({ virtualEthReserve: E(100) });
+    const [, alice, bob] = await ethers.getSigners();
+    await auction.connect(alice).submit(0, { value: E(1) });
+    await mine(200);
+    await auction.settle();
+    await auction.connect(alice).claim(0);
+
+    // Bob buys, then both dump everything they hold.
+    await pool.connect(bob).buy(0, { value: E(3) });
+    for (const who of [bob, alice]) {
+      const bag = await token.balanceOf(who.address);
+      if (bag === 0n) continue;
+      await token.connect(who).approve(await pool.getAddress(), bag);
+      await pool.connect(who).sell(bag, 0);
+    }
+    const held = await ethers.provider.getBalance(await pool.getAddress());
+    expect(held).to.be.greaterThanOrEqual(0n);
+    expect(await pool.ethReserve()).to.be.lessThanOrEqual(held, "never owes more than it has");
+  });
+
+  it("returns every real wei to holders when a round misses graduation", async () => {
+    // Redemption used to divide by (tokenReserve + circulating), giving the
+    // pool's own unsold tokens a share and stranding most of the ETH forever.
+    // With no house stake, all of it belongs to the players.
+    const { pool, token, auction } = await createRound({ virtualEthReserve: E(100) });
+    const [, alice] = await ethers.getSigners();
+    await auction.connect(alice).submit(0, { value: E(2) });
+    await mine(200);
+    await auction.settle();
+    await auction.connect(alice).claim(0);
+
+    await mine(4000);
+    await pool.resolve();
+    expect(await pool.phase()).to.equal(3n); // Redeem
+
+    const bag = await token.balanceOf(alice.address);
+    await token.connect(alice).approve(await pool.getAddress(), bag);
+    const before = await ethers.provider.getBalance(await pool.getAddress());
+    await pool.connect(alice).redeem(bag);
+    const after = await ethers.provider.getBalance(await pool.getAddress());
+    // The sole holder redeems essentially the whole pot, not a fraction of it.
+    expect(after * 100n).to.be.lessThan(before, "over 99% went back to the holder");
   });
 });

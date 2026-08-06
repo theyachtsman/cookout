@@ -543,3 +543,53 @@ test("a mint records its gas in the wallet ledger", () => {
   const wallet = web("lib/cookoutWallet.ts");
   assert.ok(wallet.includes("getTransactionReceipt"), "read from the receipt, not estimated");
 });
+
+test("creating a round costs the house nothing but gas", () => {
+  // The seed used to be sent as msg.value and was unrecoverable — no path in
+  // RoundPool returns principal, so every launch cost the platform its seed
+  // whether the coin graduated or died. It is a virtual anchor now: it sets
+  // the opening price and nobody funds it.
+  const src = readFileSync(join(import.meta.dirname, "chain.ts"), "utf8");
+  const create = src.slice(src.indexOf("functionName: \"createRound\""));
+  const head = create.slice(0, 600);
+  assert.match(head, /value: 0n/, "no ETH may be sent with a round");
+  assert.ok(!/value: parseEther\(String\(config\.initialEthLiquidity\)\)/.test(src));
+  assert.ok(src.includes("virtualEthReserve: parseEther"), "the anchor is passed instead");
+});
+
+test("only real ETH can leave a pool", async () => {
+  const pool = readFileSync(
+    join(import.meta.dirname, "../../../contracts/src/RoundPool.sol"),
+    "utf8",
+  );
+  // Pricing uses the virtual side; payouts must not.
+  assert.match(pool, /function _pricingEth\(\)/);
+  assert.match(pool, /if \(grossOut > ethReserve\) grossOut = ethReserve;/, "sells clamp to real ETH");
+  // Redemption and migration read the real balance, never the anchor.
+  const redeem = pool.slice(pool.indexOf("redemptionPriceWad = "), pool.indexOf("redemptionPriceWad = ") + 120);
+  assert.ok(redeem.includes("ethReserve") && !redeem.includes("_pricingEth"));
+});
+
+test("the launch form's own dialogs stack above the modal that hosts them", () => {
+  // Both the shell and the confirm card portal to document.body, so plain
+  // z-index decides which one wins. The confirm used to sit at 80 under a
+  // shell at 120: pressing Preview appeared to do nothing, and closing the
+  // shell to reach the confirm unmounted the form and lost the whole coin.
+  const src = web("components/LaunchCoin.tsx");
+  const shell = Number(/z-\[(\d+)\][^"]*flex items-end justify-center bg-black\/80/.exec(src)?.[1]);
+  const nested = [...src.matchAll(/z-\[(\d+)\][^"]*flex items-center justify-center p-4/g)].map(
+    (m) => Number(m[1]),
+  );
+  assert.ok(shell > 0, "found the shell's layer");
+  assert.equal(nested.length, 2, "confirm + created card");
+  for (const z of nested) assert.ok(z > shell, `nested dialog at ${z} must beat shell at ${shell}`);
+});
+
+test("the launch shell does not dismiss itself out from under its own dialogs", () => {
+  // Escape and the backdrop would otherwise discard a half-filled form while
+  // the player was only trying to dismiss the confirm card in front of it.
+  const src = web("components/LaunchCoin.tsx");
+  assert.match(src, /onClick=\{\(\) => !nested && onClose\(\)\}/, "backdrop defers when nested");
+  assert.match(src, /"Escape" && !nestedRef\.current/, "Escape defers when nested");
+  assert.match(src, /onNested=\{setNested\}/, "the form reports its dialogs upward");
+});

@@ -17,7 +17,7 @@
 import Link from "next/link";
 import { FeeDestination } from "./FeeDestination";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   CREATOR_FEE_SHARE,
@@ -46,7 +46,20 @@ const SOCIAL_FIELDS = [
   { key: "website", icon: "🌐", placeholder: "yourcoin.xyz" },
 ] as const;
 
-function LaunchCoinBody({ onClose }: { onClose: () => void }) {
+function LaunchCoinBody({
+  onClose,
+  onNested,
+}: {
+  onClose: () => void;
+  /**
+   * Fires while a dialog of ours (confirm / created) is open on top.
+   *
+   * The shell has to know, because dismissing it unmounts this component and
+   * takes the half-filled form with it. Reaching for Escape or the backdrop to
+   * get rid of the confirm card would otherwise throw away the whole coin.
+   */
+  onNested?: (open: boolean) => void;
+}) {
   const { t } = useCopy();
   const unit = useUnit();
   const { profile, signIn } = useSession();
@@ -70,6 +83,9 @@ function LaunchCoinBody({ onClose }: { onClose: () => void }) {
   // Two-step submit: "preview" shows the coin card for a final look before
   // anything is created; confirming actually submits.
   const [previewing, setPreviewing] = useState(false);
+  useEffect(() => {
+    onNested?.(previewing || created !== null);
+  }, [onNested, previewing, created]);
   const [submitting, setSubmitting] = useState(false);
   const [mounted, setMounted] = useState(false);
   const router = useRouter();
@@ -436,7 +452,7 @@ function LaunchCoinBody({ onClose }: { onClose: () => void }) {
       {mounted &&
         previewing &&
         createPortal(
-          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
             <div
               onClick={() => !submitting && setPreviewing(false)}
               className="absolute inset-0 bg-black/75 backdrop-blur-sm"
@@ -491,7 +507,7 @@ function LaunchCoinBody({ onClose }: { onClose: () => void }) {
       {mounted &&
         created &&
         createPortal(
-          <div className="fixed inset-0 z-[80] flex items-center justify-center p-4">
+          <div className="fixed inset-0 z-[130] flex items-center justify-center p-4">
             <div
               onClick={() => setCreated(null)}
               className="absolute inset-0 bg-black/75 backdrop-blur-sm"
@@ -540,12 +556,25 @@ function LaunchCoinBody({ onClose }: { onClose: () => void }) {
  */
 export function LaunchCoinModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { t } = useCopy();
+  /**
+   * True while the form has its own dialog up (confirm, or the created card).
+   *
+   * Closing this shell unmounts the form and discards everything typed into
+   * it, so while a dialog of the form's own is on top, this one stops
+   * listening: Escape and the backdrop belong to the dialog in front.
+   */
+  const [nested, setNested] = useState(false);
+  const nestedRef = useRef(nested);
+  nestedRef.current = nested;
+
   // Escape closes it, and the page behind must not scroll while it is up —
   // otherwise a phone scrolls the page under the modal and the form appears
   // to jump.
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !nestedRef.current) onClose();
+    };
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     window.addEventListener("keydown", onKey);
@@ -562,7 +591,7 @@ export function LaunchCoinModal({ open, onClose }: { open: boolean; onClose: () 
   return createPortal(
     <div
       className="fixed inset-0 z-[120] flex items-end justify-center bg-black/80 sm:items-center sm:p-4"
-      onClick={onClose}
+      onClick={() => !nested && onClose()}
     >
       {/* Full height on a phone, a dialog on a laptop. */}
       <div
@@ -587,7 +616,7 @@ export function LaunchCoinModal({ open, onClose }: { open: boolean; onClose: () 
         {/* The only scrolling region. */}
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-5">
           <p className="mb-4 text-sm text-zinc-400">{t("launch.intro")}</p>
-          <LaunchCoinBody onClose={onClose} />
+          <LaunchCoinBody onClose={onClose} onNested={setNested} />
         </div>
       </div>
     </div>,

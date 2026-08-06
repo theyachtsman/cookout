@@ -47,7 +47,7 @@ import type { Store } from "./store.js";
 export const OPERATOR_MIN_BALANCE_ETH = 0.05;
 
 const FACTORY_ABI = parseAbi([
-  "function createRound((string name,string symbol,uint256 totalSupply,uint64 queueClosesAt,uint64 endTime,uint256 auctionMaxRaiseWei,uint16 auctionFeeBps,uint16 tradeFeeBps,uint256 mcapTargetWei,uint256 graduationMcapWei,uint256 graduationMinVolumeWei,uint256 graduationMinHolders,address feeRecipient,address creator,address feeDestination) p) payable returns (address,address,address)",
+  "function createRound((string name,string symbol,uint256 totalSupply,uint64 queueClosesAt,uint64 endTime,uint256 auctionMaxRaiseWei,uint16 auctionFeeBps,uint16 tradeFeeBps,uint256 mcapTargetWei,uint256 graduationMcapWei,uint256 graduationMinVolumeWei,uint256 graduationMinHolders,uint256 virtualEthReserve,address feeRecipient,address creator,address feeDestination) p) payable returns (address,address,address)",
   "event RoundCreated(uint256 indexed id, address indexed creator, address token, address pool, address auction, address locker, address feeSplitter)",
 ]);
 
@@ -254,7 +254,12 @@ export class ChainService {
       address: this.factory,
       abi: FACTORY_ABI,
       functionName: "createRound",
-      value: parseEther(String(config.initialEthLiquidity)),
+      // Nothing. `initialEthLiquidity` is the curve's virtual anchor now, not
+      // money: it sets the opening price without the house funding it. It used
+      // to be sent as msg.value and was unrecoverable — no path in RoundPool
+      // returns principal — so every launch cost the platform its seed whether
+      // the coin graduated or died.
+      value: 0n,
       args: [
         {
           name: concept.name,
@@ -269,6 +274,7 @@ export class ChainService {
           graduationMcapWei: parseEther(String(config.graduationMcap)),
           graduationMinVolumeWei: parseEther(String(config.graduationMinVolume)),
           graduationMinHolders: BigInt(config.graduationMinHolders),
+          virtualEthReserve: parseEther(String(config.initialEthLiquidity)),
           feeRecipient: this.account.address,
           // Chosen by the creator at launch and immutable from here: it is
           // burned into the FeeSplitter this call deploys.

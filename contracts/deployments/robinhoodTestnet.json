@@ -1,20 +1,17 @@
 {
   "network": "robinhoodTestnet",
   "chainId": 46630,
-  "roundFactory": "0xfA1b420198a2fb8C88d2094407f843efA366c98d",
-  "priceMath": "0xb146a99C90c628D0B2F371C4Af848742e029De35",
-  "lockerFactory": "0x588ac92561004C1681DA614503a40C14ad67fB13",
+  "roundFactory": "0xd244028382573D94265229786Cd508a412b5641f",
+  "priceMath": "0xE3CFbc571E4C1EB40c9C045383470a769652889F",
+  "lockerFactory": "0x3430A1Dd1c172093F05955b3c6AF13754c8a48Fe",
+  "pitPoolFactory": "0x563fFcfFF40DC215eE6B9e78FfC7eDF56fC2b676",
   "positionManager": "0x58daec3116aae6d93017baaea7749052e8a04fa7",
   "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
   "protocolFeeWallet": "0x75f14607218dc771FcAC61a01Ae86507b9d8fdf1",
   "protocolFeeBps": 3000,
   "deployer": "0xb6fFa5587db5E5781134E23988Bfca78f6DD27db",
-  "txHash": "0x36ab3bdd3aeea8527d3c8ee6408235bffcb3b9b0fe9cf3298e63c4939e01366c",
-  "block": 97356116,
-  "gasUsed": "5574998",
-  "deployedAt": "2026-08-05T16:20:39.664Z",
-  "pitPoolFactory": "0xFf058D2706809Fe095c757bAdBc8411FAB701271",
-  "pitPoolFactoryBlock": 97527732,
-  "goonSquadNft": "0x51726B3127c4Ab4b08214b49486a4161440773d6",
-  "goonSquadNftSigner": "0x8d8945EabE656C99acd0Adb99d524181d4050dc1"
+  "txHash": "0x399d9c11ba9c8754dd74afb87930ef4f81782e2eebbd2211d6d5978b6c7bbf59",
+  "block": 97708968,
+  "gasUsed": "5708820",
+  "deployedAt": "2026-08-06T17:29:24.889Z"
 }

@@ -82,7 +82,24 @@ contract RoundPool {
     bool public migrated;
 
     Phase public phase;
+    /// @notice REAL ETH held by this pool. Every wei of it is player money.
     uint256 public ethReserve;
+    /**
+     * @notice Virtual ETH, for pricing only. Never held, never withdrawable.
+     *
+     * A constant-product curve needs a non-zero ETH side to have a price at
+     * all, and that used to be funded by the house — real ETH, committed per
+     * round, and unrecoverable: nothing in this contract pays principal back,
+     * so every launch cost the platform its seed whether the coin graduated or
+     * died. This replaces that anchor with a number.
+     *
+     * The curve prices against `ethReserve + virtualEthReserve`; only
+     * `ethReserve` can ever leave. That holds because the maths is symmetric —
+     * returning every token bought returns exactly the ETH paid in and no more
+     * — but `sell` clamps to the real balance anyway, because a rounding error
+     * in the pool's favour is a bug and one in the other direction is a theft.
+     */
+    uint256 public immutable virtualEthReserve;
     uint256 public tokenReserve;
     uint256 public cumulativeVolumeWei;
     uint256 public feesAccrued;
@@ -90,6 +107,17 @@ contract RoundPool {
     uint256 public redemptionPriceWad;
 
     bool private locked;
+
+    /// @dev Custom errors on the migration path. This contract's creation code
+    ///      is embedded in RoundFactory, which sits close to the 24,576-byte
+    ///      limit, and revert strings are stored verbatim.
+    error NotGraduated();
+    error AlreadyMigrated();
+    error NoMigrationTarget();
+    error NothingToMigrate();
+    error NoLiquidityMinted();
+    error AuctionOnly();
+    error EthTransferFailed();
 
     event TradingOpened(uint256 ethReserve, uint256 tokenReserve);
     event Bought(address indexed who, uint256 ethIn, uint256 tokensOut, uint256 fee);
@@ -120,11 +148,14 @@ contract RoundPool {
         uint256 graduationMcapWei_,
         uint256 graduationMinVolumeWei_,
         uint256 graduationMinHolders_,
+        uint256 virtualEthReserve_,
         IPositionManagerLike positionManager_,
         IPermit2Like permit2_,
         address lpLocker_
     ) {
         require(tradeFeeBps_ < BPS, "fee");
+        require(virtualEthReserve_ > 0, "virtual");
+        virtualEthReserve = virtualEthReserve_;
         positionManager = positionManager_;
         permit2 = permit2_;
         lpLocker = lpLocker_;
@@ -146,31 +177,50 @@ contract RoundPool {
     }
 
     /// @notice Factory seeds initial liquidity (tokens already transferred in).
+    /// @notice Factory seeds the token side. ETH is optional and normally zero:
+    ///         the price comes from `virtualEthReserve`, so the house commits
+    ///         nothing and every wei this pool ever holds is a player's.
     function initialize() external payable {
-        require(msg.sender == deployer && ethReserve == 0, "init");
+        require(msg.sender == deployer && tokenReserve == 0, "init");
         uint256 tokens = token.balanceOf(address(this));
-        require(msg.value > 0 && tokens > 0, "seed");
+        require(tokens > 0, "seed");
         ethReserve = msg.value;
         tokenReserve = tokens;
     }
 
+    /// @dev What the curve prices against: real ETH plus the virtual anchor.
+    function _pricingEth() internal view returns (uint256) {
+        return ethReserve + virtualEthReserve;
+    }
+
+    /**
+     * @notice The reserves the CURVE trades on — real ETH plus the virtual
+     *         anchor — not the contract's withdrawable balance.
+     *
+     * Every consumer of this wants a price: the batch auction clears against
+     * it, and the server mirrors it to draw the chart and compute market cap.
+     * Returning the real balance alone would have the auction clearing against
+     * an empty pool and the chart showing a price nobody can trade at. What is
+     * actually withdrawable is `ethReserve`, and only redemption and migration
+     * read that.
+     */
     function getReserves() external view returns (uint256, uint256) {
-        return (ethReserve, tokenReserve);
+        return (_pricingEth(), tokenReserve);
     }
 
     function spotPriceWad() public view returns (uint256) {
-        return (ethReserve * WAD) / tokenReserve;
+        return (_pricingEth() * WAD) / tokenReserve;
     }
 
     function mcapWei() public view returns (uint256) {
-        return (ethReserve * token.totalSupply()) / tokenReserve;
+        return (_pricingEth() * token.totalSupply()) / tokenReserve;
     }
 
     /// @notice The batch auction's aggregate buy: fee is handled by the
     ///         auction; the net raise enters the curve at once, then
     ///         continuous trading opens. Callable exactly once.
     function auctionBuy() external payable nonReentrant returns (uint256 tokensOut) {
-        require(msg.sender == auction && phase == Phase.Pending, "auction only");
+        if (msg.sender != auction || phase != Phase.Pending) revert AuctionOnly();
         if (msg.value > 0) {
             tokensOut = _curveOut(msg.value);
             ethReserve += msg.value;
@@ -202,15 +252,22 @@ contract RoundPool {
         require(phase == Phase.Live || phase == Phase.Graduated, "not trading");
         require(tokensIn > 0, "no tokens");
         require(token.transferFrom(msg.sender, address(this), tokensIn), "transferFrom");
-        uint256 k = ethReserve * tokenReserve;
+        uint256 e = _pricingEth();
+        uint256 k = e * tokenReserve;
         uint256 newTokenReserve = tokenReserve + tokensIn;
-        uint256 newEthReserve = k / newTokenReserve;
-        uint256 grossOut = ethReserve - newEthReserve;
+        uint256 newPricingEth = k / newTokenReserve;
+        uint256 grossOut = e - newPricingEth;
+        // The curve says this much is owed; only real ETH can actually pay it.
+        // Exact maths never exceeds the balance, but flooring is not exact and
+        // paying out more than is held would come from the next round's money.
+        if (grossOut > ethReserve) grossOut = ethReserve;
         uint256 fee = (grossOut * tradeFeeBps) / BPS;
         ethOut = grossOut - fee;
         require(ethOut >= minEthOut, "slippage");
         feesAccrued += fee;
-        ethReserve = newEthReserve;
+        // The gross leaves the curve; the fee stays in the contract as
+        // feesAccrued, so the balance falls by exactly what the seller is paid.
+        ethReserve -= grossOut;
         tokenReserve = newTokenReserve;
         cumulativeVolumeWei += grossOut;
         _pay(msg.sender, ethOut);
@@ -262,14 +319,16 @@ contract RoundPool {
      * possible owner of the resulting position is the immutable locker.
      */
     function migrate() external nonReentrant returns (uint256 tokenId) {
-        require(phase == Phase.Graduated, "not graduated");
-        require(!migrated, "migrated");
-        require(address(positionManager) != address(0), "no migration target");
+        if (phase != Phase.Graduated) revert NotGraduated();
+        if (migrated) revert AlreadyMigrated();
+        if (address(positionManager) == address(0)) revert NoMigrationTarget();
         migrated = true;
 
+        // Real ETH is what migrates; the virtual anchor never existed and
+        // cannot be deposited anywhere.
         uint256 ethAmount = ethReserve;
         uint256 tokenAmount = tokenReserve;
-        require(ethAmount > 0 && tokenAmount > 0, "empty");
+        if (ethAmount == 0 || tokenAmount == 0) revert NothingToMigrate();
         // Book the pool empty before any external call. Fees already accrued
         // stay claimable; they were never part of the curve's reserves.
         ethReserve = 0;
@@ -285,11 +344,20 @@ contract RoundPool {
             hooks: address(0)
         });
 
-        uint160 sqrtPriceX96 = PriceMath.sqrtPriceX96FromReserves(ethAmount, tokenAmount);
+        // Open the v4 pool at the price the curve ended on, which includes the
+        // virtual side — otherwise the coin would list at a price it never
+        // traded at, and the gap would be taken by the first arbitrageur out of
+        // liquidity that is about to be locked forever. Only the real ETH is
+        // deposited; the token side is bounded by it, and the surplus tokens
+        // stay behind in this now-dead pool.
+        uint160 sqrtPriceX96 = PriceMath.sqrtPriceX96FromReserves(
+            ethAmount + virtualEthReserve,
+            tokenAmount
+        );
         positionManager.initializePool(key, sqrtPriceX96);
 
         uint128 liquidity = PriceMath.fullRangeLiquidity(sqrtPriceX96, ethAmount, tokenAmount);
-        require(liquidity > 0, "no liquidity");
+        if (liquidity == 0) revert NoLiquidityMinted();
 
         // v4's PositionManager pulls ERC20s through Permit2, so the token needs
         // an allowance on Permit2 and Permit2 needs one for the manager.
@@ -347,15 +415,24 @@ contract RoundPool {
             phase = Phase.Redeem;
             uint256 circulating = token.totalSupply() - token.balanceOf(address(this));
             if (circulating > 0) {
-                redemptionPriceWad = (ethReserve * WAD) / (tokenReserve + circulating);
+                // Real ETH, split across the tokens people actually hold.
+                //
+                // This used to divide by (tokenReserve + circulating), which
+                // gave the pool's own unsold tokens a share and stranded most
+                // of the ETH in a dead contract. That was defensible when the
+                // house had seeded the pool and was, in effect, holding its own
+                // position. With a virtual anchor the house seeds nothing, so
+                // every wei here is a player's and all of it goes back to them.
+                redemptionPriceWad = (ethReserve * WAD) / circulating;
             }
             emit Resolved(false, finalMcap, redemptionPriceWad);
         }
     }
 
     function _curveOut(uint256 ethInNet) internal view returns (uint256) {
-        uint256 k = ethReserve * tokenReserve;
-        return tokenReserve - k / (ethReserve + ethInNet);
+        uint256 e = _pricingEth();
+        uint256 k = e * tokenReserve;
+        return tokenReserve - k / (e + ethInNet);
     }
 
     /// @notice Accepts the dust SWEEP returns after migration.
@@ -370,6 +447,6 @@ contract RoundPool {
     function _pay(address to, uint256 amount) internal {
         if (amount == 0) return;
         (bool ok, ) = to.call{value: amount}("");
-        require(ok, "eth transfer");
+        if (!ok) revert EthTransferFailed();
     }
 }

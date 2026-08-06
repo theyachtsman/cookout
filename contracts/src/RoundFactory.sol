@@ -106,6 +106,9 @@ contract RoundFactory {
         uint256 graduationMcapWei;
         uint256 graduationMinVolumeWei;
         uint256 graduationMinHolders;
+        /// @notice Virtual ETH the curve prices against. Replaces the house
+        ///         seed: it sets the opening price without anyone funding it.
+        uint256 virtualEthReserve;
         address feeRecipient;
         address creator;
         /// @notice Where the creator's share of post-graduation LP fees goes.
@@ -124,7 +127,10 @@ contract RoundFactory {
         payable
         returns (address tokenAddr, address poolAddr, address auctionAddr)
     {
-        if (msg.value == 0) revert NoLiquidity();
+        // No house seed required — the curve is anchored by virtualEthReserve.
+        // msg.value is still accepted, so a launch CAN be funded if anyone ever
+        // wants to, but nothing depends on it.
+        if (p.virtualEthReserve == 0) revert NoLiquidity();
         if (p.totalSupply < MIN_SUPPLY || p.totalSupply > MAX_SUPPLY) revert BadSupply();
         if (p.tradeFeeBps > MAX_FEE_BPS || p.auctionFeeBps > MAX_FEE_BPS) revert FeeTooHigh();
         if (p.feeRecipient == address(0)) revert BadFeeRecipient();
@@ -149,6 +155,7 @@ contract RoundFactory {
             p.graduationMcapWei,
             p.graduationMinVolumeWei,
             p.graduationMinHolders,
+            p.virtualEthReserve,
             positionManager,
             permit2,
             locker
