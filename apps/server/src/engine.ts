@@ -914,6 +914,10 @@ export class RoundEngine {
       this.store.trades.set(round.id, list);
     }
     list.push(trade);
+    // Drives the "Hot" sort on the Endurance rail. Stored on the round rather
+    // than derived from the trade list so a shelf can order coins without
+    // pulling every coin's trades.
+    round.lastTradeAt = now;
 
     const s = this.liveState(round.id);
     const sec = Math.floor(now / 1000);

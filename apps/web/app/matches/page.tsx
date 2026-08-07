@@ -10,6 +10,7 @@ import { useCopy } from "../../lib/copy";
 import { audio } from "../../lib/audio";
 import { Countdown } from "../../components/Countdown";
 import { RunItBackButton } from "../../components/RunItBack";
+import { END_SORTS, sortEndurance, type EndSort } from "../../lib/enduranceSort";
 import { TierChip } from "../../components/TierChip";
 import { CategoryShelf } from "../../components/CategoryShelf";
 import { useEthUsd } from "../../lib/ethUsd";
@@ -55,6 +56,8 @@ export default function Home() {
   const [filter, setFilter] = useState<ResultFilter>("all");
   const [groupBy, setGroupBy] = useState<GroupBy>("mode");
   const [sortBy, setSortBy] = useState<SortBy>("newest");
+  // Endurance has its own rail and its own ordering — see enduranceQueue.
+  const [endSort, setEndSort] = useState<EndSort>("hot");
   const { setActiveRoom } = useSocial();
   // The calendar has no chat of its own — you're in the global Cookout chat
   // while browsing it. Clear any match room left over from where you came from.
@@ -113,16 +116,18 @@ export default function Home() {
     [active, scheduled, hero],
   );
 
-  // Active Endurance launches, closest-to-trading first. There's no "past
-  // Endurance" rail: when one bonds it lands in Past Results under Endurance.
+  /**
+   * Active Endurance launches. There's no "past Endurance" rail: when one bonds
+   * it lands in Past Results under Endurance.
+   *
+   * Ordering lives in lib/enduranceSort so it can be tested directly. "Hot"
+   * re-orders on the 4s calendar poll, so a trade moves its coin to the front
+   * without anyone touching the control.
+   */
   const enduranceQueue = useMemo(
-    () =>
-      [...endurance].sort(
-        (a, b) =>
-          (STATE_ORDER[a.state] ?? 9) - (STATE_ORDER[b.state] ?? 9) || a.scheduledAt - b.scheduledAt,
-      ),
+    () => sortEndurance(endurance, endSort),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [rounds],
+    [rounds, endSort],
   );
 
   // Past Results covers coins launched in a game mode. Pre-game-mode launches
@@ -285,6 +290,14 @@ export default function Home() {
             <p className="text-xs text-zinc-500">
               {t("cookout.endurance.blurb")}
             </p>
+            <div className="ml-auto text-xs">
+              <Segmented
+                label="Sort"
+                value={endSort}
+                onChange={setEndSort}
+                options={END_SORTS}
+              />
+            </div>
           </div>
           {/* hideHeader keeps the custom header above; the shelf is here for the
               edge arrows, the fades and wheel-to-horizontal that every other

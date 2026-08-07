@@ -785,3 +785,58 @@ test("DEX Screener is offered only when the pool is really indexed", async () =>
   assert.match(page, /chainId=\{round\.graduated \? round\.chain\?\.chainId : undefined\}/);
   assert.match(page, /tokenAddress=\{round\.graduated \? round\.chain\?\.token : undefined\}/);
 });
+
+test("the Endurance rail's Hot sort ranks by trade activity, not by launch time", async () => {
+  // Why this exists: Endurance runs indefinitely. A timed rail can order by
+  // start time because everything on it is minutes old; an Endurance coin can
+  // be a week into trading, and after the first day launch order stops
+  // describing anything a player cares about.
+  const { sortEndurance } = await import("../../../apps/web/lib/enduranceSort.js");
+  const hour = 3_600_000;
+  const now = 1_800_000_000_000;
+  const coin = (id: string, liveAt: number, lastTradeAt?: number, eth = 1) =>
+    ({
+      id,
+      liveAt,
+      scheduledAt: liveAt,
+      lastTradeAt,
+      pool: { ethReserve: eth, tokenReserve: 1_000_000, totalSupply: 2_000_000 },
+    }) as never;
+
+  const old = coin("old", now - 168 * hour, now - 60_000, 1); // a week old, traded a minute ago
+  const fresh = coin("fresh", now - hour, undefined, 5); // launched an hour ago, untouched
+  const mid = coin("mid", now - 24 * hour, now - 3 * hour, 3);
+  const rail = [fresh, mid, old];
+
+  // Hot: the week-old coin someone is actually trading goes first.
+  assert.deepEqual(
+    sortEndurance(rail, "hot").map((r) => r.id),
+    ["old", "mid", "fresh"],
+  );
+  // Recent: purely by launch, which is the opposite answer.
+  assert.deepEqual(
+    sortEndurance(rail, "recent").map((r) => r.id),
+    ["fresh", "mid", "old"],
+  );
+  // Market cap: deepest pool first, independent of both.
+  assert.deepEqual(
+    sortEndurance(rail, "mcap").map((r) => r.id),
+    ["fresh", "mid", "old"],
+  );
+
+  // An untraded coin must not sort to the top on a missing timestamp — the
+  // obvious bug here is treating `undefined` as 0 and then as "most recent".
+  const untraded = [coin("a", now - hour), coin("b", now - 2 * hour), old];
+  assert.equal(sortEndurance(untraded, "hot")[0]!.id, "old", "traded coins lead");
+  assert.deepEqual(
+    sortEndurance(untraded, "hot").map((r) => r.id),
+    ["old", "a", "b"],
+    "and untraded ones fall in behind, newest first",
+  );
+
+  // Sorting must not mutate the caller's array — the page memo passes the
+  // live list straight in.
+  const original = [fresh, mid, old];
+  sortEndurance(original, "hot");
+  assert.deepEqual(original.map((r) => r.id), ["fresh", "mid", "old"]);
+});

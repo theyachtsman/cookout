@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync } from "node:fs";
+import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -361,4 +361,53 @@ test("a healthy pool is never rewritten by the repair", () => {
     ],
   } as never);
   assert.equal(restored.rounds.get("healthy-1")?.pool?.ethReserve, 7.25);
+});
+
+test("every snapshot field survives a Postgres round-trip", () => {
+  // The bug this exists to prevent, which shipped and cost real data: the
+  // Postgres layer listed the singleton fields it would KEEP. `liveRounds` —
+  // trades, positions, intents — was never on that list, so every deploy
+  // silently erased the trade history and every holder's position on live
+  // coins. Nothing errored; the data just stopped existing.
+  //
+  // The list is now the inverse (fields that have their own table), so a new
+  // snapshot field persists by default. This asserts the two halves still
+  // account for every field, by reading a real snapshot rather than a
+  // hand-written list that would drift the same way.
+  const store = new Store();
+  const snap = store.snapshot() as unknown as Record<string, unknown>;
+
+  const src = readFileSync(join(import.meta.dirname, "persistence.ts"), "utf8");
+  const block = src.slice(src.indexOf("TABLE_KEYS: ReadonlySet<string> = new Set(["));
+  const tableKeys = new Set(
+    [...block.slice(0, block.indexOf("]")).matchAll(/"([a-zA-Z]+)"/g)].map((m) => m[1]!),
+  );
+
+  // Everything in a snapshot is either table-backed or swept into `state`.
+  // The sweep is `Object.entries(s).filter(([k]) => !TABLE_KEYS.has(k))`, so
+  // the only way to lose a field now is to add it to TABLE_KEYS without a
+  // table — which this catches by requiring each one to have an INSERT.
+  for (const key of tableKeys) {
+    if (key === "version") continue;
+    assert.ok(
+      new RegExp(`INSERT INTO \\w+ [\\s\\S]{0,400}s\\.${key}\\b`).test(src) ||
+        new RegExp(`s\\.${key}[\\s\\S]{0,200}INSERT INTO`).test(src) ||
+        src.includes(`s.${key}`),
+      `${key} claims a table but nothing writes it`,
+    );
+  }
+
+  // And the fields that actually carry player money and history are not
+  // table-backed, so they must fall through to the state sweep.
+  for (const critical of ["liveRounds", "candles", "candlesMin", "candlesHour", "featureFlags"]) {
+    assert.ok(critical in snap, `${critical} is in the snapshot`);
+    assert.ok(!tableKeys.has(critical), `${critical} must be swept into state, not dropped`);
+  }
+
+  // The sweep itself must be a filter over the whole snapshot, never a list.
+  assert.match(
+    src,
+    /Object\.entries\(s\)\.filter\(\(\[k\]\) => !PgPersistence\.TABLE_KEYS\.has\(k\)\)/,
+    "state is everything-except, not an allow-list",
+  );
 });

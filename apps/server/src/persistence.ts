@@ -72,18 +72,33 @@ export class PgPersistence implements Persistence {
     `);
   }
 
-  /** Snapshot fields that are singletons (not one-row-per-entity): kept in a
-   *  single `state` row so they survive restarts like everything else. */
-  private static readonly STATE_KEYS = [
-    "candles",
-    "sessions",
-    "feedback",
-    "settings",
-    "jackpotPool",
-    "jackpotWeekKey",
-    "jackpotHistory",
-    "jackpotLifetimeEth",
-  ] as const;
+  /**
+   * Snapshot fields that have their own table. EVERYTHING ELSE goes into the
+   * single `state` row.
+   *
+   * This list is deliberately the inverse of what it used to be. It used to
+   * name the fields to keep, which meant a field added to Snapshot was thrown
+   * away on every restart and nothing anywhere said so — the code kept
+   * working, the data just quietly stopped existing. That cost live Endurance
+   * coins their entire trade history and every holder's position, because
+   * `liveRounds` was never on the list; it also dropped feature flags, staff,
+   * the audit log, media and mute state.
+   *
+   * Naming the exceptions instead means a new field is persisted by default.
+   * The failure mode flips from silent data loss to, at worst, storing
+   * something twice.
+   */
+  private static readonly TABLE_KEYS: ReadonlySet<string> = new Set([
+    "version",
+    "users",
+    "concepts",
+    "conceptVoters",
+    "archivedRounds",
+    "auctionResults",
+    "summaries",
+    "adminLog",
+    "betaSignups",
+  ]);
 
   async load(): Promise<Snapshot | null> {
     await this.ready;
@@ -110,7 +125,9 @@ export class PgPersistence implements Persistence {
       summaries: summaries.rows.map((r) => r.data),
       adminLog: log.rows.map((r) => ({ ...r, at: Number(r.at) })),
       betaSignups: beta.rows.map((r) => r.data),
-      ...(state.rows[0]?.data ?? {}), // sessions, settings, jackpot*, feedback, candles
+      // Everything without its own table: live round state, candles and their
+      // rollups, settings, flags, staff, sessions, jackpot, media, mutes.
+      ...(state.rows[0]?.data ?? {}),
     };
   }
 
@@ -161,9 +178,9 @@ export class PgPersistence implements Persistence {
           "INSERT INTO admin_log (id, at, action, detail) VALUES ($1, $2, $3, $4) ON CONFLICT (id) DO NOTHING",
           [e.id, e.at, e.action, e.detail],
         );
-      // Singleton state (sessions, settings, jackpot, feedback, candles) in one row.
+      // Everything without its own table, in one row — see TABLE_KEYS.
       const state = Object.fromEntries(
-        PgPersistence.STATE_KEYS.map((k) => [k, s[k]]),
+        Object.entries(s).filter(([k]) => !PgPersistence.TABLE_KEYS.has(k)),
       );
       await client.query(
         "INSERT INTO state (id, data) VALUES (1, $1) ON CONFLICT (id) DO UPDATE SET data = $1",

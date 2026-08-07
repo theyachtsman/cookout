@@ -466,6 +466,14 @@ export interface Round {
   clearingPrice?: number;
   graduated?: boolean;
   pool?: PoolState;
+  /**
+   * When this coin last traded.
+   *
+   * Endurance runs indefinitely, so "newest" stops meaning anything after the
+   * first day — a coin launched a week ago that is being actively traded right
+   * now is the one worth surfacing. This is what "Hot" sorts on.
+   */
+  lastTradeAt?: number;
   /** Present only for on-chain rounds. */
   chain?: ChainRoundInfo;
 }
