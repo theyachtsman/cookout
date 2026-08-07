@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { Candle, Trade } from "@cookout/shared";
-import { autoTf, TIMEFRAMES, type TfMode } from "../lib/timeframe";
+import { autoTf, sourceFor, timeframesFor, type TfMode, type TfSeconds } from "../lib/timeframe";
 
 /**
  * The arena chart renderer — the exact live-round candlestick chart, extracted
@@ -42,6 +42,11 @@ interface Props {
   /** Draw the tagged bubble over big trades. The live round uses edge callouts
    *  instead so nothing ever sits on the candles; the landing demo keeps them. */
   bubbleLabels?: boolean;
+  /** Coarser server-side rollups, for timeframes the 1s tape cannot reach. */
+  candlesMin?: Candle[];
+  candlesHour?: Candle[];
+  /** Endurance has no clock, so it gets the full ladder out to 1W. */
+  endurance?: boolean;
   /** Stretch to fill the parent (the landing demo's flex slot). The product
    *  page must NOT set this: a percentage height inside a grid-stretched
    *  column balloons to the whole column and shoves the panels below it. */
@@ -73,13 +78,14 @@ export function ChartCanvas(props: Props) {
     const t = setInterval(() => autoTick((n) => n + 1), 5000);
     return () => clearInterval(t);
   }, [tfMode]);
-  const tf = tfMode === "auto" ? autoTf(props.phase, props.liveAt) : tfMode;
+  const tf = tfMode === "auto" ? autoTf(props.phase, props.liveAt, props.endurance) : tfMode;
+  const ladder = timeframesFor(!!props.endurance);
   const ref = useRef<HTMLCanvasElement>(null);
   const propsRef = useRef(props);
   propsRef.current = props;
   const modeRef = useRef(mode);
   modeRef.current = mode;
-  const tfRef = useRef<number>(tf);
+  const tfRef = useRef<TfSeconds>(tf);
   tfRef.current = tf;
 
   /** Pointer position for the crosshair; null when it's off the canvas. */
@@ -176,12 +182,23 @@ export function ChartCanvas(props: Props) {
           : p.toExponential(3);
 
       const snapshot = !!endReason;
-      // View-only timeframe zoom: aggregate 1s candles into tf-second buckets.
+      // View-only timeframe zoom: aggregate into tf-second buckets.
       const tfSec = tfRef.current;
-      let agg = candles;
+      // The 1s tape only reaches back 15 minutes, so anything hourly or longer
+      // is built from the server's rollups instead. Aggregating up is exact;
+      // there is no aggregating back down, which is why the source is chosen
+      // rather than always starting from the finest series available.
+      const src = sourceFor(tfSec);
+      const base =
+        src === "hour"
+          ? (propsRef.current.candlesHour ?? [])
+          : src === "minute"
+            ? (propsRef.current.candlesMin ?? [])
+            : candles;
+      let agg = base.length ? base : candles;
       if (tfSec > 1) {
         const buckets = new Map<number, Candle>();
-        for (const c of candles) {
+        for (const c of agg) {
           const bt = Math.floor(c.t / tfSec) * tfSec;
           const b = buckets.get(bt);
           if (!b) buckets.set(bt, { t: bt, o: c.o, h: c.h, l: c.l, c: c.c, v: c.v });
@@ -715,7 +732,7 @@ export function ChartCanvas(props: Props) {
       />
       {props.showTimeframes && (
         <div className="absolute right-2 top-2 flex overflow-hidden rounded-md border border-zinc-800 bg-zinc-950/80 text-[10px] font-bold backdrop-blur">
-          {TIMEFRAMES.map(([v, label]) => (
+          {ladder.map(([v, label]) => (
             <button
               key={v}
               onClick={() => {
@@ -739,7 +756,7 @@ export function ChartCanvas(props: Props) {
               tfMode === "auto" ? "bg-lime-400 text-zinc-950" : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
-            {tfMode === "auto" ? `Auto ${TIMEFRAMES.find(([v]) => v === tf)?.[1] ?? ""}` : "Auto"}
+            {tfMode === "auto" ? `Auto ${ladder.find(([v]) => v === tf)?.[1] ?? ""}` : "Auto"}
           </button>
         </div>
       )}

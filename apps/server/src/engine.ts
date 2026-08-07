@@ -85,7 +85,13 @@ interface LiveRoundState {
 
 export type Broadcast = (roundId: string, event: ServerEvent) => void;
 /** Posts an inline system banner into a room's chat. */
-export type SystemChat = (roomId: string, kind: SystemChatKind, text: string) => void;
+export type SystemChat = (
+  roomId: string,
+  kind: SystemChatKind,
+  text: string,
+  /** Optional action button on the banner — see ChatMessage.systemLink. */
+  link?: { href: string; label: string },
+) => void;
 
 export class RoundEngine {
   private live = new Map<string, LiveRoundState>();
@@ -1326,15 +1332,29 @@ export class RoundEngine {
             roundId: round.id,
             roundSymbol: round.token.symbol,
           });
-    // The room is frozen, never destroyed — this is the last word in it.
+    // A graduated coin keeps trading in the wild, so its room keeps talking —
+    // the holders are still holders and the chart is still moving. Only a coin
+    // that ended is done, and even then the room is frozen, never destroyed.
     this.sys(
       round.id,
       graduated ? "graduated" : "ended",
       graduated
-        ? `SERVED UP. ${round.token.symbol} is out in the wild. Chat is frozen here; see you in The Grill.`
+        ? `SERVED UP. ${round.token.symbol} is out in the wild — chat stays open here, and the ticker keeps running.`
         : `Round over (${reason.replace(/_/g, " ")}). Every holder exited at one uniform price. ` +
             `Chat is frozen here; see you in The Grill.`,
     );
+
+    // The coin didn't make it. Tell its dev, in their own coin's room, with the
+    // way back in attached — Run It Back lives on the results pages, and a dev
+    // who has to go looking for it mostly doesn't.
+    if (!graduated && reason !== "rug_detected" && reason !== "liquidity_removed")
+      this.sys(
+        round.id,
+        "runback",
+        `${this.devName(round)} — $${round.token.symbol} didn't bond this time. ` +
+          `You can put it straight back up for a vote and pick a different mode.`,
+        { href: `/round/${round.id}?runback=1`, label: "🔁 Run it back" },
+      );
     // And tell The Grill how it ended.
     this.sys(
       GLOBAL_ROOM,
@@ -1587,7 +1607,43 @@ export class RoundEngine {
     }
     list.push(candle);
     if (list.length > 900) list.splice(0, list.length - 900);
+    // Fold the same candle into the coarse series. Done here rather than on a
+    // timer so a rollup bucket can never disagree with the tape it came from.
+    this.rollUp(this.store.candlesMin, roundId, candle, 60, 1_440);
+    this.rollUp(this.store.candlesHour, roundId, candle, 3_600, 720);
     this.broadcast(roundId, { type: "candle", roundId, candle });
+  }
+
+  /**
+   * Merge a closed 1s candle into a coarser series, extending the open bucket
+   * or starting a new one.
+   *
+   * Open stays the first price seen in the bucket and close follows the latest,
+   * so a rolled-up candle means the same thing as one the exchange would draw.
+   */
+  private rollUp(
+    series: Map<string, Candle[]>,
+    roundId: string,
+    c: Candle,
+    seconds: number,
+    keep: number,
+  ): void {
+    let list = series.get(roundId);
+    if (!list) {
+      list = [];
+      series.set(roundId, list);
+    }
+    const bucket = Math.floor(c.t / seconds) * seconds;
+    const open = list[list.length - 1];
+    if (open && open.t === bucket) {
+      open.h = Math.max(open.h, c.h);
+      open.l = Math.min(open.l, c.l);
+      open.c = c.c;
+      open.v += c.v;
+      return;
+    }
+    list.push({ t: bucket, o: c.o, h: c.h, l: c.l, c: c.c, v: c.v });
+    if (list.length > keep) list.splice(0, list.length - keep);
   }
 
   /** The coin's developer as a kill-feed actor — name and picture resolved now,

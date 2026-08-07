@@ -31,6 +31,11 @@ interface Props {
   liquidity?: number;
   /** Off during live rounds — edge callouts carry the trade story instead. */
   bubbleLabels?: boolean;
+  /** Coarser server-side rollups, for timeframes the 1s tape cannot reach. */
+  candlesMin?: Candle[];
+  candlesHour?: Candle[];
+  /** Endurance has no clock, so it gets the full ladder out to 1W. */
+  endurance?: boolean;
 }
 
 export function Chart(props: Props) {

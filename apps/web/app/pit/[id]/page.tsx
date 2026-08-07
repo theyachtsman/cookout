@@ -30,7 +30,7 @@ import { GraduationProgress } from "../../../components/GraduationProgress";
 import { Countdown } from "../../../components/Countdown";
 import { BattleFX, type FxEvent, type FxKind } from "../../../components/BattleFX";
 import { EventStrip, PhaseFlash } from "../../../components/arena/ArenaEvents";
-import { UrgencyPulse } from "../../../components/arena/RoundOverlays";
+import { RoundOverlays, UrgencyPulse } from "../../../components/arena/RoundOverlays";
 import { EdgeCallouts } from "../../../components/arena/EdgeCallouts";
 import { FloatingReactions } from "../../../components/ArcadeOverlays";
 import {
@@ -1132,6 +1132,13 @@ function LiveView({
           <BattleFX events={drama.fx} />
           <EdgeCallouts killfeed={drama.killfeed} />
           <UrgencyPulse endsAt={round.endsAt} active={round.state === "live"} nowOffset={drama.clockOffset} />
+          {/* The same announcer the Cook Out uses: the 5-4-3-2-1 into the open
+              and the last ten seconds before trading closes, as full-screen
+              digits. The Pit had the urgency pulse but no numbers, so a match
+              started and ended without ever counting you in or out. It reads
+              the same fields — lobby → queueOpensAt, live → endsAt — so no Pit
+              -specific timing logic is involved. */}
+          <RoundOverlays round={round} nowOffset={drama.clockOffset} digitsOnly />
           {drama.flash && <PhaseFlash text={drama.flash.text} tone={drama.flash.tone} />}
           <FloatingReactions reactions={drama.reactions} />
           <Chart

@@ -203,7 +203,12 @@ export class Hub {
   }
 
   /** Match system event — rendered as an inline banner inside the room. */
-  system = (roomId: string, kind: SystemChatKind, text: string): void => {
+  system = (
+    roomId: string,
+    kind: SystemChatKind,
+    text: string,
+    link?: { href: string; label: string },
+  ): void => {
     this.push(roomId, {
       id: this.store.id(),
       roundId: roomId,
@@ -212,6 +217,7 @@ export class Hub {
       at: Date.now(),
       system: true,
       systemKind: kind,
+      ...(link ? { systemLink: link } : {}),
     });
   };
 

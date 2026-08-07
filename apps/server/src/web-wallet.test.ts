@@ -717,3 +717,29 @@ test("the Rules of Hooks are enforced by a real linter, in npm test", () => {
   assert.match(pkg.scripts.test ?? "", /npm run lint/, "npm test runs the linter");
   assert.match(pkg.scripts.lint ?? "", /eslint/, "lint actually invokes eslint");
 });
+
+test("the chart offers long timeframes only where they can be filled", async () => {
+  // Endurance has no clock; a coin can trade for days. A 5-minute candle is
+  // the wrong unit for that, and a timed round can't fill an hourly one — so
+  // the ladder is per-mode rather than nine buttons where seven do nothing.
+  const { timeframesFor, sourceFor, autoTf } = await import("../../../apps/web/lib/timeframe.js");
+
+  const timed = timeframesFor(false).map(([s]) => s);
+  const endurance = timeframesFor(true).map(([s]) => s);
+  assert.deepEqual(timed, [1, 15, 60, 300], "timed rounds stop at 5m");
+  assert.ok(endurance.includes(3_600) && endurance.includes(86_400) && endurance.includes(604_800));
+
+  // Each timeframe must read a series that actually reaches back far enough.
+  // The 1s tape is 900 candles — fifteen minutes — so anything longer than
+  // that drawn from it would be a chart of the last quarter hour mislabelled.
+  assert.equal(sourceFor(15), "second");
+  assert.equal(sourceFor(300), "minute", "5m needs more than the 1s tape holds");
+  assert.equal(sourceFor(3_600), "hour");
+  assert.equal(sourceFor(604_800), "hour");
+
+  // Auto keeps stepping out for Endurance, and stops where a timed round ends.
+  const dayIn = Date.now() - 36 * 3_600 * 1000;
+  assert.equal(autoTf("live", dayIn, false), 60, "timed rounds settle at 1m");
+  assert.ok(autoTf("live", dayIn, true) >= 3_600, "a day into Endurance is hours, not minutes");
+  assert.equal(autoTf("live", Date.now(), true), 1, "still ticks at the open");
+});

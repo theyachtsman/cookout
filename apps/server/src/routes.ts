@@ -2004,6 +2004,11 @@ export function createApp(
         chat: (store.chat.get(round.id) ?? []).slice(-50),
         trades: trades.slice(-100),
         candles: store.candles.get(round.id) ?? [],
+        // Coarser history for the long timeframes. Endurance has no clock, so
+        // the 1s tape's 15-minute window is not enough to draw an hourly or
+        // daily chart from.
+        candlesMin: store.candlesMin.get(round.id) ?? [],
+        candlesHour: store.candlesHour.get(round.id) ?? [],
         predictions: engine.predictionCounts(round.id),
         auction: store.auctionResults.get(round.id) ?? null,
         summary: store.summaries.get(round.id) ?? null,

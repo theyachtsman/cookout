@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import type {
   AuctionResult,
   Candle,
@@ -12,6 +12,8 @@ import type {
   RoundSummary,
   Trade,
 } from "@cookout/shared";
+import { isEnduranceMode } from "@cookout/shared";
+import { RunItBackButton } from "../../../components/RunItBack";
 import { api } from "../../../lib/api";
 import { chainSell, walletTokenBalanceWei } from "../../../lib/chainTx";
 import { playAthSparkle, playFanfare, playHorn, playMilestone, playRug, playSell, playThud, playTradeTick, playWhale } from "../../../lib/sfx";
@@ -74,7 +76,12 @@ export default function RoundPage() {
   const { profile, refresh } = useSession();
   const { setActiveRoom } = useSocial();
   const [round, setRound] = useState<Round | null>(null);
+  const runbackParam = useSearchParams().get("runback") === "1";
   const [candles, setCandles] = useState<Candle[]>([]);
+  // Rolled-up history. Endurance runs for days, and the 1s tape only reaches
+  // back fifteen minutes — an hourly or daily candle is drawn from these.
+  const [candlesMin, setCandlesMin] = useState<Candle[]>([]);
+  const [candlesHour, setCandlesHour] = useState<Candle[]>([]);
   const [killfeed, setKillfeed] = useState<KillFeedEvent[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [ticker, setTicker] = useState<Ticker | null>(null);
@@ -149,6 +156,8 @@ export default function RoundPage() {
       killfeed: KillFeedEvent[];
       trades: Trade[];
       candles: Candle[];
+      candlesMin?: Candle[];
+      candlesHour?: Candle[];
       predictions: { moon: number; rug: number };
       auction: AuctionResult | null;
       summary: RoundSummary | null;
@@ -163,6 +172,8 @@ export default function RoundPage() {
     setKillfeed(data.killfeed);
     setTrades(data.trades);
     setCandles(data.candles);
+    setCandlesMin(data.candlesMin ?? []);
+    setCandlesHour(data.candlesHour ?? []);
     setPreds(data.predictions);
     setAuction(data.auction);
     setSummary(data.summary);
@@ -222,7 +233,10 @@ export default function RoundPage() {
     setActiveRoom({
       id: round.id,
       label: `$${round.token.symbol}`,
-      frozen: round.state === "results" || round.state === "ended",
+      // A coin that bonded out is still trading in the wild — its holders are
+      // still holders and the chart is still moving, so the room stays open.
+      // Only a round that ended without graduating is actually over.
+      frozen: (round.state === "results" || round.state === "ended") && !round.graduated,
     });
   }, [round?.id, round?.state, round?.token.symbol, setActiveRoom]);
   useEffect(() => () => setActiveRoom(null), [setActiveRoom]);
@@ -530,6 +544,12 @@ export default function RoundPage() {
           </span>
         </button>
       )}
+      {/* Where the chat banner's "Run it back" link lands. The button lived
+          only on the results pages, so a dev told about it in their own coin's
+          room had to go and find it. ?runback=1 opens it straight away. */}
+      {(round.state === "results" || round.state === "ended") && !round.graduated && (
+        <RunItBackButton round={round} autoOpen={runbackParam} className="w-full" />
+      )}
       <ArenaHeader
         round={round}
         ticker={ticker}
@@ -598,6 +618,9 @@ export default function RoundPage() {
               {flash && <PhaseFlash text={flash.text} tone={flash.tone} />}
               <Chart
               candles={candles}
+              candlesMin={candlesMin}
+              candlesHour={candlesHour}
+              endurance={isEnduranceMode(round.mode)}
               trades={trades}
               livePrice={ticker?.price}
               openPrice={round.clearingPrice}

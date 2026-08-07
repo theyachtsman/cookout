@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   DEFAULT_GAME_MODE,
@@ -37,7 +37,21 @@ interface RunnableRound {
   token: { name: string; symbol: string; theme: string; artworkUrl?: string; bannerUrl?: string };
 }
 
-export function RunItBackButton({ round, className = "" }: { round: RunnableRound; className?: string }) {
+export function RunItBackButton({
+  round,
+  className = "",
+  autoOpen = false,
+}: {
+  round: RunnableRound;
+  className?: string;
+  /**
+   * Open the modal on mount — for arriving from the chat banner's link, so the
+   * dev lands on the decision rather than on a page with a button somewhere.
+   * Only honoured once, and only for the dev; anyone else following the link
+   * gets the page, not an explainer they never asked for.
+   */
+  autoOpen?: boolean;
+}) {
   const { t } = useCopy();
   const { profile } = useSession();
   const router = useRouter();
@@ -52,6 +66,17 @@ export function RunItBackButton({ round, className = "" }: { round: RunnableRoun
 
   const isDev =
     !!profile && profile.address.toLowerCase() === round.creatorAddress.toLowerCase();
+
+  // `profile` arrives a beat after mount, so this waits for it rather than
+  // deciding while we still think nobody is signed in.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (!autoOpen || opened.current || !isDev) return;
+    opened.current = true;
+    setMode(round.mode ?? DEFAULT_GAME_MODE);
+    setOvertime(!!round.modifiers?.overtime);
+    setModal("confirm");
+  }, [autoOpen, isDev, round.mode, round.modifiers?.overtime]);
 
   const open = (e: React.MouseEvent) => {
     // Cards are usually wrapped in a Link — this button must never navigate.

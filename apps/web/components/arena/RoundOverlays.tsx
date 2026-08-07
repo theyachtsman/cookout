@@ -36,6 +36,7 @@ export function RoundOverlays({
   onCook,
   muted,
   nowOffset = 0,
+  digitsOnly = false,
 }: {
   round: Round;
   /** Fires on "COOK!" so the page can shake the arena and wake the chart. */
@@ -44,6 +45,16 @@ export function RoundOverlays({
   /** Server-clock offset (ms) so the 5-4-3-2-1 fires on the server's clock, not
    *  the browser's (a skewed local clock skipped the pull-up countdown). */
   nowOffset?: number;
+  /**
+   * Numbers only — no phase words and no verdict.
+   *
+   * The Pit runs its own announcer ("LIVE — beat the Goons", "RUG PULL",
+   * "GRADUATED") but never counted anyone in or out. Rendering the whole
+   * Cook Out announcer there would stack two banners on the same beat and
+   * put Cook Out words over a Pit match, so it takes the digits and keeps
+   * its own voice.
+   */
+  digitsOnly?: boolean;
 }) {
   const [banner, setBanner] = useState<Banner | null>(null);
   const idRef = useRef(0);
@@ -102,7 +113,7 @@ export function RoundOverlays({
       if (round.state === "queue_open" || round.state === "settling")
         ladder("cd", round.queueClosesAt);
 
-      const witnessed = round.state !== arrivedOn.current;
+      const witnessed = round.state !== arrivedOn.current && !digitsOnly;
 
       // ---- phase reveals: doors open into the lobby, PULL UP into the queue.
       // These only fire on a transition we actually watched (witnessed), so
@@ -131,11 +142,12 @@ export function RoundOverlays({
         const endsAt = round.endsAt;
         if (endsAt) {
           const left = Math.ceil((endsAt - now) / 1000);
-          if (left <= 60 && left > 55) once("final-minute", () => {
+          if (!digitsOnly && left <= 60 && left > 55) once("final-minute", () => {
             s("FINAL MINUTE", "warn", 1000);
             if (!muted) audio.play("round.over");
           });
-          if (left <= 30 && left > 27) once("final-30", () => s("30 SECONDS", "warn", 900));
+          if (!digitsOnly && left <= 30 && left > 27)
+            once("final-30", () => s("30 SECONDS", "warn", 900));
           if (left >= 1 && left <= 10)
             once(`end-${left}`, () => {
               s(String(left), left <= 3 ? "bad" : "warn", 750, true);
@@ -165,7 +177,7 @@ export function RoundOverlays({
 
     const t = setInterval(tick, 100);
     return () => clearInterval(t);
-  }, [round.state, round.scheduledAt, round.queueOpensAt, round.queueClosesAt, round.liveAt, round.endsAt, round.graduated, round.endReason, onCook, muted]);
+  }, [round.state, round.scheduledAt, round.queueOpensAt, round.queueClosesAt, round.liveAt, round.endsAt, round.graduated, round.endReason, onCook, muted, digitsOnly]);
 
   if (!banner) return null;
 

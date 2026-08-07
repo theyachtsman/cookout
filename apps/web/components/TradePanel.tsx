@@ -7,6 +7,7 @@ import { chainBuy, chainSell, walletEthBalance, walletTokenBalanceWei } from "..
 import { SlippageControl } from "./SlippageControl";
 import { useSession } from "../lib/session";
 import { playBuy, playSell, setSfxMuted, sfxMuted } from "../lib/sfx";
+import { toWeiExact } from "../lib/cookoutWallet";
 
 /**
  * The trade widget (pump.fun-style, Cookout skin): Buy/Sell tabs, a big
@@ -45,6 +46,17 @@ export function TradePanel({
   const peg = ethUsd && ethUsd > 0 ? ethUsd : 0;
   const [amount, setAmount] = useState("");
   const [pct, setPct] = useState("");
+  /**
+   * Sell denomination, mirroring the buy side's native/USD switch.
+   *
+   * Selling used to be percent-only, which is fine for dumping the lot and
+   * useless for "take 12,000 off the table" — the two sides of the same widget
+   * behaved differently for no reason a trader would recognise. Percent and a
+   * token count are the two denominations that are exact here; a USD-priced
+   * sell would have to invert the curve and would fill at a number other than
+   * the one displayed.
+   */
+  const [sellDenom, setSellDenom] = useState<"pct" | "tokens">("pct");
   const [error, setError] = useState("");
   const [pending, setPending] = useState(false);
   const [muted, setMuted] = useState(false);
@@ -117,14 +129,30 @@ export function TradePanel({
         playBuy();
         // Amount stays put so you can hammer the same size again instantly.
       } else {
-        const p = Number(pct);
-        if (!(p > 0)) throw new Error("enter a percent");
+        const n = Number(pct);
+        if (!(n > 0)) throw new Error(sellDenom === "tokens" ? "enter an amount" : "enter a percent");
         if (onChain) {
           const bal = tokenBal ?? (await walletTokenBalanceWei(round));
-          const tokens = (bal * BigInt(Math.round(Math.min(100, p) * 100))) / 10_000n;
+          // Clamped to the bag either way: a typo one digit too long should
+          // sell everything, not revert on-chain after they have paid gas.
+          const tokens =
+            sellDenom === "tokens"
+              ? (() => {
+                  const want = toWeiExact(pct);
+                  return want > bal ? bal : want;
+                })()
+              : (bal * BigInt(Math.round(Math.min(100, n) * 100))) / 10_000n;
           if (tokens <= 0n) throw new Error("nothing to sell");
           await chainSell(round, tokens);
         } else {
+          // The paper API speaks percent, so a token amount converts here.
+          const p =
+            sellDenom === "tokens"
+              ? holdingTokens && holdingTokens > 0
+                ? (n / holdingTokens) * 100
+                : 0
+              : n;
+          if (!(p > 0)) throw new Error("nothing to sell");
           await api(`/api/rounds/${round.id}/trade`, { body: { side: "sell", pct: Math.min(100, p) } });
         }
         playSell();
@@ -179,6 +207,15 @@ export function TradePanel({
       ? denom === "usd"
         ? `≈ ${(typedNum / peg).toFixed(4)} ${unit}`
         : `≈ $${(typedNum * peg).toFixed(2)}`
+      : "";
+  // The sell side's equivalent: whichever unit you are not typing in.
+  const sellNum = Number(pct);
+  const bag = holdingTokens ?? 0;
+  const sellHint =
+    !buying && bag > 0 && sellNum > 0
+      ? sellDenom === "tokens"
+        ? `≈ ${((Math.min(sellNum, bag) / bag) * 100).toFixed(1)}% of your bag`
+        : `≈ ${Math.floor((Math.min(100, sellNum) / 100) * bag).toLocaleString()} ${round.token.symbol}`
       : "";
 
   // ---- the bar: one fast horizontal row under the live chart ----
@@ -359,9 +396,46 @@ export function TradePanel({
           className="w-36 bg-transparent text-center font-mono text-5xl font-black text-zinc-100 placeholder-zinc-700 outline-none"
         />
         <span className="font-mono text-sm font-bold text-zinc-500">
-          {buying ? (usdMode ? "USD" : unit) : "%"}
+          {buying ? (usdMode ? "USD" : unit) : sellDenom === "tokens" ? round.token.symbol : "%"}
         </span>
       </div>
+      {/* Sell denomination — the same control as the buy side's, for the two
+          units that are exact when you are selling a bag. */}
+      {!buying && (holdingTokens ?? 0) > 0 && (
+        <div className="mt-1 flex items-center justify-center gap-2">
+          <div className="flex overflow-hidden rounded-full bg-zinc-900/70 text-[10px] font-bold">
+            {(
+              [
+                ["pct", "%"],
+                ["tokens", round.token.symbol],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                onClick={() => {
+                  // Carry the size across so switching units doesn't move it.
+                  const n = Number(pct);
+                  const bag = holdingTokens ?? 0;
+                  if (n > 0 && bag > 0) {
+                    setPct(
+                      key === "tokens"
+                        ? String(Math.floor((Math.min(100, n) / 100) * bag))
+                        : ((Math.min(n, bag) / bag) * 100).toFixed(2),
+                    );
+                  }
+                  setSellDenom(key);
+                }}
+                className={`px-2.5 py-1 ${
+                  sellDenom === key ? "bg-zinc-700 text-zinc-100" : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          {sellHint && <span className="font-mono text-[11px] text-zinc-500">{sellHint}</span>}
+        </div>
+      )}
       {/* denomination toggle + live conversion */}
       {buying && peg > 0 && (
         <div className="mt-1 flex items-center justify-center gap-2">
@@ -436,7 +510,9 @@ export function TradePanel({
               ? usdMode
                 ? `Buy $${value}`
                 : `Buy ${value} ${unit}`
-              : `Sell ${Math.min(100, Number(value))}%`}
+              : sellDenom === "tokens"
+                ? `Sell ${Number(value).toLocaleString()} ${round.token.symbol}`
+                : `Sell ${Math.min(100, Number(value))}%`}
       </button>
 
       {/* quick chips */}
@@ -454,7 +530,15 @@ export function TradePanel({
           : [5, 25, 50, 100].map((p) => (
               <button
                 key={p}
-                onClick={() => setPct(String(p))}
+                onClick={() => {
+                  // The chips are labelled in percent, so they set percent —
+                  // and switch the denomination back if it was on tokens.
+                  // Filling a floor-rounded token count instead would leave
+                  // dust behind on "100%", which is the one case where the
+                  // whole point is that nothing is left.
+                  setSellDenom("pct");
+                  setPct(String(p));
+                }}
                 className="rounded-full bg-red-500/15 py-1.5 text-xs font-bold text-red-300 hover:bg-red-500/25"
               >
                 {p}%

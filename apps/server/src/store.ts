@@ -264,6 +264,17 @@ export class Store {
   auctionResults = new Map<string, AuctionResult>();
   trades = new Map<string, Trade[]>(); // roundId → trades
   candles = new Map<string, Candle[]>(); // roundId → closed 1s candles
+  /**
+   * Rolled-up history, so a chart can zoom past the 1s tape's 15-minute window.
+   *
+   * Endurance has no clock — a coin can run for days — and 900 one-second
+   * candles is a quarter of an hour. Without these, an hourly or daily
+   * timeframe has nothing to draw. Kept as separate coarse series rather than
+   * a longer 1s tape because a week at one-second resolution is 604,800
+   * candles per round, which we would also be writing into every snapshot.
+   */
+  candlesMin = new Map<string, Candle[]>(); // 1m buckets, 24h
+  candlesHour = new Map<string, Candle[]>(); // 1h buckets, 30d
   positions = new Map<string, Map<Address, Position>>(); // roundId → address → position
   chat = new Map<string, ChatMessage[]>();
   killfeed = new Map<string, KillFeedEvent[]>();
@@ -1265,6 +1276,8 @@ export class Store {
       // had been running for days.
       archivedRounds: [...this.rounds.values()],
       candles: [...this.candles.entries()],
+      candlesMin: [...this.candlesMin.entries()],
+      candlesHour: [...this.candlesHour.entries()],
       // The per-round state an in-flight round cannot resume without. Finished
       // rounds keep theirs in the summary, so this is scoped to the live ones
       // to keep the snapshot from growing without bound.
@@ -1388,6 +1401,8 @@ export class Store {
       if (lr.pitEntries?.length) this.pitEntries.set(lr.roundId, new Map(lr.pitEntries));
     }
     for (const [roundId, candles] of snap.candles ?? []) this.candles.set(roundId, candles);
+    for (const [id, c] of snap.candlesMin ?? []) this.candlesMin.set(id, c);
+    for (const [id, c] of snap.candlesHour ?? []) this.candlesHour.set(id, c);
     for (const a of snap.auctionResults) {
       // Settled against a poisoned pool, so the result carries the same NaN
       // through poolAfter and the clearing price. This is what the round page
@@ -1687,6 +1702,8 @@ export interface Snapshot {
   /** Every round, in-flight included — see snapshot() for why. */
   archivedRounds: Round[];
   candles?: Array<[string, Candle[]]>;
+  candlesMin?: Array<[string, Candle[]]>;
+  candlesHour?: Array<[string, Candle[]]>;
   /** Per-round state that only in-flight rounds need to resume. */
   liveRounds?: Array<{
     roundId: string;

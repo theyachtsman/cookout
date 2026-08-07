@@ -623,6 +623,15 @@ export interface ChatMessage {
    *  inline banners rather than player messages. */
   system?: boolean;
   systemKind?: SystemChatKind;
+  /**
+   * An action attached to a system banner, rendered as a button in the room.
+   *
+   * Chat is otherwise plain text on purpose. This exists because some banners
+   * are addressed to one person and are useless without the thing they are
+   * telling them to do — "your coin didn't make it, run it back" is the whole
+   * point, and making the dev go hunt for the button loses most of them.
+   */
+  systemLink?: { href: string; label: string };
 }
 
 export type SystemChatKind =
@@ -639,6 +648,9 @@ export type SystemChatKind =
   | "dev_sell"
   | "graduated"
   | "ended"
+  /** Addressed to the coin's dev after a round that didn't graduate — carries
+   *  a Run It Back action, so it is styled as an invitation, not a result. */
+  | "runback"
   /** Admin/house announcement or rotating tip — high-attention styling. */
   | "announce"
   /** The Pit — Swarm AI system messages, styled with the Swarm accent:

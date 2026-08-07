@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useEffect, useRef, useState } from "react";
 import type { ChatMessage, SystemChatKind } from "@cookout/shared";
 import { UserName } from "./UserCard";
@@ -23,6 +25,8 @@ const SYSTEM_STYLE: Record<SystemChatKind, string> = {
   dev_sell: "border-orange-400/60 text-orange-200",
   graduated: "border-lime-400/60 text-lime-300",
   ended: "border-zinc-600 text-zinc-400",
+  // An invitation, not a result — it reads as an offer rather than an epitaph.
+  runback: "border-sky-400/60 text-sky-200",
   announce: "border-amber-400/60 text-amber-200",
   pit_open: "border-fuchsia-400/50 text-fuchsia-300",
   pit_live: "border-fuchsia-400/60 text-fuchsia-200",
@@ -42,6 +46,7 @@ const SYSTEM_ICON: Record<SystemChatKind, string> = {
   dev_sell: "⚠️",
   graduated: "🍽️",
   ended: "🏁",
+  runback: "🔁",
   announce: "📢",
   pit_open: "🕳️",
   pit_live: "🤖",
@@ -169,6 +174,16 @@ export function ChatLog({
             >
               <span className="mr-1.5">{SYSTEM_ICON[m.systemKind ?? "ended"]}</span>
               {m.text}
+              {/* Some banners are an instruction with nowhere to go unless the
+                  action comes with them — see ChatMessage.systemLink. */}
+              {m.systemLink && (
+                <Link
+                  href={m.systemLink.href}
+                  className="mt-1.5 block w-fit rounded-lg bg-sky-400/15 px-2.5 py-1 text-[11px] font-black text-sky-200 ring-1 ring-sky-400/40 transition hover:bg-sky-400 hover:text-zinc-950"
+                >
+                  {m.systemLink.label}
+                </Link>
+              )}
             </div>
           ) : (
             <Line key={m.id} m={m} me={me} myName={myName} />

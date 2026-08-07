@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { dayKey, unlockedCosmetics, weekKey, type ServerEvent, type TokenConcept } from "@cookout/shared";
+import { dayKey, unlockedCosmetics, weekKey, type Candle, type ServerEvent, type TokenConcept } from "@cookout/shared";
 import { RoundEngine } from "./engine.js";
+import type { Round } from "@cookout/shared";
 import { nextFreeSlot } from "./seed.js";
 import { Store } from "./store.js";
 
@@ -459,4 +460,111 @@ test("Endurance progression: quests, achievements, titles and badges", () => {
       .map((c) => c.id)
       .includes("t_builder"),
   );
+});
+
+test("candle rollups keep long-horizon history for Endurance", () => {
+  // The 1s tape holds 900 candles — fifteen minutes. Endurance has no clock,
+  // so without coarser series an hourly or daily chart has nothing to draw.
+  const { engine, store } = setup();
+  const roundId = "roll-1";
+  const close = (engine as never as { closeCandle(id: string, c: Candle): void }).closeCandle.bind(
+    engine,
+  );
+
+  // Three hours of one-second candles, priced so each is identifiable.
+  // Started on an hour boundary: buckets align to wall-clock time the way an
+  // exchange's do, so a mid-minute start would leave a partial bucket at each
+  // end and the counts below would be about arithmetic rather than about the
+  // rollup being right.
+  const start = 1_699_999_200;
+  for (let i = 0; i < 3 * 3600; i++) {
+    const p = 100 + i;
+    close(roundId, { t: start + i, o: p, h: p + 1, l: p - 1, c: p, v: 1 });
+  }
+
+  const sec = store.candles.get(roundId)!;
+  const min = store.candlesMin.get(roundId)!;
+  const hour = store.candlesHour.get(roundId)!;
+  assert.equal(sec.length, 900, "1s tape stays capped");
+  assert.equal(min.length, 180, "three hours of minutes");
+  assert.equal(hour.length, 3, "three hourly candles");
+
+  // A rolled-up candle must mean what an exchange means: open is the first
+  // price in the bucket, close the last, high/low the extremes, volume summed.
+  const h0 = hour[0]!;
+  assert.equal(h0.t % 3600, 0, "bucket is aligned to the hour");
+  assert.equal(h0.o, 100, "opens at the first price seen");
+  assert.equal(h0.v, 3600, "volume is summed, not averaged");
+  assert.ok(h0.h > h0.l && h0.c > h0.o, "a rising hour");
+  // And the hour's range must contain every minute inside it.
+  const inside = min.filter((m) => m.t >= h0.t && m.t < h0.t + 3600);
+  assert.equal(inside.length, 60);
+  assert.ok(h0.h >= Math.max(...inside.map((m) => m.h)));
+  assert.ok(h0.l <= Math.min(...inside.map((m) => m.l)));
+});
+
+test("rollup series are capped, so a coin running for months can't grow forever", () => {
+  const { engine, store } = setup();
+  const close = (engine as never as { closeCandle(id: string, c: Candle): void }).closeCandle.bind(
+    engine,
+  );
+  // 40 days of hourly-spaced candles — past the 30-day hour cap.
+  const start = 1_700_000_000;
+  for (let i = 0; i < 40 * 24; i++) {
+    const t = start + i * 3600;
+    close("roll-2", { t, o: 1, h: 1, l: 1, c: 1, v: 1 });
+  }
+  assert.equal(store.candlesHour.get("roll-2")!.length, 720, "30 days of hours, no more");
+  assert.ok(store.candlesMin.get("roll-2")!.length <= 1440, "24h of minutes, no more");
+});
+
+/** Drive a fresh round through the real phases to live trading. */
+function liveRound(
+  engine: RoundEngine,
+  store: Store,
+  concept: TokenConcept,
+  t0 = 6_100_000_000,
+): Round {
+  const round = engine.scheduleRound(concept, "rookie", t0);
+  engine.tick(t0);
+  engine.tick(round.queueOpensAt!);
+  store.arenaDeposit(A, 10);
+  engine.submitIntent(round.id, A, 0.2, undefined, round.queueOpensAt! + 1);
+  engine.tick(round.queueClosesAt!);
+  return round;
+}
+
+test("a coin that misses graduation gets told how to run it back", () => {
+  const { engine, store, sys, concept } = setup();
+  const round = liveRound(engine, store, concept);
+  engine.endRound(round, "timer", round.liveAt! + 1000);
+
+  const banner = sys.find((m) => m.kind === "runback");
+  assert.ok(banner, "the dev is told, in their own coin's room");
+  assert.equal(banner.room, round.id, "not buried in the global Grill");
+  assert.match(banner.text, /didn't bond/);
+
+  // The room's own closing line must not claim the chat is frozen when it
+  // isn't, and a graduated coin keeps trading in the wild.
+  const closing = sys.find((m) => m.room === round.id && m.kind === "ended");
+  assert.match(closing.text ?? "", /frozen/, "an ended round is done");
+});
+
+test("a rug gets no run-it-back invitation", () => {
+  // Run It Back is a second chance for a coin that didn't catch. Offering it
+  // to someone who just drained their own pool reads as encouragement.
+  const { engine, store, sys, concept } = setup();
+  const round = liveRound(engine, store, concept, 6_200_000_000);
+  engine.endRound(round, "rug_detected", round.liveAt! + 1000);
+  assert.equal(sys.filter((m) => m.kind === "runback").length, 0);
+});
+
+test("a graduated coin's room says it stays open", () => {
+  const { engine, store, sys, concept } = setup();
+  const round = liveRound(engine, store, concept, 6_300_000_000);
+  engine.endRound(round, "graduated", round.liveAt! + 1000, true);
+  const closing = sys.find((m) => m.room === round.id && m.kind === "graduated");
+  assert.ok(closing, "the room gets a closing banner");
+  assert.doesNotMatch(closing.text, /frozen/, "it keeps trading, so the room keeps talking");
+  assert.equal(sys.filter((m) => m.kind === "runback").length, 0, "nothing to run back");
 });
