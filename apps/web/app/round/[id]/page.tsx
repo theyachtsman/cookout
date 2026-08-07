@@ -14,6 +14,7 @@ import type {
 } from "@cookout/shared";
 import { isEnduranceMode } from "@cookout/shared";
 import { RunItBackButton } from "../../../components/RunItBack";
+import { ChartSource } from "../../../components/ChartSource";
 import { api } from "../../../lib/api";
 import { chainSell, walletTokenBalanceWei } from "../../../lib/chainTx";
 import { playAthSparkle, playFanfare, playHorn, playMilestone, playRug, playSell, playThud, playTradeTick, playWhale } from "../../../lib/sfx";
@@ -616,6 +617,15 @@ export default function RoundPage() {
               />
               {launching && <div className="launch-flash" />}
               {flash && <PhaseFlash text={flash.text} tone={flash.tone} />}
+              {/* Once a coin bonds out it has two markets: our curve (the round
+                  that made it, which exists nowhere on chain) and the Uniswap
+                  pool it graduated into. Only offered when the pool is actually
+                  indexed — see lib/dexscreener. */}
+              <ChartSource
+                chainId={round.graduated ? round.chain?.chainId : undefined}
+                tokenAddress={round.graduated ? round.chain?.token : undefined}
+                symbol={round.token.symbol}
+              >
               <Chart
               candles={candles}
               candlesMin={candlesMin}
@@ -641,6 +651,7 @@ export default function RoundPage() {
               endReason={round.graduated ? undefined : round.endReason}
               graduated={round.graduated}
               />
+              </ChartSource>
             </div>
             {/* Rug meter — the dev's dump-to-rug gauge, right on the trade deck.
                 Only the creator ever receives `rug`, so this is theirs alone. */}

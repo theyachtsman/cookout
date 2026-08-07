@@ -753,3 +753,35 @@ test("the chart offers long timeframes only where they can be filled", async () 
   assert.ok(autoTf("live", dayIn, true) >= 3_600, "a day into an open market is hours, not minutes");
   assert.equal(autoTf("live", Date.now(), true), 1, "still ticks at the open");
 });
+
+test("DEX Screener is offered only when the pool is really indexed", async () => {
+  // A graduated coin has two markets and they answer different questions: our
+  // candles are the round that created it (which exists nowhere on chain), and
+  // the Uniswap pool is where it trades now (which we do not index). Swapping
+  // one for the other would delete the pre-bond history from the only place it
+  // is visible, so this is a toggle.
+  const lib = web("lib/dexscreener.ts");
+  // The URL comes from their API, never from string-building. A guessed URL
+  // 404s for as long as indexing takes, and a dead link on a fresh coin reads
+  // as our bug rather than a third party being slow.
+  assert.match(lib, /url: hit\.url/, "canonical url comes from the API");
+  assert.ok(
+    !/https:\/\/dexscreener\.com\/\$\{[^}]*\}\/\$\{[^}]*\}`\s*;?\s*\n\s*}\s*\n\s*\/\*\* Watch/.test(lib),
+    "no hand-built pair URL",
+  );
+  assert.match(lib, /4663: "robinhood"/, "mapped to their chain slug");
+  // Polling has to stop once the answer is found — it never changes back.
+  assert.match(lib, /return; \/\/ settled — stop polling/);
+
+  const ui = web("components/ChartSource.tsx");
+  assert.match(ui, /if \(dex\.status === "unsupported"\) return <>\{children\}<\/>/, "paper coins unaffected");
+  assert.match(ui, /dex\.status === "indexed" && source === "dex"/, "embed needs a real pair");
+  // Before indexing it must say so rather than offer a link into nothing.
+  assert.match(ui, /Not on DEX Screener yet/);
+  assert.ok(!/href=\{`https:\/\/dexscreener/.test(ui), "no speculative link");
+
+  // And it is only wired up for coins that actually bonded.
+  const page = web("app/round/[id]/page.tsx");
+  assert.match(page, /chainId=\{round\.graduated \? round\.chain\?\.chainId : undefined\}/);
+  assert.match(page, /tokenAddress=\{round\.graduated \? round\.chain\?\.token : undefined\}/);
+});
