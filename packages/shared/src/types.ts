@@ -474,6 +474,14 @@ export interface Round {
    * now is the one worth surfacing. This is what "Hot" sorts on.
    */
   lastTradeAt?: number;
+  /**
+   * A handful of recent closing prices, for the card sparkline.
+   *
+   * Computed per request in the list payloads and never stored — a card wants
+   * the shape of the last hour, not a chart, and fetching candles per card
+   * would be one request per coin on a shelf.
+   */
+  spark?: number[];
   /** Present only for on-chain rounds. */
   chain?: ChainRoundInfo;
 }

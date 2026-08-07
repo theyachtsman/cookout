@@ -840,3 +840,21 @@ test("the Endurance rail's Hot sort ranks by trade activity, not by launch time"
   sortEndurance(original, "hot");
   assert.deepEqual(original.map((r) => r.id), ["fresh", "mid", "old"]);
 });
+
+test("the card sparkline is computed per request, never stored", async () => {
+  // A derived array attached to the stored round would end up in every
+  // snapshot from then on — the persistence bug that just cost live coins
+  // their history came from exactly this kind of quiet coupling.
+  const routes = readFileSync(join(import.meta.dirname, "routes.ts"), "utf8");
+  assert.match(routes, /\{ \.\.\.r, spark: sparkFor\(r\) \}/, "spread into a copy");
+  assert.ok(!/r\.spark =/.test(routes), "never assigned onto the stored round");
+  // Minute rollups first: on Endurance the last 900 seconds is a flat line.
+  assert.match(routes, /mins\.length >= 8 \? mins\.slice\(-120\)/);
+  // And the line has to end where the price label says it is.
+  assert.match(routes, /if \(out\[out\.length - 1\] !== last\) out\.push\(last\)/);
+
+  const spark = web("components/Sparkline.tsx");
+  // A flat series must not divide by zero and blank the card.
+  assert.match(spark, /const span = max - min \|\| 1;/);
+  assert.match(spark, /points\.length < 2/, "too few points draws nothing");
+});

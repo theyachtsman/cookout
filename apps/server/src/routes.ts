@@ -35,6 +35,7 @@ import {
   type PitEntry,
   type RiskTier,
   type TokenConcept,
+  type Round,
 } from "@cookout/shared";
 import { mountCommandCenter } from "./command-center.js";
 import { ComplianceService, locationOf } from "./compliance.js";
@@ -1984,11 +1985,35 @@ export function createApp(
     wrap((_req, res) => res.json({ online: presence() })),
   );
 
+  /**
+   * ~40 closing prices describing a coin's recent shape.
+   *
+   * Prefers the minute rollups: on Endurance, which can run for days, the last
+   * 900 seconds is a flat line that says nothing. Falls back to the 1s tape for
+   * a coin too young to have minutes yet.
+   */
+  const sparkFor = (r: Round): number[] | undefined => {
+    const mins = store.candlesMin.get(r.id) ?? [];
+    const src = mins.length >= 8 ? mins.slice(-120) : (store.candles.get(r.id) ?? []).slice(-300);
+    if (src.length < 2) return undefined;
+    const step = Math.max(1, Math.floor(src.length / 40));
+    const out: number[] = [];
+    for (let i = 0; i < src.length; i += step) out.push(src[i]!.c);
+    // Always end on the latest close, or the line stops short of the price
+    // the card is showing next to it.
+    const last = src[src.length - 1]!.c;
+    if (out[out.length - 1] !== last) out.push(last);
+    return out;
+  };
+
   app.get(
     "/api/calendar",
     wrap((_req, res) => {
       const rounds = [...store.rounds.values()].sort((a, b) => a.scheduledAt - b.scheduledAt);
-      res.json(rounds);
+      // Cards draw a sparkline, so the list carries a few closes with it.
+      // Spread into a copy: attaching this to the stored round would put a
+      // derived array into every snapshot from then on.
+      res.json(rounds.map((r) => (r.state === "live" || r.graduated ? { ...r, spark: sparkFor(r) } : r)));
     }),
   );
 

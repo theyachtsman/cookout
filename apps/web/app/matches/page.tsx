@@ -704,8 +704,13 @@ function ResultCard({ round: r }: { round: Round }) {
 }
 
 function RoundCard({ round }: { round: Round }) {
+  const ethUsd = useEthUsd();
   // Queued coins have cleared the vote, so their identity is shown too.
   const teaser = false;
+  // Only meaningful once there's a pool behind it — a scheduled coin has no
+  // market yet, and showing $0 would read as a dead coin rather than an
+  // unstarted one.
+  const mcapUsd = round.pool ? mcapOf(round) * ethUsd : 0;
   const stateLabel: Record<string, string> = {
     scheduled: "Starting soon",
     lobby: "Lobby open",
@@ -727,6 +732,7 @@ function RoundCard({ round }: { round: Round }) {
       }}
       teaser={teaser}
       borderClass="border-transparent"
+      spark={round.spark}
       corner={
         <span
           className={`shrink-0 rounded px-2 py-1 text-xs font-bold ${
@@ -760,6 +766,16 @@ function RoundCard({ round }: { round: Round }) {
             <span className="text-emerald-400">
               Trading now{isEnduranceMode(round.mode) && " · no timer, runs to the bond"}
             </span>
+          )}
+          {mcapUsd > 0 && (
+            <div className="mt-0.5 flex items-baseline gap-1.5">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-600">
+                Market cap
+              </span>
+              <span className="font-mono text-sm font-black text-lime-300">
+                {compactUsd(mcapUsd)}
+              </span>
+            </div>
           )}
         </div>
         <div className="flex items-center gap-2">

@@ -11,6 +11,7 @@ import {
 import { useCopy } from "../lib/copy";
 import { CreatorBadge } from "./CreatorBadge";
 import { EditCoinButton } from "./EditCoinButton";
+import { Sparkline } from "./Sparkline";
 import { TierChip } from "./TierChip";
 
 /** The Over Time modifier badge, shown on coins that opted into the bonus. */
@@ -99,6 +100,7 @@ export interface CoinIdentity {
 export function CoinCard({
   coin,
   corner,
+  spark,
   children,
   teaser = false,
   borderClass = "border-zinc-700",
@@ -108,6 +110,8 @@ export function CoinCard({
   coin: CoinIdentity;
   /** Element pinned top-right over the banner (state chip, vote count…). */
   corner?: React.ReactNode;
+  /** Recent closes, drawn across the bottom of the banner. See Sparkline. */
+  spark?: number[];
   /** Context body rendered below the identity row. */
   children?: React.ReactNode;
   /** Pre-reveal (scheduled rounds): hide identity, blur & desaturate art. */
@@ -164,6 +168,11 @@ export function CoinCard({
             className="absolute inset-0 bg-gradient-to-b from-lime-400/10 to-transparent"
           />
         ) : null}
+        {/* Sits above the banner art and under the fade, so the line reads
+            against the card body rather than fighting the artwork. */}
+        {spark && spark.length > 1 && (
+          <Sparkline points={spark} className="absolute inset-x-0 bottom-0 h-10 w-full" />
+        )}
         {corner && <div className="absolute right-3 top-3">{corner}</div>}
         {canEdit && (
           <div className="absolute left-3 top-3 z-10">
