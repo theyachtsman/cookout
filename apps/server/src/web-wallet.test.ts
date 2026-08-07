@@ -725,9 +725,19 @@ test("the chart offers long timeframes only where they can be filled", async () 
   const { timeframesFor, sourceFor, autoTf } = await import("../../../apps/web/lib/timeframe.js");
 
   const timed = timeframesFor(false).map(([s]) => s);
-  const endurance = timeframesFor(true).map(([s]) => s);
+  const openEnded = timeframesFor(true).map(([s]) => s);
   assert.deepEqual(timed, [1, 15, 60, 300], "timed rounds stop at 5m");
-  assert.ok(endurance.includes(3_600) && endurance.includes(86_400) && endurance.includes(604_800));
+  assert.ok(openEnded.includes(3_600) && openEnded.includes(86_400) && openEnded.includes(604_800));
+
+  // Two things are open-ended, not one: Endurance, and every coin that bonded
+  // out. A graduated coin keeps trading in the wild forever, so its chart has
+  // exactly the problem a week-old Endurance coin has.
+  const page = web("app/round/[id]/page.tsx");
+  assert.match(
+    page,
+    /openEnded=\{isEnduranceMode\(round\.mode\) \|\| !!round\.graduated\}/,
+    "bonded coins get the long ladder too",
+  );
 
   // Each timeframe must read a series that actually reaches back far enough.
   // The 1s tape is 900 candles — fifteen minutes — so anything longer than
@@ -740,6 +750,6 @@ test("the chart offers long timeframes only where they can be filled", async () 
   // Auto keeps stepping out for Endurance, and stops where a timed round ends.
   const dayIn = Date.now() - 36 * 3_600 * 1000;
   assert.equal(autoTf("live", dayIn, false), 60, "timed rounds settle at 1m");
-  assert.ok(autoTf("live", dayIn, true) >= 3_600, "a day into Endurance is hours, not minutes");
+  assert.ok(autoTf("live", dayIn, true) >= 3_600, "a day into an open market is hours, not minutes");
   assert.equal(autoTf("live", Date.now(), true), 1, "still ticks at the open");
 });

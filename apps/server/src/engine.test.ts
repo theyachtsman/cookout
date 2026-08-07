@@ -568,3 +568,24 @@ test("a graduated coin's room says it stays open", () => {
   assert.doesNotMatch(closing.text, /frozen/, "it keeps trading, so the room keeps talking");
   assert.equal(sys.filter((m) => m.kind === "runback").length, 0, "nothing to run back");
 });
+
+test("a bonded coin keeps building chart history in the wild", () => {
+  // Graduated coins never close, so their chart needs the same long history
+  // Endurance does. The keep-alive tick has to feed the rollups, not just the
+  // 1s tape — otherwise the hourly view on a week-old bonded coin is empty.
+  const { engine, store, concept } = setup();
+  const round = liveRound(engine, store, concept, 6_400_000_000);
+  engine.endRound(round, "graduated", round.liveAt! + 1000, true);
+  assert.equal(round.graduated, true);
+
+  // Run the post-graduation market for two hours of wall clock.
+  let now = round.endedAt! + 1000;
+  for (let i = 0; i < 2 * 3600; i++) {
+    now += 1000;
+    engine.tick(now);
+  }
+  const hours = store.candlesHour.get(round.id) ?? [];
+  const mins = store.candlesMin.get(round.id) ?? [];
+  assert.ok(mins.length > 60, `minutes kept accumulating after graduation (${mins.length})`);
+  assert.ok(hours.length >= 2, `hourly candles exist for a bonded coin (${hours.length})`);
+});

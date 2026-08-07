@@ -620,7 +620,9 @@ export default function RoundPage() {
               candles={candles}
               candlesMin={candlesMin}
               candlesHour={candlesHour}
-              endurance={isEnduranceMode(round.mode)}
+              // A bonded coin keeps trading in the wild with no close, so it
+              // needs the long ladder for the same reason Endurance does.
+              openEnded={isEnduranceMode(round.mode) || !!round.graduated}
               trades={trades}
               livePrice={ticker?.price}
               openPrice={round.clearingPrice}

@@ -34,8 +34,9 @@ interface Props {
   /** Coarser server-side rollups, for timeframes the 1s tape cannot reach. */
   candlesMin?: Candle[];
   candlesHour?: Candle[];
-  /** Endurance has no clock, so it gets the full ladder out to 1W. */
-  endurance?: boolean;
+  /** No scheduled close — Endurance, or a coin that has bonded out. Gets the
+   *  full ladder out to 1W, because both trade indefinitely. */
+  openEnded?: boolean;
 }
 
 export function Chart(props: Props) {

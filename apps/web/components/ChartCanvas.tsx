@@ -45,8 +45,9 @@ interface Props {
   /** Coarser server-side rollups, for timeframes the 1s tape cannot reach. */
   candlesMin?: Candle[];
   candlesHour?: Candle[];
-  /** Endurance has no clock, so it gets the full ladder out to 1W. */
-  endurance?: boolean;
+  /** No scheduled close — Endurance, or a coin that has bonded out. Gets the
+   *  full ladder out to 1W, because both trade indefinitely. */
+  openEnded?: boolean;
   /** Stretch to fill the parent (the landing demo's flex slot). The product
    *  page must NOT set this: a percentage height inside a grid-stretched
    *  column balloons to the whole column and shoves the panels below it. */
@@ -78,8 +79,8 @@ export function ChartCanvas(props: Props) {
     const t = setInterval(() => autoTick((n) => n + 1), 5000);
     return () => clearInterval(t);
   }, [tfMode]);
-  const tf = tfMode === "auto" ? autoTf(props.phase, props.liveAt, props.endurance) : tfMode;
-  const ladder = timeframesFor(!!props.endurance);
+  const tf = tfMode === "auto" ? autoTf(props.phase, props.liveAt, props.openEnded) : tfMode;
+  const ladder = timeframesFor(!!props.openEnded);
   const ref = useRef<HTMLCanvasElement>(null);
   const propsRef = useRef(props);
   propsRef.current = props;

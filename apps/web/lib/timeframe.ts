@@ -31,11 +31,15 @@ export const TIMEFRAMES: Array<[TfSeconds, string]> = [
  * Timeframes worth offering for a round of this shape.
  *
  * A timed round can't fill an hourly candle, let alone a weekly one, so
- * offering them would just be nine buttons where seven do nothing. Endurance
- * gets the full ladder.
+ * offering them would just be nine buttons where seven do nothing.
+ *
+ * "Open-ended" is any market with no scheduled close, which is two things:
+ * Endurance, and every coin that has bonded out — a graduated coin keeps
+ * trading in the wild indefinitely, so its chart has exactly the same problem
+ * a week-old Endurance coin does.
  */
-export function timeframesFor(endurance: boolean): Array<[TfSeconds, string]> {
-  return endurance ? TIMEFRAMES : TIMEFRAMES.filter(([s]) => s <= 300);
+export function timeframesFor(openEnded: boolean): Array<[TfSeconds, string]> {
+  return openEnded ? TIMEFRAMES : TIMEFRAMES.filter(([s]) => s <= 300);
 }
 
 /**
@@ -56,16 +60,17 @@ export function sourceFor(tf: TfSeconds): "second" | "minute" | "hour" {
  * it zooms out as the match runs long and the story becomes the trend rather
  * than the tick. Manual selection always wins over this.
  *
- * Endurance keeps going after the point a timed round would have ended, so it
- * keeps stepping out — by the second day the useful view is hours, not minutes.
+ * An open-ended market keeps going past the point a timed round would have
+ * ended, so it keeps stepping out — by the second day the useful view is
+ * hours, not minutes.
  */
-export function autoTf(phase?: string, liveAt?: number, endurance = false): TfSeconds {
+export function autoTf(phase?: string, liveAt?: number, openEnded = false): TfSeconds {
   if (!phase) return 1; // no round context (the landing demo): pure live feed
   if (phase !== "live" || !liveAt) return 15; // queue and results: readable
   const elapsed = (Date.now() - liveAt) / 1000;
   if (elapsed < 180) return 1; // the opening rush
   if (elapsed < 300) return 15;
-  if (!endurance) return 60;
+  if (!openEnded) return 60;
   if (elapsed < 3_600) return 60; // first hour
   if (elapsed < 21_600) return 300; // out to six hours
   if (elapsed < 86_400) return 900; // first day
